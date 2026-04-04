@@ -1,6 +1,8 @@
+import com.github.gradle.node.npm.task.NpmTask
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 
 plugins {
+    id("com.github.node-gradle.node") version "7.0.2"
     id("org.springframework.boot") version "3.3.4"
     id("io.spring.dependency-management") version "1.1.6"
     kotlin("jvm") version "2.1.21"
@@ -16,8 +18,18 @@ java {
     }
 }
 
+kotlin {
+    jvmToolchain(21)
+}
+
 repositories {
     mavenCentral()
+}
+
+node {
+    download.set(true)
+    version.set("22.11.0")
+    npmVersion.set("10.9.0")
 }
 
 dependencies {
@@ -36,5 +48,38 @@ tasks.withType<Test> {
 tasks.withType<KotlinCompile> {
     compilerOptions {
         freeCompilerArgs.add("-Xjsr305=strict")
+    }
+}
+
+val java21Launcher = javaToolchains.launcherFor {
+    languageVersion = JavaLanguageVersion.of(21)
+}
+
+tasks.withType<JavaExec>().configureEach {
+    javaLauncher.set(java21Launcher)
+}
+
+tasks.withType<Test>().configureEach {
+    javaLauncher.set(java21Launcher)
+}
+
+val generatedFrontendDir = layout.buildDirectory.dir("generated/frontend")
+
+val buildFrontend by tasks.registering(NpmTask::class) {
+    dependsOn(tasks.npmInstall)
+    npmCommand.set(listOf("run", "build"))
+
+    inputs.files(
+        fileTree("src/main/frontend"),
+        file("package.json"),
+        file("tsconfig.json")
+    )
+    outputs.dir(generatedFrontendDir)
+}
+
+tasks.processResources {
+    dependsOn(buildFrontend)
+    from(generatedFrontendDir) {
+        into("static")
     }
 }
