@@ -2,26 +2,31 @@
 
 ## Overview
 
-This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a browser-based board game prototype. The backend currently has no game logic or API endpoints; it mainly exists to host the static frontend. Frontend behavior is now split between a pure game-logic module and a DOM/rendering module.
+This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a browser-based board game prototype. The backend now owns a single shared in-memory game session and broadcasts updates over server-sent events. The frontend is responsible for rendering, browser interaction, and local-only selection state.
 
 ## Current Architecture
 
 - `src/main/kotlin/com/dragonsvsravens/DragonsVsRavensApplication.kt`
-  - Minimal Spring Boot entrypoint only.
-  - No controllers, services, repositories, or domain model classes yet.
+  - Spring Boot entrypoint.
+- `src/main/kotlin/com/dragonsvsravens/game/*.kt`
+  - Server-side game state models, pure-ish rules, the in-memory session service, and REST/SSE endpoints.
 - `src/main/resources/static/index.html`
   - Static shell for the game UI.
   - Loads `/styles.css` and `/app.js`.
 - `src/main/resources/static/styles.css`
   - Owns layout, board sizing variables, responsive behavior, and fullscreen styling.
 - `src/main/frontend/game.ts`
-  - Source of truth for game rules and state transitions.
-  - Exports types, state creation helpers, turn/capture logic, and board helper functions.
+  - Frontend wire types and render-side helpers.
+  - Exports board helpers, ownership/capture helpers, move formatting, and local selection normalization.
 - `src/main/frontend/app.ts`
-  - Browser/UI layer only.
-  - Handles DOM lookup, rendering, event listeners, fullscreen interaction, and calls into `game.ts`.
+  - Browser/UI layer.
+  - Fetches the shared game snapshot, sends commands, listens to SSE updates, and renders local UI state.
 - `src/test/frontend/game.test.js`
-  - Frontend behavior tests for the extracted game logic module.
+  - Frontend helper tests for server-backed snapshots and local-only selection behavior.
+- `src/test/kotlin/com/dragonsvsravens/game/GameRulesTest.kt`
+  - Verifies backend rule transitions match the current game rules.
+- `src/test/kotlin/com/dragonsvsravens/game/GameControllerTest.kt`
+  - Verifies the shared game API, version conflicts, and validation errors.
 - `src/test/kotlin/com/dragonsvsravens/DragonsVsRavensApplicationTests.kt`
   - Verifies the Spring application context loads.
 
@@ -40,52 +45,56 @@ This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a brows
   - `npm run test` runs Node's built-in test runner against `src/test/frontend/**/*.test.js`.
   - Gradle task `testFrontend` runs the frontend tests.
   - `./gradlew test` runs both the frontend tests and the Kotlin/Spring test task.
+- Runtime flow:
+  - The browser loads the initial shared game from `GET /api/game`.
+  - The browser sends mutations to `POST /api/game/commands`.
+  - The browser subscribes to `GET /api/game/stream` for live updates.
 - Result:
   - Running `./gradlew bootRun` serves the static HTML/CSS and compiled frontend modules through Spring Boot.
 
 ## Game Model
 
-The board is represented as `Map<string, Piece>`, where the key is a square name like `e5`.
+The canonical board is represented on the server as `Map<String, Piece>` and on the wire as a JSON object keyed by square name like `e5`.
 
 - `Piece = "dragon" | "raven" | "gold"`
 - `Side = "dragons" | "ravens"`
 - `Phase = "setup" | "move" | "capture"`
 
-`GameState` currently contains:
+`GameSnapshot` currently contains:
 
 - `board`
 - `phase`
 - `activeSide`
-- `selectedSquare`
 - `pendingMove`
 - `turns`
 
-Important implication: state is entirely in-memory and client-side. Reloading the page resets the game.
+Important implication: the shared game is entirely in-memory on the server. Multiple clients see the same game, but restarting the server resets it.
 
 ## Responsibilities By File
 
-### `game.ts`
+### Backend game module
 
-This file should remain the home for pure or mostly pure game behavior.
+The Kotlin game module is now the source of truth for game rules and state transitions.
 
-- Creates initial state with the gold at `e5`.
+- Creates the initial shared snapshot with the gold at `e5`.
 - Owns setup cycling logic.
 - Owns turn transitions.
 - Owns movement and capture resolution.
-- Computes capturable and targetable squares.
-- Formats move notation.
+- Wraps the current snapshot in a versioned in-memory game session.
+- Broadcasts updated snapshots to SSE clients.
 
-Most gameplay changes should start here.
+Most gameplay changes should start on the backend here.
 
 ### `app.ts`
 
-This file should remain the browser integration layer.
+This file remains the browser integration layer.
 
-- Holds the current `state` variable for the page session.
-- Maps clicks to state transitions by calling functions from `game.ts`.
+- Holds the latest `serverGame` plus local-only `selectedSquare`.
+- Maps clicks to backend commands.
 - Renders the board, move list, controls, and status text.
 - Sizes the board responsively.
 - Handles fullscreen support and resize observers.
+- Opens and maintains the SSE subscription.
 
 Most UI-only changes should start here.
 
@@ -116,6 +125,14 @@ Most UI-only changes should start here.
 - Capture is optional because the UI exposes a "Skip Capture" button.
 - Completing capture or skipping it commits the turn, appends to move history, and swaps the active side.
 
+### Shared play behavior
+
+- All clients connected to the app see the same server-owned game session.
+- The server exposes a single shared game with id `default`.
+- Mutation requests include an expected version.
+- On a version conflict, the server returns `409` with the latest game snapshot.
+- The browser keeps piece selection local; other clients do not see half-finished selections.
+
 ## Rendering Strategy
 
 There is no framework. The UI is built with direct DOM manipulation.
@@ -133,6 +150,7 @@ Key rendering details:
 - Board labels are initialized once during startup.
 - `renderBoard()` clears and rebuilds all 81 board buttons each render.
 - Board clicks are handled with delegated click handling on the board container.
+- The browser rerenders after REST responses and after SSE events.
 - Visual highlights are class-based:
   - `selected`
   - `targetable`
@@ -152,10 +170,16 @@ Because the board is rerendered from scratch, future UI changes should preserve 
 
 ## Testing Status
 
-- Frontend game logic now has dedicated tests in `src/test/frontend/game.test.js`.
-- The backend still has only a minimal Spring context test.
+- Frontend helper tests now live in `src/test/frontend/game.test.js`.
+- The backend now has dedicated rules and API tests.
 - The frontend tests currently cover:
-  - initial state
+  - server-backed capturable squares
+  - targetable square calculation
+  - local selection normalization
+  - reading pieces from the wire snapshot
+  - move notation
+- The backend tests currently cover:
+  - initial snapshot
   - setup cycling
   - protected gold square behavior
   - begin-game reset behavior
@@ -163,34 +187,36 @@ Because the board is rerendered from scratch, future UI changes should preserve 
   - move commits when capture is unavailable
   - capture commits
   - skip-capture commits
-  - targetable square calculation
-  - move notation
+  - shared game API reads
+  - version increments
+  - stale-version conflicts
+  - invalid command validation
 
 ## Extension Points For Future Changes
 
 - To add or change gameplay rules:
-  - Start in `src/main/frontend/game.ts`.
-  - Update `src/test/frontend/game.test.js`.
+  - Start in the Kotlin game module under `src/main/kotlin/com/dragonsvsravens/game`.
+  - Update `src/test/kotlin/com/dragonsvsravens/game/GameRulesTest.kt`.
 - To change UI behavior or display:
   - Start in `src/main/frontend/app.ts`.
   - Update `src/main/resources/static/styles.css` if layout or styling is affected.
-- To persist games or support multiplayer:
-  - Add backend endpoints and decide whether the backend becomes the source of truth for rules.
+- To persist games or support richer multiplayer:
+  - Extend the backend session service and decide whether to add durable storage or multiple game ids.
 - To support undo/redo or replay:
-  - Expand the shape of `MoveRecord` or introduce a richer history model in `game.ts`.
+  - Expand the backend session model with richer history, then expose that through the API.
 
 ## Constraints And Gotchas
 
-- The backend currently does not validate gameplay because there is no API.
-- The current implementation allows effectively teleporting a selected piece to any empty square.
+- The shared game currently exists only in memory; a server restart resets it.
+- The current implementation still allows effectively teleporting a selected piece to any empty square.
 - Capture eligibility is global, not positional; if any opposing capturable piece exists anywhere, capture mode begins.
-- State remains browser-only and is lost on reload.
+- Selection remains browser-local and may be cleared when a new server snapshot makes it invalid.
 - `index.html` assumes the generated entry file remains `/app.js`.
 - The frontend tests run against the compiled output in `build/generated/frontend`, so TypeScript build success is part of test success.
 
 ## Suggested Priorities Before Larger Feature Work
 
-1. Decide whether future features are still client-only or whether rules/persistence should move partly to the backend.
-2. Keep `game.ts` as the main home for new rule logic and avoid drifting behavior back into `app.ts`.
-3. Expand frontend tests alongside any new move, capture, or win-condition logic.
-4. Update this summary and `docs/codex-rules.md` when the architecture or workflow changes in meaningful ways.
+1. Define undo/history semantics on top of the shared server-owned session model.
+2. Decide whether the single in-memory shared game should become durable storage or multiple rooms.
+3. Keep backend game rules centralized and avoid drifting gameplay logic back into `app.ts`.
+4. Expand backend and frontend tests alongside any new move, capture, or win-condition logic.

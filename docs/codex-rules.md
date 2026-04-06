@@ -60,6 +60,7 @@ If a requested change would alter one of those rules, implement it only when tha
 ## Testing Rules
 
 - When gameplay logic changes, update or add tests in `src/test/frontend/game.test.js`.
+- When fixing a bug, start by writing or updating a test that reproduces the failure before fixing the implementation.
 - When logic is extracted or refactored, keep tests focused on behavior rather than implementation details.
 - Run `./gradlew test` before finishing code changes whenever practical.
 - Do not claim behavior is unchanged unless the relevant tests pass or you clearly say verification was not completed.

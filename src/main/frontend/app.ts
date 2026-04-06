@@ -1,19 +1,23 @@
 import {
-    beginGame,
-    capturePiece,
-    commitTurn,
-    createInitialState,
-    cycleSetupPiece,
     getCapturableSquares,
+    getPieceAtSquare,
     getSquareName,
     getTargetableSquares,
-    movePiece,
     moveToNotation,
+    normalizeSelectedSquare,
     rowLetters,
     sideOwnsPiece,
+    type GameCommandRequest,
     type Piece,
-    type GameState
+    type ServerGameSession,
+    type ServerGameSnapshot
 } from "./game.js";
+import {
+    fetchGameSession,
+    isSameServerGame,
+    openGameStream,
+    sendGameCommandRequest
+} from "./game-client.js";
 
 const boardElement = document.querySelector<HTMLDivElement>("#board");
 const boardShellElement = document.querySelector<HTMLDivElement>(".board-shell");
@@ -43,7 +47,11 @@ if (
     throw new Error("Required DOM elements are missing.");
 }
 
-let state: GameState = createInitialState();
+let serverGame: ServerGameSession | null = null;
+let selectedSquare: string | null = null;
+let closeGameStream: (() => void) | null = null;
+let isSubmitting = false;
+let loadingMessage = "Loading shared game...";
 
 const pieceGlyph: Record<Piece, string> = {
     dragon: "D",
@@ -51,42 +59,115 @@ const pieceGlyph: Record<Piece, string> = {
     gold: "G"
 };
 
-const handleSquareClick = (square: string): void => {
-    if (state.phase === "setup") {
-        state = cycleSetupPiece(state, square);
-        render();
-        return;
-    }
+const getSnapshot = (): ServerGameSnapshot | null => serverGame?.snapshot ?? null;
 
-    if (state.phase === "capture") {
-        state = capturePiece(state, square);
-        render();
-        return;
-    }
-
-    const currentPiece = state.board.get(square);
-    if (!state.selectedSquare) {
-        if (currentPiece && sideOwnsPiece(state.activeSide, currentPiece)) {
-            state.selectedSquare = square;
-        }
-        render();
-        return;
-    }
-
-    if (state.selectedSquare === square) {
-        state.selectedSquare = null;
-        render();
-        return;
-    }
-
-    if (currentPiece && sideOwnsPiece(state.activeSide, currentPiece)) {
-        state.selectedSquare = square;
-        render();
-        return;
-    }
-
-    state = movePiece(state, state.selectedSquare, square);
+const updateSelectedSquare = (nextSquare: string | null): void => {
+    selectedSquare = nextSquare;
     render();
+};
+
+const render = (): void => {
+    updateBoardSize();
+    renderBoard();
+    renderMoveList();
+    renderControls();
+    updateStatus();
+};
+
+const applyServerGame = (nextGame: ServerGameSession): void => {
+    if (isSameServerGame(serverGame, nextGame)) {
+        return;
+    }
+
+    serverGame = nextGame;
+    selectedSquare = normalizeSelectedSquare(nextGame.snapshot, selectedSquare);
+    render();
+};
+
+const fetchGame = async (): Promise<void> => {
+    applyServerGame(await fetchGameSession());
+};
+
+const sendCommand = async (
+    partialCommand: Omit<GameCommandRequest, "expectedVersion">
+): Promise<void> => {
+    if (!serverGame || isSubmitting) {
+        return;
+    }
+
+    isSubmitting = true;
+    renderControls();
+
+    try {
+        const result = await sendGameCommandRequest(serverGame, partialCommand);
+        if (result.game) {
+            applyServerGame(result.game);
+            return;
+        }
+
+        statusElement.textContent = result.errorMessage ?? "Unable to apply that action right now.";
+    } finally {
+        isSubmitting = false;
+        renderControls();
+    }
+};
+
+const connectStream = (): void => {
+    closeGameStream?.();
+    closeGameStream = openGameStream(
+        (url) => new EventSource(url),
+        applyServerGame,
+        () => {
+            loadingMessage = "Loading shared game...";
+            render();
+        },
+        () => {
+            loadingMessage = "Connection lost. Trying to reconnect...";
+            render();
+        }
+    );
+};
+
+const handleSquareClick = (square: string): void => {
+    const snapshot = getSnapshot();
+    if (!snapshot) {
+        return;
+    }
+
+    if (snapshot.phase === "setup") {
+        void sendCommand({ type: "cycle-setup", square });
+        return;
+    }
+
+    if (snapshot.phase === "capture") {
+        if (getCapturableSquares(snapshot).includes(square)) {
+            void sendCommand({ type: "capture-piece", square });
+        }
+        return;
+    }
+
+    const currentPiece = getPieceAtSquare(snapshot, square);
+    if (!selectedSquare) {
+        if (currentPiece && sideOwnsPiece(snapshot.activeSide, currentPiece)) {
+            updateSelectedSquare(square);
+            return;
+        }
+        return;
+    }
+
+    if (selectedSquare === square) {
+        updateSelectedSquare(null);
+        return;
+    }
+
+    if (currentPiece && sideOwnsPiece(snapshot.activeSide, currentPiece)) {
+        updateSelectedSquare(square);
+        return;
+    }
+
+    const origin = selectedSquare;
+    updateSelectedSquare(null);
+    void sendCommand({ type: "move-piece", origin, destination: square });
 };
 
 const updateBoardSize = (): void => {
@@ -109,19 +190,25 @@ const updateBoardSize = (): void => {
 };
 
 const updateStatus = (): void => {
-    if (state.phase === "setup") {
+    const snapshot = getSnapshot();
+    if (!snapshot) {
+        statusElement.textContent = loadingMessage;
+        return;
+    }
+
+    if (snapshot.phase === "setup") {
         statusElement.textContent = "Setup phase: click a square to place dragon, raven, or empty. Gold stays at e5.";
         return;
     }
 
-    if (state.phase === "capture") {
-        const opposingLabel = state.activeSide === "dragons" ? "raven" : "dragon or gold";
-        statusElement.textContent = `${state.activeSide === "dragons" ? "Dragons" : "Ravens"} moved. Capture one ${opposingLabel}, or skip the capture.`;
+    if (snapshot.phase === "capture") {
+        const opposingLabel = snapshot.activeSide === "dragons" ? "raven" : "dragon or gold";
+        statusElement.textContent = `${snapshot.activeSide === "dragons" ? "Dragons" : "Ravens"} moved. Capture one ${opposingLabel}, or skip the capture.`;
         return;
     }
 
-    const moverLabel = state.activeSide === "dragons" ? "Dragons" : "Ravens";
-    const extra = state.activeSide === "dragons" ? " Dragons may also move the gold." : "";
+    const moverLabel = snapshot.activeSide === "dragons" ? "Dragons" : "Ravens";
+    const extra = snapshot.activeSide === "dragons" ? " Dragons may also move the gold." : "";
     statusElement.textContent = `${moverLabel} to move.${extra}`;
 };
 
@@ -132,22 +219,23 @@ const initializeLabels = (): void => {
 };
 
 const renderBoard = (): void => {
-    const validCaptureSquares = new Set(state.phase === "capture" ? getCapturableSquares(state) : []);
-    const targetableSquares = new Set(getTargetableSquares(state));
+    const snapshot = getSnapshot();
+    const validCaptureSquares = new Set(snapshot?.phase === "capture" ? getCapturableSquares(snapshot) : []);
+    const targetableSquares = new Set(snapshot ? getTargetableSquares(snapshot, selectedSquare) : []);
 
     boardElement.innerHTML = "";
 
     for (let rowIndex = 0; rowIndex < 9; rowIndex += 1) {
         for (let colIndex = 0; colIndex < 9; colIndex += 1) {
             const squareName = getSquareName(rowIndex, colIndex);
-            const piece = state.board.get(squareName);
+            const piece = snapshot ? getPieceAtSquare(snapshot, squareName) : undefined;
             const squareButton = document.createElement("button");
             squareButton.type = "button";
             squareButton.className = "square";
             squareButton.dataset.square = squareName;
             squareButton.setAttribute("aria-label", `Square ${squareName}`);
 
-            if (state.selectedSquare === squareName) {
+            if (selectedSquare === squareName) {
                 squareButton.classList.add("selected");
             }
 
@@ -177,22 +265,19 @@ const renderBoard = (): void => {
 };
 
 const renderMoveList = (): void => {
-    moveListElement.innerHTML = state.turns
+    const snapshot = getSnapshot();
+    moveListElement.innerHTML = (snapshot?.turns ?? [])
         .map((move) => `<li>${moveToNotation(move)}</li>`)
         .join("");
 };
 
 const renderControls = (): void => {
-    startButton.disabled = state.phase !== "setup";
-    captureSkipButton.disabled = state.phase !== "capture";
-};
+    const snapshot = getSnapshot();
+    const disabled = !snapshot || isSubmitting;
 
-const render = (): void => {
-    updateBoardSize();
-    renderBoard();
-    renderMoveList();
-    renderControls();
-    updateStatus();
+    startButton.disabled = disabled || snapshot.phase !== "setup";
+    captureSkipButton.disabled = disabled || snapshot.phase !== "capture";
+    resetButton.disabled = disabled;
 };
 
 boardElement.addEventListener("click", (event) => {
@@ -211,8 +296,8 @@ boardElement.addEventListener("click", (event) => {
 });
 
 startButton.addEventListener("click", () => {
-    state = beginGame(state);
-    render();
+    selectedSquare = null;
+    void sendCommand({ type: "begin-game" });
 });
 
 fullscreenButton.addEventListener("click", async () => {
@@ -230,13 +315,12 @@ fullscreenButton.addEventListener("click", async () => {
 });
 
 resetButton.addEventListener("click", () => {
-    state = createInitialState();
-    render();
+    selectedSquare = null;
+    void sendCommand({ type: "reset-game" });
 });
 
 captureSkipButton.addEventListener("click", () => {
-    state = commitTurn(state);
-    render();
+    void sendCommand({ type: "skip-capture" });
 });
 
 const resizeObserver = new ResizeObserver(() => {
@@ -248,3 +332,11 @@ window.addEventListener("resize", updateBoardSize);
 
 initializeLabels();
 render();
+void fetchGame()
+    .then(() => {
+        connectStream();
+    })
+    .catch(() => {
+        loadingMessage = "Unable to load shared game.";
+        render();
+    });

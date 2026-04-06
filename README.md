@@ -1,12 +1,12 @@
 # Dragons vs Ravens
 
-A Spring Boot + Kotlin web app that serves a TypeScript board game prototype.
+A Spring Boot + Kotlin web app that serves a browser-based board game prototype with shared in-memory server state.
 
 ## What This Repo Contains
 
-- A minimal Spring Boot backend that serves the app
+- A Spring Boot backend that owns a shared in-memory game session and serves live updates
 - A browser-based frontend for the game UI
-- A separate frontend game-logic module with tests
+- Frontend helpers for rendering and local-only selection behavior
 
 ## Requirements
 
@@ -23,6 +23,8 @@ A Spring Boot + Kotlin web app that serves a TypeScript board game prototype.
 
 Then open [http://localhost:8080](http://localhost:8080).
 
+Open the app in two browser tabs to see the shared game stay in sync through server-sent events.
+
 ## Run Tests
 
 ```bash
@@ -31,15 +33,17 @@ Then open [http://localhost:8080](http://localhost:8080).
 
 This runs:
 
-- the frontend game-logic tests
+- the frontend helper tests
 - the Spring Boot test suite
 
 ## Project Structure
 
 - `src/main/frontend/game.ts`
-  - game rules, state transitions, and board helper logic
+  - shared frontend types, board helper logic, and local-selection helpers
 - `src/main/frontend/app.ts`
-  - DOM wiring, rendering, browser events, and fullscreen behavior
+  - DOM wiring, rendering, browser events, REST commands, and SSE sync
+- `src/main/kotlin/com/dragonsvsravens/game`
+  - backend game state, rules, and API endpoints
 - `src/main/resources/static/styles.css`
   - layout and styling
 - `docs/code-summary.md`
@@ -58,5 +62,5 @@ Read docs/code-summary.md and docs/codex-rules.md before making changes. Follow 
 ## Notes
 
 - The frontend is compiled by TypeScript into `build/generated/frontend`.
-- Spring Boot serves the generated frontend assets as static resources.
+- Spring Boot serves the generated frontend assets as static resources and exposes `/api/game` plus `/api/game/stream`.
 - If you change architecture, workflow, or gameplay in a meaningful way, update `docs/code-summary.md`.

@@ -8,36 +8,33 @@ export interface MoveRecord {
     captured?: string;
 }
 
-export interface GameState {
-    board: Map<string, Piece>;
+export interface ServerGameSnapshot {
+    board: Record<string, Piece>;
     phase: Phase;
     activeSide: Side;
-    selectedSquare: string | null;
     pendingMove: MoveRecord | null;
     turns: MoveRecord[];
 }
 
+export interface ServerGameSession {
+    id: string;
+    version: number;
+    createdAt: string;
+    updatedAt: string;
+    snapshot: ServerGameSnapshot;
+}
+
+export interface GameCommandRequest {
+    expectedVersion: number;
+    type: "cycle-setup" | "begin-game" | "move-piece" | "capture-piece" | "skip-capture" | "reset-game";
+    square?: string;
+    origin?: string;
+    destination?: string;
+}
+
 export const rowLetters = ["i", "h", "g", "f", "e", "d", "c", "b", "a"];
-export const bottomToTopLetters = [...rowLetters].reverse();
 
 export const getSquareName = (rowIndex: number, colIndex: number): string => `${rowLetters[rowIndex]}${colIndex + 1}`;
-
-export const createInitialBoard = (): Map<string, Piece> => {
-    const board = new Map<string, Piece>();
-    board.set("e5", "gold");
-    return board;
-};
-
-export const createInitialState = (): GameState => ({
-    board: createInitialBoard(),
-    phase: "setup",
-    activeSide: "dragons",
-    selectedSquare: null,
-    pendingMove: null,
-    turns: []
-});
-
-export const oppositeSide = (side: Side): Side => (side === "dragons" ? "ravens" : "dragons");
 
 export const sideOwnsPiece = (side: Side, piece: Piece): boolean => {
     if (piece === "gold") {
@@ -46,70 +43,16 @@ export const sideOwnsPiece = (side: Side, piece: Piece): boolean => {
     return side === "dragons" ? piece === "dragon" : piece === "raven";
 };
 
-export const canCapturePiece = (side: Side, piece: Piece): boolean => {
-    return side === "dragons" ? piece === "raven" : piece === "dragon" || piece === "gold";
-};
+export const canCapturePiece = (side: Side, piece: Piece): boolean =>
+    side === "dragons" ? piece === "raven" : piece === "dragon" || piece === "gold";
 
-const clearTransientState = (state: GameState): GameState => ({
-    ...state,
-    selectedSquare: null,
-    pendingMove: null
-});
-
-export const cycleSetupPiece = (state: GameState, square: string): GameState => {
-    if (square === "e5") {
-        return state;
-    }
-
-    const board = new Map(state.board);
-    const currentPiece = board.get(square);
-    if (!currentPiece) {
-        board.set(square, "dragon");
-        return { ...state, board };
-    }
-
-    if (currentPiece === "dragon") {
-        board.set(square, "raven");
-        return { ...state, board };
-    }
-
-    board.delete(square);
-    return { ...state, board };
-};
-
-export const beginGame = (state: GameState): GameState => ({
-    ...clearTransientState(state),
-    phase: "move",
-    activeSide: "dragons"
-});
-
-export const resetGame = (): GameState => createInitialState();
-
-export const commitTurn = (state: GameState, capturedSquare?: string): GameState => {
-    if (!state.pendingMove) {
-        return state;
-    }
-
-    const completedMove: MoveRecord = {
-        ...state.pendingMove,
-        ...(capturedSquare ? { captured: capturedSquare } : {})
-    };
-
-    return {
-        ...clearTransientState(state),
-        phase: "move",
-        activeSide: oppositeSide(state.activeSide),
-        turns: [...state.turns, completedMove]
-    };
-};
-
-export const getCapturableSquares = (state: GameState): string[] =>
-    [...state.board.entries()]
-        .filter(([, piece]) => canCapturePiece(state.activeSide, piece))
+export const getCapturableSquares = (snapshot: ServerGameSnapshot): string[] =>
+    Object.entries(snapshot.board)
+        .filter(([, piece]) => canCapturePiece(snapshot.activeSide, piece))
         .map(([square]) => square);
 
-export const getTargetableSquares = (state: GameState): string[] => {
-    if (state.phase !== "move" || !state.selectedSquare) {
+export const getTargetableSquares = (snapshot: ServerGameSnapshot, selectedSquare: string | null): string[] => {
+    if (snapshot.phase !== "move" || !selectedSquare) {
         return [];
     }
 
@@ -117,7 +60,7 @@ export const getTargetableSquares = (state: GameState): string[] => {
     for (let rowIndex = 0; rowIndex < 9; rowIndex += 1) {
         for (let colIndex = 0; colIndex < 9; colIndex += 1) {
             const square = getSquareName(rowIndex, colIndex);
-            if (!state.board.has(square) && square !== state.selectedSquare) {
+            if (!(square in snapshot.board) && square !== selectedSquare) {
                 targetableSquares.push(square);
             }
         }
@@ -125,46 +68,18 @@ export const getTargetableSquares = (state: GameState): string[] => {
     return targetableSquares;
 };
 
-export const movePiece = (state: GameState, origin: string, destination: string): GameState => {
-    if (origin === destination) {
-        return state;
+export const getPieceAtSquare = (snapshot: ServerGameSnapshot, square: string): Piece | undefined => snapshot.board[square];
+
+export const normalizeSelectedSquare = (
+    snapshot: ServerGameSnapshot,
+    selectedSquare: string | null
+): string | null => {
+    if (!selectedSquare || snapshot.phase !== "move") {
+        return null;
     }
 
-    const piece = state.board.get(origin);
-    if (!piece || state.board.has(destination)) {
-        return state;
-    }
-
-    const board = new Map(state.board);
-    board.delete(origin);
-    board.set(destination, piece);
-
-    const movedState: GameState = {
-        ...state,
-        board,
-        selectedSquare: null,
-        pendingMove: { from: origin, to: destination }
-    };
-
-    if (getCapturableSquares(movedState).length > 0) {
-        return {
-            ...movedState,
-            phase: "capture"
-        };
-    }
-
-    return commitTurn(movedState);
-};
-
-export const capturePiece = (state: GameState, square: string): GameState => {
-    const piece = state.board.get(square);
-    if (!piece || !canCapturePiece(state.activeSide, piece)) {
-        return state;
-    }
-
-    const board = new Map(state.board);
-    board.delete(square);
-    return commitTurn({ ...state, board }, square);
+    const piece = getPieceAtSquare(snapshot, selectedSquare);
+    return piece && sideOwnsPiece(snapshot.activeSide, piece) ? selectedSquare : null;
 };
 
 export const moveToNotation = (move: MoveRecord): string =>
