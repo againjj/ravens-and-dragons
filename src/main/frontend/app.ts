@@ -18,23 +18,27 @@ interface GameState {
 }
 
 const boardElement = document.querySelector<HTMLDivElement>("#board");
+const boardShellElement = document.querySelector<HTMLDivElement>(".board-shell");
+const pageElement = document.querySelector<HTMLElement>(".page");
 const statusElement = document.querySelector<HTMLParagraphElement>("#status");
 const moveListElement = document.querySelector<HTMLOListElement>("#move-list");
 const startButton = document.querySelector<HTMLButtonElement>("#start-button");
+const fullscreenButton = document.querySelector<HTMLButtonElement>("#fullscreen-button");
 const resetButton = document.querySelector<HTMLButtonElement>("#reset-button");
 const captureSkipButton = document.querySelector<HTMLButtonElement>("#capture-skip-button");
-const columnLabelsTop = document.querySelector<HTMLDivElement>("#column-labels-top");
 const columnLabelsBottom = document.querySelector<HTMLDivElement>("#column-labels-bottom");
 const rowLabelsLeft = document.querySelector<HTMLDivElement>("#row-labels-left");
 
 if (
     !boardElement ||
+    !boardShellElement ||
+    !pageElement ||
     !statusElement ||
     !moveListElement ||
     !startButton ||
+    !fullscreenButton ||
     !resetButton ||
     !captureSkipButton ||
-    !columnLabelsTop ||
     !columnLabelsBottom ||
     !rowLabelsLeft
 ) {
@@ -77,7 +81,7 @@ const sideOwnsPiece = (side: Side, piece: Piece): boolean => {
 };
 
 const canCapturePiece = (side: Side, piece: Piece): boolean => {
-    return side === "dragons" ? piece === "raven" : piece === "dragon";
+    return side === "dragons" ? piece === "raven" : piece === "dragon" || piece === "gold";
 };
 
 const cycleSetupPiece = (square: string): void => {
@@ -210,6 +214,22 @@ const handleSquareClick = (square: string): void => {
 const moveToNotation = (move: MoveRecord): string =>
     `${move.from}-${move.to}${move.captured ? `x${move.captured}` : ""}`;
 
+const updateBoardSize = (): void => {
+    const shellStyles = window.getComputedStyle(boardShellElement);
+    const labelColumnWidth = Number.parseFloat(shellStyles.getPropertyValue("--label-col-width")) || 30;
+    const labelRowHeight = Number.parseFloat(shellStyles.getPropertyValue("--label-row-height")) || 30;
+    const boardLabelGap = Number.parseFloat(shellStyles.getPropertyValue("--board-label-gap")) || 8;
+    const narrowLayout = window.matchMedia("(max-width: 900px), (max-aspect-ratio: 4 / 5)").matches;
+
+    const availableWidth = boardShellElement.clientWidth - labelColumnWidth - boardLabelGap;
+    const availableHeight = narrowLayout
+        ? availableWidth
+        : boardShellElement.clientHeight - labelRowHeight - boardLabelGap;
+    const nextBoardSize = Math.max(180, Math.floor(Math.min(availableWidth, availableHeight)));
+
+    boardShellElement.style.setProperty("--board-size", `${nextBoardSize}px`);
+};
+
 const updateStatus = (): void => {
     if (state.phase === "setup") {
         statusElement.textContent = "Setup phase: click a square to place dragon, raven, or empty. Gold stays at e5.";
@@ -217,7 +237,7 @@ const updateStatus = (): void => {
     }
 
     if (state.phase === "capture") {
-        const opposingLabel = state.activeSide === "dragons" ? "raven" : "dragon";
+        const opposingLabel = state.activeSide === "dragons" ? "raven" : "dragon or gold";
         statusElement.textContent = `${state.activeSide === "dragons" ? "Dragons" : "Ravens"} moved. Capture one ${opposingLabel}, or skip the capture.`;
         return;
     }
@@ -229,7 +249,6 @@ const updateStatus = (): void => {
 
 const renderLabels = (): void => {
     const columnsMarkup = Array.from({ length: 9 }, (_, index) => `<span>${index + 1}</span>`).join("");
-    columnLabelsTop.innerHTML = columnsMarkup;
     columnLabelsBottom.innerHTML = columnsMarkup;
     rowLabelsLeft.innerHTML = bottomToTopLetters
         .slice()
@@ -310,10 +329,11 @@ const renderMoveList = (): void => {
 
 const renderControls = (): void => {
     startButton.disabled = state.phase !== "setup";
-    captureSkipButton.hidden = state.phase !== "capture";
+    captureSkipButton.disabled = state.phase !== "capture";
 };
 
 const render = (): void => {
+    updateBoardSize();
     renderLabels();
     renderBoard();
     renderMoveList();
@@ -326,6 +346,20 @@ startButton.addEventListener("click", () => {
     render();
 });
 
+fullscreenButton.addEventListener("click", async () => {
+    if (!document.fullscreenEnabled) {
+        statusElement.textContent = "Fullscreen is not available in this browser.";
+        return;
+    }
+
+    if (document.fullscreenElement) {
+        await document.exitFullscreen();
+        return;
+    }
+
+    await pageElement.requestFullscreen();
+});
+
 resetButton.addEventListener("click", () => {
     resetGame();
     render();
@@ -335,5 +369,12 @@ captureSkipButton.addEventListener("click", () => {
     commitTurn();
     render();
 });
+
+const resizeObserver = new ResizeObserver(() => {
+    updateBoardSize();
+});
+
+resizeObserver.observe(boardShellElement);
+window.addEventListener("resize", updateBoardSize);
 
 render();
