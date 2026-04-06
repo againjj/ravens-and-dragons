@@ -16,11 +16,17 @@ This file contains repository-specific instructions for AI-assisted work in this
 
 ## Architecture Rules
 
-- `src/main/frontend/game.ts` is the home for game rules and state transitions.
-- `src/main/frontend/app.ts` should stay focused on DOM lookup, event wiring, rendering, and browser APIs.
-- Do not move gameplay logic back into `app.ts` unless the user explicitly asks for that tradeoff.
-- Keep the backend minimal unless new server behavior is required.
-- If persistence, multiplayer, or server-side validation is added later, discuss the architecture shift before spreading rules across frontend and backend.
+- `src/main/kotlin/com/dragonsvsravens/game` is the home for canonical game rules, state transitions, and shared session behavior.
+- `src/main/frontend/game.ts` should hold wire types, board helpers, move formatting, and local-only selection helpers.
+- `src/main/frontend/App.tsx` should stay focused on shell composition and top-level wiring.
+- `src/main/frontend/components` should own React rendering.
+- `src/main/frontend/features/game` should own Redux slices, selectors, thunks, and stream lifecycle helpers for game/session behavior.
+- `src/main/frontend/features/ui` should own browser-local UI state such as selection.
+- `src/main/frontend/game-client.ts` should stay focused on REST/SSE transport helpers and client-side request handling.
+- `src/main/frontend/hooks` should wrap browser APIs such as fullscreen and resize observation.
+- Do not move gameplay logic into React components or split canonical rules between frontend and backend unless the user explicitly asks for that tradeoff.
+- Keep browser-local state limited to UI concerns such as selection and loading/error presentation.
+- If persistence, multiple rooms, or richer multiplayer behavior is added later, discuss the architecture shift before spreading state ownership further.
 
 ## Gameplay Rules That Are Currently Intentional
 
@@ -36,14 +42,16 @@ Unless the user asks to change game behavior, preserve these current rules:
 - Dragons may capture one raven.
 - Ravens may capture one dragon or the gold.
 - Capture can be skipped.
-- Reloading the page resets the game because state is client-side only.
+- Reloading the page does not reset the game because state is shared and held in server memory.
+- Restarting the server resets the shared game because persistence has not been added.
 
 If a requested change would alter one of those rules, implement it only when that behavior change is intentional.
 
 ## Code Organization Rules
 
-- Put pure game helpers and state transition functions in `game.ts`.
-- Prefer pure functions that take a `GameState` and return a new `GameState`.
+- Put canonical gameplay state transition logic in the Kotlin game module.
+- Prefer pure or mostly pure rule helpers that take a snapshot/state and return the next snapshot/state.
+- Keep frontend helpers in `game.ts` focused on wire-shape helpers and render-side derivations from the server snapshot.
 - Keep browser-specific code out of `game.ts`.
 - Reuse existing helpers before adding new parallel logic paths.
 - Remove dead code and unused imports when editing related files.
@@ -51,15 +59,17 @@ If a requested change would alter one of those rules, implement it only when tha
 
 ## Frontend Rules
 
-- Keep `render()` as the central UI refresh entrypoint.
-- Preserve the current pattern of updating state and then rerendering.
+- Prefer deriving UI from Redux state and selectors instead of manually syncing DOM state.
+- Keep components presentational where practical and push transport/state transitions into thunks, selectors, or hooks.
 - Keep the board responsive and preserve fullscreen support unless the user asks otherwise.
-- Prefer event delegation and reusable DOM helpers over repeated per-element wiring when behavior stays the same.
+- Prefer reusable components and hooks over repeated browser wiring when behavior stays the same.
 - Preserve the existing visual language unless the task is explicitly about design or styling.
 
 ## Testing Rules
 
-- When gameplay logic changes, update or add tests in `src/test/frontend/game.test.js`.
+- When backend gameplay logic changes, update or add tests in `src/test/kotlin/com/dragonsvsravens/game/GameRulesTest.kt` and related server tests.
+- When frontend helper behavior changes, update or add tests in `src/test/frontend/game.test.js`.
+- When React/Redux UI behavior changes, update or add tests under `src/test/frontend/*.test.ts(x)`.
 - When fixing a bug, start by writing or updating a test that reproduces the failure before fixing the implementation.
 - When logic is extracted or refactored, keep tests focused on behavior rather than implementation details.
 - Run `./gradlew test` before finishing code changes whenever practical.
@@ -78,13 +88,13 @@ If a requested change would alter one of those rules, implement it only when tha
   - behavior regressions
   - rule mismatches
   - missing or stale tests
-  - architecture drift between `game.ts` and `app.ts`
+  - architecture drift between the Kotlin game module, `game.ts`, Redux state, and React components
 - Call out maintainability issues when they make future game-rule changes riskier.
 
 ## Change Safety Rules
 
 - Ask before making changes that:
-  - move game rules into the backend
+  - move canonical game rules back into the frontend or split them across layers
   - introduce persistence or networking
   - change the move/capture rules
   - materially redesign the UI

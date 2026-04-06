@@ -1,12 +1,12 @@
 # Dragons vs Ravens
 
-A Spring Boot + Kotlin web app that serves a browser-based board game prototype with shared in-memory server state.
+A Spring Boot + Kotlin web app that serves a browser-based board game prototype with shared in-memory server state and a React + Redux frontend.
 
 ## What This Repo Contains
 
 - A Spring Boot backend that owns a shared in-memory game session and serves live updates
-- A browser-based frontend for the game UI
-- Frontend helpers for rendering and local-only selection behavior
+- A React + Redux browser frontend for the game UI
+- Frontend helpers for transport, board derivation, and local-only selection behavior
 
 ## Requirements
 
@@ -34,14 +34,23 @@ Open the app in two browser tabs to see the shared game stay in sync through ser
 This runs:
 
 - the frontend helper tests
+- the React/Redux component and selector tests
 - the Spring Boot test suite
 
 ## Project Structure
 
 - `src/main/frontend/game.ts`
   - shared frontend types, board helper logic, and local-selection helpers
-- `src/main/frontend/app.ts`
-  - DOM wiring, rendering, browser events, REST commands, and SSE sync
+- `src/main/frontend/game-client.ts`
+  - REST/SSE transport helpers
+- `src/main/frontend/App.tsx`
+  - top-level React layout
+- `src/main/frontend/app`
+  - Redux store setup and typed hooks
+- `src/main/frontend/features`
+  - Redux slices, selectors, thunks, and stream lifecycle helpers
+- `src/main/frontend/components`
+  - React UI components for board, controls, status, and move list
 - `src/main/kotlin/com/dragonsvsravens/game`
   - backend game state, rules, and API endpoints
 - `src/main/resources/static/styles.css`
@@ -61,6 +70,7 @@ Read docs/code-summary.md and docs/codex-rules.md before making changes. Follow 
 
 ## Notes
 
-- The frontend is compiled by TypeScript into `build/generated/frontend`.
+- The frontend is built with TypeScript plus Vite into `build/generated/frontend`.
+- Frontend tests use Node's built-in test runner for shared helper modules and Vitest with jsdom for React/Redux tests.
 - Spring Boot serves the generated frontend assets as static resources and exposes `/api/game` plus `/api/game/stream`.
 - If you change architecture, workflow, or gameplay in a meaningful way, update `docs/code-summary.md`.

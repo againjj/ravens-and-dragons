@@ -28,7 +28,7 @@ repositories {
 
 node {
     download.set(true)
-    version.set("22.11.0")
+    version.set("22.12.0")
     npmVersion.set("10.9.0")
 }
 
@@ -70,7 +70,8 @@ val buildFrontend by tasks.registering(NpmTask::class) {
     inputs.files(
         fileTree("src/main/frontend"),
         file("package.json"),
-        file("tsconfig.json")
+        file("tsconfig.json"),
+        file("vite.config.ts")
     )
     outputs.dir(generatedFrontendDir)
 }
@@ -83,7 +84,8 @@ val testFrontend by tasks.registering(NpmTask::class) {
         fileTree("src/main/frontend"),
         fileTree("src/test/frontend"),
         file("package.json"),
-        file("tsconfig.json")
+        file("tsconfig.json"),
+        file("vite.config.ts")
     )
 }
 
