@@ -85,7 +85,7 @@ export const App = () => {
                 <section className="panel side-panel top-panel">
                     <section className="legend">
                         <p className="subtitle sidebar-intro">
-                            Place dragons and ravens during setup, then alternate turns. Dragons may move the gold on their turns.
+                            Place dragons, ravens, and gold during setup, then alternate turns. Dragons may move gold on their turns.
                         </p>
                     </section>
 
@@ -100,7 +100,7 @@ export const App = () => {
 
                     <section className="legend">
                         <h2>Setup</h2>
-                        <p>Click an empty square to cycle through dragon, raven, then empty. The gold begins in the center at e5.</p>
+                        <p>Click any square during setup to cycle through dragon, raven, gold, then empty. You may place any number of gold pieces.</p>
                     </section>
 
                     <section className="legend">

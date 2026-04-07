@@ -38,7 +38,7 @@ class GameControllerTest {
                 status { isOk() }
                 jsonPath("$.id", equalTo("default"))
                 jsonPath("$.snapshot.phase", equalTo("setup"))
-                jsonPath("$.snapshot.board.e5", equalTo("gold"))
+                jsonPath("$.snapshot.board", equalTo(emptyMap<String, String>()))
             }
     }
 
@@ -129,13 +129,14 @@ class GameControllerTest {
     @Test
     fun `moving into an occupied square leaves game unchanged`() {
         setupDragonAt("a1")
+        setupDragonAt("b2")
         beginGame()
         val before = getGame()
 
         assertRejectedCommandLeavesGameUnchanged(
             before = before,
-            command = command(before.version, "move-piece", origin = "a1", destination = "e5"),
-            message = "Destination e5 is occupied."
+            command = command(before.version, "move-piece", origin = "a1", destination = "b2"),
+            message = "Destination b2 is occupied."
         )
     }
 
@@ -290,7 +291,7 @@ class GameControllerTest {
 
     private fun isInitialSetup(game: GameSession): Boolean =
         game.snapshot.phase == Phase.setup &&
-            game.snapshot.board == mapOf("e5" to Piece.gold) &&
+            game.snapshot.board.isEmpty() &&
             game.snapshot.turns.isEmpty()
 
     private fun command(

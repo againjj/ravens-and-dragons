@@ -93,7 +93,7 @@ Important implication: the shared game is entirely in-memory on the server. Mult
 
 The Kotlin game module is now the source of truth for game rules and state transitions.
 
-- Creates the initial shared snapshot with the gold at `e5`.
+- Creates the initial shared snapshot with an empty board.
 - Owns setup cycling logic.
 - Owns turn transitions.
 - Owns movement and capture resolution.
@@ -120,9 +120,10 @@ Most UI-only changes should start in the relevant component, selector, or browse
 
 ### Setup phase
 
-- The board starts with only the gold piece at `e5`.
-- Clicking a square in setup cycles: empty -> dragon -> raven -> empty.
-- `e5` is protected and cannot be changed during setup.
+- The board starts empty during setup.
+- Clicking a square in setup cycles: empty -> dragon -> raven -> gold -> empty.
+- Any square, including `e5`, can be changed during setup.
+- Any number of gold pieces may be placed during setup.
 
 ### Turn flow
 
@@ -195,7 +196,7 @@ Future UI changes should preserve the split of transport logic, Redux state, ren
 - The backend tests currently cover:
   - initial snapshot
   - setup cycling
-  - protected gold square behavior
+  - setup gold placement behavior
   - begin-game reset behavior
   - move-to-capture transitions
   - move commits when capture is unavailable

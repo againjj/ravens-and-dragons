@@ -32,8 +32,9 @@ This file contains repository-specific instructions for AI-assisted work in this
 
 Unless the user asks to change game behavior, preserve these current rules:
 
-- The game starts in setup mode with only the gold piece at `e5`.
-- Clicking a non-`e5` square in setup cycles: empty -> dragon -> raven -> empty.
+- The game starts in setup mode with an empty board.
+- Clicking any square in setup cycles: empty -> dragon -> raven -> gold -> empty.
+- Any number of gold pieces may be placed during setup.
 - Dragons move first.
 - Dragons may move either a dragon or the gold.
 - Ravens may move only ravens.

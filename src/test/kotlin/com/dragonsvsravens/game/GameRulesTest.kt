@@ -3,37 +3,43 @@ package com.dragonsvsravens.game
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 
 class GameRulesTest {
 
     @Test
-    fun `initial snapshot starts in setup with gold at e5`() {
+    fun `initial snapshot starts in setup with an empty board`() {
         val snapshot = GameRules.createInitialSnapshot()
 
         assertEquals(Phase.setup, snapshot.phase)
         assertEquals(Side.dragons, snapshot.activeSide)
-        assertEquals(Piece.gold, snapshot.board["e5"])
+        assertTrue(snapshot.board.isEmpty())
         assertEquals(emptyList<MoveRecord>(), snapshot.turns)
     }
 
     @Test
-    fun `setup cycles empty to dragon to raven to empty`() {
+    fun `setup cycles empty to dragon to raven to gold to empty`() {
         val first = GameRules.cycleSetupPiece(GameRules.createInitialSnapshot(), "a1")
         val second = GameRules.cycleSetupPiece(first, "a1")
         val third = GameRules.cycleSetupPiece(second, "a1")
+        val fourth = GameRules.cycleSetupPiece(third, "a1")
 
         assertEquals(Piece.dragon, first.board["a1"])
         assertEquals(Piece.raven, second.board["a1"])
-        assertFalse(third.board.containsKey("a1"))
+        assertEquals(Piece.gold, third.board["a1"])
+        assertFalse(fourth.board.containsKey("a1"))
     }
 
     @Test
-    fun `setup cannot modify the gold square`() {
-        assertThrows<IllegalArgumentException> {
-            GameRules.cycleSetupPiece(GameRules.createInitialSnapshot(), "e5")
-        }
+    fun `setup can place gold on e5 like any other square`() {
+        val first = GameRules.cycleSetupPiece(GameRules.createInitialSnapshot(), "e5")
+        val second = GameRules.cycleSetupPiece(first, "e5")
+        val third = GameRules.cycleSetupPiece(second, "e5")
+
+        assertEquals(Piece.dragon, first.board["e5"])
+        assertEquals(Piece.raven, second.board["e5"])
+        assertEquals(Piece.gold, third.board["e5"])
     }
 
     @Test

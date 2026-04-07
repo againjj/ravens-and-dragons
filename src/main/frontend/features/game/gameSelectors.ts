@@ -35,7 +35,7 @@ export const selectStatusText = createSelector(selectGameState, selectSnapshot, 
     }
 
     if (snapshot.phase === "setup") {
-        return "Setup phase: click a square to place dragon, raven, or empty. Gold stays at e5.";
+        return "Setup phase: click a square to place dragon, raven, gold, or empty.";
     }
 
     if (snapshot.phase === "capture") {

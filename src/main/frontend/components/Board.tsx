@@ -17,6 +17,32 @@ const pieceGlyph: Record<Piece, string> = {
     gold: "G"
 };
 
+const getSquareClassName = (
+    squareName: string,
+    options: {
+        selectedSquare: string | null;
+        targetableSquares: Set<string>;
+        capturableSquares: Set<string>;
+        isCapturePhase: boolean;
+    }
+): string => {
+    const classNames = ["square"];
+
+    if (options.selectedSquare === squareName) {
+        classNames.push("selected");
+    }
+
+    if (options.targetableSquares.has(squareName)) {
+        classNames.push("targetable");
+    }
+
+    if (options.isCapturePhase && options.capturableSquares.has(squareName)) {
+        classNames.push("capture-target");
+    }
+
+    return classNames.join(" ");
+};
+
 const getBoardClickAction = (
     square: string,
     snapshot: NonNullable<ReturnType<typeof selectSnapshot>>,
@@ -55,6 +81,8 @@ export const Board = () => {
     const selectedSquare = useAppSelector(selectSelectedSquare);
     const capturableSquares = useAppSelector(selectCapturableSquares);
     const targetableSquares = useAppSelector(selectTargetableSquares);
+    const capturableSquareSet = new Set(capturableSquares);
+    const targetableSquareSet = new Set(targetableSquares);
 
     const handleSquareClick = (square: string): void => {
         if (!snapshot) {
@@ -93,25 +121,17 @@ export const Board = () => {
                     Array.from({ length: 9 }, (_, colIndex) => {
                         const squareName = getSquareName(rowIndex, colIndex);
                         const piece = snapshot ? getPieceAtSquare(snapshot, squareName) : undefined;
-                        const classNames = ["square"];
-
-                        if (selectedSquare === squareName) {
-                            classNames.push("selected");
-                        }
-
-                        if (targetableSquares.includes(squareName)) {
-                            classNames.push("targetable");
-                        }
-
-                        if (capturableSquares.includes(squareName) && snapshot?.phase === "capture") {
-                            classNames.push("capture-target");
-                        }
 
                         return (
                             <button
                                 key={squareName}
                                 type="button"
-                                className={classNames.join(" ")}
+                                className={getSquareClassName(squareName, {
+                                    selectedSquare,
+                                    targetableSquares: targetableSquareSet,
+                                    capturableSquares: capturableSquareSet,
+                                    isCapturePhase: snapshot?.phase === "capture"
+                                })}
                                 data-square={squareName}
                                 aria-label={`Square ${squareName}`}
                                 onClick={() => {

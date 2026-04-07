@@ -16,7 +16,7 @@ const createGame = (version = 1) => ({
     updatedAt: `2026-04-05T00:00:0${version}Z`,
     canUndo: false,
     snapshot: {
-        board: { e5: "gold" },
+        board: {},
         phase: "setup",
         activeSide: "dragons",
         pendingMove: null,

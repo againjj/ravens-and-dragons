@@ -24,6 +24,7 @@ A Spring Boot + Kotlin web app that serves a browser-based board game prototype 
 Then open [http://localhost:8080](http://localhost:8080).
 
 Open the app in two browser tabs to see the shared game stay in sync through server-sent events.
+During setup, the board starts empty and each click cycles a square through `empty -> dragon -> raven -> gold -> empty`, with any number of gold pieces allowed.
 
 ## Run Tests
 

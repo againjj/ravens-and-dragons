@@ -1,8 +1,10 @@
 package com.dragonsvsravens.game
 
 object GameRules {
+    private val setupCycle = listOf(Piece.dragon, Piece.raven, Piece.gold)
+
     fun createInitialSnapshot(): GameSnapshot = GameSnapshot(
-        board = linkedMapOf("e5" to Piece.gold),
+        board = linkedMapOf(),
         phase = Phase.setup,
         activeSide = Side.dragons,
         pendingMove = null,
@@ -12,14 +14,13 @@ object GameRules {
     fun resetGame(): GameSnapshot = createInitialSnapshot()
 
     fun cycleSetupPiece(snapshot: GameSnapshot, square: String): GameSnapshot {
-        require(square != "e5") { "The gold square cannot be changed during setup." }
-
         val board = LinkedHashMap(snapshot.board)
-        when (board[square]) {
-            null -> board[square] = Piece.dragon
-            Piece.dragon -> board[square] = Piece.raven
-            Piece.raven -> board.remove(square)
-            Piece.gold -> throw IllegalArgumentException("The gold square cannot be changed during setup.")
+        val nextPiece = nextSetupPiece(board[square])
+
+        if (nextPiece == null) {
+            board.remove(square)
+        } else {
+            board[square] = nextPiece
         }
 
         return snapshot.copy(board = board)
@@ -95,4 +96,17 @@ object GameRules {
 
     private fun oppositeSide(side: Side): Side =
         if (side == Side.dragons) Side.ravens else Side.dragons
+
+    private fun nextSetupPiece(piece: Piece?): Piece? {
+        if (piece == null) {
+            return setupCycle.first()
+        }
+
+        val currentIndex = setupCycle.indexOf(piece)
+        return if (currentIndex == setupCycle.lastIndex) {
+            null
+        } else {
+            setupCycle[currentIndex + 1]
+        }
+    }
 }
