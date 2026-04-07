@@ -9,18 +9,27 @@ import org.junit.jupiter.api.Test
 class GameRulesTest {
 
     @Test
-    fun `initial snapshot starts in setup with an empty board`() {
+    fun `initial snapshot starts with no game and an empty board`() {
         val snapshot = GameRules.createInitialSnapshot()
 
-        assertEquals(Phase.setup, snapshot.phase)
+        assertEquals(Phase.none, snapshot.phase)
         assertEquals(Side.dragons, snapshot.activeSide)
         assertTrue(snapshot.board.isEmpty())
-        assertEquals(emptyList<MoveRecord>(), snapshot.turns)
+        assertEquals(emptyList<TurnRecord>(), snapshot.turns)
+    }
+
+    @Test
+    fun `start game enters setup with a cleared board and history`() {
+        val snapshot = GameRules.startGame()
+
+        assertEquals(Phase.setup, snapshot.phase)
+        assertTrue(snapshot.board.isEmpty())
+        assertEquals(emptyList<TurnRecord>(), snapshot.turns)
     }
 
     @Test
     fun `setup cycles empty to dragon to raven to gold to empty`() {
-        val first = GameRules.cycleSetupPiece(GameRules.createInitialSnapshot(), "a1")
+        val first = GameRules.cycleSetupPiece(GameRules.startGame(), "a1")
         val second = GameRules.cycleSetupPiece(first, "a1")
         val third = GameRules.cycleSetupPiece(second, "a1")
         val fourth = GameRules.cycleSetupPiece(third, "a1")
@@ -33,7 +42,7 @@ class GameRulesTest {
 
     @Test
     fun `setup can place gold on e5 like any other square`() {
-        val first = GameRules.cycleSetupPiece(GameRules.createInitialSnapshot(), "e5")
+        val first = GameRules.cycleSetupPiece(GameRules.startGame(), "e5")
         val second = GameRules.cycleSetupPiece(first, "e5")
         val third = GameRules.cycleSetupPiece(second, "e5")
 
@@ -43,10 +52,11 @@ class GameRulesTest {
     }
 
     @Test
-    fun `begin game resets pending move`() {
-        val started = GameRules.beginGame(
-            GameRules.createInitialSnapshot().copy(
-                pendingMove = MoveRecord("a1", "a2")
+    fun `end setup resets pending move and starts with dragons`() {
+        val started = GameRules.endSetup(
+            GameRules.startGame().copy(
+                pendingMove = TurnRecord(type = TurnType.move, from = "a1", to = "a2"),
+                activeSide = Side.ravens
             )
         )
 
@@ -58,8 +68,8 @@ class GameRulesTest {
     @Test
     fun `move enters capture when an opposing piece exists`() {
         val moved = GameRules.movePiece(
-            GameRules.beginGame(
-                GameRules.createInitialSnapshot().copy(
+            GameRules.endSetup(
+                GameRules.startGame().copy(
                     board = linkedMapOf(
                         "e5" to Piece.gold,
                         "a1" to Piece.dragon,
@@ -74,14 +84,14 @@ class GameRulesTest {
         assertEquals(Phase.capture, moved.phase)
         assertEquals(Side.dragons, moved.activeSide)
         assertEquals(listOf("b2"), GameRules.getCapturableSquares(moved))
-        assertEquals(MoveRecord("a1", "a2"), moved.pendingMove)
+        assertEquals(TurnRecord(type = TurnType.move, from = "a1", to = "a2"), moved.pendingMove)
     }
 
     @Test
     fun `move commits immediately when nothing is capturable`() {
         val moved = GameRules.movePiece(
-            GameRules.beginGame(
-                GameRules.createInitialSnapshot().copy(
+            GameRules.endSetup(
+                GameRules.startGame().copy(
                     board = linkedMapOf(
                         "e5" to Piece.gold,
                         "a1" to Piece.dragon
@@ -95,7 +105,10 @@ class GameRulesTest {
         assertEquals(Phase.move, moved.phase)
         assertEquals(Side.ravens, moved.activeSide)
         assertNull(moved.pendingMove)
-        assertEquals(listOf(MoveRecord("a1", "a2")), moved.turns)
+        assertEquals(
+            listOf(TurnRecord(type = TurnType.move, from = "a1", to = "a2")),
+            moved.turns
+        )
     }
 
     @Test
@@ -109,7 +122,7 @@ class GameRulesTest {
                 ),
                 phase = Phase.capture,
                 activeSide = Side.dragons,
-                pendingMove = MoveRecord("a1", "a2"),
+                pendingMove = TurnRecord(type = TurnType.move, from = "a1", to = "a2"),
                 turns = emptyList()
             ),
             "b2"
@@ -118,7 +131,10 @@ class GameRulesTest {
         assertFalse(captured.board.containsKey("b2"))
         assertEquals(Phase.move, captured.phase)
         assertEquals(Side.ravens, captured.activeSide)
-        assertEquals(listOf(MoveRecord("a1", "a2", "b2")), captured.turns)
+        assertEquals(
+            listOf(TurnRecord(type = TurnType.move, from = "a1", to = "a2", captured = "b2")),
+            captured.turns
+        )
     }
 
     @Test
@@ -132,13 +148,43 @@ class GameRulesTest {
                 ),
                 phase = Phase.capture,
                 activeSide = Side.dragons,
-                pendingMove = MoveRecord("a1", "a2"),
+                pendingMove = TurnRecord(type = TurnType.move, from = "a1", to = "a2"),
                 turns = emptyList()
             )
         )
 
         assertEquals(Phase.move, committed.phase)
         assertEquals(Side.ravens, committed.activeSide)
-        assertEquals(listOf(MoveRecord("a1", "a2")), committed.turns)
+        assertEquals(
+            listOf(TurnRecord(type = TurnType.move, from = "a1", to = "a2")),
+            committed.turns
+        )
+    }
+
+    @Test
+    fun `end game preserves the board and appends game over`() {
+        val ended = GameRules.endGame(
+            GameSnapshot(
+                board = linkedMapOf(
+                    "a2" to Piece.dragon,
+                    "b2" to Piece.raven
+                ),
+                phase = Phase.move,
+                activeSide = Side.ravens,
+                pendingMove = TurnRecord(type = TurnType.move, from = "a1", to = "a2"),
+                turns = listOf(TurnRecord(type = TurnType.move, from = "a1", to = "a2"))
+            )
+        )
+
+        assertEquals(Phase.none, ended.phase)
+        assertEquals(linkedMapOf("a2" to Piece.dragon, "b2" to Piece.raven), ended.board)
+        assertNull(ended.pendingMove)
+        assertEquals(
+            listOf(
+                TurnRecord(type = TurnType.move, from = "a1", to = "a2"),
+                TurnRecord(type = TurnType.gameOver)
+            ),
+            ended.turns
+        )
     }
 }

@@ -7,7 +7,7 @@ import { MoveList } from "./components/MoveList.js";
 import { StatusBanner } from "./components/StatusBanner.js";
 import { selectStatusText } from "./features/game/gameSelectors.js";
 import { gameActions } from "./features/game/gameSlice.js";
-import { beginGame, resetGame, skipCapture, undoMove } from "./features/game/gameThunks.js";
+import { endGame, endSetup, skipCapture, startGame, undoMove } from "./features/game/gameThunks.js";
 import { useGameSession } from "./features/game/useGameSession.js";
 import { useBoardSizing } from "./hooks/useBoardSizing.js";
 import { useFullscreen } from "./hooks/useFullscreen.js";
@@ -28,22 +28,6 @@ export const App = () => {
                 dispatch(gameActions.feedbackMessageSet(message));
             }
         });
-    };
-
-    const handleStartGame = (): void => {
-        void dispatch(beginGame());
-    };
-
-    const handleResetGame = (): void => {
-        void dispatch(resetGame());
-    };
-
-    const handleSkipCapture = (): void => {
-        void dispatch(skipCapture());
-    };
-
-    const handleUndo = (): void => {
-        void dispatch(undoMove());
     };
 
     return (
@@ -85,26 +69,37 @@ export const App = () => {
                 <section className="panel side-panel top-panel">
                     <section className="controls-panel">
                         <ControlsPanel
-                            onStartGame={handleStartGame}
-                            onUndo={handleUndo}
-                            onResetGame={handleResetGame}
-                            onSkipCapture={handleSkipCapture}
+                            onStartGame={() => {
+                                void dispatch(startGame());
+                            }}
+                            onEndSetup={() => {
+                                void dispatch(endSetup());
+                            }}
+                            onEndGame={() => {
+                                void dispatch(endGame());
+                            }}
+                            onUndo={() => {
+                                void dispatch(undoMove());
+                            }}
+                            onSkipCapture={() => {
+                                void dispatch(skipCapture());
+                            }}
                         />
                     </section>
 
                     <section className="legend">
                         <h2>Overview</h2>
-                        <p>Place pieces during setup, then alternate turns. Dragons may move the gold on their turns.</p>
+                        <p>Ravens are trying to steal the dragons&apos; gold! Start a game. Place pieces during setup, then dragons and ravens alternate turns.</p>
                     </section>
 
                     <section className="legend">
                         <h2>Setup Phase</h2>
-                        <p>Click any square during setup to cycle through dragon, raven, gold, then empty.</p>
+                        <p>Click any square to cycle through dragon, raven, gold, then empty. Click "End Setup" when all the pieces are placed.</p>
                     </section>
 
                     <section className="legend">
                         <h2>Turns</h2>
-                        <p>On a dragon turn, you may move a dragon or gold. On a raven turn, move a raven. After moving, you may optionally capture one opposing piece.</p>
+                        <p>Dragons move first. Dragons may move the gold on their turns. To move, click on a piece, and then click on the destination square. After moving, you may optionally capture an opposing piece. End the game to play a new game.</p>
                     </section>
                 </section>
 

@@ -5,13 +5,13 @@ object GameRules {
 
     fun createInitialSnapshot(): GameSnapshot = GameSnapshot(
         board = linkedMapOf(),
-        phase = Phase.setup,
+        phase = Phase.none,
         activeSide = Side.dragons,
         pendingMove = null,
         turns = emptyList()
     )
 
-    fun resetGame(): GameSnapshot = createInitialSnapshot()
+    fun startGame(): GameSnapshot = createInitialSnapshot().copy(phase = Phase.setup)
 
     fun cycleSetupPiece(snapshot: GameSnapshot, square: String): GameSnapshot {
         val board = LinkedHashMap(snapshot.board)
@@ -26,10 +26,17 @@ object GameRules {
         return snapshot.copy(board = board)
     }
 
-    fun beginGame(snapshot: GameSnapshot): GameSnapshot = snapshot.copy(
+    fun endSetup(snapshot: GameSnapshot): GameSnapshot = snapshot.copy(
         phase = Phase.move,
         activeSide = Side.dragons,
         pendingMove = null
+    )
+
+    fun endGame(snapshot: GameSnapshot): GameSnapshot = snapshot.copy(
+        phase = Phase.none,
+        activeSide = Side.dragons,
+        pendingMove = null,
+        turns = snapshot.turns + TurnRecord(type = TurnType.gameOver)
     )
 
     fun commitTurn(snapshot: GameSnapshot, capturedSquare: String? = null): GameSnapshot {
@@ -62,7 +69,7 @@ object GameRules {
 
         val movedSnapshot = snapshot.copy(
             board = board,
-            pendingMove = MoveRecord(from = origin, to = destination)
+            pendingMove = TurnRecord(type = TurnType.move, from = origin, to = destination)
         )
 
         return if (getCapturableSquares(movedSnapshot).isNotEmpty()) {

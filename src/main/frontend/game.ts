@@ -1,10 +1,15 @@
 export type Piece = "dragon" | "raven" | "gold";
 export type Side = "dragons" | "ravens";
-export type Phase = "setup" | "move" | "capture";
+export type Phase = "none" | "setup" | "move" | "capture";
+export type TurnType = "move" | "gameOver";
+export type TurnHistoryRow =
+    | { type: "move"; label: string; key: string }
+    | { type: "gameOver"; label: string; key: string };
 
-export interface MoveRecord {
-    from: string;
-    to: string;
+export interface TurnRecord {
+    type: TurnType;
+    from?: string;
+    to?: string;
     captured?: string;
 }
 
@@ -12,8 +17,8 @@ export interface ServerGameSnapshot {
     board: Record<string, Piece>;
     phase: Phase;
     activeSide: Side;
-    pendingMove: MoveRecord | null;
-    turns: MoveRecord[];
+    pendingMove: TurnRecord | null;
+    turns: TurnRecord[];
 }
 
 export interface ServerGameSession {
@@ -27,7 +32,7 @@ export interface ServerGameSession {
 
 export interface GameCommandRequest {
     expectedVersion: number;
-    type: "cycle-setup" | "begin-game" | "move-piece" | "capture-piece" | "skip-capture" | "undo" | "reset-game";
+    type: "start-game" | "cycle-setup" | "end-setup" | "move-piece" | "capture-piece" | "skip-capture" | "undo" | "end-game";
     square?: string;
     origin?: string;
     destination?: string;
@@ -83,5 +88,17 @@ export const normalizeSelectedSquare = (
     return piece && sideOwnsPiece(snapshot.activeSide, piece) ? selectedSquare : null;
 };
 
-export const moveToNotation = (move: MoveRecord): string =>
-    `${move.from}-${move.to}${move.captured ? `x${move.captured}` : ""}`;
+export const turnToNotation = (turn: TurnRecord): string => {
+    if (turn.type === "gameOver") {
+        return "Game Over";
+    }
+
+    return `${turn.from}-${turn.to}${turn.captured ? `x${turn.captured}` : ""}`;
+};
+
+export const getTurnHistoryRows = (turns: TurnRecord[]): TurnHistoryRow[] =>
+    turns.map((turn, index) => ({
+        type: turn.type,
+        label: turnToNotation(turn),
+        key: `${turn.type}-${turn.from ?? "none"}-${turn.to ?? "none"}-${turn.captured ?? "none"}-${index}`
+    }));

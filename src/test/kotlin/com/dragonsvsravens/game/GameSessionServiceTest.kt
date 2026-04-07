@@ -3,8 +3,8 @@ package com.dragonsvsravens.game
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 
 class GameSessionServiceTest {
@@ -26,12 +26,12 @@ class GameSessionServiceTest {
         val updated = service.applyCommand(
             GameCommandRequest(
                 expectedVersion = 0,
-                type = "begin-game"
+                type = "start-game"
             )
         )
 
         assertEquals(1, updated.version)
-        assertEquals(Phase.move, updated.snapshot.phase)
+        assertEquals(Phase.setup, updated.snapshot.phase)
         assertEquals(1, recordingEmitter.eventsSent)
     }
 
@@ -52,7 +52,7 @@ class GameSessionServiceTest {
         service.applyCommand(
             GameCommandRequest(
                 expectedVersion = 0,
-                type = "begin-game"
+                type = "start-game"
             )
         )
 
@@ -64,11 +64,12 @@ class GameSessionServiceTest {
     fun `undo restores the previous snapshot and updates can undo`() {
         val service = GameSessionService()
 
-        service.applyCommand(GameCommandRequest(expectedVersion = 0, type = "cycle-setup", square = "a1"))
-        service.applyCommand(GameCommandRequest(expectedVersion = 1, type = "begin-game"))
+        service.applyCommand(GameCommandRequest(expectedVersion = 0, type = "start-game"))
+        service.applyCommand(GameCommandRequest(expectedVersion = 1, type = "cycle-setup", square = "a1"))
+        service.applyCommand(GameCommandRequest(expectedVersion = 2, type = "end-setup"))
         val moved = service.applyCommand(
             GameCommandRequest(
-                expectedVersion = 2,
+                expectedVersion = 3,
                 type = "move-piece",
                 origin = "a1",
                 destination = "a2"
@@ -79,12 +80,36 @@ class GameSessionServiceTest {
         assertEquals(Phase.move, moved.snapshot.phase)
         assertEquals(Piece.dragon, moved.snapshot.board["a2"])
 
-        val undone = service.applyCommand(GameCommandRequest(expectedVersion = 3, type = "undo"))
+        val undone = service.applyCommand(GameCommandRequest(expectedVersion = 4, type = "undo"))
 
         assertFalse(undone.canUndo)
         assertEquals(Phase.move, undone.snapshot.phase)
         assertEquals(Piece.dragon, undone.snapshot.board["a1"])
         assertFalse(undone.snapshot.board.containsKey("a2"))
+    }
+
+    @Test
+    fun `end game preserves the board and clears undo`() {
+        val service = GameSessionService()
+
+        service.applyCommand(GameCommandRequest(expectedVersion = 0, type = "start-game"))
+        service.applyCommand(GameCommandRequest(expectedVersion = 1, type = "cycle-setup", square = "a1"))
+        service.applyCommand(GameCommandRequest(expectedVersion = 2, type = "end-setup"))
+        service.applyCommand(
+            GameCommandRequest(
+                expectedVersion = 3,
+                type = "move-piece",
+                origin = "a1",
+                destination = "a2"
+            )
+        )
+
+        val ended = service.applyCommand(GameCommandRequest(expectedVersion = 4, type = "end-game"))
+
+        assertEquals(Phase.none, ended.snapshot.phase)
+        assertEquals(Piece.dragon, ended.snapshot.board["a2"])
+        assertEquals(TurnType.gameOver, ended.snapshot.turns.last().type)
+        assertFalse(ended.canUndo)
     }
 
     @Test

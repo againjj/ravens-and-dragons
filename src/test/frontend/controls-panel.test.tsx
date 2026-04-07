@@ -6,16 +6,42 @@ import { ControlsPanel } from "../../main/frontend/components/ControlsPanel.js";
 import { createSession } from "./fixtures.js";
 import { renderWithStore } from "./test-utils.js";
 
+const renderPanel = (session = createSession()) =>
+    renderWithStore(
+        <ControlsPanel
+            onStartGame={vi.fn()}
+            onEndSetup={vi.fn()}
+            onEndGame={vi.fn()}
+            onUndo={vi.fn()}
+            onSkipCapture={vi.fn()}
+        />,
+        {
+            preloadedState: {
+                game: {
+                    session,
+                    isSubmitting: false,
+                    loadState: "ready",
+                    connectionState: "open",
+                    feedbackMessage: null
+                },
+                ui: {
+                    selectedSquare: null
+                }
+            }
+        }
+    );
+
 describe("ControlsPanel", () => {
-    test("enables the start button during setup and calls the handler", async () => {
+    test("shows only start game in the no game state and calls the handler", async () => {
         const user = userEvent.setup();
         const onStartGame = vi.fn();
 
         renderWithStore(
             <ControlsPanel
                 onStartGame={onStartGame}
+                onEndSetup={vi.fn()}
+                onEndGame={vi.fn()}
                 onUndo={vi.fn()}
-                onResetGame={vi.fn()}
                 onSkipCapture={vi.fn()}
             />,
             {
@@ -34,34 +60,33 @@ describe("ControlsPanel", () => {
             }
         );
 
-        const startButton = screen.getByRole("button", { name: "Start Game" });
-        const skipButton = screen.getByRole("button", { name: "Skip Capture" });
-        const undoButton = screen.getByRole("button", { name: "Undo" });
+        expect(screen.getByRole("button", { name: "Start Game" })).toBeEnabled();
+        expect(screen.queryByRole("button", { name: "End Setup" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "End Game" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Skip Capture" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
 
-        expect(startButton).toBeEnabled();
-        expect(skipButton).toBeDisabled();
-        expect(undoButton).toBeDisabled();
-
-        await user.click(startButton);
+        await user.click(screen.getByRole("button", { name: "Start Game" }));
 
         expect(onStartGame).toHaveBeenCalledTimes(1);
     });
 
-    test("enables capture skipping only during the capture phase", () => {
+    test("shows end setup during setup", async () => {
+        const user = userEvent.setup();
+        const onEndSetup = vi.fn();
+
         renderWithStore(
             <ControlsPanel
                 onStartGame={vi.fn()}
+                onEndSetup={onEndSetup}
+                onEndGame={vi.fn()}
                 onUndo={vi.fn()}
-                onResetGame={vi.fn()}
                 onSkipCapture={vi.fn()}
             />,
             {
                 preloadedState: {
                     game: {
-                        session: createSession({}, {
-                            phase: "capture",
-                            activeSide: "ravens"
-                        }),
+                        session: createSession({}, { phase: "setup" }),
                         isSubmitting: false,
                         loadState: "ready",
                         connectionState: "open",
@@ -74,44 +99,42 @@ describe("ControlsPanel", () => {
             }
         );
 
-        expect(screen.getByRole("button", { name: "Skip Capture" })).toBeEnabled();
-        expect(screen.getByRole("button", { name: "Start Game" })).toBeDisabled();
-        expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
-        expect(screen.getByRole("button", { name: "Reset to Setup" })).toBeEnabled();
+        expect(screen.getByRole("button", { name: "End Setup" })).toBeEnabled();
+        expect(screen.queryByRole("button", { name: "Start Game" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "End Game" })).toBeNull();
+
+        await user.click(screen.getByRole("button", { name: "End Setup" }));
+
+        expect(onEndSetup).toHaveBeenCalledTimes(1);
     });
 
-    test("places undo above reset and enables it from the shared session flag", () => {
-        renderWithStore(
-            <ControlsPanel
-                onStartGame={vi.fn()}
-                onUndo={vi.fn()}
-                onResetGame={vi.fn()}
-                onSkipCapture={vi.fn()}
-            />,
-            {
-                preloadedState: {
-                    game: {
-                        session: createSession({ canUndo: true }, {
-                            phase: "move",
-                            activeSide: "ravens"
-                        }),
-                        isSubmitting: false,
-                        loadState: "ready",
-                        connectionState: "open",
-                        feedbackMessage: null
-                    },
-                    ui: {
-                        selectedSquare: null
-                    }
-                }
-            }
+    test("shows end game, skip capture, and undo during active play", () => {
+        renderPanel(
+            createSession({ canUndo: true }, {
+                phase: "move",
+                activeSide: "ravens"
+            })
         );
 
         const buttons = screen.getAllByRole("button");
-        const undoButton = screen.getByRole("button", { name: "Undo" });
-        const resetButton = screen.getByRole("button", { name: "Reset to Setup" });
+        expect(screen.getByRole("button", { name: "End Game" })).toBeEnabled();
+        expect(screen.getByRole("button", { name: "Skip Capture" })).toBeDisabled();
+        expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
+        expect(buttons.indexOf(screen.getByRole("button", { name: "End Game" }))).toBeGreaterThan(
+            buttons.indexOf(screen.getByRole("button", { name: "Undo" }))
+        );
+    });
 
-        expect(undoButton).toBeEnabled();
-        expect(buttons.indexOf(undoButton)).toBeLessThan(buttons.indexOf(resetButton));
+    test("enables capture skipping only during the capture phase", () => {
+        renderPanel(
+            createSession({}, {
+                phase: "capture",
+                activeSide: "ravens"
+            })
+        );
+
+        expect(screen.getByRole("button", { name: "End Game" })).toBeEnabled();
+        expect(screen.getByRole("button", { name: "Skip Capture" })).toBeEnabled();
+        expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
     });
 });

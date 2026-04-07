@@ -49,6 +49,10 @@ const getBoardClickAction = (
     selectedSquare: string | null,
     capturableSquares: string[]
 ): BoardClickAction => {
+    if (snapshot.phase === "none") {
+        return { type: "none" };
+    }
+
     if (snapshot.phase === "setup") {
         return { type: "cycle-setup", square };
     }

@@ -17,7 +17,7 @@ const createGame = (version = 1) => ({
     canUndo: false,
     snapshot: {
         board: {},
-        phase: "setup",
+        phase: "none",
         activeSide: "dragons",
         pendingMove: null,
         turns: []
@@ -40,7 +40,7 @@ test("sendGameCommandRequest includes the expected version and returns the next 
 
     const result = await sendGameCommandRequest(
         currentGame,
-        { type: "begin-game" },
+        { type: "start-game" },
         async (_url, init) => {
             requestBody = JSON.parse(init.body);
             return {
@@ -51,7 +51,7 @@ test("sendGameCommandRequest includes the expected version and returns the next 
         }
     );
 
-    assert.deepEqual(requestBody, { expectedVersion: 2, type: "begin-game" });
+    assert.deepEqual(requestBody, { expectedVersion: 2, type: "start-game" });
     assert.equal(result.game.version, 3);
     assert.equal(result.errorMessage, undefined);
 });
@@ -59,7 +59,7 @@ test("sendGameCommandRequest includes the expected version and returns the next 
 test("sendGameCommandRequest treats conflicts as latest-game responses", async () => {
     const result = await sendGameCommandRequest(
         createGame(4),
-        { type: "reset-game" },
+        { type: "end-game" },
         async () => ({
             ok: false,
             status: 409,
@@ -74,7 +74,7 @@ test("sendGameCommandRequest treats conflicts as latest-game responses", async (
 test("sendGameCommandRequest returns a fallback message for non-json failures", async () => {
     const result = await sendGameCommandRequest(
         createGame(6),
-        { type: "begin-game" },
+        { type: "start-game" },
         async () => ({
             ok: false,
             status: 500,

@@ -32,12 +32,19 @@ class GameSessionService {
         }
 
         val nextState = when (command.type) {
+            "start-game" -> applyInPhase(current, command, Phase.none) {
+                current.next(
+                    snapshot = GameRules.startGame(),
+                    undoSnapshots = emptyList()
+                )
+            }
+
             "cycle-setup" -> applyInPhase(current, command, Phase.setup) { snapshot ->
                 current.next(snapshot = GameRules.cycleSetupPiece(snapshot, requireSquare(command)))
             }
 
-            "begin-game" -> applyInPhase(current, command, Phase.setup) { snapshot ->
-                current.next(snapshot = GameRules.beginGame(snapshot))
+            "end-setup" -> applyInPhase(current, command, Phase.setup) { snapshot ->
+                current.next(snapshot = GameRules.endSetup(snapshot))
             }
 
             "move-piece" -> applyInPhase(current, command, Phase.move) { snapshot ->
@@ -56,10 +63,12 @@ class GameSessionService {
 
             "undo" -> current.undo()
 
-            "reset-game" -> current.next(
-                snapshot = GameRules.resetGame(),
-                undoSnapshots = emptyList()
-            )
+            "end-game" -> applyWhenGameActive(current, command) { snapshot ->
+                current.next(
+                    snapshot = GameRules.endGame(snapshot),
+                    undoSnapshots = emptyList()
+                )
+            }
             else -> throw InvalidCommandException("Unknown command type: ${command.type}")
         }
 
@@ -137,6 +146,19 @@ class GameSessionService {
         update: (GameSnapshot) -> StoredGame
     ): StoredGame {
         validatePhase(current.session.snapshot, expectedPhase, command.type)
+        return update(current.session.snapshot)
+    }
+
+    private fun applyWhenGameActive(
+        current: StoredGame,
+        command: GameCommandRequest,
+        update: (GameSnapshot) -> StoredGame
+    ): StoredGame {
+        val phase = current.session.snapshot.phase
+        if (phase != Phase.move && phase != Phase.capture) {
+            throw InvalidCommandException("Command ${command.type} is not allowed during $phase.")
+        }
+
         return update(current.session.snapshot)
     }
 

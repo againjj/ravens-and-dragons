@@ -364,23 +364,37 @@ button:disabled {
 
 .turns {
     min-height: 0;
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
+    display: flex;
+    flex-direction: column;
     gap: 10px;
 }
 
-.turns ol {
+.turn-history {
     min-height: 0;
+    display: grid;
+    grid-template-rows: auto auto minmax(0, 1fr);
+}
+
+.turns ol {
     margin: 0;
     padding-left: 2rem;
     color: var(--muted);
     line-height: 1.4;
-    overflow: auto;
     word-break: break-word;
 }
 
 .turns li + li {
     margin-top: 8px;
+}
+
+#game-over-entry {
+    color: var(--muted);
+    line-height: 1.4;
+    margin-top: 10px;
+}
+
+.turns-spacer {
+    min-height: 0;
 }
 
 .page:fullscreen .panel {

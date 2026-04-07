@@ -76,11 +76,14 @@ const createCommandThunk = (
     await dispatch(sendCommand(partialCommand));
 };
 
-export const beginGame = (): AppThunk<Promise<void>> =>
-    createCommandThunk({ type: "begin-game" }, { clearSelection: true });
+export const startGame = (): AppThunk<Promise<void>> =>
+    createCommandThunk({ type: "start-game" }, { clearSelection: true });
 
-export const resetGame = (): AppThunk<Promise<void>> =>
-    createCommandThunk({ type: "reset-game" }, { clearSelection: true });
+export const endSetup = (): AppThunk<Promise<void>> =>
+    createCommandThunk({ type: "end-setup" }, { clearSelection: true });
+
+export const endGame = (): AppThunk<Promise<void>> =>
+    createCommandThunk({ type: "end-game" }, { clearSelection: true });
 
 export const skipCapture = (): AppThunk<Promise<void>> =>
     createCommandThunk({ type: "skip-capture" });

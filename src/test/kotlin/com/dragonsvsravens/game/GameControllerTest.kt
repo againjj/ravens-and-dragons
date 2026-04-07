@@ -24,32 +24,36 @@ class GameControllerTest {
     lateinit var objectMapper: ObjectMapper
 
     @BeforeEach
-    fun resetGameToSetup() {
-        val game = getGame()
-        if (!isInitialSetup(game)) {
-            executeCommand(command(game.version, "reset-game"))
+    fun resetGameToNoGame() {
+        while (true) {
+            val game = getGame()
+            when (game.snapshot.phase) {
+                Phase.none -> return
+                Phase.setup -> executeCommand(command(game.version, "end-setup"))
+                Phase.move, Phase.capture -> executeCommand(command(game.version, "end-game"))
+            }
         }
     }
 
     @Test
-    fun `get game returns the shared default session`() {
+    fun `get game returns the shared default session in no game state`() {
         mockMvc.get("/api/game")
             .andExpect {
                 status { isOk() }
                 jsonPath("$.id", equalTo("default"))
-                jsonPath("$.snapshot.phase", equalTo("setup"))
+                jsonPath("$.snapshot.phase", equalTo("none"))
                 jsonPath("$.snapshot.board", equalTo(emptyMap<String, String>()))
             }
     }
 
     @Test
-    fun `valid command increments version`() {
+    fun `valid start game command increments version and enters setup`() {
         val game = getGame()
 
-        postCommand(command(game.version, "begin-game")).andExpect {
+        postCommand(command(game.version, "start-game")).andExpect {
             status { isOk() }
             jsonPath("$.version", equalTo((game.version + 1).toInt()))
-            jsonPath("$.snapshot.phase", equalTo("move"))
+            jsonPath("$.snapshot.phase", equalTo("setup"))
         }
     }
 
@@ -57,18 +61,19 @@ class GameControllerTest {
     fun `stale expected version returns conflict with the latest snapshot`() {
         val game = getGame()
 
-        executeCommand(command(game.version, "begin-game"))
+        executeCommand(command(game.version, "start-game"))
 
-        postCommand(command(game.version, "reset-game")).andExpect {
+        postCommand(command(game.version, "start-game")).andExpect {
             status { isConflict() }
             jsonPath("$.version", equalTo((game.version + 1).toInt()))
-            jsonPath("$.snapshot.phase", equalTo("move"))
+            jsonPath("$.snapshot.phase", equalTo("setup"))
         }
     }
 
     @Test
     fun `invalid command returns bad request`() {
-        executeCommand(command(getGame().version, "begin-game"))
+        startSetup()
+        endSetup()
         val game = getGame()
 
         postCommand(command(game.version, "move-piece", origin = "a1")).andExpect {
@@ -78,7 +83,19 @@ class GameControllerTest {
     }
 
     @Test
+    fun `illegal setup command before starting a game leaves game unchanged`() {
+        val before = getGame()
+
+        assertRejectedCommandLeavesGameUnchanged(
+            before = before,
+            command = command(before.version, "cycle-setup", square = "a1"),
+            message = "Command cycle-setup is not allowed during none."
+        )
+    }
+
+    @Test
     fun `illegal move command during setup leaves game unchanged`() {
+        startSetup()
         val before = getGame()
 
         assertRejectedCommandLeavesGameUnchanged(
@@ -89,8 +106,9 @@ class GameControllerTest {
     }
 
     @Test
-    fun `illegal cycle setup command after game start leaves game unchanged`() {
-        executeCommand(command(getGame().version, "begin-game"))
+    fun `illegal cycle setup command after setup leaves game unchanged`() {
+        startSetup()
+        endSetup()
         val before = getGame()
 
         assertRejectedCommandLeavesGameUnchanged(
@@ -102,8 +120,9 @@ class GameControllerTest {
 
     @Test
     fun `move from empty square leaves game unchanged`() {
+        startSetup()
         setupDragonAt("a1")
-        beginGame()
+        endSetup()
         val before = getGame()
 
         assertRejectedCommandLeavesGameUnchanged(
@@ -115,8 +134,9 @@ class GameControllerTest {
 
     @Test
     fun `moving an opposing piece leaves game unchanged`() {
+        startSetup()
         setupRavenAt("a1")
-        beginGame()
+        endSetup()
         val before = getGame()
 
         assertRejectedCommandLeavesGameUnchanged(
@@ -128,9 +148,10 @@ class GameControllerTest {
 
     @Test
     fun `moving into an occupied square leaves game unchanged`() {
+        startSetup()
         setupDragonAt("a1")
         setupDragonAt("b2")
-        beginGame()
+        endSetup()
         val before = getGame()
 
         assertRejectedCommandLeavesGameUnchanged(
@@ -142,8 +163,9 @@ class GameControllerTest {
 
     @Test
     fun `capture command during move phase leaves game unchanged`() {
+        startSetup()
         setupDragonAt("a1")
-        beginGame()
+        endSetup()
         val before = getGame()
 
         assertRejectedCommandLeavesGameUnchanged(
@@ -155,8 +177,9 @@ class GameControllerTest {
 
     @Test
     fun `skip capture during move phase leaves game unchanged`() {
+        startSetup()
         setupDragonAt("a1")
-        beginGame()
+        endSetup()
         val before = getGame()
 
         assertRejectedCommandLeavesGameUnchanged(
@@ -195,15 +218,16 @@ class GameControllerTest {
             { org.junit.jupiter.api.Assertions.assertEquals(Piece.dragon, undone.snapshot.board["a1"]) },
             { org.junit.jupiter.api.Assertions.assertEquals(null, undone.snapshot.board["a2"]) },
             { org.junit.jupiter.api.Assertions.assertEquals(Piece.raven, undone.snapshot.board["b2"]) },
-            { org.junit.jupiter.api.Assertions.assertEquals(emptyList<MoveRecord>(), undone.snapshot.turns) },
+            { org.junit.jupiter.api.Assertions.assertEquals(emptyList<TurnRecord>(), undone.snapshot.turns) },
             { org.junit.jupiter.api.Assertions.assertEquals(false, undone.canUndo) }
         )
     }
 
     @Test
     fun `fresh game fetch exposes can undo for another client`() {
+        startSetup()
         setupDragonAt("a1")
-        beginGame()
+        endSetup()
         executeCommand(command(getGame().version, "move-piece", origin = "a1", destination = "a2"))
 
         mockMvc.get("/api/game")
@@ -249,10 +273,44 @@ class GameControllerTest {
         )
     }
 
+    @Test
+    fun `end game preserves the board and adds game over before returning to no game`() {
+        startSetup()
+        setupDragonAt("a1")
+        endSetup()
+        executeCommand(command(getGame().version, "move-piece", origin = "a1", destination = "a2"))
+
+        postCommand(command(getGame().version, "end-game")).andExpect {
+            status { isOk() }
+            jsonPath("$.snapshot.phase", equalTo("none"))
+            jsonPath("$.snapshot.board.a2", equalTo("dragon"))
+            jsonPath("$.snapshot.turns[0].type", equalTo("move"))
+            jsonPath("$.snapshot.turns[1].type", equalTo("gameOver"))
+            jsonPath("$.canUndo", equalTo(false))
+        }
+    }
+
+    @Test
+    fun `starting a new game after game over clears the preserved board and history`() {
+        startSetup()
+        setupDragonAt("a1")
+        endSetup()
+        executeCommand(command(getGame().version, "move-piece", origin = "a1", destination = "a2"))
+        executeCommand(command(getGame().version, "end-game"))
+
+        postCommand(command(getGame().version, "start-game")).andExpect {
+            status { isOk() }
+            jsonPath("$.snapshot.phase", equalTo("setup"))
+            jsonPath("$.snapshot.board", equalTo(emptyMap<String, String>()))
+            jsonPath("$.snapshot.turns.length()", equalTo(0))
+        }
+    }
+
     private fun enterCapturePhase() {
+        startSetup()
         setupDragonAt("a1")
         setupRavenAt("b2")
-        beginGame()
+        endSetup()
         executeCommand(command(getGame().version, "move-piece", origin = "a1", destination = "a2"))
     }
 
@@ -277,8 +335,11 @@ class GameControllerTest {
         assertGameUnchanged(before)
     }
 
-    private fun beginGame(): GameSession =
-        executeCommand(command(getGame().version, "begin-game"))
+    private fun startSetup(): GameSession =
+        executeCommand(command(getGame().version, "start-game"))
+
+    private fun endSetup(): GameSession =
+        executeCommand(command(getGame().version, "end-setup"))
 
     private fun setupDragonAt(square: String) {
         executeCommand(command(getGame().version, "cycle-setup", square = square))
@@ -289,10 +350,8 @@ class GameControllerTest {
         executeCommand(command(getGame().version, "cycle-setup", square = square))
     }
 
-    private fun isInitialSetup(game: GameSession): Boolean =
-        game.snapshot.phase == Phase.setup &&
-            game.snapshot.board.isEmpty() &&
-            game.snapshot.turns.isEmpty()
+    private fun isNoGame(game: GameSession): Boolean =
+        game.snapshot.phase == Phase.none
 
     private fun command(
         expectedVersion: Long,

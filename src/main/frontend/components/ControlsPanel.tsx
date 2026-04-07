@@ -3,56 +3,77 @@ import { selectCanUndo, selectIsSubmitting, selectSnapshot } from "../features/g
 
 interface ControlsPanelProps {
     onStartGame: () => void;
+    onEndSetup: () => void;
+    onEndGame: () => void;
     onUndo: () => void;
-    onResetGame: () => void;
     onSkipCapture: () => void;
 }
 
 export const ControlsPanel = ({
     onStartGame,
+    onEndSetup,
+    onEndGame,
     onUndo,
-    onResetGame,
     onSkipCapture
 }: ControlsPanelProps) => {
     const snapshot = useAppSelector(selectSnapshot);
     const canUndo = useAppSelector(selectCanUndo);
     const isSubmitting = useAppSelector(selectIsSubmitting);
     const disabled = !snapshot || isSubmitting;
+    const phase = snapshot?.phase;
+    const isActivePlay = phase === "move" || phase === "capture";
+    const canSkipCapture = phase === "capture";
 
     return (
         <div className="controls controls-sidebar">
-            <button
-                id="start-button"
-                type="button"
-                disabled={disabled || snapshot.phase !== "setup"}
-                onClick={onStartGame}
-            >
-                Start Game
-            </button>
-            <button
-                id="capture-skip-button"
-                type="button"
-                disabled={disabled || snapshot.phase !== "capture"}
-                onClick={onSkipCapture}
-            >
-                Skip Capture
-            </button>
-            <button
-                id="undo-button"
-                type="button"
-                disabled={disabled || !canUndo}
-                onClick={onUndo}
-            >
-                Undo
-            </button>
-            <button
-                id="reset-button"
-                type="button"
-                disabled={disabled}
-                onClick={onResetGame}
-            >
-                Reset to Setup
-            </button>
+            {phase === "none" ? (
+                <button
+                    id="start-button"
+                    type="button"
+                    disabled={disabled}
+                    onClick={onStartGame}
+                >
+                    Start Game
+                </button>
+            ) : null}
+            {phase === "setup" ? (
+                <button
+                    id="end-setup-button"
+                    type="button"
+                    disabled={disabled}
+                    onClick={onEndSetup}
+                >
+                    End Setup
+                </button>
+            ) : null}
+            {isActivePlay ? (
+                <>
+                    <button
+                        id="capture-skip-button"
+                        type="button"
+                        disabled={disabled || !canSkipCapture}
+                        onClick={onSkipCapture}
+                    >
+                        Skip Capture
+                    </button>
+                    <button
+                        id="undo-button"
+                        type="button"
+                        disabled={disabled || !canUndo}
+                        onClick={onUndo}
+                    >
+                        Undo
+                    </button>
+                    <button
+                        id="end-game-button"
+                        type="button"
+                        disabled={disabled}
+                        onClick={onEndGame}
+                    >
+                        End Game
+                    </button>
+                </>
+            ) : null}
         </div>
     );
 };

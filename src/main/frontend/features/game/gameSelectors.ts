@@ -35,7 +35,13 @@ export const selectStatusText = createSelector(selectGameState, selectSnapshot, 
     }
 
     if (snapshot.phase === "setup") {
-        return "Setup phase: place the pieces. Then start the game.";
+        return "Setup phase: place the pieces on the board.";
+    }
+
+    if (snapshot.phase === "none") {
+        return snapshot.turns.length > 0
+            ? "Game over. Start a new game when you're ready."
+            : "No game in progress. Start a game to enter setup.";
     }
 
     if (snapshot.phase === "capture") {

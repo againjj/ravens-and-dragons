@@ -11,7 +11,7 @@ export const createSession = (
     canUndo: false,
     snapshot: {
         board: {},
-        phase: "setup",
+        phase: "none",
         activeSide: "dragons",
         pendingMove: null,
         turns: [],

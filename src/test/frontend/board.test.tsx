@@ -7,6 +7,33 @@ import { createSession } from "./fixtures.js";
 import { renderWithStore } from "./test-utils.js";
 
 describe("Board", () => {
+    test("does not select pieces when no game is in progress", async () => {
+        const user = userEvent.setup();
+        const { store } = renderWithStore(<Board />, {
+            preloadedState: {
+                game: {
+                    session: createSession({}, {
+                        phase: "none",
+                        board: {
+                            a1: "dragon"
+                        }
+                    }),
+                    isSubmitting: false,
+                    loadState: "ready",
+                    connectionState: "open",
+                    feedbackMessage: null
+                },
+                ui: {
+                    selectedSquare: null
+                }
+            }
+        });
+
+        await user.click(screen.getByRole("button", { name: "Square a1" }));
+
+        expect(store.getState().ui.selectedSquare).toBeNull();
+    });
+
     test("selects and deselects an owned piece during move phase", async () => {
         const user = userEvent.setup();
         const { store } = renderWithStore(<Board />, {

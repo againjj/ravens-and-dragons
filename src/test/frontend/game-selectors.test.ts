@@ -71,7 +71,43 @@ describe("game selectors", () => {
             }
         });
 
-        expect(selectStatusText(store.getState())).toBe("Setup phase: place the pieces. Then start the game.");
+        expect(selectStatusText(store.getState())).toBe("Setup phase: place the pieces on the board.");
+    });
+
+    test("status text uses the no game copy before a game starts", () => {
+        const store = createAppStore({
+            game: {
+                session: createSession(),
+                isSubmitting: false,
+                loadState: "ready",
+                connectionState: "open",
+                feedbackMessage: null
+            },
+            ui: {
+                selectedSquare: null
+            }
+        });
+
+        expect(selectStatusText(store.getState())).toBe("No game in progress. Start a game to enter setup.");
+    });
+
+    test("status text uses the game over copy after ending a game", () => {
+        const store = createAppStore({
+            game: {
+                session: createSession({}, {
+                    turns: [{ type: "move", from: "a1", to: "a2" }, { type: "gameOver" }]
+                }),
+                isSubmitting: false,
+                loadState: "ready",
+                connectionState: "open",
+                feedbackMessage: null
+            },
+            ui: {
+                selectedSquare: null
+            }
+        });
+
+        expect(selectStatusText(store.getState())).toBe("Game over. Start a new game when you're ready.");
     });
 
     test("status text omits the extra gold reminder during move phase", () => {

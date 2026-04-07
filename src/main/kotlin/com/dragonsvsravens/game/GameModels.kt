@@ -14,14 +14,21 @@ enum class Side {
 }
 
 enum class Phase {
+    none,
     setup,
     move,
     capture
 }
 
-data class MoveRecord(
-    val from: String,
-    val to: String,
+enum class TurnType {
+    move,
+    gameOver
+}
+
+data class TurnRecord(
+    val type: TurnType,
+    val from: String? = null,
+    val to: String? = null,
     val captured: String? = null
 )
 
@@ -29,8 +36,8 @@ data class GameSnapshot(
     val board: Map<String, Piece>,
     val phase: Phase,
     val activeSide: Side,
-    val pendingMove: MoveRecord?,
-    val turns: List<MoveRecord>
+    val pendingMove: TurnRecord?,
+    val turns: List<TurnRecord>
 )
 
 data class GameSession(

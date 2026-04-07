@@ -5,8 +5,9 @@ import {
     getCapturableSquares,
     getPieceAtSquare,
     getTargetableSquares,
+    getTurnHistoryRows,
     normalizeSelectedSquare,
-    moveToNotation
+    turnToNotation
 } from "../../../build/generated/frontend/game.js";
 
 const snapshot = {
@@ -45,7 +46,29 @@ test("pieces are read from the server snapshot board object", () => {
     assert.equal(getPieceAtSquare(snapshot, "c3"), undefined);
 });
 
-test("move notation includes captures only when present", () => {
-    assert.equal(moveToNotation({ from: "a1", to: "a2" }), "a1-a2");
-    assert.equal(moveToNotation({ from: "a1", to: "a2", captured: "b2" }), "a1-a2xb2");
+test("turn notation includes captures only when present and supports game over", () => {
+    assert.equal(turnToNotation({ type: "move", from: "a1", to: "a2" }), "a1-a2");
+    assert.equal(turnToNotation({ type: "move", from: "a1", to: "a2", captured: "b2" }), "a1-a2xb2");
+    assert.equal(turnToNotation({ type: "gameOver" }), "Game Over");
+});
+
+test("turn history rows provide render-ready labels for moves and game over", () => {
+    assert.deepEqual(
+        getTurnHistoryRows([
+            { type: "move", from: "a1", to: "a2" },
+            { type: "gameOver" }
+        ]),
+        [
+            {
+                type: "move",
+                label: "a1-a2",
+                key: "move-a1-a2-none-0"
+            },
+            {
+                type: "gameOver",
+                label: "Game Over",
+                key: "gameOver-none-none-none-1"
+            }
+        ]
+    );
 });
