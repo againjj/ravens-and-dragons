@@ -7,64 +7,65 @@ import java.util.concurrent.CopyOnWriteArrayList
 
 @Service
 class GameSessionService {
+    private data class StoredGame(
+        val session: GameSession,
+        val undoSnapshots: List<GameSnapshot>
+    )
+
     private val emitters = CopyOnWriteArrayList<SseEmitter>()
 
     @Volatile
-    private var gameSession = createSession(
+    private var storedGame = createStoredGame(
         snapshot = GameRules.createInitialSnapshot(),
+        undoSnapshots = emptyList(),
         version = 0,
         createdAt = Instant.now(),
         updatedAt = Instant.now()
     )
 
-    fun getGame(): GameSession = gameSession
+    fun getGame(): GameSession = storedGame.session
 
     fun applyCommand(command: GameCommandRequest): GameSession = synchronized(this) {
-        val current = gameSession
-        if (command.expectedVersion != current.version) {
-            throw VersionConflictException(current)
+        val current = storedGame
+        if (command.expectedVersion != current.session.version) {
+            throw VersionConflictException(current.session)
         }
 
-        val nextSnapshot = when (command.type) {
-            "cycle-setup" -> {
-                validatePhase(current.snapshot, Phase.setup, command.type)
-                GameRules.cycleSetupPiece(current.snapshot, requireSquare(command))
+        val nextState = when (command.type) {
+            "cycle-setup" -> applyInPhase(current, command, Phase.setup) { snapshot ->
+                current.next(snapshot = GameRules.cycleSetupPiece(snapshot, requireSquare(command)))
             }
 
-            "begin-game" -> {
-                validatePhase(current.snapshot, Phase.setup, command.type)
-                GameRules.beginGame(current.snapshot)
+            "begin-game" -> applyInPhase(current, command, Phase.setup) { snapshot ->
+                current.next(snapshot = GameRules.beginGame(snapshot))
             }
 
-            "move-piece" -> {
-                validatePhase(current.snapshot, Phase.move, command.type)
-                GameRules.movePiece(current.snapshot, requireOrigin(command), requireDestination(command))
+            "move-piece" -> applyInPhase(current, command, Phase.move) { snapshot ->
+                current.nextWithUndo(
+                    snapshot = GameRules.movePiece(snapshot, requireOrigin(command), requireDestination(command))
+                )
             }
 
-            "capture-piece" -> {
-                validatePhase(current.snapshot, Phase.capture, command.type)
-                GameRules.capturePiece(current.snapshot, requireSquare(command))
+            "capture-piece" -> applyInPhase(current, command, Phase.capture) { snapshot ->
+                current.next(snapshot = GameRules.capturePiece(snapshot, requireSquare(command)))
             }
 
-            "skip-capture" -> {
-                validatePhase(current.snapshot, Phase.capture, command.type)
-                GameRules.commitTurn(current.snapshot)
+            "skip-capture" -> applyInPhase(current, command, Phase.capture) { snapshot ->
+                current.next(snapshot = GameRules.commitTurn(snapshot))
             }
 
-            "reset-game" -> GameRules.resetGame()
+            "undo" -> current.undo()
+
+            "reset-game" -> current.next(
+                snapshot = GameRules.resetGame(),
+                undoSnapshots = emptyList()
+            )
             else -> throw InvalidCommandException("Unknown command type: ${command.type}")
         }
 
-        val updated = createSession(
-            snapshot = nextSnapshot,
-            version = current.version + 1,
-            createdAt = current.createdAt,
-            updatedAt = Instant.now()
-        )
-
-        gameSession = updated
-        broadcast(updated)
-        updated
+        storedGame = nextState
+        broadcast(nextState.session)
+        nextState.session
     }
 
     fun createEmitter(): SseEmitter {
@@ -79,21 +80,26 @@ class GameSessionService {
         emitter.onTimeout(removeEmitter)
         emitter.onError { removeEmitter() }
 
-        sendSnapshot(emitter, gameSession)
+        sendSnapshot(emitter, storedGame.session)
         return emitter
     }
 
-    private fun createSession(
+    private fun createStoredGame(
         snapshot: GameSnapshot,
+        undoSnapshots: List<GameSnapshot>,
         version: Long,
         createdAt: Instant,
         updatedAt: Instant
-    ): GameSession = GameSession(
-        id = "default",
-        version = version,
-        createdAt = createdAt,
-        updatedAt = updatedAt,
-        snapshot = snapshot
+    ): StoredGame = StoredGame(
+        session = GameSession(
+            id = "default",
+            version = version,
+            createdAt = createdAt,
+            updatedAt = updatedAt,
+            snapshot = snapshot,
+            canUndo = undoSnapshots.isNotEmpty()
+        ),
+        undoSnapshots = undoSnapshots
     )
 
     private fun broadcast(session: GameSession) {
@@ -124,6 +130,16 @@ class GameSessionService {
         }
     }
 
+    private fun applyInPhase(
+        current: StoredGame,
+        command: GameCommandRequest,
+        expectedPhase: Phase,
+        update: (GameSnapshot) -> StoredGame
+    ): StoredGame {
+        validatePhase(current.session.snapshot, expectedPhase, command.type)
+        return update(current.session.snapshot)
+    }
+
     private fun requireSquare(command: GameCommandRequest): String =
         command.square ?: throw InvalidCommandException("Command ${command.type} requires square.")
 
@@ -132,4 +148,30 @@ class GameSessionService {
 
     private fun requireDestination(command: GameCommandRequest): String =
         command.destination ?: throw InvalidCommandException("Command ${command.type} requires destination.")
+
+    private fun StoredGame.next(
+        snapshot: GameSnapshot,
+        undoSnapshots: List<GameSnapshot> = this.undoSnapshots
+    ): StoredGame = createStoredGame(
+        snapshot = snapshot,
+        undoSnapshots = undoSnapshots,
+        version = session.version + 1,
+        createdAt = session.createdAt,
+        updatedAt = Instant.now()
+    )
+
+    private fun StoredGame.nextWithUndo(snapshot: GameSnapshot): StoredGame =
+        next(
+            snapshot = snapshot,
+            undoSnapshots = undoSnapshots + session.snapshot
+        )
+
+    private fun StoredGame.undo(): StoredGame {
+        val previousSnapshot = undoSnapshots.lastOrNull()
+            ?: throw InvalidCommandException("No move is available to undo.")
+        return next(
+            snapshot = previousSnapshot,
+            undoSnapshots = undoSnapshots.dropLast(1)
+        )
+    }
 }

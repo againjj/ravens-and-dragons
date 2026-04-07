@@ -3,6 +3,7 @@ package com.dragonsvsravens.game
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.assertThrows
 import org.junit.jupiter.api.Test
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 
@@ -57,6 +58,45 @@ class GameSessionServiceTest {
 
         assertFalse(emitters.contains(failingEmitter))
         assertTrue(emitters.contains(recordingEmitter))
+    }
+
+    @Test
+    fun `undo restores the previous snapshot and updates can undo`() {
+        val service = GameSessionService()
+
+        service.applyCommand(GameCommandRequest(expectedVersion = 0, type = "cycle-setup", square = "a1"))
+        service.applyCommand(GameCommandRequest(expectedVersion = 1, type = "begin-game"))
+        val moved = service.applyCommand(
+            GameCommandRequest(
+                expectedVersion = 2,
+                type = "move-piece",
+                origin = "a1",
+                destination = "a2"
+            )
+        )
+
+        assertTrue(moved.canUndo)
+        assertEquals(Phase.move, moved.snapshot.phase)
+        assertEquals(Piece.dragon, moved.snapshot.board["a2"])
+
+        val undone = service.applyCommand(GameCommandRequest(expectedVersion = 3, type = "undo"))
+
+        assertFalse(undone.canUndo)
+        assertEquals(Phase.move, undone.snapshot.phase)
+        assertEquals(Piece.dragon, undone.snapshot.board["a1"])
+        assertFalse(undone.snapshot.board.containsKey("a2"))
+    }
+
+    @Test
+    fun `undo with no move history is rejected`() {
+        val service = GameSessionService()
+
+        val exception = assertThrows<InvalidCommandException> {
+            service.applyCommand(GameCommandRequest(expectedVersion = 0, type = "undo"))
+        }
+
+        assertEquals("No move is available to undo.", exception.message)
+        assertFalse(service.getGame().canUndo)
     }
 
     @Suppress("UNCHECKED_CAST")

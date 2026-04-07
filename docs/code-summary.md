@@ -26,6 +26,7 @@ This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a brows
   - Redux store setup and typed hooks.
 - `src/main/frontend/features/game/*.ts`
   - Game slice, selectors, thunks, and stream lifecycle wiring.
+  - Includes shared-session helpers such as exact undo availability and small command-thunk wrappers.
 - `src/main/frontend/features/ui/*.ts`
   - Local-only UI state such as selected square.
 - `src/main/frontend/components/*.tsx`
@@ -80,6 +81,10 @@ The canonical board is represented on the server as `Map<String, Piece>` and on 
 - `pendingMove`
 - `turns`
 
+`GameSession` currently also contains:
+
+- `canUndo`
+
 Important implication: the shared game is entirely in-memory on the server. Multiple clients see the same game, but restarting the server resets it.
 
 ## Responsibilities By File
@@ -93,6 +98,7 @@ The Kotlin game module is now the source of truth for game rules and state trans
 - Owns turn transitions.
 - Owns movement and capture resolution.
 - Wraps the current snapshot in a versioned in-memory game session.
+- Keeps server-only undo snapshot history alongside the public shared session payload.
 - Broadcasts updated snapshots to SSE clients.
 
 Most gameplay changes should start on the backend here.
@@ -136,6 +142,7 @@ Most UI-only changes should start in the relevant component, selector, or browse
   - Ravens may capture one `dragon` or the `gold`.
 - Capture is optional because the UI exposes a "Skip Capture" button.
 - Completing capture or skipping it commits the turn, appends to move history, and swaps the active side.
+- Undo can roll back either an in-progress move in capture phase or the most recently completed move.
 
 ### Shared play behavior
 
@@ -143,6 +150,7 @@ Most UI-only changes should start in the relevant component, selector, or browse
 - The server exposes a single shared game with id `default`.
 - Mutation requests include an expected version.
 - On a version conflict, the server returns `409` with the latest game snapshot.
+- Freshly loaded clients receive an exact `canUndo` flag from the server.
 - The browser keeps piece selection local; other clients do not see half-finished selections.
 
 ## Rendering Strategy
@@ -223,6 +231,7 @@ Future UI changes should preserve the split of transport logic, Redux state, ren
 ## Suggested Priorities Before Larger Feature Work
 
 1. Define undo/history semantics on top of the shared server-owned session model.
-2. Decide whether the single in-memory shared game should become durable storage or multiple rooms.
-3. Keep backend game rules centralized and avoid drifting gameplay logic into React components or Redux reducers.
-4. Expand backend and frontend tests alongside any new move, capture, or win-condition logic.
+2. Decide whether the current snapshot-history undo model should stay as-is or evolve into a richer event/command history as rules grow.
+3. Decide whether the single in-memory shared game should become durable storage or multiple rooms.
+4. Keep backend game rules centralized and avoid drifting gameplay logic into React components or Redux reducers.
+5. Expand backend and frontend tests alongside any new move, capture, or win-condition logic.

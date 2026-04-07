@@ -38,7 +38,8 @@ data class GameSession(
     val version: Long,
     val createdAt: Instant,
     val updatedAt: Instant,
-    val snapshot: GameSnapshot
+    val snapshot: GameSnapshot,
+    val canUndo: Boolean
 )
 
 data class GameCommandRequest(

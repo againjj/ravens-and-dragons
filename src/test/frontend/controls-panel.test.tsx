@@ -14,6 +14,7 @@ describe("ControlsPanel", () => {
         renderWithStore(
             <ControlsPanel
                 onStartGame={onStartGame}
+                onUndo={vi.fn()}
                 onResetGame={vi.fn()}
                 onSkipCapture={vi.fn()}
             />,
@@ -35,9 +36,11 @@ describe("ControlsPanel", () => {
 
         const startButton = screen.getByRole("button", { name: "Start Game" });
         const skipButton = screen.getByRole("button", { name: "Skip Capture" });
+        const undoButton = screen.getByRole("button", { name: "Undo" });
 
         expect(startButton).toBeEnabled();
         expect(skipButton).toBeDisabled();
+        expect(undoButton).toBeDisabled();
 
         await user.click(startButton);
 
@@ -48,6 +51,7 @@ describe("ControlsPanel", () => {
         renderWithStore(
             <ControlsPanel
                 onStartGame={vi.fn()}
+                onUndo={vi.fn()}
                 onResetGame={vi.fn()}
                 onSkipCapture={vi.fn()}
             />,
@@ -72,6 +76,42 @@ describe("ControlsPanel", () => {
 
         expect(screen.getByRole("button", { name: "Skip Capture" })).toBeEnabled();
         expect(screen.getByRole("button", { name: "Start Game" })).toBeDisabled();
+        expect(screen.getByRole("button", { name: "Undo" })).toBeDisabled();
         expect(screen.getByRole("button", { name: "Reset to Setup" })).toBeEnabled();
+    });
+
+    test("places undo above reset and enables it from the shared session flag", () => {
+        renderWithStore(
+            <ControlsPanel
+                onStartGame={vi.fn()}
+                onUndo={vi.fn()}
+                onResetGame={vi.fn()}
+                onSkipCapture={vi.fn()}
+            />,
+            {
+                preloadedState: {
+                    game: {
+                        session: createSession({ canUndo: true }, {
+                            phase: "move",
+                            activeSide: "ravens"
+                        }),
+                        isSubmitting: false,
+                        loadState: "ready",
+                        connectionState: "open",
+                        feedbackMessage: null
+                    },
+                    ui: {
+                        selectedSquare: null
+                    }
+                }
+            }
+        );
+
+        const buttons = screen.getAllByRole("button");
+        const undoButton = screen.getByRole("button", { name: "Undo" });
+        const resetButton = screen.getByRole("button", { name: "Reset to Setup" });
+
+        expect(undoButton).toBeEnabled();
+        expect(buttons.indexOf(undoButton)).toBeLessThan(buttons.indexOf(resetButton));
     });
 });

@@ -73,4 +73,5 @@ Read docs/code-summary.md and docs/codex-rules.md before making changes. Follow 
 - The frontend is built with TypeScript plus Vite into `build/generated/frontend`.
 - Frontend tests use Node's built-in test runner for shared helper modules and Vitest with jsdom for React/Redux tests.
 - Spring Boot serves the generated frontend assets as static resources and exposes `/api/game` plus `/api/game/stream`.
+- Undo is server-backed, shared across clients, and exposed as `canUndo` in the session payload so the UI can disable the button exactly.
 - If you change architecture, workflow, or gameplay in a meaningful way, update `docs/code-summary.md`.

@@ -22,11 +22,12 @@ export interface ServerGameSession {
     createdAt: string;
     updatedAt: string;
     snapshot: ServerGameSnapshot;
+    canUndo: boolean;
 }
 
 export interface GameCommandRequest {
     expectedVersion: number;
-    type: "cycle-setup" | "begin-game" | "move-piece" | "capture-piece" | "skip-capture" | "reset-game";
+    type: "cycle-setup" | "begin-game" | "move-piece" | "capture-piece" | "skip-capture" | "undo" | "reset-game";
     square?: string;
     origin?: string;
     destination?: string;

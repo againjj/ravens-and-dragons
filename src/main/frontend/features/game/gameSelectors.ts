@@ -5,6 +5,7 @@ import type { RootState } from "../../app/store.js";
 
 export const selectGameState = (state: RootState) => state.game;
 export const selectSnapshot = (state: RootState) => state.game.session?.snapshot ?? null;
+export const selectCanUndo = (state: RootState) => state.game.session?.canUndo ?? false;
 export const selectSelectedSquare = (state: RootState) => state.ui.selectedSquare;
 export const selectIsSubmitting = (state: RootState) => state.game.isSubmitting;
 

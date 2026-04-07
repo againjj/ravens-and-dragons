@@ -166,6 +166,65 @@ class GameControllerTest {
     }
 
     @Test
+    fun `undo during capture restores the pre move snapshot`() {
+        enterCapturePhase()
+        val beforeUndo = getGame()
+        val undone = executeCommand(command(beforeUndo.version, "undo"))
+
+        assertAll(
+            { org.junit.jupiter.api.Assertions.assertEquals(Phase.move, undone.snapshot.phase) },
+            { org.junit.jupiter.api.Assertions.assertEquals(Side.dragons, undone.snapshot.activeSide) },
+            { org.junit.jupiter.api.Assertions.assertEquals(null, undone.snapshot.pendingMove) },
+            { org.junit.jupiter.api.Assertions.assertEquals(Piece.dragon, undone.snapshot.board["a1"]) },
+            { org.junit.jupiter.api.Assertions.assertEquals(null, undone.snapshot.board["a2"]) },
+            { org.junit.jupiter.api.Assertions.assertEquals(false, undone.canUndo) }
+        )
+    }
+
+    @Test
+    fun `undo after capture restores the moved and captured pieces`() {
+        enterCapturePhase()
+        executeCommand(command(getGame().version, "capture-piece", square = "b2"))
+        val beforeUndo = getGame()
+        val undone = executeCommand(command(beforeUndo.version, "undo"))
+
+        assertAll(
+            { org.junit.jupiter.api.Assertions.assertEquals(Phase.move, undone.snapshot.phase) },
+            { org.junit.jupiter.api.Assertions.assertEquals(Side.dragons, undone.snapshot.activeSide) },
+            { org.junit.jupiter.api.Assertions.assertEquals(Piece.dragon, undone.snapshot.board["a1"]) },
+            { org.junit.jupiter.api.Assertions.assertEquals(null, undone.snapshot.board["a2"]) },
+            { org.junit.jupiter.api.Assertions.assertEquals(Piece.raven, undone.snapshot.board["b2"]) },
+            { org.junit.jupiter.api.Assertions.assertEquals(emptyList<MoveRecord>(), undone.snapshot.turns) },
+            { org.junit.jupiter.api.Assertions.assertEquals(false, undone.canUndo) }
+        )
+    }
+
+    @Test
+    fun `fresh game fetch exposes can undo for another client`() {
+        setupDragonAt("a1")
+        beginGame()
+        executeCommand(command(getGame().version, "move-piece", origin = "a1", destination = "a2"))
+
+        mockMvc.get("/api/game")
+            .andExpect {
+                status { isOk() }
+                jsonPath("$.snapshot.board.a2", equalTo("dragon"))
+                jsonPath("$.canUndo", equalTo(true))
+            }
+    }
+
+    @Test
+    fun `undo with no move history leaves game unchanged`() {
+        val before = getGame()
+
+        assertRejectedCommandLeavesGameUnchanged(
+            before = before,
+            command = command(before.version, "undo"),
+            message = "No move is available to undo."
+        )
+    }
+
+    @Test
     fun `capturing an empty square leaves game unchanged`() {
         enterCapturePhase()
         val before = getGame()

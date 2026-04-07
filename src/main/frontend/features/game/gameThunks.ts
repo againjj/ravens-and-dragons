@@ -64,26 +64,35 @@ export const sendCommand = (
     }
 };
 
-export const beginGame = (): AppThunk<Promise<void>> => async (dispatch) => {
-    await dispatch(sendSelectionClearingCommand({ type: "begin-game" }));
+const createCommandThunk = (
+    partialCommand: Omit<GameCommandRequest, "expectedVersion">,
+    options: { clearSelection?: boolean } = {}
+): AppThunk<Promise<void>> => async (dispatch) => {
+    if (options.clearSelection) {
+        await dispatch(sendSelectionClearingCommand(partialCommand));
+        return;
+    }
+
+    await dispatch(sendCommand(partialCommand));
 };
 
-export const resetGame = (): AppThunk<Promise<void>> => async (dispatch) => {
-    await dispatch(sendSelectionClearingCommand({ type: "reset-game" }));
-};
+export const beginGame = (): AppThunk<Promise<void>> =>
+    createCommandThunk({ type: "begin-game" }, { clearSelection: true });
 
-export const skipCapture = (): AppThunk<Promise<void>> => async (dispatch) => {
-    await dispatch(sendCommand({ type: "skip-capture" }));
-};
+export const resetGame = (): AppThunk<Promise<void>> =>
+    createCommandThunk({ type: "reset-game" }, { clearSelection: true });
 
-export const cycleSetup = (square: string): AppThunk<Promise<void>> => async (dispatch) => {
-    await dispatch(sendCommand({ type: "cycle-setup", square }));
-};
+export const skipCapture = (): AppThunk<Promise<void>> =>
+    createCommandThunk({ type: "skip-capture" });
 
-export const capturePiece = (square: string): AppThunk<Promise<void>> => async (dispatch) => {
-    await dispatch(sendCommand({ type: "capture-piece", square }));
-};
+export const undoMove = (): AppThunk<Promise<void>> =>
+    createCommandThunk({ type: "undo" }, { clearSelection: true });
 
-export const movePiece = (origin: string, destination: string): AppThunk<Promise<void>> => async (dispatch) => {
-    await dispatch(sendCommand({ type: "move-piece", origin, destination }));
-};
+export const cycleSetup = (square: string): AppThunk<Promise<void>> =>
+    createCommandThunk({ type: "cycle-setup", square });
+
+export const capturePiece = (square: string): AppThunk<Promise<void>> =>
+    createCommandThunk({ type: "capture-piece", square });
+
+export const movePiece = (origin: string, destination: string): AppThunk<Promise<void>> =>
+    createCommandThunk({ type: "move-piece", origin, destination });

@@ -7,7 +7,7 @@ import { MoveList } from "./components/MoveList.js";
 import { StatusBanner } from "./components/StatusBanner.js";
 import { selectStatusText } from "./features/game/gameSelectors.js";
 import { gameActions } from "./features/game/gameSlice.js";
-import { beginGame, resetGame, skipCapture } from "./features/game/gameThunks.js";
+import { beginGame, resetGame, skipCapture, undoMove } from "./features/game/gameThunks.js";
 import { useGameSession } from "./features/game/useGameSession.js";
 import { useBoardSizing } from "./hooks/useBoardSizing.js";
 import { useFullscreen } from "./hooks/useFullscreen.js";
@@ -40,6 +40,10 @@ export const App = () => {
 
     const handleSkipCapture = (): void => {
         void dispatch(skipCapture());
+    };
+
+    const handleUndo = (): void => {
+        void dispatch(undoMove());
     };
 
     return (
@@ -88,6 +92,7 @@ export const App = () => {
                     <section className="controls-panel">
                         <ControlsPanel
                             onStartGame={handleStartGame}
+                            onUndo={handleUndo}
                             onResetGame={handleResetGame}
                             onSkipCapture={handleSkipCapture}
                         />
