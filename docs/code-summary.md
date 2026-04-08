@@ -2,14 +2,14 @@
 
 ## Overview
 
-This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a browser-based board game prototype. The backend owns a single shared in-memory game session and broadcasts updates over server-sent events. The frontend uses React plus Redux Toolkit for rendering, browser interaction, REST/SSE synchronization, and local-only UI state such as selection.
+This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a browser-based board game prototype. The backend now supports multiple in-memory game sessions, addressed by game id, and broadcasts updates over server-sent events per game. The frontend still uses the legacy default-game routes for now, alongside the newer multi-game backend API.
 
 ## Current Architecture
 
 - `src/main/kotlin/com/dragonsvsravens/DragonsVsRavensApplication.kt`
   - Spring Boot entrypoint.
 - `src/main/kotlin/com/dragonsvsravens/game/*.kt`
-  - Server-side game state models, pure-ish rules, the in-memory session service, and REST/SSE endpoints.
+  - Server-side game state models, pure-ish rules, the in-memory multi-game store, the session service, and REST/SSE endpoints.
 - `src/main/frontend/index.html`
   - Frontend HTML entry for the Vite build.
   - Loads `/styles.css` and mounts the React app.
@@ -59,9 +59,14 @@ This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a brows
   - Gradle task `testFrontend` runs the frontend tests.
   - `./gradlew test` runs both the frontend tests and the Kotlin/Spring test task.
 - Runtime flow:
-  - The browser loads the initial shared game from `GET /api/game`.
-  - The browser sends mutations to `POST /api/game/commands`.
-  - The browser subscribes to `GET /api/game/stream` for live updates.
+  - The current browser client still loads the default game from `GET /api/game`.
+  - The current browser client still sends mutations to `POST /api/game/commands`.
+  - The current browser client still subscribes to `GET /api/game/stream` for live updates.
+  - The backend also exposes multi-game endpoints:
+    - `POST /api/games`
+    - `GET /api/games/{gameId}`
+    - `POST /api/games/{gameId}/commands`
+    - `GET /api/games/{gameId}/stream`
 - Runtime configuration:
   - `server.port` reads `${PORT:8080}` so the app keeps its local default while also working on Railway-style platforms that inject the listen port at runtime.
   - `railway.json` overrides Railway's deploy start command to `java -jar build/libs/dragons-vs-ravens.jar`, matching the Spring Boot fat jar produced by the Gradle build.
@@ -96,7 +101,7 @@ The canonical board is represented on the server as `Map<String, Piece>` and on 
 - `selectedRuleConfigurationId`
 - `selectedStartingSide`
 
-Important implication: the shared game is entirely in-memory on the server. Multiple clients see the same game, but restarting the server resets it.
+Important implication: games are still entirely in memory on the server. Clients connected to the same game id share one server-owned session, but restarting the server resets every game.
 
 ## Responsibilities By File
 
@@ -104,13 +109,13 @@ Important implication: the shared game is entirely in-memory on the server. Mult
 
 The Kotlin game module is now the source of truth for game rules and state transitions.
 
-- Creates the initial shared snapshot with an empty board and no active game.
+- Creates fresh idle snapshots for new games and keeps a default compatibility game.
 - Owns setup cycling logic.
 - Owns turn transitions.
 - Owns rule-configuration lookup, movement validation, capture resolution, and automatic game-over checks.
-- Wraps the current snapshot in a versioned in-memory game session.
+- Wraps each snapshot in a versioned in-memory game session.
 - Keeps server-only undo snapshot history alongside the public shared session payload.
-- Broadcasts updated snapshots to SSE clients.
+- Broadcasts updated snapshots to SSE clients scoped by game id.
 
 Most gameplay changes should start on the backend here.
 
@@ -174,10 +179,11 @@ Most UI-only changes should start in the relevant component, selector, or browse
 
 ### Shared play behavior
 
-- All clients connected to the app see the same server-owned game session.
-- The server exposes a single shared game with id `default`.
+- Clients connected to the same game id see the same server-owned game session.
+- The backend can create additional in-memory games with generated ids.
+- The server still keeps a default game with id `default` for the existing frontend.
 - Mutation requests include an expected version.
-- On a version conflict, the server returns `409` with the latest game snapshot.
+- On a version conflict, the server returns `409` with the latest snapshot for that game only.
 - Freshly loaded clients receive an exact `canUndo` flag from the server.
 - Freshly loaded clients also receive the shared selected play style and the full list of available rule configurations.
 - Freshly loaded clients also receive the shared selected starting side for `Free Play`.
@@ -239,9 +245,11 @@ Future UI changes should preserve the split of transport logic, Redux state, ren
   - capture commits
   - skip-capture commits
   - end-game board preservation and `gameOver` history
-  - shared game API reads
+  - default-game compatibility reads
+  - multi-game creation and isolation
   - version increments
-  - stale-version conflicts
+  - stale-version conflicts scoped to a single game
+  - SSE delivery scoped to one game
   - invalid command validation
 
 ## Extension Points For Future Changes
@@ -253,7 +261,7 @@ Future UI changes should preserve the split of transport logic, Redux state, ren
   - Start in the relevant React component, selector, thunk, or hook under `src/main/frontend`.
   - Update `src/main/resources/static/styles.css` if layout or styling is affected.
 - To persist games or support richer multiplayer:
-  - Extend the backend session service and decide whether to add durable storage or multiple game ids.
+  - Extend the backend game store and session service to add durable storage behind the current game-id-based API.
 - To support undo/redo or replay:
   - Expand the backend session model with richer history, then expose that through the API.
 

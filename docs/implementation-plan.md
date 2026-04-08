@@ -14,24 +14,24 @@ This order fits the current codebase because the app is still modeled as a singl
 
 ### Epic 1: Multi-Game Support
 
-1. Introduce a game store abstraction on the backend.
+1. [x] Introduce a game store abstraction on the backend.
    - Goal: decouple game logic from singleton storage.
    - Change `GameSessionService.kt` so it depends on a `GameStore`-style interface instead of owning one `storedGame`.
    - Add a first in-memory implementation that stores multiple games by id.
    - Keep behavior identical for one game while refactoring internals.
 
-2. Make `GameSession` truly resource-oriented.
+2. [x] Make `GameSession` truly resource-oriented.
    - Goal: stop hardcoding `"default"`.
    - Update `GameModels.kt` so `id` is assigned per game creation path.
    - Add any small request/response models needed for game creation, such as `CreateGameRequest` or `CreateGameResponse`.
 
-3. Refactor service methods to be per-game.
+3. [x] Refactor service methods to be per-game.
    - Goal: every operation should accept `gameId`.
    - Change service methods from `getGame()`, `applyCommand(...)`, `createEmitter()` to `getGame(gameId)`, `applyCommand(gameId, ...)`, `createEmitter(gameId)`.
    - Keep version-conflict handling per game.
    - Scope SSE emitter lists per game instead of one global emitter list.
 
-4. Add per-game REST and SSE endpoints.
+4. [x] Add per-game REST and SSE endpoints.
    - Goal: expose multi-game API shape.
    - Update `GameController.kt`.
    - Add:
@@ -39,9 +39,9 @@ This order fits the current codebase because the app is still modeled as a singl
      - `GET /api/games/{gameId}`
      - `POST /api/games/{gameId}/commands`
      - `GET /api/games/{gameId}/stream`
-   - Keep old `/api/game` endpoints temporarily only if a smoother migration is worth it. Otherwise remove them in one pass.
+   - Status: the new endpoints are live, and the old `/api/game` endpoints are intentionally still present as compatibility aliases for the default game so the current frontend can keep working during Milestone B.
 
-5. Add backend tests for game isolation.
+5. [x] Add backend tests for game isolation.
    - Goal: prove two games do not interfere.
    - Extend `GameControllerTest.kt` and `GameSessionServiceTest.kt`.
    - Cover:
@@ -77,9 +77,9 @@ This order fits the current codebase because the app is still modeled as a singl
      - stream URL includes game ID
      - switching games reconnects correctly
 
-10. Update docs for the new game resource model.
-    - Goal: avoid future confusion.
-    - Update `README.md` and `docs/code-summary.md`.
+10. [x] Update docs for the new game resource model.
+   - Goal: avoid future confusion.
+   - Update `README.md` and `docs/code-summary.md`.
 
 ### Epic 2: Database Persistence
 
@@ -213,7 +213,9 @@ This order fits the current codebase because the app is still modeled as a singl
 ## Milestone Cuts
 
 - Milestone A: tickets 1-5
+  - Status: complete.
   - Backend multi-game API works, even before the UI catches up.
+  - The legacy `/api/game` routes remain in place as default-game compatibility aliases until the frontend is migrated.
 - Milestone B: tickets 6-10
   - Full multi-game vertical slice in the browser.
 - Milestone C: tickets 11-18
@@ -239,3 +241,17 @@ Build a thin vertical slice for multi-game support first:
 - receive SSE updates for that game
 
 That establishes the right resource model and makes the persistence and login work much cleaner afterward.
+
+## Current Status
+
+- Completed:
+  - backend in-memory multi-game store
+  - per-game service methods and SSE scoping
+  - multi-game REST and SSE endpoints
+  - backend isolation and compatibility tests
+  - docs updates for the backend resource model
+- Remaining before Milestone B is done:
+  - thread `gameId` through the frontend transport layer
+  - add current-game selection state
+  - add minimal create/open game UI
+  - add frontend routing tests

@@ -2,52 +2,51 @@ package com.dragonsvsravens.game
 
 import org.springframework.stereotype.Service
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
-import java.time.Instant
+import java.util.UUID
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
 @Service
-class GameSessionService {
-    private data class StoredGame(
-        val session: GameSession,
-        val undoSnapshots: List<GameSnapshot>
-    )
-
-    private val emitters = CopyOnWriteArrayList<SseEmitter>()
-
-    @Volatile
-    private var storedGame = createFreshStoredGame(
-        snapshot = GameRules.createInitialSnapshot(),
-        selectedRuleConfigurationId = GameRules.freePlayRuleConfigurationId,
-        selectedStartingSide = Side.dragons
-    )
-
-    fun getGame(): GameSession = storedGame.session
-
-    internal fun resetForTests(
-        selectedRuleConfigurationId: String = GameRules.freePlayRuleConfigurationId,
-        selectedStartingSide: Side = Side.dragons
-    ) {
-        storedGame = createFreshStoredGame(
-            snapshot = GameRules.createIdleSnapshot(selectedRuleConfigurationId, selectedStartingSide),
-            selectedRuleConfigurationId = selectedRuleConfigurationId,
-            selectedStartingSide = selectedStartingSide
-        )
+class GameSessionService(
+    private val gameStore: GameStore
+) {
+    companion object {
+        const val defaultGameId = "default"
     }
 
-    internal fun resetForTests(
-        snapshot: GameSnapshot,
-        selectedRuleConfigurationId: String = snapshot.ruleConfigurationId,
-        selectedStartingSide: Side = Side.dragons
-    ) {
-        storedGame = createFreshStoredGame(
-            snapshot = snapshot,
-            selectedRuleConfigurationId = selectedRuleConfigurationId,
-            selectedStartingSide = selectedStartingSide
-        )
+    private val emittersByGame = ConcurrentHashMap<String, CopyOnWriteArrayList<SseEmitter>>()
+    private val gameLocks = ConcurrentHashMap<String, Any>()
+
+    init {
+        ensureDefaultGameExists()
     }
 
-    fun applyCommand(command: GameCommandRequest): GameSession = synchronized(this) {
-        val current = storedGame
+    fun createGame(request: CreateGameRequest = CreateGameRequest()): GameSession {
+        val selectedRuleConfigurationId = request.ruleConfigurationId ?: GameRules.freePlayRuleConfigurationId
+        GameRules.getRuleConfigurationSummary(selectedRuleConfigurationId)
+        val selectedStartingSide = request.startingSide ?: Side.dragons
+
+        while (true) {
+            val game = GameSessionFactory.createFreshStoredGame(
+                gameId = UUID.randomUUID().toString(),
+                snapshot = createIdleSnapshot(selectedRuleConfigurationId, selectedStartingSide),
+                selectedRuleConfigurationId = selectedRuleConfigurationId,
+                selectedStartingSide = selectedStartingSide
+            )
+            if (gameStore.putIfAbsent(game)) {
+                return game.session
+            }
+        }
+    }
+
+    fun getGame(): GameSession = getGame(defaultGameId)
+
+    fun getGame(gameId: String): GameSession = getStoredGame(gameId).session
+
+    fun applyCommand(command: GameCommandRequest): GameSession = applyCommand(defaultGameId, command)
+
+    fun applyCommand(gameId: String, command: GameCommandRequest): GameSession = synchronized(lockFor(gameId)) {
+        val current = getStoredGame(gameId)
         if (command.expectedVersion != current.session.version) {
             throw VersionConflictException(current.session)
         }
@@ -113,74 +112,44 @@ class GameSessionService {
             else -> throw InvalidCommandException("Unknown command type: ${command.type}")
         }
 
-        storedGame = nextState
-        broadcast(nextState.session)
+        gameStore.put(nextState)
+        broadcast(gameId, nextState.session)
         nextState.session
     }
 
-    fun createEmitter(): SseEmitter {
-        val emitter = SseEmitter(0L)
+    fun createEmitter(): SseEmitter = createEmitter(defaultGameId)
+
+    fun createEmitter(gameId: String): SseEmitter = createEmitter(gameId, SseEmitter(0L))
+
+    internal fun createEmitter(gameId: String, emitter: SseEmitter): SseEmitter {
+        val emitters = emittersFor(gameId)
         emitters.add(emitter)
 
         val removeEmitter = {
             emitters.remove(emitter)
+            cleanupEmitters(gameId, emitters)
             Unit
         }
         emitter.onCompletion(removeEmitter)
         emitter.onTimeout(removeEmitter)
         emitter.onError { removeEmitter() }
 
-        sendSnapshot(emitter, storedGame.session)
+        val delivered = sendSnapshot(emitter, getStoredGame(gameId).session)
+        if (!delivered) {
+            removeEmitter()
+        }
         return emitter
     }
 
-    private fun createStoredGame(
-        snapshot: GameSnapshot,
-        undoSnapshots: List<GameSnapshot>,
-        version: Long,
-        createdAt: Instant,
-        updatedAt: Instant,
-        selectedRuleConfigurationId: String,
-        selectedStartingSide: Side
-    ): StoredGame = StoredGame(
-        session = GameSession(
-            id = "default",
-            version = version,
-            createdAt = createdAt,
-            updatedAt = updatedAt,
-            snapshot = snapshot,
-            canUndo = undoSnapshots.isNotEmpty(),
-            availableRuleConfigurations = GameRules.availableRuleConfigurations(),
-            selectedRuleConfigurationId = selectedRuleConfigurationId,
-            selectedStartingSide = selectedStartingSide
-        ),
-        undoSnapshots = undoSnapshots
-    )
-
-    private fun createFreshStoredGame(
-        snapshot: GameSnapshot,
-        selectedRuleConfigurationId: String,
-        selectedStartingSide: Side
-    ): StoredGame {
-        val now = Instant.now()
-        return createStoredGame(
-            snapshot = snapshot,
-            undoSnapshots = emptyList(),
-            version = 0,
-            createdAt = now,
-            updatedAt = now,
-            selectedRuleConfigurationId = selectedRuleConfigurationId,
-            selectedStartingSide = selectedStartingSide
-        )
-    }
-
-    private fun broadcast(session: GameSession) {
+    private fun broadcast(gameId: String, session: GameSession) {
+        val emitters = emittersByGame[gameId] ?: return
         emitters.forEach { emitter ->
             val delivered = sendSnapshot(emitter, session)
             if (!delivered) {
                 emitters.remove(emitter)
             }
         }
+        cleanupEmitters(gameId, emitters)
     }
 
     private fun sendSnapshot(emitter: SseEmitter, session: GameSession): Boolean {
@@ -193,6 +162,62 @@ class GameSessionService {
             return true
         } catch (_: Exception) {
             return false
+        }
+    }
+
+    private fun ensureDefaultGameExists() {
+        if (gameStore.get(defaultGameId) != null) {
+            return
+        }
+        gameStore.put(
+            createInitialStoredGame(defaultGameId)
+        )
+    }
+
+    private fun createInitialStoredGame(gameId: String): StoredGame =
+        GameSessionFactory.createFreshStoredGame(
+            gameId = gameId,
+            snapshot = createIdleSnapshot(
+                ruleConfigurationId = GameRules.freePlayRuleConfigurationId,
+                selectedStartingSide = Side.dragons
+            ),
+            selectedRuleConfigurationId = GameRules.freePlayRuleConfigurationId,
+            selectedStartingSide = Side.dragons
+        )
+
+    private fun createIdleSnapshot(ruleConfigurationId: String, selectedStartingSide: Side): GameSnapshot =
+        GameRules.createIdleSnapshot(ruleConfigurationId, selectedStartingSide)
+
+    private fun StoredGame.next(
+        snapshot: GameSnapshot,
+        undoSnapshots: List<GameSnapshot> = this.undoSnapshots,
+        selectedRuleConfigurationId: String = this.session.selectedRuleConfigurationId,
+        selectedStartingSide: Side = this.session.selectedStartingSide
+    ): StoredGame = GameSessionFactory.createStoredGame(
+        gameId = session.id,
+        snapshot = snapshot,
+        undoSnapshots = undoSnapshots,
+        version = session.version + 1,
+        createdAt = session.createdAt,
+        updatedAt = java.time.Instant.now(),
+        selectedRuleConfigurationId = selectedRuleConfigurationId,
+        selectedStartingSide = selectedStartingSide
+    )
+
+    private fun getStoredGame(gameId: String): StoredGame =
+        gameStore.get(gameId) ?: throw GameNotFoundException(gameId)
+
+    private fun lockFor(gameId: String): Any =
+        gameLocks.computeIfAbsent(gameId) { Any() }
+
+    private fun emittersFor(gameId: String): CopyOnWriteArrayList<SseEmitter> {
+        getStoredGame(gameId)
+        return emittersByGame.computeIfAbsent(gameId) { CopyOnWriteArrayList() }
+    }
+
+    private fun cleanupEmitters(gameId: String, emitters: CopyOnWriteArrayList<SseEmitter>) {
+        if (emitters.isEmpty()) {
+            emittersByGame.remove(gameId, emitters)
         }
     }
 
@@ -251,21 +276,6 @@ class GameSessionService {
         }
         return value
     }
-
-    private fun StoredGame.next(
-        snapshot: GameSnapshot,
-        undoSnapshots: List<GameSnapshot> = this.undoSnapshots,
-        selectedRuleConfigurationId: String = this.session.selectedRuleConfigurationId,
-        selectedStartingSide: Side = this.session.selectedStartingSide
-    ): StoredGame = createStoredGame(
-        snapshot = snapshot,
-        undoSnapshots = undoSnapshots,
-        version = session.version + 1,
-        createdAt = session.createdAt,
-        updatedAt = Instant.now(),
-        selectedRuleConfigurationId = selectedRuleConfigurationId,
-        selectedStartingSide = selectedStartingSide
-    )
 
     private fun StoredGame.nextWithUndo(snapshot: GameSnapshot): StoredGame =
         next(

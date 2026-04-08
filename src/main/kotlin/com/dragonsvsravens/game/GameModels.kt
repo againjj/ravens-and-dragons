@@ -69,6 +69,15 @@ data class GameSession(
     val selectedStartingSide: Side
 )
 
+data class CreateGameRequest(
+    val ruleConfigurationId: String? = null,
+    val startingSide: Side? = null
+)
+
+data class CreateGameResponse(
+    val game: GameSession
+)
+
 data class GameCommandRequest(
     val expectedVersion: Long,
     val type: String,
@@ -84,6 +93,8 @@ data class ErrorResponse(
 )
 
 class InvalidCommandException(message: String) : RuntimeException(message)
+
+class GameNotFoundException(gameId: String) : RuntimeException("Game $gameId was not found.")
 
 class VersionConflictException(
     val latestGame: GameSession

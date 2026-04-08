@@ -10,20 +10,21 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 class GameSessionServiceTest {
 
     @Test
-    fun `broken sse emitter does not prevent a valid command from succeeding`() {
-        val service = GameSessionService()
-        val emitters = emittersOf(service)
+    fun `broken sse emitter does not prevent a valid command from succeeding for its game`() {
+        val service = createService()
         val failingEmitter = object : SseEmitter(0L) {
             override fun send(builder: SseEventBuilder) {
                 throw IllegalStateException("stale emitter")
             }
         }
         val recordingEmitter = RecordingEmitter()
+        val game = service.createGame()
 
-        emitters.add(failingEmitter)
-        emitters.add(recordingEmitter)
+        service.createEmitter(game.id, failingEmitter)
+        service.createEmitter(game.id, recordingEmitter)
 
         val updated = service.applyCommand(
+            game.id,
             GameCommandRequest(
                 expectedVersion = 0,
                 type = "start-game"
@@ -32,37 +33,93 @@ class GameSessionServiceTest {
 
         assertEquals(1, updated.version)
         assertEquals(Phase.setup, updated.snapshot.phase)
-        assertEquals(1, recordingEmitter.eventsSent)
+        assertEquals(2, recordingEmitter.eventsSent)
     }
 
     @Test
-    fun `broken sse emitter is removed after broadcast failure`() {
-        val service = GameSessionService()
-        val emitters = emittersOf(service)
-        val failingEmitter = object : SseEmitter(0L) {
-            override fun send(builder: SseEventBuilder) {
-                throw IllegalStateException("stale emitter")
-            }
-        }
-        val recordingEmitter = RecordingEmitter()
+    fun `sse broadcasts are scoped to one game`() {
+        val service = createService()
+        val firstGame = service.createGame()
+        val secondGame = service.createGame()
+        val firstEmitter = RecordingEmitter()
+        val secondEmitter = RecordingEmitter()
 
-        emitters.add(failingEmitter)
-        emitters.add(recordingEmitter)
+        service.createEmitter(firstGame.id, firstEmitter)
+        service.createEmitter(secondGame.id, secondEmitter)
 
         service.applyCommand(
+            firstGame.id,
             GameCommandRequest(
                 expectedVersion = 0,
                 type = "start-game"
             )
         )
 
-        assertFalse(emitters.contains(failingEmitter))
-        assertTrue(emitters.contains(recordingEmitter))
+        assertEquals(2, firstEmitter.eventsSent)
+        assertEquals(1, secondEmitter.eventsSent)
+    }
+
+    @Test
+    fun `mutating one game does not affect another game`() {
+        val service = createService()
+        val firstGame = service.createGame()
+        val secondGame = service.createGame()
+
+        val updatedFirstGame = service.applyCommand(
+            firstGame.id,
+            GameCommandRequest(
+                expectedVersion = firstGame.version,
+                type = "start-game"
+            )
+        )
+        val unchangedSecondGame = service.getGame(secondGame.id)
+
+        assertEquals(Phase.setup, updatedFirstGame.snapshot.phase)
+        assertEquals(Phase.none, unchangedSecondGame.snapshot.phase)
+        assertEquals(0, unchangedSecondGame.version)
+    }
+
+    @Test
+    fun `version conflicts are scoped to a single game`() {
+        val service = createService()
+        val firstGame = service.createGame()
+        val secondGame = service.createGame()
+
+        service.applyCommand(
+            firstGame.id,
+            GameCommandRequest(
+                expectedVersion = firstGame.version,
+                type = "start-game"
+            )
+        )
+
+        val conflict = assertThrows<VersionConflictException> {
+            service.applyCommand(
+                firstGame.id,
+                GameCommandRequest(
+                    expectedVersion = firstGame.version,
+                    type = "start-game"
+                )
+            )
+        }
+
+        val updatedSecondGame = service.applyCommand(
+            secondGame.id,
+            GameCommandRequest(
+                expectedVersion = secondGame.version,
+                type = "start-game"
+            )
+        )
+
+        assertEquals(1, conflict.latestGame.version)
+        assertEquals(firstGame.id, conflict.latestGame.id)
+        assertEquals(Phase.setup, updatedSecondGame.snapshot.phase)
+        assertEquals(secondGame.id, updatedSecondGame.id)
     }
 
     @Test
     fun `selecting a rule configuration updates the shared session in the no game state`() {
-        val service = GameSessionService()
+        val service = createService()
 
         val updated = service.applyCommand(
             GameCommandRequest(
@@ -83,7 +140,7 @@ class GameSessionServiceTest {
 
     @Test
     fun `selecting a starting side updates free play in the no game state`() {
-        val service = GameSessionService()
+        val service = createService()
 
         val updated = service.applyCommand(
             GameCommandRequest(
@@ -100,7 +157,7 @@ class GameSessionServiceTest {
 
     @Test
     fun `undo restores the previous snapshot and updates can undo`() {
-        val service = GameSessionService()
+        val service = createService()
 
         service.applyCommand(GameCommandRequest(expectedVersion = 0, type = "start-game"))
         service.applyCommand(GameCommandRequest(expectedVersion = 1, type = "cycle-setup", square = "a1"))
@@ -128,7 +185,7 @@ class GameSessionServiceTest {
 
     @Test
     fun `end game preserves the board and clears undo`() {
-        val service = GameSessionService()
+        val service = createService()
 
         service.applyCommand(GameCommandRequest(expectedVersion = 0, type = "start-game"))
         service.applyCommand(GameCommandRequest(expectedVersion = 1, type = "cycle-setup", square = "a1"))
@@ -152,7 +209,7 @@ class GameSessionServiceTest {
 
     @Test
     fun `starting original game uses its preset board and opening side`() {
-        val service = GameSessionService()
+        val service = createService()
 
         service.applyCommand(
             GameCommandRequest(
@@ -174,7 +231,7 @@ class GameSessionServiceTest {
 
     @Test
     fun `starting sherwood rules uses the original setup and opening side`() {
-        val service = GameSessionService()
+        val service = createService()
 
         service.applyCommand(
             GameCommandRequest(
@@ -196,7 +253,7 @@ class GameSessionServiceTest {
 
     @Test
     fun `starting free play honors the selected starting side through setup`() {
-        val service = GameSessionService()
+        val service = createService()
 
         service.applyCommand(
             GameCommandRequest(
@@ -217,7 +274,7 @@ class GameSessionServiceTest {
 
     @Test
     fun `undo with no move history is rejected`() {
-        val service = GameSessionService()
+        val service = createService()
 
         val exception = assertThrows<InvalidCommandException> {
             service.applyCommand(GameCommandRequest(expectedVersion = 0, type = "undo"))
@@ -227,13 +284,6 @@ class GameSessionServiceTest {
         assertFalse(service.getGame().canUndo)
     }
 
-    @Suppress("UNCHECKED_CAST")
-    private fun emittersOf(service: GameSessionService): MutableList<SseEmitter> {
-        val field = GameSessionService::class.java.getDeclaredField("emitters")
-        field.isAccessible = true
-        return field.get(service) as MutableList<SseEmitter>
-    }
-
     private class RecordingEmitter : SseEmitter(0L) {
         var eventsSent: Int = 0
 
@@ -241,4 +291,6 @@ class GameSessionServiceTest {
             eventsSent += 1
         }
     }
+
+    private fun createService(): GameSessionService = GameSessionService(InMemoryGameStore())
 }
