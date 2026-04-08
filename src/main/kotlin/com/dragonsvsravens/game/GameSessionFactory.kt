@@ -27,6 +27,7 @@ object GameSessionFactory {
         version: Long,
         createdAt: Instant,
         updatedAt: Instant,
+        lastAccessedAt: Instant = updatedAt,
         selectedRuleConfigurationId: String,
         selectedStartingSide: Side
     ): StoredGame = StoredGame(
@@ -41,6 +42,7 @@ object GameSessionFactory {
             selectedRuleConfigurationId = selectedRuleConfigurationId,
             selectedStartingSide = selectedStartingSide
         ),
-        undoSnapshots = undoSnapshots
+        undoSnapshots = undoSnapshots,
+        lastAccessedAt = lastAccessedAt
     )
 }

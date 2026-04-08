@@ -10,14 +10,16 @@ import org.springframework.test.web.servlet.get
 
 @SpringBootTest
 @AutoConfigureMockMvc
-class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport() {
+class GameCommandControllerTest : AbstractGameControllerTestSupport() {
 
     @Test
-    fun `get game returns the shared default session in no game state`() {
-        mockMvc.get("/api/game")
+    fun `get game returns the requested session in no game state`() {
+        val game = createGame()
+
+        mockMvc.get("/api/games/${game.id}")
             .andExpect {
                 status { isOk() }
-                jsonPath("$.id", equalTo("default"))
+                jsonPath("$.id", equalTo(game.id))
                 jsonPath("$.snapshot.phase", equalTo("none"))
                 jsonPath("$.snapshot.board", equalTo(emptyMap<String, String>()))
             }
@@ -25,9 +27,9 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `valid start game command increments version and enters setup`() {
-        val game = getDefaultGame()
+        val game = createGame()
 
-        postDefaultCommand(command(game.version, "start-game")).andExpect {
+        postGameCommand(game.id, command(game.version, "start-game")).andExpect {
             status { isOk() }
             jsonPath("$.version", equalTo((game.version + 1).toInt()))
             jsonPath("$.snapshot.phase", equalTo("setup"))
@@ -36,9 +38,9 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `selecting original game updates the idle session and start game uses its preset board`() {
-        val game = getDefaultGame()
+        val game = createGame()
 
-        postDefaultCommand(command(game.version, "select-rule-configuration", ruleConfigurationId = "original-game")).andExpect {
+        postGameCommand(game.id, command(game.version, "select-rule-configuration", ruleConfigurationId = "original-game")).andExpect {
             status { isOk() }
             jsonPath("$.selectedRuleConfigurationId", equalTo("original-game"))
             jsonPath("$.snapshot.ruleConfigurationId", equalTo("original-game"))
@@ -48,7 +50,7 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
             jsonPath("$.snapshot.board.d7", equalTo("raven"))
         }
 
-        postDefaultCommand(command(getDefaultGame().version, "start-game")).andExpect {
+        postGameCommand(game.id, command(currentVersion(game.id), "start-game")).andExpect {
             status { isOk() }
             jsonPath("$.snapshot.phase", equalTo("move"))
             jsonPath("$.snapshot.activeSide", equalTo("ravens"))
@@ -60,21 +62,21 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `selecting free play starting side updates idle session and setup handoff`() {
-        val game = getDefaultGame()
+        val game = createGame()
 
-        postDefaultCommand(command(game.version, "select-starting-side", side = Side.ravens)).andExpect {
+        postGameCommand(game.id, command(game.version, "select-starting-side", side = Side.ravens)).andExpect {
             status { isOk() }
             jsonPath("$.selectedStartingSide", equalTo("ravens"))
             jsonPath("$.snapshot.activeSide", equalTo("ravens"))
         }
 
-        postDefaultCommand(command(getDefaultGame().version, "start-game")).andExpect {
+        postGameCommand(game.id, command(currentVersion(game.id), "start-game")).andExpect {
             status { isOk() }
             jsonPath("$.snapshot.phase", equalTo("setup"))
             jsonPath("$.snapshot.activeSide", equalTo("ravens"))
         }
 
-        postDefaultCommand(command(getDefaultGame().version, "end-setup")).andExpect {
+        postGameCommand(game.id, command(currentVersion(game.id), "end-setup")).andExpect {
             status { isOk() }
             jsonPath("$.snapshot.phase", equalTo("move"))
             jsonPath("$.snapshot.activeSide", equalTo("ravens"))
@@ -83,7 +85,8 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `original game rejects a move that would leave the moved piece captured`() {
-        seedDefaultGame(
+        val game = seedGame(
+            gameId = "original-game-test",
             snapshot = GameSnapshot(
                 board = linkedMapOf(
                     "b4" to Piece.raven,
@@ -100,7 +103,7 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
             selectedRuleConfigurationId = "original-game"
         )
 
-        postDefaultCommand(command(getDefaultGame().version, "move-piece", origin = "b4", destination = "b1")).andExpect {
+        postGameCommand(game.id, command(currentVersion(game.id), "move-piece", origin = "b4", destination = "b1")).andExpect {
             status { isBadRequest() }
             jsonPath("$.message", equalTo("You may not move so that your piece is captured."))
         }
@@ -108,11 +111,11 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `stale expected version returns conflict with the latest snapshot`() {
-        val game = getDefaultGame()
+        val game = createGame()
 
-        executeDefaultCommand(command(game.version, "start-game"))
+        executeGameCommand(game.id, command(game.version, "start-game"))
 
-        postDefaultCommand(command(game.version, "start-game")).andExpect {
+        postGameCommand(game.id, command(game.version, "start-game")).andExpect {
             status { isConflict() }
             jsonPath("$.version", equalTo((game.version + 1).toInt()))
             jsonPath("$.snapshot.phase", equalTo("setup"))
@@ -121,11 +124,12 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `invalid command returns bad request`() {
-        startSetup()
-        endSetup()
-        val game = getDefaultGame()
+        val game = createGame()
+        startSetup(game.id)
+        endSetup(game.id)
+        val current = currentGame(game.id)
 
-        postDefaultCommand(command(game.version, "move-piece", origin = "a1")).andExpect {
+        postGameCommand(game.id, command(current.version, "move-piece", origin = "a1")).andExpect {
             status { isBadRequest() }
             jsonPath("$.message", equalTo("Command move-piece requires destination."))
         }
@@ -133,9 +137,11 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `illegal setup command before starting a game leaves game unchanged`() {
-        val before = getDefaultGame()
+        val game = createGame()
+        val before = currentGame(game.id)
 
         assertRejectedCommandLeavesGameUnchanged(
+            gameId = game.id,
             before = before,
             command = command(before.version, "cycle-setup", square = "a1"),
             message = "Command cycle-setup is not allowed during none."
@@ -144,10 +150,12 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `illegal move command during setup leaves game unchanged`() {
-        startSetup()
-        val before = getDefaultGame()
+        val game = createGame()
+        startSetup(game.id)
+        val before = currentGame(game.id)
 
         assertRejectedCommandLeavesGameUnchanged(
+            gameId = game.id,
             before = before,
             command = command(before.version, "move-piece", origin = "a1", destination = "a2"),
             message = "Command move-piece is not allowed during setup."
@@ -156,11 +164,13 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `illegal cycle setup command after setup leaves game unchanged`() {
-        startSetup()
-        endSetup()
-        val before = getDefaultGame()
+        val game = createGame()
+        startSetup(game.id)
+        endSetup(game.id)
+        val before = currentGame(game.id)
 
         assertRejectedCommandLeavesGameUnchanged(
+            gameId = game.id,
             before = before,
             command = command(before.version, "cycle-setup", square = "a1"),
             message = "Command cycle-setup is not allowed during move."
@@ -169,10 +179,12 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `out of bounds square is rejected`() {
-        startSetup()
-        val before = getDefaultGame()
+        val game = createGame()
+        startSetup(game.id)
+        val before = currentGame(game.id)
 
         assertRejectedCommandLeavesGameUnchanged(
+            gameId = game.id,
             before = before,
             command = command(before.version, "cycle-setup", square = "i9"),
             message = "Square i9 is outside the 7x7 board."
@@ -181,12 +193,14 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `out of bounds move destination is rejected`() {
-        startSetup()
-        setupDragonAt("a1")
-        endSetup()
-        val before = getDefaultGame()
+        val game = createGame()
+        startSetup(game.id)
+        setupDragonAt(game.id, "a1")
+        endSetup(game.id)
+        val before = currentGame(game.id)
 
         assertRejectedCommandLeavesGameUnchanged(
+            gameId = game.id,
             before = before,
             command = command(before.version, "move-piece", origin = "a1", destination = "h1"),
             message = "Square h1 is outside the 7x7 board."
@@ -195,12 +209,14 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `move from empty square leaves game unchanged`() {
-        startSetup()
-        setupDragonAt("a1")
-        endSetup()
-        val before = getDefaultGame()
+        val game = createGame()
+        startSetup(game.id)
+        setupDragonAt(game.id, "a1")
+        endSetup(game.id)
+        val before = currentGame(game.id)
 
         assertRejectedCommandLeavesGameUnchanged(
+            gameId = game.id,
             before = before,
             command = command(before.version, "move-piece", origin = "b1", destination = "b2"),
             message = "No piece exists at b1."
@@ -209,12 +225,14 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `moving an opposing piece leaves game unchanged`() {
-        startSetup()
-        setupRavenAt("a1")
-        endSetup()
-        val before = getDefaultGame()
+        val game = createGame()
+        startSetup(game.id)
+        setupRavenAt(game.id, "a1")
+        endSetup(game.id)
+        val before = currentGame(game.id)
 
         assertRejectedCommandLeavesGameUnchanged(
+            gameId = game.id,
             before = before,
             command = command(before.version, "move-piece", origin = "a1", destination = "a2"),
             message = "The active side cannot move the piece at a1."
@@ -223,13 +241,15 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `moving into an occupied square leaves game unchanged`() {
-        startSetup()
-        setupDragonAt("a1")
-        setupDragonAt("b2")
-        endSetup()
-        val before = getDefaultGame()
+        val game = createGame()
+        startSetup(game.id)
+        setupDragonAt(game.id, "a1")
+        setupDragonAt(game.id, "b2")
+        endSetup(game.id)
+        val before = currentGame(game.id)
 
         assertRejectedCommandLeavesGameUnchanged(
+            gameId = game.id,
             before = before,
             command = command(before.version, "move-piece", origin = "a1", destination = "b2"),
             message = "Destination b2 is occupied."
@@ -238,12 +258,14 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `capture command during move phase leaves game unchanged`() {
-        startSetup()
-        setupDragonAt("a1")
-        endSetup()
-        val before = getDefaultGame()
+        val game = createGame()
+        startSetup(game.id)
+        setupDragonAt(game.id, "a1")
+        endSetup(game.id)
+        val before = currentGame(game.id)
 
         assertRejectedCommandLeavesGameUnchanged(
+            gameId = game.id,
             before = before,
             command = command(before.version, "capture-piece", square = "e5"),
             message = "Command capture-piece is not allowed during move."
@@ -252,12 +274,14 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `skip capture during move phase leaves game unchanged`() {
-        startSetup()
-        setupDragonAt("a1")
-        endSetup()
-        val before = getDefaultGame()
+        val game = createGame()
+        startSetup(game.id)
+        setupDragonAt(game.id, "a1")
+        endSetup(game.id)
+        val before = getGame(game.id)
 
         assertRejectedCommandLeavesGameUnchanged(
+            gameId = game.id,
             before = before,
             command = command(before.version, "skip-capture"),
             message = "Command skip-capture is not allowed during move."
@@ -266,9 +290,10 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `undo during capture restores the pre move snapshot`() {
-        enterCapturePhase()
-        val beforeUndo = getDefaultGame()
-        val undone = executeDefaultCommand(command(beforeUndo.version, "undo"))
+        val game = createGame()
+        enterCapturePhase(game.id)
+        val beforeUndo = currentGame(game.id)
+        val undone = executeGameCommand(game.id, command(beforeUndo.version, "undo"))
 
         assertAll(
             { assertEquals(Phase.move, undone.snapshot.phase) },
@@ -282,10 +307,11 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `undo after capture restores the moved and captured pieces`() {
-        enterCapturePhase()
-        executeDefaultCommand(command(getDefaultGame().version, "capture-piece", square = "b2"))
-        val beforeUndo = getDefaultGame()
-        val undone = executeDefaultCommand(command(beforeUndo.version, "undo"))
+        val game = createGame()
+        enterCapturePhase(game.id)
+        executeGameCommand(game.id, command(currentVersion(game.id), "capture-piece", square = "b2"))
+        val beforeUndo = currentGame(game.id)
+        val undone = executeGameCommand(game.id, command(beforeUndo.version, "undo"))
 
         assertAll(
             { assertEquals(Phase.move, undone.snapshot.phase) },
@@ -300,12 +326,13 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `fresh game fetch exposes can undo for another client`() {
-        startSetup()
-        setupDragonAt("a1")
-        endSetup()
-        executeDefaultCommand(command(getDefaultGame().version, "move-piece", origin = "a1", destination = "a2"))
+        val game = createGame()
+        startSetup(game.id)
+        setupDragonAt(game.id, "a1")
+        endSetup(game.id)
+        executeGameCommand(game.id, command(currentVersion(game.id), "move-piece", origin = "a1", destination = "a2"))
 
-        mockMvc.get("/api/game")
+        mockMvc.get("/api/games/${game.id}")
             .andExpect {
                 status { isOk() }
                 jsonPath("$.snapshot.board.a2", equalTo("dragon"))
@@ -315,9 +342,11 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `undo with no move history leaves game unchanged`() {
-        val before = getDefaultGame()
+        val game = createGame()
+        val before = currentGame(game.id)
 
         assertRejectedCommandLeavesGameUnchanged(
+            gameId = game.id,
             before = before,
             command = command(before.version, "undo"),
             message = "No move is available to undo."
@@ -326,10 +355,12 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `capturing an empty square leaves game unchanged`() {
-        enterCapturePhase()
-        val before = getDefaultGame()
+        val game = createGame()
+        enterCapturePhase(game.id)
+        val before = currentGame(game.id)
 
         assertRejectedCommandLeavesGameUnchanged(
+            gameId = game.id,
             before = before,
             command = command(before.version, "capture-piece", square = "c3"),
             message = "No piece exists at c3."
@@ -338,10 +369,12 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `capturing a friendly piece leaves game unchanged`() {
-        enterCapturePhase()
-        val before = getDefaultGame()
+        val game = createGame()
+        enterCapturePhase(game.id)
+        val before = currentGame(game.id)
 
         assertRejectedCommandLeavesGameUnchanged(
+            gameId = game.id,
             before = before,
             command = command(before.version, "capture-piece", square = "a2"),
             message = "The active side cannot capture the piece at a2."
@@ -350,12 +383,13 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `end game preserves the board and adds game over before returning to no game`() {
-        startSetup()
-        setupDragonAt("a1")
-        endSetup()
-        executeDefaultCommand(command(getDefaultGame().version, "move-piece", origin = "a1", destination = "a2"))
+        val game = createGame()
+        startSetup(game.id)
+        setupDragonAt(game.id, "a1")
+        endSetup(game.id)
+        executeGameCommand(game.id, command(currentVersion(game.id), "move-piece", origin = "a1", destination = "a2"))
 
-        postDefaultCommand(command(getDefaultGame().version, "end-game")).andExpect {
+        postGameCommand(game.id, command(currentVersion(game.id), "end-game")).andExpect {
             status { isOk() }
             jsonPath("$.snapshot.phase", equalTo("none"))
             jsonPath("$.snapshot.board.a2", equalTo("dragon"))
@@ -367,13 +401,14 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
 
     @Test
     fun `starting a new game after game over clears the preserved board and history`() {
-        startSetup()
-        setupDragonAt("a1")
-        endSetup()
-        executeDefaultCommand(command(getDefaultGame().version, "move-piece", origin = "a1", destination = "a2"))
-        executeDefaultCommand(command(getDefaultGame().version, "end-game"))
+        val game = createGame()
+        startSetup(game.id)
+        setupDragonAt(game.id, "a1")
+        endSetup(game.id)
+        executeGameCommand(game.id, command(currentVersion(game.id), "move-piece", origin = "a1", destination = "a2"))
+        executeGameCommand(game.id, command(currentVersion(game.id), "end-game"))
 
-        postDefaultCommand(command(getDefaultGame().version, "start-game")).andExpect {
+        postGameCommand(game.id, command(currentVersion(game.id), "start-game")).andExpect {
             status { isOk() }
             jsonPath("$.snapshot.phase", equalTo("setup"))
             jsonPath("$.snapshot.board", equalTo(emptyMap<String, String>()))
@@ -381,47 +416,16 @@ class DefaultGameControllerCompatibilityTest : AbstractGameControllerTestSupport
         }
     }
 
-    private fun enterCapturePhase() {
-        startSetup()
-        setupDragonAt("a1")
-        setupRavenAt("b2")
-        endSetup()
-        executeDefaultCommand(command(getDefaultGame().version, "move-piece", origin = "a1", destination = "a2"))
+    @Test
+    fun `loading a removed game returns not found`() {
+        val game = seedGame(gameId = "evicted-game")
+        gameStore.remove(game.id)
+
+        mockMvc.get("/api/games/${game.id}")
+            .andExpect {
+                status { isNotFound() }
+                jsonPath("$.message", equalTo("Game ${game.id} was not found."))
+            }
     }
 
-    private fun assertGameUnchanged(expected: GameSession) {
-        val after = getDefaultGame()
-        assertAll(
-            { assertEquals(expected.version, after.version) },
-            { assertEquals(expected.snapshot, after.snapshot) }
-        )
-    }
-
-    private fun assertRejectedCommandLeavesGameUnchanged(
-        before: GameSession,
-        command: GameCommandRequest,
-        message: String
-    ) {
-        postDefaultCommand(command).andExpect {
-            status { isBadRequest() }
-            jsonPath("$.message", equalTo(message))
-        }
-
-        assertGameUnchanged(before)
-    }
-
-    private fun startSetup(): GameSession =
-        executeDefaultCommand(command(getDefaultGame().version, "start-game"))
-
-    private fun endSetup(): GameSession =
-        executeDefaultCommand(command(getDefaultGame().version, "end-setup"))
-
-    private fun setupDragonAt(square: String) {
-        executeDefaultCommand(command(getDefaultGame().version, "cycle-setup", square = square))
-    }
-
-    private fun setupRavenAt(square: String) {
-        setupDragonAt(square)
-        executeDefaultCommand(command(getDefaultGame().version, "cycle-setup", square = square))
-    }
 }

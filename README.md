@@ -101,7 +101,7 @@ Read docs/code-summary.md and docs/codex-rules.md before making changes. Follow 
 
 - The frontend is built with TypeScript plus Vite into `build/generated/frontend`.
 - Frontend tests use Node's built-in test runner for shared helper modules and Vitest with jsdom for React/Redux tests.
-- Spring Boot serves the generated frontend assets as static resources and exposes both the legacy default-game routes under `/api/game` and the multi-game backend routes under `/api/games`.
+- Spring Boot serves the generated frontend assets as static resources and exposes the per-game backend routes under `/api/games`.
 - Undo is server-backed, shared across clients, and exposed as `canUndo` in the session payload so the UI can disable the button exactly.
 - Turn history now includes both completed moves and a terminal `Game Over` entry when a game is ended.
 - The shared session now exposes available rule configurations plus the currently selected configuration so all clients stay in sync on the next play style.
@@ -110,6 +110,6 @@ Read docs/code-summary.md and docs/codex-rules.md before making changes. Follow 
 - The browser client now uses the per-game routes under `/api/games` for create, load, command, and stream behavior.
 - Browser navigation now uses `/` for the lobby and `/g/{gameId}` for an active game view.
 - Newly created games now use 7-character IDs drawn from the Open Location Code ("PLUS code") alphabet: `23456789CFGHJMPQRVWX`.
-- The legacy `/api/game` routes remain on the backend as compatibility aliases for the default game, but they are no longer the main browser path.
+- In-memory games are evicted automatically after more than one hour without a load, command, or active SSE viewer.
 - If `./gradlew bootRun` cannot bind its default port, treat that as a local environment issue to fix instead of silently switching ports.
 - If you change architecture, workflow, or gameplay in a meaningful way, update `docs/code-summary.md`.

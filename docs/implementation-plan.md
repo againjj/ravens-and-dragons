@@ -87,14 +87,14 @@ This order fits the current codebase because the app is still modeled as a share
 
 ### Epic 2: Stale Game Cleanup
 
-11. Add explicit last-looked-at tracking to stored games.
+11. [x] Add explicit last-looked-at tracking to stored games.
     - Goal: track staleness independently from gameplay mutation timestamps.
     - Update `GameStore.kt` so each `StoredGame` carries a server-owned `lastAccessedAt` timestamp in addition to the existing session `updatedAt`.
     - Keep `GameSession.updatedAt` meaning "last game state change" so existing optimistic-lock and client equality behavior stays intact.
     - Prefer keeping `lastAccessedAt` server-side for now instead of exposing it on the public session payload.
     - In the same milestone, remove the legacy `/api/game`, `/api/game/commands`, and `/api/game/stream` compatibility routes and the service shortcuts that only exist to support them.
 
-12. Touch games on reads and active viewing paths.
+12. [x] Touch games on reads and active viewing paths.
     - Goal: make "looked at within the last hour" match real usage.
     - Update `GameSessionService.kt` so the store touches `lastAccessedAt` when a game is:
       - loaded by `getGame(gameId)`
@@ -104,7 +104,7 @@ This order fits the current codebase because the app is still modeled as a share
     - Treat an active SSE subscription as non-stale even if no commands happen for more than an hour.
     - On emitter cleanup, refresh `lastAccessedAt` once more so a game that was being watched for a long time does not become immediately stale when the viewer disconnects.
 
-13. Add cleanup-friendly store operations and stale eviction logic.
+13. [x] Add cleanup-friendly store operations and stale eviction logic.
     - Goal: remove abandoned in-memory games without disturbing active ones.
     - Extend the `GameStore` abstraction with the minimum extra operations needed for cleanup, such as:
       - listing or snapshotting stored games
@@ -116,14 +116,14 @@ This order fits the current codebase because the app is still modeled as a share
     - Once the compatibility routes are removed, the old `default` game no longer needs special treatment and can be evicted like any other stale game.
     - If a game disappears between selection and removal, treat that as a harmless cleanup race rather than an error.
 
-14. Run stale cleanup on a simple server-side schedule.
+14. [x] Run stale cleanup on a simple server-side schedule.
     - Goal: make stale eviction automatic without requiring client participation.
     - Add a small Spring scheduling component in the backend game module.
     - Enable scheduling and run stale-game cleanup on a modest cadence such as every 5 or 10 minutes.
     - Keep the one-hour stale threshold as a named constant or small configuration property so the rule is easy to find and adjust later.
     - Keep this milestone entirely in the in-memory layer. Do not introduce DB retention behavior yet.
 
-15. Add stale-game tests and docs.
+15. [x] Add stale-game tests and docs.
     - Goal: lock down cleanup behavior before persistence starts.
     - Extend `GameSessionServiceTest.kt` and related controller tests.
     - Cover:
@@ -275,8 +275,9 @@ This order fits the current codebase because the app is still modeled as a share
   - The browser loads, commands, and SSE updates all target per-game endpoints.
   - Newly created games use 7-character IDs from the PLUS-code alphabet.
 - Milestone C: tickets 11-15
-  - In-memory stale-game cleanup.
-  - The server removes the legacy compatibility routes and evicts games that have not been looked at for more than one hour, except for games that still have active viewers.
+  - Status: complete.
+  - The backend now exposes only per-game routes under `/api/games`.
+  - The server evicts in-memory games that have not been accessed for more than one hour, except for games that still have active viewers.
 - Milestone D: tickets 16-23
   - Multi-game plus persistence.
 - Milestone E: tickets 24-30
@@ -435,6 +436,162 @@ Milestone B is done when all of the following are true:
 - Avoid coupling lobby UI to gameplay controls more than necessary. A dedicated lobby component is safer than letting `ControlsPanel.tsx` absorb unrelated responsibilities.
 - Preserve the current no-game and load-error UX wording where possible so the change stays focused on resource routing, not product copy.
 
+## Milestone C Implementation Summary
+
+Milestone C should stay entirely inside the existing in-memory backend architecture. The goal is to remove the now-unused default-game compatibility layer, add server-owned access tracking to stored games, and let the service evict abandoned games on a schedule without disturbing active viewers.
+
+Keep the implementation centered in the Kotlin game module:
+
+- extend `src/main/kotlin/com/dragonsvsravens/game/GameStore.kt` instead of creating a second cleanup-specific storage path
+- keep cleanup decisions in `src/main/kotlin/com/dragonsvsravens/game/GameSessionService.kt`, where emitter and per-game lock ownership already live
+- keep `src/main/kotlin/com/dragonsvsravens/game/GameController.kt` focused on the public per-game API only
+- keep test support aligned with `/api/games/{gameId}` so controller tests stop depending on the transitional default routes
+
+Delivered phases:
+
+### Phase 1: Remove the legacy default-game API path
+
+Files to update:
+
+- `src/main/kotlin/com/dragonsvsravens/game/GameController.kt`
+- `src/main/kotlin/com/dragonsvsravens/game/GameSessionService.kt`
+- `src/test/kotlin/com/dragonsvsravens/game/DefaultGameControllerCompatibilityTest.kt`
+- `src/test/kotlin/com/dragonsvsravens/game/AbstractGameControllerTestSupport.kt`
+- `docs/code-summary.md`
+- `README.md`
+
+Changes:
+
+- Delete the compatibility routes:
+  - `GET /api/game`
+  - `POST /api/game/commands`
+  - `GET /api/game/stream`
+- Delete the default-only service overloads:
+  - `getGame()`
+  - `applyCommand(command)`
+  - `createEmitter()`
+- Remove `defaultGameId` bootstrapping and `ensureDefaultGameExists()` so the service no longer creates a permanent special-case game at startup.
+- Replace the compatibility controller test file with explicit assertions that `/api/game*` now returns `404`.
+- Refactor shared controller-test helpers so they create and query real games by id rather than reseeding a special default game.
+
+Notes:
+
+- This is the cleanest first step because it removes the main source of special-case behavior before cleanup logic is added.
+- Any remaining tests that currently use the default game should be moved to normal per-game setup helpers in the same pass.
+
+### Phase 2: Add server-owned access timestamps to stored games
+
+Files to update:
+
+- `src/main/kotlin/com/dragonsvsravens/game/GameStore.kt`
+- `src/main/kotlin/com/dragonsvsravens/game/GameSessionFactory.kt`
+- `src/main/kotlin/com/dragonsvsravens/game/GameSessionService.kt`
+
+Changes:
+
+- Extend `StoredGame` with `lastAccessedAt: Instant`.
+- Initialize `lastAccessedAt` when a game is created.
+- Keep `GameSession.updatedAt` tied to gameplay/session mutation only; do not expose `lastAccessedAt` in the public JSON payload.
+- Add store support for updating access time without forcing unrelated session changes.
+
+Recommended store surface:
+
+- `touch(gameId: String, accessedAt: Instant = Instant.now()): StoredGame?`
+- `entries(): List<StoredGame>`
+- `remove(gameId: String): Boolean`
+
+Notes:
+
+- A targeted `touch` operation keeps staleness concerns server-side and avoids fake version bumps or noisy SSE broadcasts.
+- `entries()` should return a stable snapshot for cleanup work rather than exposing the mutable map directly.
+
+### Phase 3: Touch access time on real usage paths
+
+Files to update:
+
+- `src/main/kotlin/com/dragonsvsravens/game/GameSessionService.kt`
+
+Changes:
+
+- Touch `lastAccessedAt` when a game is loaded with `getGame(gameId)`.
+- Touch `lastAccessedAt` when a command is applied successfully.
+- Touch `lastAccessedAt` when an SSE stream is opened for a game.
+- Touch `lastAccessedAt` again when the final emitter for a game disconnects, so a long-viewed game is not evicted immediately after the viewer leaves.
+
+Notes:
+
+- For command handling, touch after the updated state is written so the stored access time and latest session stay in sync.
+- Avoid broadcasting on read-only touches; viewers should not receive events just because someone opened or watched a game.
+
+### Phase 4: Add stale-game eviction and scheduled cleanup
+
+Files to update:
+
+- `src/main/kotlin/com/dragonsvsravens/game/GameSessionService.kt`
+- a new small scheduling class under `src/main/kotlin/com/dragonsvsravens/game`
+- `src/main/kotlin/com/dragonsvsravens/DragonsVsRavensApplication.kt` or another configuration entrypoint if scheduling is not already enabled
+
+Changes:
+
+- Add a named stale threshold constant or property for the one-hour retention rule.
+- Add `removeStaleGames(now: Instant = Instant.now())` to `GameSessionService`.
+- During cleanup:
+  - inspect a snapshot of stored games from `GameStore`
+  - skip games whose `lastAccessedAt` is within the threshold
+  - skip games that still have connected emitters
+  - remove stale games from the store
+  - remove matching emitter lists and lock objects as part of eviction
+- Run cleanup on a modest Spring schedule such as every 5 or 10 minutes.
+
+Notes:
+
+- Treat missing-on-remove as a harmless race so cleanup remains idempotent.
+- Since the compatibility layer is gone by this point, there should be no permanent in-memory game that is exempt from eviction.
+
+### Phase 5: Replace compatibility tests with cleanup-focused coverage
+
+Files to update:
+
+- `src/test/kotlin/com/dragonsvsravens/game/GameSessionServiceTest.kt`
+- `src/test/kotlin/com/dragonsvsravens/game/GameControllerTest.kt`
+- `src/test/kotlin/com/dragonsvsravens/game/AbstractGameControllerTestSupport.kt`
+
+Add coverage for:
+
+- a game older than one hour with no viewers is removed
+- a recently loaded game is retained because `getGame(gameId)` touched it
+- a game with an active SSE emitter is retained during cleanup
+- a game touched on emitter disconnect is not removed immediately after the stream closes
+- cleanup removes per-game lock and emitter bookkeeping alongside the store entry
+- loading an evicted game returns `404`
+- the removed `/api/game*` routes return `404`
+
+Notes:
+
+- Prefer direct service tests for timestamp and eviction behavior, because they can inject a deterministic `now`.
+- Keep controller tests focused on public HTTP behavior and removed-route assertions.
+
+## Milestone C Exit Criteria
+
+Milestone C is done when all of the following are true:
+
+- the backend exposes only `/api/games` and `/api/games/{gameId}*` game endpoints
+- the service no longer creates or relies on a permanent `"default"` game
+- each stored in-memory game tracks server-owned last-access time separately from session mutation time
+- game loads, successful commands, and stream open/close paths keep `lastAccessedAt` fresh
+- scheduled cleanup removes games that have been unviewed for more than one hour
+- active SSE viewers prevent eviction while connected
+- controller and service tests cover both stale eviction behavior and the removed compatibility routes
+- `README.md` and `docs/code-summary.md` describe the one-hour in-memory retention rule and no longer document `/api/game*`
+
+## Milestone C Risks And Guardrails
+
+- The highest-risk regression is accidentally changing public session semantics while adding staleness tracking. Keep `lastAccessedAt` off the wire and do not reuse `updatedAt` for cleanup.
+- Emitter lifecycle code is now part of cleanup correctness. Centralize the touch-on-open and touch-on-final-disconnect logic so it is not duplicated across callbacks.
+- Cleanup must not race with command handling in a way that removes a game mid-update. Use the existing per-game lock model and treat cleanup as best-effort rather than strictly synchronized across the whole store.
+- Removing the default routes will break any still-hidden callers immediately. Before landing Milestone C, verify that no frontend code or tests still reference `/api/game`.
+- Test support should stop reseeding a special default game. Reusing that pattern would preserve the very coupling Milestone C is meant to delete.
+
 ## Scope Recommendations
 
 - For persistence, start with storing the full game state as a JSON or text blob instead of normalizing turns, squares, and undo history into many tables.
@@ -458,16 +615,17 @@ That establishes the right resource model and makes the persistence and login wo
   - backend in-memory multi-game store
   - per-game service methods and SSE scoping
   - multi-game REST and SSE endpoints
-  - backend isolation and compatibility tests
+  - backend isolation tests
   - frontend per-game transport, state, and stream wiring
   - lobby-first browser flow with `/` and `/g/{gameId}` routes
   - direct-load server support for game URLs
   - 7-character PLUS-code-style game ids
   - frontend routing and lifecycle tests
   - docs updates for the multi-game browser flow
-- Remaining before Milestone C is done:
-  - remove the legacy `/api/game`, `/api/game/commands`, and `/api/game/stream` routes plus the default-only service helpers
-  - add server-owned last-access tracking for each in-memory game
-  - touch games on load, command, and stream access paths
-  - evict stale games on a server-side schedule while protecting actively watched games
-  - add stale-game cleanup tests and docs
+  - removed legacy `/api/game*` routes and default-game bootstrap behavior
+  - server-owned `lastAccessedAt` tracking for each in-memory game
+  - access-time refresh on load, command, stream open, and final stream disconnect
+  - store touch/list/remove operations for cleanup
+  - scheduled stale-game eviction with active-viewer protection
+  - cleanup-focused controller and service tests
+  - docs updates for the one-hour in-memory retention rule

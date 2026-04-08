@@ -67,10 +67,7 @@ This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a brows
   - Opening a game by id uses `GET /api/games/{gameId}`.
   - The active game screen sends mutations to `POST /api/games/{gameId}/commands`.
   - The active game screen subscribes to `GET /api/games/{gameId}/stream` for live updates.
-  - The backend still also exposes compatibility routes for the default game:
-    - `GET /api/game`
-    - `POST /api/game/commands`
-    - `GET /api/game/stream`
+  - Games stay in memory on the server and are automatically evicted when they have not been accessed for more than one hour and no SSE viewers are connected.
 - Runtime configuration:
   - `server.port` reads `${PORT:8080}` so the app keeps its local default while also working on Railway-style platforms that inject the listen port at runtime.
   - `railway.json` overrides Railway's deploy start command to `java -jar build/libs/dragons-vs-ravens.jar`, matching the Spring Boot fat jar produced by the Gradle build.
@@ -113,13 +110,14 @@ Important implication: games are still entirely in memory on the server. Clients
 
 The Kotlin game module is now the source of truth for game rules and state transitions.
 
-- Creates fresh idle snapshots for new games and keeps a default compatibility game.
+- Creates fresh idle snapshots for new games.
 - Owns setup cycling logic.
 - Owns turn transitions.
 - Owns rule-configuration lookup, movement validation, capture resolution, and automatic game-over checks.
 - Wraps each snapshot in a versioned in-memory game session.
 - Keeps server-only undo snapshot history alongside the public shared session payload.
 - Broadcasts updated snapshots to SSE clients scoped by game id.
+- Tracks last access time server-side for stale-game eviction.
 
 Most gameplay changes should start on the backend here.
 
@@ -197,8 +195,6 @@ Most UI-only changes should start in the relevant component, selector, or browse
 - Clients connected to the same game id see the same server-owned game session.
 - The backend can create additional in-memory games with generated ids.
 - Generated game ids now use 7 characters from the Open Location Code ("PLUS code") alphabet `23456789CFGHJMPQRVWX`, which is the shortest fixed width that still covers more than 1,000,000,000 possible games.
-- The server still keeps a default game with id `default` for the existing frontend.
-- The browser no longer relies on the default-game routes, but the backend keeps them as compatibility aliases.
 - Mutation requests include an expected version.
 - On a version conflict, the server returns `409` with the latest snapshot for that game only.
 - Freshly loaded clients receive an exact `canUndo` flag from the server.
@@ -206,6 +202,8 @@ Most UI-only changes should start in the relevant component, selector, or browse
 - Freshly loaded clients also receive the shared selected starting side for `Free Play`.
 - The browser keeps piece selection local; other clients do not see half-finished selections.
 - In the no-game phase, the board remains visible but is not interactive.
+- Games that have not been loaded, mutated, or watched for more than one hour are evicted from the in-memory store.
+- An active SSE subscription keeps a game alive even if no commands are sent during that hour.
 
 ## Rendering Strategy
 
@@ -266,11 +264,12 @@ Future UI changes should preserve the split of transport logic, Redux state, ren
   - capture commits
   - skip-capture commits
   - end-game board preservation and `gameOver` history
-  - default-game compatibility reads
   - multi-game creation and isolation
   - version increments
   - stale-version conflicts scoped to a single game
   - SSE delivery scoped to one game
+  - stale-game eviction and active-viewer protection
+  - removed legacy `/api/game*` routes
   - invalid command validation
 
 ## Extension Points For Future Changes

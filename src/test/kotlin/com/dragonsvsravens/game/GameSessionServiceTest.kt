@@ -2,10 +2,15 @@ package com.dragonsvsravens.game
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneOffset
 
 class GameSessionServiceTest {
 
@@ -130,8 +135,10 @@ class GameSessionServiceTest {
     @Test
     fun `selecting a rule configuration updates the shared session in the no game state`() {
         val service = createService()
+        val gameId = createGameId(service)
 
         val updated = service.applyCommand(
+            gameId,
             GameCommandRequest(
                 expectedVersion = 0,
                 type = "select-rule-configuration",
@@ -151,8 +158,10 @@ class GameSessionServiceTest {
     @Test
     fun `selecting a starting side updates free play in the no game state`() {
         val service = createService()
+        val gameId = createGameId(service)
 
         val updated = service.applyCommand(
+            gameId,
             GameCommandRequest(
                 expectedVersion = 0,
                 type = "select-starting-side",
@@ -168,11 +177,11 @@ class GameSessionServiceTest {
     @Test
     fun `undo restores the previous snapshot and updates can undo`() {
         val service = createService()
+        val gameId = createGameId(service)
 
-        service.applyCommand(GameCommandRequest(expectedVersion = 0, type = "start-game"))
-        service.applyCommand(GameCommandRequest(expectedVersion = 1, type = "cycle-setup", square = "a1"))
-        service.applyCommand(GameCommandRequest(expectedVersion = 2, type = "end-setup"))
+        enterMovePhaseWithDragonAtA1(service, gameId)
         val moved = service.applyCommand(
+            gameId,
             GameCommandRequest(
                 expectedVersion = 3,
                 type = "move-piece",
@@ -185,7 +194,7 @@ class GameSessionServiceTest {
         assertEquals(Phase.move, moved.snapshot.phase)
         assertEquals(Piece.dragon, moved.snapshot.board["a2"])
 
-        val undone = service.applyCommand(GameCommandRequest(expectedVersion = 4, type = "undo"))
+        val undone = service.applyCommand(gameId, GameCommandRequest(expectedVersion = 4, type = "undo"))
 
         assertFalse(undone.canUndo)
         assertEquals(Phase.move, undone.snapshot.phase)
@@ -196,11 +205,11 @@ class GameSessionServiceTest {
     @Test
     fun `end game preserves the board and clears undo`() {
         val service = createService()
+        val gameId = createGameId(service)
 
-        service.applyCommand(GameCommandRequest(expectedVersion = 0, type = "start-game"))
-        service.applyCommand(GameCommandRequest(expectedVersion = 1, type = "cycle-setup", square = "a1"))
-        service.applyCommand(GameCommandRequest(expectedVersion = 2, type = "end-setup"))
+        enterMovePhaseWithDragonAtA1(service, gameId)
         service.applyCommand(
+            gameId,
             GameCommandRequest(
                 expectedVersion = 3,
                 type = "move-piece",
@@ -209,7 +218,7 @@ class GameSessionServiceTest {
             )
         )
 
-        val ended = service.applyCommand(GameCommandRequest(expectedVersion = 4, type = "end-game"))
+        val ended = service.applyCommand(gameId, GameCommandRequest(expectedVersion = 4, type = "end-game"))
 
         assertEquals(Phase.none, ended.snapshot.phase)
         assertEquals(Piece.dragon, ended.snapshot.board["a2"])
@@ -220,8 +229,10 @@ class GameSessionServiceTest {
     @Test
     fun `starting original game uses its preset board and opening side`() {
         val service = createService()
+        val gameId = createGameId(service)
 
         service.applyCommand(
+            gameId,
             GameCommandRequest(
                 expectedVersion = 0,
                 type = "select-rule-configuration",
@@ -229,7 +240,7 @@ class GameSessionServiceTest {
             )
         )
 
-        val started = service.applyCommand(GameCommandRequest(expectedVersion = 1, type = "start-game"))
+        val started = service.applyCommand(gameId, GameCommandRequest(expectedVersion = 1, type = "start-game"))
 
         assertEquals("original-game", started.snapshot.ruleConfigurationId)
         assertEquals(Phase.move, started.snapshot.phase)
@@ -242,8 +253,10 @@ class GameSessionServiceTest {
     @Test
     fun `starting sherwood rules uses the original setup and opening side`() {
         val service = createService()
+        val gameId = createGameId(service)
 
         service.applyCommand(
+            gameId,
             GameCommandRequest(
                 expectedVersion = 0,
                 type = "select-rule-configuration",
@@ -251,7 +264,7 @@ class GameSessionServiceTest {
             )
         )
 
-        val started = service.applyCommand(GameCommandRequest(expectedVersion = 1, type = "start-game"))
+        val started = service.applyCommand(gameId, GameCommandRequest(expectedVersion = 1, type = "start-game"))
 
         assertEquals("sherwood-rules", started.snapshot.ruleConfigurationId)
         assertEquals(Phase.move, started.snapshot.phase)
@@ -264,8 +277,10 @@ class GameSessionServiceTest {
     @Test
     fun `starting free play honors the selected starting side through setup`() {
         val service = createService()
+        val gameId = createGameId(service)
 
         service.applyCommand(
+            gameId,
             GameCommandRequest(
                 expectedVersion = 0,
                 type = "select-starting-side",
@@ -273,11 +288,11 @@ class GameSessionServiceTest {
             )
         )
 
-        val started = service.applyCommand(GameCommandRequest(expectedVersion = 1, type = "start-game"))
+        val started = service.applyCommand(gameId, GameCommandRequest(expectedVersion = 1, type = "start-game"))
         assertEquals(Phase.setup, started.snapshot.phase)
         assertEquals(Side.ravens, started.snapshot.activeSide)
 
-        val endedSetup = service.applyCommand(GameCommandRequest(expectedVersion = 2, type = "end-setup"))
+        val endedSetup = service.applyCommand(gameId, GameCommandRequest(expectedVersion = 2, type = "end-setup"))
         assertEquals(Phase.move, endedSetup.snapshot.phase)
         assertEquals(Side.ravens, endedSetup.snapshot.activeSide)
     }
@@ -285,13 +300,105 @@ class GameSessionServiceTest {
     @Test
     fun `undo with no move history is rejected`() {
         val service = createService()
+        val gameId = createGameId(service)
 
         val exception = assertThrows<InvalidCommandException> {
-            service.applyCommand(GameCommandRequest(expectedVersion = 0, type = "undo"))
+            service.applyCommand(gameId, GameCommandRequest(expectedVersion = 0, type = "undo"))
         }
 
         assertEquals("No move is available to undo.", exception.message)
-        assertFalse(service.getGame().canUndo)
+        assertFalse(service.getGame(gameId).canUndo)
+    }
+
+    @Test
+    fun `loading a game touches its last accessed time`() {
+        val store = InMemoryGameStore()
+        val service = createService(store)
+        val game = service.createGame()
+        val oldAccessedAt = Instant.parse("2026-04-08T00:00:00Z")
+
+        store.touch(game.id, oldAccessedAt)
+
+        service.getGame(game.id)
+
+        val storedGame = store.get(game.id)
+        assertNotNull(storedGame)
+        assertTrue(storedGame!!.lastAccessedAt.isAfter(oldAccessedAt))
+    }
+
+    @Test
+    fun `game older than one hour with no viewers is removed`() {
+        val store = InMemoryGameStore()
+        val service = createService(store)
+        val oldAccessedAt = Instant.parse("2026-04-08T00:00:00Z")
+        val now = oldAccessedAt.plus(GameSessionService.staleGameThreshold).plusSeconds(1)
+        val game = createStoredGame(
+            store = store,
+            gameId = "stale-game",
+            lastAccessedAt = oldAccessedAt
+        )
+
+        service.removeStaleGames(now)
+
+        assertNull(store.get(game.session.id))
+    }
+
+    @Test
+    fun `recently loaded game is not removed`() {
+        val store = InMemoryGameStore()
+        val service = createService(store)
+        val oldAccessedAt = Instant.parse("2026-04-08T00:00:00Z")
+        val now = oldAccessedAt.plus(GameSessionService.staleGameThreshold).plusSeconds(1)
+        val game = createStoredGame(
+            store = store,
+            gameId = "recent-game",
+            lastAccessedAt = oldAccessedAt
+        )
+
+        service.getGame(game.session.id)
+        service.removeStaleGames(now)
+
+        assertNotNull(store.get(game.session.id))
+    }
+
+    @Test
+    fun `game with active emitter is not removed`() {
+        val store = InMemoryGameStore()
+        val service = createService(store)
+        val oldAccessedAt = Instant.parse("2026-04-08T00:00:00Z")
+        val now = oldAccessedAt.plus(GameSessionService.staleGameThreshold).plusSeconds(1)
+        val game = createStoredGame(
+            store = store,
+            gameId = "watched-game",
+            lastAccessedAt = oldAccessedAt
+        )
+
+        service.createEmitter(game.session.id, RecordingEmitter())
+        store.touch(game.session.id, oldAccessedAt)
+
+        service.removeStaleGames(now)
+
+        assertNotNull(store.get(game.session.id))
+    }
+
+    @Test
+    fun `game touched on emitter disconnect is not removed immediately after viewer leaves`() {
+        val store = InMemoryGameStore()
+        val service = createService(store)
+        val oldAccessedAt = Instant.parse("2026-04-08T00:00:00Z")
+        val now = oldAccessedAt.plus(GameSessionService.staleGameThreshold).plusSeconds(1)
+        val game = createStoredGame(
+            store = store,
+            gameId = "disconnect-game",
+            lastAccessedAt = oldAccessedAt
+        )
+        val emitter = service.createEmitter(game.session.id)
+
+        store.touch(game.session.id, oldAccessedAt)
+        emitter.complete()
+        service.removeStaleGames(now)
+
+        assertNotNull(store.get(game.session.id))
     }
 
     private class RecordingEmitter : SseEmitter(0L) {
@@ -302,5 +409,35 @@ class GameSessionServiceTest {
         }
     }
 
-    private fun createService(): GameSessionService = GameSessionService(InMemoryGameStore())
+    private fun createService(
+        store: InMemoryGameStore = InMemoryGameStore(),
+        clock: Clock = fixedClock()
+    ): GameSessionService = GameSessionService(store, clock)
+
+    private fun createGameId(service: GameSessionService): String = service.createGame().id
+
+    private fun enterMovePhaseWithDragonAtA1(service: GameSessionService, gameId: String) {
+        service.applyCommand(gameId, GameCommandRequest(expectedVersion = 0, type = "start-game"))
+        service.applyCommand(gameId, GameCommandRequest(expectedVersion = 1, type = "cycle-setup", square = "a1"))
+        service.applyCommand(gameId, GameCommandRequest(expectedVersion = 2, type = "end-setup"))
+    }
+
+    private fun fixedClock(now: Instant = Instant.parse("2026-04-08T12:00:00Z")): Clock =
+        Clock.fixed(now, ZoneOffset.UTC)
+
+    private fun createStoredGame(
+        store: InMemoryGameStore,
+        gameId: String,
+        lastAccessedAt: Instant
+    ): StoredGame {
+        val storedGame = GameSessionFactory.createFreshStoredGame(
+            gameId = gameId,
+            snapshot = GameRules.createIdleSnapshot(GameRules.freePlayRuleConfigurationId, Side.dragons),
+            selectedRuleConfigurationId = GameRules.freePlayRuleConfigurationId,
+            selectedStartingSide = Side.dragons,
+            now = lastAccessedAt
+        )
+        store.put(storedGame)
+        return storedGame
+    }
 }

@@ -2,23 +2,23 @@ package com.dragonsvsravens.game
 
 import org.springframework.stereotype.Service
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
 @Service
 class GameSessionService(
-    private val gameStore: GameStore
+    private val gameStore: GameStore,
+    private val clock: Clock
 ) {
     companion object {
-        const val defaultGameId = "default"
+        val staleGameThreshold: Duration = Duration.ofHours(1)
     }
 
     private val emittersByGame = ConcurrentHashMap<String, CopyOnWriteArrayList<SseEmitter>>()
     private val gameLocks = ConcurrentHashMap<String, Any>()
-
-    init {
-        ensureDefaultGameExists()
-    }
 
     fun createGame(request: CreateGameRequest = CreateGameRequest()): GameSession {
         val selectedRuleConfigurationId = request.ruleConfigurationId ?: GameRules.freePlayRuleConfigurationId
@@ -30,7 +30,8 @@ class GameSessionService(
                 gameId = GameIdGenerator.nextId(),
                 snapshot = createIdleSnapshot(selectedRuleConfigurationId, selectedStartingSide),
                 selectedRuleConfigurationId = selectedRuleConfigurationId,
-                selectedStartingSide = selectedStartingSide
+                selectedStartingSide = selectedStartingSide,
+                now = Instant.now(clock)
             )
             if (gameStore.putIfAbsent(game)) {
                 return game.session
@@ -38,13 +39,13 @@ class GameSessionService(
         }
     }
 
-    fun getGame(): GameSession = getGame(defaultGameId)
+    fun getGame(gameId: String): GameSession = withGameLock(gameId) {
+        val current = getStoredGame(gameId)
+        touchGame(gameId)
+        current.session
+    }
 
-    fun getGame(gameId: String): GameSession = getStoredGame(gameId).session
-
-    fun applyCommand(command: GameCommandRequest): GameSession = applyCommand(defaultGameId, command)
-
-    fun applyCommand(gameId: String, command: GameCommandRequest): GameSession = synchronized(lockFor(gameId)) {
+    fun applyCommand(gameId: String, command: GameCommandRequest): GameSession = withGameLock(gameId) {
         val current = getStoredGame(gameId)
         if (command.expectedVersion != current.session.version) {
             throw VersionConflictException(current.session)
@@ -116,17 +117,13 @@ class GameSessionService(
         nextState.session
     }
 
-    fun createEmitter(): SseEmitter = createEmitter(defaultGameId)
-
     fun createEmitter(gameId: String): SseEmitter = createEmitter(gameId, SseEmitter(0L))
 
     internal fun createEmitter(gameId: String, emitter: SseEmitter): SseEmitter {
-        val emitters = emittersFor(gameId)
-        emitters.add(emitter)
+        val emitters = registerEmitter(gameId, emitter)
 
         val removeEmitter = {
-            emitters.remove(emitter)
-            cleanupEmitters(gameId, emitters)
+            unregisterEmitter(gameId, emitters, emitter)
             Unit
         }
         emitter.onCompletion(removeEmitter)
@@ -140,15 +137,31 @@ class GameSessionService(
         return emitter
     }
 
-    private fun broadcast(gameId: String, session: GameSession) {
-        val emitters = emittersByGame[gameId] ?: return
-        emitters.forEach { emitter ->
-            val delivered = sendSnapshot(emitter, session)
-            if (!delivered) {
-                emitters.remove(emitter)
+    fun removeStaleGames(now: Instant = Instant.now(clock)) {
+        val staleBefore = now.minus(staleGameThreshold)
+
+        gameStore.entries().forEach { storedGame ->
+            val gameId = storedGame.session.id
+            val lock = lockFor(gameId)
+            synchronized(lock) {
+                val current = gameStore.get(gameId) ?: return@synchronized
+                if (!current.lastAccessedAt.isBefore(staleBefore)) {
+                    return@synchronized
+                }
+                if (hasActiveEmitters(gameId)) {
+                    return@synchronized
+                }
+                gameStore.remove(gameId)
+                emittersByGame.remove(gameId)
+                gameLocks.remove(gameId, lock)
             }
         }
-        cleanupEmitters(gameId, emitters)
+    }
+
+    private fun broadcast(gameId: String, session: GameSession) {
+        emittersByGame[gameId]?.let { emitters ->
+            pruneUndeliveredEmitters(gameId, emitters, session)
+        }
     }
 
     private fun sendSnapshot(emitter: SseEmitter, session: GameSession): Boolean {
@@ -164,26 +177,6 @@ class GameSessionService(
         }
     }
 
-    private fun ensureDefaultGameExists() {
-        if (gameStore.get(defaultGameId) != null) {
-            return
-        }
-        gameStore.put(
-            createInitialStoredGame(defaultGameId)
-        )
-    }
-
-    private fun createInitialStoredGame(gameId: String): StoredGame =
-        GameSessionFactory.createFreshStoredGame(
-            gameId = gameId,
-            snapshot = createIdleSnapshot(
-                ruleConfigurationId = GameRules.freePlayRuleConfigurationId,
-                selectedStartingSide = Side.dragons
-            ),
-            selectedRuleConfigurationId = GameRules.freePlayRuleConfigurationId,
-            selectedStartingSide = Side.dragons
-        )
-
     private fun createIdleSnapshot(ruleConfigurationId: String, selectedStartingSide: Side): GameSnapshot =
         GameRules.createIdleSnapshot(ruleConfigurationId, selectedStartingSide)
 
@@ -198,10 +191,14 @@ class GameSessionService(
         undoSnapshots = undoSnapshots,
         version = session.version + 1,
         createdAt = session.createdAt,
-        updatedAt = java.time.Instant.now(),
+        updatedAt = Instant.now(clock),
         selectedRuleConfigurationId = selectedRuleConfigurationId,
         selectedStartingSide = selectedStartingSide
     )
+
+    private fun touchGame(gameId: String, accessedAt: Instant = Instant.now(clock)) {
+        gameStore.touch(gameId, accessedAt) ?: throw GameNotFoundException(gameId)
+    }
 
     private fun getStoredGame(gameId: String): StoredGame =
         gameStore.get(gameId) ?: throw GameNotFoundException(gameId)
@@ -209,15 +206,44 @@ class GameSessionService(
     private fun lockFor(gameId: String): Any =
         gameLocks.computeIfAbsent(gameId) { Any() }
 
-    private fun emittersFor(gameId: String): CopyOnWriteArrayList<SseEmitter> {
-        getStoredGame(gameId)
-        return emittersByGame.computeIfAbsent(gameId) { CopyOnWriteArrayList() }
+    private fun <T> withGameLock(gameId: String, action: () -> T): T = synchronized(lockFor(gameId)) {
+        action()
     }
 
-    private fun cleanupEmitters(gameId: String, emitters: CopyOnWriteArrayList<SseEmitter>) {
+    private fun registerEmitter(gameId: String, emitter: SseEmitter): CopyOnWriteArrayList<SseEmitter> =
+        withGameLock(gameId) {
+            getStoredGame(gameId)
+            touchGame(gameId)
+            emittersByGame.computeIfAbsent(gameId) { CopyOnWriteArrayList() }.also { it.add(emitter) }
+        }
+
+    private fun unregisterEmitter(gameId: String, emitters: CopyOnWriteArrayList<SseEmitter>, emitter: SseEmitter) {
+        emitters.remove(emitter)
+        withGameLock(gameId) {
+            if (cleanupEmitters(gameId, emitters)) {
+                touchGame(gameId)
+            }
+        }
+    }
+
+    private fun hasActiveEmitters(gameId: String): Boolean =
+        emittersByGame[gameId]?.isNotEmpty() == true
+
+    private fun pruneUndeliveredEmitters(gameId: String, emitters: CopyOnWriteArrayList<SseEmitter>, session: GameSession) {
+        emitters.forEach { emitter ->
+            if (!sendSnapshot(emitter, session)) {
+                emitters.remove(emitter)
+            }
+        }
+        cleanupEmitters(gameId, emitters)
+    }
+
+    private fun cleanupEmitters(gameId: String, emitters: CopyOnWriteArrayList<SseEmitter>): Boolean {
         if (emitters.isEmpty()) {
             emittersByGame.remove(gameId, emitters)
+            return true
         }
+        return false
     }
 
     private fun validatePhase(snapshot: GameSnapshot, expected: Phase, commandType: String) {

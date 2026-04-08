@@ -19,7 +19,6 @@ class GameControllerTest : AbstractGameControllerTestSupport() {
             content = objectMapper.writeValueAsString(CreateGameRequest())
         }.andExpect {
             status { isOk() }
-            jsonPath("$.game.id") { value(org.hamcrest.Matchers.not("default")) }
             jsonPath("$.game.id") { value(org.hamcrest.Matchers.matchesPattern("[23456789CFGHJMPQRVWX]{7}")) }
             jsonPath("$.game.snapshot.phase", equalTo("none"))
             jsonPath("$.game.selectedRuleConfigurationId", equalTo("free-play"))
@@ -68,6 +67,26 @@ class GameControllerTest : AbstractGameControllerTestSupport() {
             .andExpect {
                 status { isNotFound() }
                 jsonPath("$.message", equalTo("Game missing-game was not found."))
+            }
+    }
+
+    @Test
+    fun `removed default compatibility routes return not found`() {
+        mockMvc.get("/api/game")
+            .andExpect {
+                status { isNotFound() }
+            }
+
+        mockMvc.post("/api/game/commands") {
+            contentType = MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsString(command(0, "start-game"))
+        }.andExpect {
+            status { isNotFound() }
+        }
+
+        mockMvc.get("/api/game/stream")
+            .andExpect {
+                status { isNotFound() }
             }
     }
 

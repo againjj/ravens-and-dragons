@@ -30,16 +30,6 @@ class GameController(
     @GetMapping("/api/games/{gameId}/stream")
     fun streamGame(@PathVariable gameId: String): SseEmitter = gameSessionService.createEmitter(gameId)
 
-    @GetMapping("/api/game")
-    fun getGame(): GameSession = gameSessionService.getGame()
-
-    @PostMapping("/api/game/commands")
-    fun applyCommand(@RequestBody command: GameCommandRequest): GameSession =
-        gameSessionService.applyCommand(command)
-
-    @GetMapping("/api/game/stream")
-    fun streamGame(): SseEmitter = gameSessionService.createEmitter()
-
     @ExceptionHandler(GameNotFoundException::class)
     fun handleGameNotFound(exception: GameNotFoundException): ResponseEntity<ErrorResponse> =
         ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse(exception.message ?: "Game not found."))
