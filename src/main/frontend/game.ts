@@ -119,6 +119,14 @@ const getOrthogonalPath = (origin: string, destination: string): string[] | null
 
 const isCenterSquare = (square: string): boolean => square === "d4";
 const isCornerSquare = (square: string): boolean => ["a1", "a7", "g1", "g7"].includes(square);
+const originalStyleRuleConfigurationIds = new Set(["original-game", "sherwood-rules"]);
+const isOriginalStyleRuleConfiguration = (ruleConfigurationId: string): boolean =>
+    originalStyleRuleConfigurationIds.has(ruleConfigurationId);
+const isSingleOrthogonalStep = (origin: string, destination: string): boolean => {
+    const fileDistance = Math.abs(columnLetters.indexOf(origin[0]) - columnLetters.indexOf(destination[0]));
+    const rankDistance = Math.abs(rowNumbers.indexOf(origin[1]) - rowNumbers.indexOf(destination[1]));
+    return fileDistance + rankDistance === 1;
+};
 
 const getNeighbors = (square: string): string[] => {
     const fileIndex = columnLetters.indexOf(square[0]);
@@ -201,12 +209,13 @@ const isRegularPieceCapturedInOriginalGame = (
     );
 
 const isGoldCapturedInOriginalGame = (board: Record<string, Piece>, square: string): boolean => {
+    const neighbors = getNeighbors(square);
     if (isCenterSquare(square)) {
-        return getNeighbors(square).every((neighbor) => board[neighbor] === "raven");
+        return neighbors.every((neighbor) => board[neighbor] === "raven");
     }
 
-    if (getNeighbors(square).includes("d4")) {
-        return getNeighbors(square)
+    if (neighbors.includes("d4")) {
+        return neighbors
             .filter((neighbor) => neighbor !== "d4")
             .every((neighbor) => board[neighbor] === "raven");
     }
@@ -236,14 +245,23 @@ const wouldCauseFriendlyCaptureInOriginalGame = (
     const movedBoard = { ...snapshot.board };
     delete movedBoard[origin];
     movedBoard[destination] = piece;
+    const opposingSide = snapshot.activeSide === "dragons" ? "ravens" : "dragons";
+
+    if (
+        piece === "gold"
+            ? isGoldCapturedInOriginalGame(movedBoard, destination)
+            : isRegularPieceCapturedInOriginalGame(movedBoard, destination, opposingSide)
+    ) {
+        return true;
+    }
 
     for (const capturedSquare of getAutoCapturedSquaresInOriginalGame(movedBoard, snapshot.activeSide)) {
         delete movedBoard[capturedSquare];
     }
 
-    const opposingSide = snapshot.activeSide === "dragons" ? "ravens" : "dragons";
     return Object.entries(movedBoard)
         .filter(([, remainingPiece]) => sideOwnsPiece(snapshot.activeSide, remainingPiece))
+        .filter(([square]) => square !== destination)
         .some(([square, remainingPiece]) =>
             remainingPiece === "gold"
                 ? isGoldCapturedInOriginalGame(movedBoard, square)
@@ -257,6 +275,10 @@ const isIllegalOriginalGameDestination = (
     piece: Piece,
     destination: string
 ): boolean => {
+    if (snapshot.ruleConfigurationId === "sherwood-rules" && piece === "gold" && !isSingleOrthogonalStep(origin, destination)) {
+        return true;
+    }
+
     if (isCenterSquare(destination)) {
         return true;
     }
@@ -265,20 +287,8 @@ const isIllegalOriginalGameDestination = (
         return true;
     }
 
-    const neighbors = [
-        ["up", getNeighbors(destination).find((square) => columnLetters.indexOf(square[0]) === columnLetters.indexOf(destination[0]) && rowNumbers.indexOf(square[1]) === rowNumbers.indexOf(destination[1]) - 1)],
-        ["down", getNeighbors(destination).find((square) => columnLetters.indexOf(square[0]) === columnLetters.indexOf(destination[0]) && rowNumbers.indexOf(square[1]) === rowNumbers.indexOf(destination[1]) + 1)],
-        ["left", getNeighbors(destination).find((square) => columnLetters.indexOf(square[0]) === columnLetters.indexOf(destination[0]) - 1 && rowNumbers.indexOf(square[1]) === rowNumbers.indexOf(destination[1]))],
-        ["right", getNeighbors(destination).find((square) => columnLetters.indexOf(square[0]) === columnLetters.indexOf(destination[0]) + 1 && rowNumbers.indexOf(square[1]) === rowNumbers.indexOf(destination[1]))]
-    ];
-    const up = neighbors[0][1];
-    const down = neighbors[1][1];
-    const left = neighbors[2][1];
-    const right = neighbors[3][1];
-
-    return Boolean(
-        (up && down && isEnemyPiece(snapshot.board[up], piece) && isEnemyPiece(snapshot.board[down], piece)) ||
-        (left && right && isEnemyPiece(snapshot.board[left], piece) && isEnemyPiece(snapshot.board[right], piece))
+    return getOppositePairs(destination).some(
+        ([first, second]) => isEnemyPiece(snapshot.board[first], piece) && isEnemyPiece(snapshot.board[second], piece)
     ) || wouldCauseFriendlyCaptureInOriginalGame(snapshot, origin, destination, piece);
 };
 
@@ -297,7 +307,7 @@ export const getTargetableSquares = (snapshot: ServerGameSnapshot, selectedSquar
             return false;
         }
 
-        if (snapshot.ruleConfigurationId !== "original-game") {
+        if (!isOriginalStyleRuleConfiguration(snapshot.ruleConfigurationId)) {
             return true;
         }
 

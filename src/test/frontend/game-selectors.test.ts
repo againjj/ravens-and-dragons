@@ -220,6 +220,49 @@ describe("game selectors", () => {
         expect(targetableSquares).not.toContain("b1");
     });
 
+    test("original game targetable squares exclude self captures even when the move would also capture an enemy", () => {
+        const store = createAppStore({
+            game: {
+                session: createSession(
+                    {
+                        selectedRuleConfigurationId: "original-game"
+                    },
+                    {
+                        phase: "move",
+                        ruleConfigurationId: "original-game",
+                        activeSide: "ravens",
+                        board: {
+                            d6: "raven",
+                            f6: "raven",
+                            c5: "dragon",
+                            e5: "dragon",
+                            g5: "raven",
+                            a4: "raven",
+                            e4: "gold",
+                            c3: "dragon",
+                            e3: "raven",
+                            f3: "raven",
+                            b2: "raven",
+                            d2: "dragon",
+                            d1: "raven"
+                        }
+                    }
+                ),
+                isSubmitting: false,
+                loadState: "ready",
+                connectionState: "open",
+                feedbackMessage: null
+            },
+            ui: {
+                selectedSquare: "e3"
+            }
+        });
+
+        const targetableSquares = selectTargetableSquares(store.getState());
+
+        expect(targetableSquares).not.toContain("d3");
+    });
+
     test("original game targetable squares exclude moves that expose other friendly pieces to capture", () => {
         const store = createAppStore({
             game: {
@@ -260,6 +303,42 @@ describe("game selectors", () => {
         const targetableSquares = selectTargetableSquares(store.getState());
 
         expect(targetableSquares).not.toContain("e4");
+    });
+
+    test("sherwood rules only allow one-step gold targets", () => {
+        const store = createAppStore({
+            game: {
+                session: createSession(
+                    {
+                        selectedRuleConfigurationId: "sherwood-rules"
+                    },
+                    {
+                        phase: "move",
+                        ruleConfigurationId: "sherwood-rules",
+                        activeSide: "dragons",
+                        board: {
+                            d5: "gold",
+                            a7: "raven"
+                        }
+                    }
+                ),
+                isSubmitting: false,
+                loadState: "ready",
+                connectionState: "open",
+                feedbackMessage: null
+            },
+            ui: {
+                selectedSquare: "d5"
+            }
+        });
+
+        const targetableSquares = selectTargetableSquares(store.getState());
+
+        expect(targetableSquares).toContain("c5");
+        expect(targetableSquares).toContain("e5");
+        expect(targetableSquares).toContain("d6");
+        expect(targetableSquares).not.toContain("d7");
+        expect(targetableSquares).not.toContain("a5");
     });
 
     test("local selection can be updated independently of the shared session", () => {

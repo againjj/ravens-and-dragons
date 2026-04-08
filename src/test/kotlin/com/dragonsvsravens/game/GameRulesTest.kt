@@ -203,6 +203,18 @@ class GameRulesTest {
     }
 
     @Test
+    fun `sherwood rules start from the published setup with ravens to move`() {
+        val snapshot = GameRules.startGame("sherwood-rules")
+
+        assertEquals(Phase.move, snapshot.phase)
+        assertEquals(Side.ravens, snapshot.activeSide)
+        assertEquals(Piece.gold, snapshot.board["d4"])
+        assertEquals(Piece.dragon, snapshot.board["d5"])
+        assertEquals(Piece.raven, snapshot.board["d7"])
+        assertEquals(1, snapshot.positionKeys.size)
+    }
+
+    @Test
     fun `original game captures a dragon against the empty center`() {
         val moved = GameRules.movePiece(
             createSnapshot(
@@ -246,6 +258,37 @@ class GameRulesTest {
     }
 
     @Test
+    fun `original game rejects moves that are self captures even when they also capture an enemy`() {
+        val exception = org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
+            GameRules.movePiece(
+                createSnapshot(
+                    board = linkedMapOf(
+                        "d6" to Piece.raven,
+                        "f6" to Piece.raven,
+                        "c5" to Piece.dragon,
+                        "e5" to Piece.dragon,
+                        "g5" to Piece.raven,
+                        "a4" to Piece.raven,
+                        "e4" to Piece.gold,
+                        "c3" to Piece.dragon,
+                        "e3" to Piece.raven,
+                        "f3" to Piece.raven,
+                        "b2" to Piece.raven,
+                        "d2" to Piece.dragon,
+                        "d1" to Piece.raven
+                    ),
+                    activeSide = Side.ravens,
+                    ruleConfigurationId = "original-game"
+                ),
+                "e3",
+                "d3"
+            )
+        }
+
+        assertEquals("You may not move so that your piece is captured.", exception.message)
+    }
+
+    @Test
     fun `original game rejects moves that cause other friendly pieces to be captured`() {
         val exception = org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
             GameRules.movePiece(
@@ -273,6 +316,47 @@ class GameRulesTest {
         }
 
         assertEquals("You may not move so that your piece is captured.", exception.message)
+    }
+
+    @Test
+    fun `sherwood rules reject multi-square gold moves`() {
+        val exception = org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
+            GameRules.movePiece(
+                createSnapshot(
+                    board = linkedMapOf(
+                        "d5" to Piece.gold,
+                        "a7" to Piece.raven
+                    ),
+                    activeSide = Side.dragons,
+                    ruleConfigurationId = "sherwood-rules"
+                ),
+                "d5",
+                "d7"
+            )
+        }
+
+        assertEquals("The gold may move only one square at a time.", exception.message)
+    }
+
+    @Test
+    fun `sherwood rules allow one-square gold moves`() {
+        val moved = GameRules.movePiece(
+            createSnapshot(
+                board = linkedMapOf(
+                    "d5" to Piece.gold,
+                    "a7" to Piece.raven
+                ),
+                activeSide = Side.dragons,
+                ruleConfigurationId = "sherwood-rules"
+            ),
+            "d5",
+            "e5"
+        )
+
+        assertFalse(moved.board.containsKey("d5"))
+        assertEquals(Piece.gold, moved.board["e5"])
+        assertEquals(Side.ravens, moved.activeSide)
+        assertEquals(listOf(TurnRecord(type = TurnType.move, from = "d5", to = "e5")), moved.turns)
     }
 
     @Test

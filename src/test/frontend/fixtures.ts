@@ -25,7 +25,7 @@ export const createSession = (
         },
         {
             id: "trivial",
-            name: "Trivial",
+            name: "Trivial Configuration",
             descriptionSections: [
                 {
                     paragraphs: ["Trivial description"]
@@ -41,6 +41,18 @@ export const createSession = (
             descriptionSections: [
                 {
                     paragraphs: ["Original Game description"]
+                }
+            ],
+            hasSetupPhase: false,
+            hasManualCapture: false,
+            hasManualEndGame: false
+        },
+        {
+            id: "sherwood-rules",
+            name: "Sherwood Rules",
+            descriptionSections: [
+                {
+                    paragraphs: ["Sherwood Rules description"]
                 }
             ],
             hasSetupPhase: false,

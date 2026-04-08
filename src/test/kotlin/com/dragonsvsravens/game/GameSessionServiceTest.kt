@@ -173,6 +173,28 @@ class GameSessionServiceTest {
     }
 
     @Test
+    fun `starting sherwood rules uses the original setup and opening side`() {
+        val service = GameSessionService()
+
+        service.applyCommand(
+            GameCommandRequest(
+                expectedVersion = 0,
+                type = "select-rule-configuration",
+                ruleConfigurationId = "sherwood-rules"
+            )
+        )
+
+        val started = service.applyCommand(GameCommandRequest(expectedVersion = 1, type = "start-game"))
+
+        assertEquals("sherwood-rules", started.snapshot.ruleConfigurationId)
+        assertEquals(Phase.move, started.snapshot.phase)
+        assertEquals(Side.ravens, started.snapshot.activeSide)
+        assertEquals(Piece.gold, started.snapshot.board["d4"])
+        assertEquals(Piece.dragon, started.snapshot.board["d5"])
+        assertEquals(Piece.raven, started.snapshot.board["d7"])
+    }
+
+    @Test
     fun `starting free play honors the selected starting side through setup`() {
         val service = GameSessionService()
 

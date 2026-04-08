@@ -3,6 +3,21 @@ package com.dragonsvsravens.game
 object GameRules {
     const val freePlayRuleConfigurationId = "free-play"
     private val setupCycle = listOf(Piece.dragon, Piece.raven, Piece.gold)
+    private val originalStylePresetBoard = linkedMapOf(
+        "d4" to Piece.gold,
+        "d5" to Piece.dragon,
+        "c4" to Piece.dragon,
+        "e4" to Piece.dragon,
+        "d3" to Piece.dragon,
+        "d7" to Piece.raven,
+        "d6" to Piece.raven,
+        "a4" to Piece.raven,
+        "b4" to Piece.raven,
+        "f4" to Piece.raven,
+        "g4" to Piece.raven,
+        "d2" to Piece.raven,
+        "d1" to Piece.raven
+    )
 
     private data class RuleConfiguration(
         val summary: RuleConfigurationSummary,
@@ -67,7 +82,7 @@ object GameRules {
     private val trivial = RuleConfiguration(
         summary = RuleConfigurationSummary(
             id = "trivial",
-            name = "Trivial",
+            name = "Trivial Configuration",
             descriptionSections = listOf(
                 RuleDescriptionSection(
                     heading = "Overview",
@@ -111,67 +126,37 @@ object GameRules {
     )
 
     private val originalGame = RuleConfiguration(
-        summary = RuleConfigurationSummary(
+        summary = createOriginalStyleSummary(
             id = "original-game",
             name = "Original Game",
-            descriptionSections = listOf(
-                RuleDescriptionSection(
-                    heading = "Overview",
-                    paragraphs = listOf(
-                        "Ravens are trying to steal the dragons' gold! The dragons need to hide it in a corner to protect it."
-                    )
-                ),
-                RuleDescriptionSection(
-                    heading = "Setup",
-                    paragraphs = listOf(
-                        "The game starts in a cross formation: gold in the center with dragons surrounding it, and two ravens behind each dragon.",
-                    )
-                ),
-                RuleDescriptionSection(
-                    heading = "Moves",
-                    paragraphs = listOf(
-                        "Ravens move first.",
-                        "Pieces move any distance orthogonally without jumping. No piece may land on the center square after the gold leaves it, and only the gold may land on the corner squares.",
-                        "You may not make a move that causes any of your own pieces to be captured.",
-                    )
-                ),
-                RuleDescriptionSection(
-                    heading = "Captures",
-                    paragraphs = listOf(
-                        "Dragons and ravens are captured by being sandwiched orthogonally by enemies, by an enemy plus the empty center, or by an enemy plus a corner. The gold is captured by four ravens in the center, by three ravens when beside the center, and otherwise like another piece.",
-                    )
-                ),
-                RuleDescriptionSection(
-                    heading = "Winner",
-                    paragraphs = listOf(
-                        "Dragons win if the gold reaches any corner square. Ravens win if they capture the gold. The game is drawn on repetition of the same position on the same player's turn, or when the side to move has no legal moves."
-                    )
-                )
-            ),
-            hasSetupPhase = false,
-            hasManualCapture = false,
-            hasManualEndGame = false
+            moveParagraphs = listOf(
+                "Ravens move first.",
+                "Pieces move any distance orthogonally without jumping. No piece may land on the center square after the gold leaves it, and only the gold may land on the corner squares.",
+                "You may not make a move that causes any of your own pieces to be captured.",
+            )
         ),
-        presetBoard = linkedMapOf(
-            "d4" to Piece.gold,
-            "d5" to Piece.dragon,
-            "c4" to Piece.dragon,
-            "e4" to Piece.dragon,
-            "d3" to Piece.dragon,
-            "d7" to Piece.raven,
-            "d6" to Piece.raven,
-            "a4" to Piece.raven,
-            "b4" to Piece.raven,
-            "f4" to Piece.raven,
-            "g4" to Piece.raven,
-            "d2" to Piece.raven,
-            "d1" to Piece.raven
-        ),
+        presetBoard = originalStylePresetBoard,
         startingSide = Side.ravens,
-        ruleSet = OriginalGameRuleSet
+        ruleSet = OriginalStyleRuleSet()
     )
 
-    private val ruleConfigurations = listOf(freePlay, trivial, originalGame)
+    private val sherwoodRules = RuleConfiguration(
+        summary = createOriginalStyleSummary(
+            id = "sherwood-rules",
+            name = "Sherwood Rules",
+            moveParagraphs = listOf(
+                "Ravens move first.",
+                "Dragons and ravens move any distance orthogonally without jumping. The gold may move only one square orthogonally at a time.",
+                "No piece may land on the center square after the gold leaves it, and only the gold may land on the corner squares.",
+                "You may not make a move that causes any of your own pieces to be captured.",
+            )
+        ),
+        presetBoard = originalStylePresetBoard,
+        startingSide = Side.ravens,
+        ruleSet = OriginalStyleRuleSet(goldMovesOneSquareAtATime = true)
+    )
+
+    private val ruleConfigurations = listOf(freePlay, trivial, originalGame, sherwoodRules)
     private val ruleConfigurationsById = ruleConfigurations.associateBy { it.summary.id }
 
     fun availableRuleConfigurations(): List<RuleConfigurationSummary> =
@@ -369,6 +354,48 @@ object GameRules {
     private fun oppositeSide(side: Side): Side =
         if (side == Side.dragons) Side.ravens else Side.dragons
 
+    private fun createOriginalStyleSummary(
+        id: String,
+        name: String,
+        moveParagraphs: List<String>
+    ): RuleConfigurationSummary = RuleConfigurationSummary(
+        id = id,
+        name = name,
+        descriptionSections = listOf(
+            RuleDescriptionSection(
+                heading = "Overview",
+                paragraphs = listOf(
+                    "Ravens are trying to steal the dragons' gold! The dragons need to hide it in a corner to protect it."
+                )
+            ),
+            RuleDescriptionSection(
+                heading = "Setup",
+                paragraphs = listOf(
+                    "The game starts in a cross formation: gold in the center with dragons surrounding it, and two ravens behind each dragon.",
+                )
+            ),
+            RuleDescriptionSection(
+                heading = "Moves",
+                paragraphs = moveParagraphs
+            ),
+            RuleDescriptionSection(
+                heading = "Captures",
+                paragraphs = listOf(
+                    "Dragons and ravens are captured by being sandwiched orthogonally by enemies, by an enemy plus the empty center, or by an enemy plus a corner. The gold is captured by four ravens in the center, by three ravens when beside the center, and otherwise like another piece.",
+                )
+            ),
+            RuleDescriptionSection(
+                heading = "Winner",
+                paragraphs = listOf(
+                    "Dragons win if the gold reaches any corner square. Ravens win if they capture the gold. The game is drawn on repetition of the same position on the same player's turn, or when the side to move has no legal moves."
+                )
+            )
+        ),
+        hasSetupPhase = false,
+        hasManualCapture = false,
+        hasManualEndGame = false
+    )
+
     private object FreePlayRuleSet : RuleSet {
         override fun startPhase(): Phase = Phase.setup
 
@@ -458,13 +485,20 @@ object GameRules {
         }
     }
 
-    private object OriginalGameRuleSet : RuleSet {
+    private class OriginalStyleRuleSet(
+        private val goldMovesOneSquareAtATime: Boolean = false
+    ) : RuleSet {
         override fun startPhase(): Phase = Phase.move
 
         override fun validateMove(snapshot: GameSnapshot, origin: String, destination: String, piece: Piece) {
             val path = BoardCoordinates.pathBetween(origin, destination)
             require(path.isNotEmpty() || origin[0] == destination[0] || origin[1] == destination[1]) {
                 "Pieces must move vertically or horizontally."
+            }
+            if (goldMovesOneSquareAtATime && piece == Piece.gold) {
+                require(isSingleOrthogonalStep(origin, destination)) {
+                    "The gold may move only one square at a time."
+                }
             }
             require(path.none { snapshot.board.containsKey(it) }) {
                 "Pieces may not jump over other pieces."
@@ -538,6 +572,10 @@ object GameRules {
                         }
                 }
 
+        private fun isSingleOrthogonalStep(origin: String, destination: String): Boolean {
+            return BoardCoordinates.isOrthogonallyAdjacent(origin, destination)
+        }
+
         private fun wouldExposeFriendlyPieceToCapture(
             snapshot: GameSnapshot,
             origin: String,
@@ -545,12 +583,20 @@ object GameRules {
             piece: Piece
         ): Boolean {
             val movedSnapshot = createMovedSnapshot(snapshot, origin, destination, piece)
+            val opposingSide = oppositeSide(snapshot.activeSide)
+            if (piece == Piece.gold) {
+                if (isGoldCaptured(movedSnapshot.board, destination)) {
+                    return true
+                }
+            } else if (isRegularPieceCaptured(movedSnapshot.board, destination, opposingSide)) {
+                return true
+            }
             val capturedByMover = getAutomaticallyCapturedSquares(movedSnapshot, snapshot.activeSide)
             val boardAfterMoverCaptures = LinkedHashMap(movedSnapshot.board)
             capturedByMover.forEach(boardAfterMoverCaptures::remove)
-            val opposingSide = oppositeSide(snapshot.activeSide)
             return boardAfterMoverCaptures.entries
                 .filter { (_, remainingPiece) -> sideOwnsPiece(snapshot.activeSide, remainingPiece) }
+                .filter { (square, _) -> square != destination }
                 .any { (square, remainingPiece) ->
                     if (remainingPiece == Piece.gold) {
                         isGoldCaptured(boardAfterMoverCaptures, square)
