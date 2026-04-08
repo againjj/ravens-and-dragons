@@ -5,10 +5,11 @@
 Implement these features in this order:
 
 1. Multi-game support
-2. Database persistence
-3. User login and side assignment
+2. Stale game cleanup
+3. Database persistence
+4. User login and side assignment
 
-This order fits the current codebase because the app is still modeled as a single shared in-memory game. The main architectural shift is turning that singleton into an addressable game resource. Persistence should be added after that so the database reflects the correct multi-game shape. Authentication and player ownership should come last because those rules depend on persisted game and seat data.
+This order fits the current codebase because the app is still modeled as a shared in-memory game store. The main architectural shift is turning that singleton into an addressable game resource, then teaching that in-memory layer how to evict abandoned games before adding database persistence. Doing stale cleanup first keeps the one-hour retention rule in the existing in-memory layer instead of mixing a temporary cleanup concern into the first persistence pass. Authentication and player ownership should still come last because those rules depend on persisted game and seat data.
 
 ## Ticket Checklist
 
@@ -39,7 +40,7 @@ This order fits the current codebase because the app is still modeled as a singl
      - `GET /api/games/{gameId}`
      - `POST /api/games/{gameId}/commands`
      - `GET /api/games/{gameId}/stream`
-   - Status: the new endpoints are live, and the old `/api/game` endpoints are intentionally still present as compatibility aliases for the default game so the current frontend can keep working during Milestone B.
+   - Status: the new endpoints are live. The old `/api/game` endpoints still exist in code today, but they should be removed as part of Milestone C now that the frontend no longer depends on them.
 
 5. [x] Add backend tests for game isolation.
    - Goal: prove two games do not interfere.
@@ -84,9 +85,58 @@ This order fits the current codebase because the app is still modeled as a singl
    - Goal: avoid future confusion.
    - Update `README.md` and `docs/code-summary.md`.
 
-### Epic 2: Database Persistence
+### Epic 2: Stale Game Cleanup
 
-11. Add database and migration dependencies.
+11. Add explicit last-looked-at tracking to stored games.
+    - Goal: track staleness independently from gameplay mutation timestamps.
+    - Update `GameStore.kt` so each `StoredGame` carries a server-owned `lastAccessedAt` timestamp in addition to the existing session `updatedAt`.
+    - Keep `GameSession.updatedAt` meaning "last game state change" so existing optimistic-lock and client equality behavior stays intact.
+    - Prefer keeping `lastAccessedAt` server-side for now instead of exposing it on the public session payload.
+    - In the same milestone, remove the legacy `/api/game`, `/api/game/commands`, and `/api/game/stream` compatibility routes and the service shortcuts that only exist to support them.
+
+12. Touch games on reads and active viewing paths.
+    - Goal: make "looked at within the last hour" match real usage.
+    - Update `GameSessionService.kt` so the store touches `lastAccessedAt` when a game is:
+      - loaded by `getGame(gameId)`
+      - mutated by `applyCommand(gameId, ...)`
+      - opened for SSE by `createEmitter(gameId)`
+    - Remove the default-only service entry points once the compatibility routes are gone so the per-game methods are the only live API path.
+    - Treat an active SSE subscription as non-stale even if no commands happen for more than an hour.
+    - On emitter cleanup, refresh `lastAccessedAt` once more so a game that was being watched for a long time does not become immediately stale when the viewer disconnects.
+
+13. Add cleanup-friendly store operations and stale eviction logic.
+    - Goal: remove abandoned in-memory games without disturbing active ones.
+    - Extend the `GameStore` abstraction with the minimum extra operations needed for cleanup, such as:
+      - listing or snapshotting stored games
+      - removing a game by id
+    - Add a service-level cleanup method, for example `removeStaleGames(now: Instant = Instant.now())`, that:
+      - considers a game stale when `lastAccessedAt` is more than one hour old
+      - skips any game that still has connected SSE emitters
+      - removes per-game locks and emitter lists when a game is evicted
+    - Once the compatibility routes are removed, the old `default` game no longer needs special treatment and can be evicted like any other stale game.
+    - If a game disappears between selection and removal, treat that as a harmless cleanup race rather than an error.
+
+14. Run stale cleanup on a simple server-side schedule.
+    - Goal: make stale eviction automatic without requiring client participation.
+    - Add a small Spring scheduling component in the backend game module.
+    - Enable scheduling and run stale-game cleanup on a modest cadence such as every 5 or 10 minutes.
+    - Keep the one-hour stale threshold as a named constant or small configuration property so the rule is easy to find and adjust later.
+    - Keep this milestone entirely in the in-memory layer. Do not introduce DB retention behavior yet.
+
+15. Add stale-game tests and docs.
+    - Goal: lock down cleanup behavior before persistence starts.
+    - Extend `GameSessionServiceTest.kt` and related controller tests.
+    - Cover:
+      - a game older than one hour with no viewers is removed
+      - a recently loaded game is not removed
+      - a game with an active SSE emitter is not removed
+      - the legacy `/api/game*` routes are gone
+      - loading a removed game returns `404`
+    - Update `README.md` and `docs/code-summary.md` after implementation so the in-memory retention rule is documented alongside multi-game behavior.
+
+### Epic 3: Database Persistence
+
+16. Add database and migration dependencies.
     - Goal: introduce durable storage cleanly.
     - Update `build.gradle.kts`.
     - Recommended first pass:
@@ -95,12 +145,12 @@ This order fits the current codebase because the app is still modeled as a singl
       - H2 for local and test
       - PostgreSQL driver for deploy
 
-12. Add database configuration.
+17. Add database configuration.
     - Goal: app can run locally and in deploy with persistent storage.
     - Update `application.properties`.
     - Add datasource settings with environment-variable overrides.
 
-13. Create the initial games schema.
+18. Create the initial games schema.
     - Goal: persist game state without over-modeling too early.
     - Add migration files under the standard resources migration path.
     - Recommended first schema:
@@ -109,18 +159,18 @@ This order fits the current codebase because the app is still modeled as a singl
       - JSON or text columns for snapshot and undo snapshots
       - selected rule config and selected starting side columns
 
-14. Implement a DB-backed game repository or store.
+19. Implement a DB-backed game repository or store.
     - Goal: make database the source of truth for games.
     - Add repository and entity classes in the backend game module.
     - Replace the in-memory store with a DB-backed store behind the same interface.
     - Keep SSE emitters in memory. Only game state needs persistence.
 
-15. Handle concurrency and versioning in persisted updates.
+20. Handle concurrency and versioning in persisted updates.
     - Goal: preserve optimistic locking semantics.
     - Enforce version checks in the database update path.
     - Make sure stale writes still surface as the existing `409` response behavior.
 
-16. Add persistence integration tests.
+21. Add persistence integration tests.
     - Goal: prove save, load, and update behavior survives service restart boundaries.
     - Add repository tests and controller or service integration tests.
     - Cover:
@@ -129,33 +179,33 @@ This order fits the current codebase because the app is still modeled as a singl
       - undo snapshots persist
       - optimistic locking and version conflicts still work
 
-17. Add a startup and reconnect smoke-test path.
+22. Add a startup and reconnect smoke-test path.
     - Goal: ensure a user can reopen a persisted game after restart.
     - This can be an integration test or a manual checklist documented in the repo.
 
-18. Document deployment data requirements.
+23. Document deployment data requirements.
     - Goal: make production persistence intentional.
     - Update `README.md` with DB environment variables and local run instructions.
 
-### Epic 3: Login And Side Assignment
+### Epic 4: Login And Side Assignment
 
-19. Add a user domain model.
+24. Add a user domain model.
     - Goal: establish identity before authorization rules.
     - Add user entity, repository, and basic service.
     - Keep fields minimal at first: id, username or email, password hash, createdAt.
 
-20. Add Spring Security.
+25. Add Spring Security.
     - Goal: support authenticated sessions.
     - Update `build.gradle.kts` with security dependencies.
     - Add backend security configuration.
     - Recommended first pass: session-cookie auth, not JWT.
 
-21. Add signup, login, and logout endpoints.
+26. Add signup, login, and logout endpoints.
     - Goal: make auth usable end to end.
     - Add controller classes for auth flows.
     - Decide whether to support self-signup or seeded test users first.
 
-22. Persist player-seat assignments on games.
+27. Persist player-seat assignments on games.
     - Goal: connect users to sides.
     - Add schema changes for:
       - `dragons_user_id`
@@ -163,7 +213,7 @@ This order fits the current codebase because the app is still modeled as a singl
       - optional `created_by_user_id`
     - Update game models, repository, and store accordingly.
 
-23. Add seat-claiming or invitation flow.
+28. Add seat-claiming or invitation flow.
     - Goal: let a user join a side.
     - Recommended first pass:
       - creator makes a game
@@ -173,7 +223,7 @@ This order fits the current codebase because the app is still modeled as a singl
       - `POST /api/games/{gameId}/join`
       - or `POST /api/games/{gameId}/claim-side`
 
-24. Enforce authorization on commands.
+29. Enforce authorization on commands.
     - Goal: only the correct logged-in player can act.
     - In command handling, verify:
       - authenticated user is assigned to the active side
@@ -181,7 +231,7 @@ This order fits the current codebase because the app is still modeled as a singl
       - wrong-side users cannot mutate
     - Reads and SSE can remain public or authenticated depending on product choice.
 
-25. Expose viewer identity and game seat info to the client.
+30. Expose viewer identity and game seat info to the client.
     - Goal: frontend can render correct affordances.
     - Extend the game payload or add a companion endpoint with:
       - current user
@@ -189,17 +239,17 @@ This order fits the current codebase because the app is still modeled as a singl
       - ravens player
       - viewer role for this game
 
-26. Add login UI and auth state handling.
+31. Add login UI and auth state handling.
     - Goal: users can actually sign in and know who they are.
     - Update frontend state and add auth components.
     - Suggested location: a new auth feature folder under `src/main/frontend/features`.
 
-27. Gate controls by user role and active side.
+32. Gate controls by user role and active side.
     - Goal: game UI reflects authorization rules.
     - Update selectors and components so only the assigned user on the active side can move.
     - Spectators should still see the board and history.
 
-28. Add auth and authorization tests.
+33. Add auth and authorization tests.
     - Goal: keep security behavior explicit.
     - Backend:
       - unauthenticated user cannot claim side if protected
@@ -209,7 +259,7 @@ This order fits the current codebase because the app is still modeled as a singl
       - controls disabled for spectator or wrong side
       - seat info rendered correctly
 
-29. Document user and seat behavior.
+34. Document user and seat behavior.
     - Goal: make the multiplayer model clear.
     - Update `README.md` and `docs/code-summary.md`.
 
@@ -218,17 +268,20 @@ This order fits the current codebase because the app is still modeled as a singl
 - Milestone A: tickets 1-5
   - Status: complete.
   - Backend multi-game API works, even before the UI catches up.
-  - The legacy `/api/game` routes remain in place as default-game compatibility aliases until the frontend is migrated.
+  - The legacy `/api/game` routes were left in place during the frontend migration and are now slated for removal in Milestone C.
 - Milestone B: tickets 6-10
   - Status: complete.
   - The browser now has a lobby at `/` and game URLs at `/g/{gameId}`.
   - The browser loads, commands, and SSE updates all target per-game endpoints.
   - Newly created games use 7-character IDs from the PLUS-code alphabet.
-- Milestone C: tickets 11-18
+- Milestone C: tickets 11-15
+  - In-memory stale-game cleanup.
+  - The server removes the legacy compatibility routes and evicts games that have not been looked at for more than one hour, except for games that still have active viewers.
+- Milestone D: tickets 16-23
   - Multi-game plus persistence.
-- Milestone D: tickets 19-25
+- Milestone E: tickets 24-30
   - Auth and backend player ownership.
-- Milestone E: tickets 26-29
+- Milestone F: tickets 31-34
   - Auth-complete user experience.
 
 ## Milestone B Implementation Summary
@@ -262,7 +315,7 @@ Notes:
 
 - This is the narrowest first step because the backend contract already exists.
 - Avoid leaving any hardcoded `/api/game` URLs in the active frontend path after this phase.
-- It is fine to keep the compatibility backend routes in place for now, but the browser should stop depending on them.
+- With the browser migration complete, the compatibility backend routes can be removed in the next milestone.
 
 ### Phase 2: Add current-game state and lifecycle wiring
 
@@ -359,7 +412,7 @@ Changes:
 
 - Update the runtime-flow section to say the browser now targets the per-game endpoints.
 - Document the minimal create/open game flow in the UI.
-- Clarify that the compatibility `/api/game` routes remain backend aliases, not the main browser path.
+- Clarify that the compatibility `/api/game` routes were only transitional and should be removed once Milestone C lands.
 
 ## Milestone B Exit Criteria
 
@@ -413,7 +466,8 @@ That establishes the right resource model and makes the persistence and login wo
   - frontend routing and lifecycle tests
   - docs updates for the multi-game browser flow
 - Remaining before Milestone C is done:
-  - add database and migration dependencies
-  - add persistent game storage behind the existing store abstraction
-  - preserve optimistic locking semantics in the persistence layer
-  - document deployment data requirements
+  - remove the legacy `/api/game`, `/api/game/commands`, and `/api/game/stream` routes plus the default-only service helpers
+  - add server-owned last-access tracking for each in-memory game
+  - touch games on load, command, and stream access paths
+  - evict stale games on a server-side schedule while protecting actively watched games
+  - add stale-game cleanup tests and docs
