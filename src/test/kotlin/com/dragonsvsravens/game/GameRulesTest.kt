@@ -16,15 +16,17 @@ class GameRulesTest {
         assertEquals(Side.dragons, snapshot.activeSide)
         assertTrue(snapshot.board.isEmpty())
         assertEquals(emptyList<TurnRecord>(), snapshot.turns)
+        assertEquals(GameRules.freePlayRuleConfigurationId, snapshot.ruleConfigurationId)
     }
 
     @Test
-    fun `start game enters setup with a cleared board and history`() {
+    fun `free play start game enters setup with a cleared board and history`() {
         val snapshot = GameRules.startGame()
 
         assertEquals(Phase.setup, snapshot.phase)
         assertTrue(snapshot.board.isEmpty())
         assertEquals(emptyList<TurnRecord>(), snapshot.turns)
+        assertEquals(GameRules.freePlayRuleConfigurationId, snapshot.ruleConfigurationId)
     }
 
     @Test
@@ -38,17 +40,6 @@ class GameRulesTest {
         assertEquals(Piece.raven, second.board["a1"])
         assertEquals(Piece.gold, third.board["a1"])
         assertFalse(fourth.board.containsKey("a1"))
-    }
-
-    @Test
-    fun `setup can place gold on e5 like any other square`() {
-        val first = GameRules.cycleSetupPiece(GameRules.startGame(), "e5")
-        val second = GameRules.cycleSetupPiece(first, "e5")
-        val third = GameRules.cycleSetupPiece(second, "e5")
-
-        assertEquals(Piece.dragon, first.board["e5"])
-        assertEquals(Piece.raven, second.board["e5"])
-        assertEquals(Piece.gold, third.board["e5"])
     }
 
     @Test
@@ -66,12 +57,12 @@ class GameRulesTest {
     }
 
     @Test
-    fun `move enters capture when an opposing piece exists`() {
+    fun `free play move enters capture when an opposing piece exists`() {
         val moved = GameRules.movePiece(
             GameRules.endSetup(
                 GameRules.startGame().copy(
                     board = linkedMapOf(
-                        "e5" to Piece.gold,
+                        "d4" to Piece.gold,
                         "a1" to Piece.dragon,
                         "b2" to Piece.raven
                     )
@@ -88,12 +79,12 @@ class GameRulesTest {
     }
 
     @Test
-    fun `move commits immediately when nothing is capturable`() {
+    fun `free play move commits immediately when nothing is capturable`() {
         val moved = GameRules.movePiece(
             GameRules.endSetup(
                 GameRules.startGame().copy(
                     board = linkedMapOf(
-                        "e5" to Piece.gold,
+                        "d4" to Piece.gold,
                         "a1" to Piece.dragon
                     )
                 )
@@ -112,19 +103,9 @@ class GameRulesTest {
     }
 
     @Test
-    fun `capture removes the piece and commits the move`() {
+    fun `free play capture removes the piece and commits the move`() {
         val captured = GameRules.capturePiece(
-            GameSnapshot(
-                board = linkedMapOf(
-                    "e5" to Piece.gold,
-                    "a2" to Piece.dragon,
-                    "b2" to Piece.raven
-                ),
-                phase = Phase.capture,
-                activeSide = Side.dragons,
-                pendingMove = TurnRecord(type = TurnType.move, from = "a1", to = "a2"),
-                turns = emptyList()
-            ),
+            createFreePlayCaptureSnapshot(),
             "b2"
         )
 
@@ -132,26 +113,14 @@ class GameRulesTest {
         assertEquals(Phase.move, captured.phase)
         assertEquals(Side.ravens, captured.activeSide)
         assertEquals(
-            listOf(TurnRecord(type = TurnType.move, from = "a1", to = "a2", captured = "b2")),
+            listOf(TurnRecord(type = TurnType.move, from = "a1", to = "a2", capturedSquares = listOf("b2"))),
             captured.turns
         )
     }
 
     @Test
-    fun `skip capture commits the turn`() {
-        val committed = GameRules.commitTurn(
-            GameSnapshot(
-                board = linkedMapOf(
-                    "e5" to Piece.gold,
-                    "a2" to Piece.dragon,
-                    "b2" to Piece.raven
-                ),
-                phase = Phase.capture,
-                activeSide = Side.dragons,
-                pendingMove = TurnRecord(type = TurnType.move, from = "a1", to = "a2"),
-                turns = emptyList()
-            )
-        )
+    fun `free play skip capture commits the turn`() {
+        val committed = GameRules.commitTurn(createFreePlayCaptureSnapshot())
 
         assertEquals(Phase.move, committed.phase)
         assertEquals(Side.ravens, committed.activeSide)
@@ -164,7 +133,7 @@ class GameRulesTest {
     @Test
     fun `end game preserves the board and appends game over`() {
         val ended = GameRules.endGame(
-            GameSnapshot(
+            createSnapshot(
                 board = linkedMapOf(
                     "a2" to Piece.dragon,
                     "b2" to Piece.raven
@@ -173,7 +142,8 @@ class GameRulesTest {
                 activeSide = Side.ravens,
                 pendingMove = TurnRecord(type = TurnType.move, from = "a1", to = "a2"),
                 turns = listOf(TurnRecord(type = TurnType.move, from = "a1", to = "a2"))
-            )
+            ),
+            "Dragons win"
         )
 
         assertEquals(Phase.none, ended.phase)
@@ -182,9 +152,176 @@ class GameRulesTest {
         assertEquals(
             listOf(
                 TurnRecord(type = TurnType.move, from = "a1", to = "a2"),
-                TurnRecord(type = TurnType.gameOver)
+                TurnRecord(type = TurnType.gameOver, outcome = "Dragons win")
             ),
             ended.turns
         )
     }
+
+    @Test
+    fun `trivial starts from its preset board with dragons to move`() {
+        val snapshot = GameRules.startGame("trivial")
+
+        assertEquals(Phase.move, snapshot.phase)
+        assertEquals(Side.dragons, snapshot.activeSide)
+        assertEquals(Piece.dragon, snapshot.board["a1"])
+        assertEquals(Piece.gold, snapshot.board["a2"])
+        assertEquals(Piece.raven, snapshot.board["a7"])
+    }
+
+    @Test
+    fun `trivial automatically captures adjacent enemies and can end with a dragon win`() {
+        val moved = GameRules.movePiece(
+            createSnapshot(
+                board = linkedMapOf(
+                    "a1" to Piece.dragon,
+                    "c3" to Piece.gold,
+                    "e5" to Piece.raven
+                ),
+                activeSide = Side.dragons,
+                ruleConfigurationId = "trivial"
+            ),
+            "a1",
+            "d5"
+        )
+
+        assertEquals(Phase.none, moved.phase)
+        assertFalse(moved.board.containsKey("e5"))
+        assertEquals("Dragons win", moved.turns.last().outcome)
+    }
+
+    @Test
+    fun `original game starts from the published setup with ravens to move`() {
+        val snapshot = GameRules.startGame("original-game")
+
+        assertEquals(Phase.move, snapshot.phase)
+        assertEquals(Side.ravens, snapshot.activeSide)
+        assertEquals(Piece.gold, snapshot.board["d4"])
+        assertEquals(Piece.dragon, snapshot.board["d5"])
+        assertEquals(Piece.raven, snapshot.board["d7"])
+        assertEquals(1, snapshot.positionKeys.size)
+    }
+
+    @Test
+    fun `original game captures a dragon against the empty center`() {
+        val moved = GameRules.movePiece(
+            createSnapshot(
+                board = linkedMapOf(
+                    "c4" to Piece.dragon,
+                    "a4" to Piece.raven,
+                    "g7" to Piece.gold
+                ),
+                activeSide = Side.ravens,
+                ruleConfigurationId = "original-game",
+                positionKeys = listOf("original-game|ravens|a4:raven,c4:dragon,g7:gold")
+            ),
+            "a4",
+            "b4"
+        )
+
+        assertFalse(moved.board.containsKey("c4"))
+        assertEquals(listOf("c4"), moved.turns.first().capturedSquares)
+        assertEquals(Side.dragons, moved.activeSide)
+    }
+
+    @Test
+    fun `original game rejects moves that leave the moved piece captured`() {
+        val exception = org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
+            GameRules.movePiece(
+                createSnapshot(
+                    board = linkedMapOf(
+                        "b4" to Piece.raven,
+                        "c1" to Piece.dragon,
+                        "g7" to Piece.gold
+                    ),
+                    activeSide = Side.ravens,
+                    ruleConfigurationId = "original-game"
+                ),
+                "b4",
+                "b1"
+            )
+        }
+
+        assertEquals("You may not move so that your piece is captured.", exception.message)
+    }
+
+    @Test
+    fun `original game rejects moves that cause other friendly pieces to be captured`() {
+        val exception = org.junit.jupiter.api.assertThrows<IllegalArgumentException> {
+            GameRules.movePiece(
+                createSnapshot(
+                    board = linkedMapOf(
+                        "d7" to Piece.raven,
+                        "f7" to Piece.raven,
+                        "d6" to Piece.raven,
+                        "d5" to Piece.dragon,
+                        "a4" to Piece.raven,
+                        "b4" to Piece.raven,
+                        "c4" to Piece.dragon,
+                        "d4" to Piece.gold,
+                        "f4" to Piece.dragon,
+                        "d3" to Piece.dragon,
+                        "e2" to Piece.raven,
+                        "d1" to Piece.raven
+                    ),
+                    activeSide = Side.dragons,
+                    ruleConfigurationId = "original-game"
+                ),
+                "d4",
+                "e4"
+            )
+        }
+
+        assertEquals("You may not move so that your piece is captured.", exception.message)
+    }
+
+    @Test
+    fun `original game is a draw when the resulting position repeats`() {
+        val repeatedKey = "original-game|dragons|b4:raven,g7:gold"
+        val moved = GameRules.movePiece(
+            createSnapshot(
+                board = linkedMapOf(
+                    "a4" to Piece.raven,
+                    "g7" to Piece.gold
+                ),
+                activeSide = Side.ravens,
+                ruleConfigurationId = "original-game",
+                positionKeys = listOf(repeatedKey)
+            ),
+            "a4",
+            "b4"
+        )
+
+        assertEquals(Phase.none, moved.phase)
+        assertEquals("Draw", moved.turns.last().outcome)
+    }
+
+    private fun createFreePlayCaptureSnapshot(): GameSnapshot = createSnapshot(
+        board = linkedMapOf(
+            "d4" to Piece.gold,
+            "a2" to Piece.dragon,
+            "b2" to Piece.raven
+        ),
+        phase = Phase.capture,
+        activeSide = Side.dragons,
+        pendingMove = TurnRecord(type = TurnType.move, from = "a1", to = "a2")
+    )
+
+    private fun createSnapshot(
+        board: Map<String, Piece> = emptyMap(),
+        phase: Phase = Phase.move,
+        activeSide: Side = Side.dragons,
+        pendingMove: TurnRecord? = null,
+        turns: List<TurnRecord> = emptyList(),
+        ruleConfigurationId: String = GameRules.freePlayRuleConfigurationId,
+        positionKeys: List<String> = emptyList()
+    ): GameSnapshot = GameSnapshot(
+        board = LinkedHashMap(board),
+        phase = phase,
+        activeSide = activeSide,
+        pendingMove = pendingMove,
+        turns = turns,
+        ruleConfigurationId = ruleConfigurationId,
+        positionKeys = positionKeys
+    )
 }

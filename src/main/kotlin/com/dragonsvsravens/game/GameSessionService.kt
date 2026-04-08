@@ -15,15 +15,36 @@ class GameSessionService {
     private val emitters = CopyOnWriteArrayList<SseEmitter>()
 
     @Volatile
-    private var storedGame = createStoredGame(
+    private var storedGame = createFreshStoredGame(
         snapshot = GameRules.createInitialSnapshot(),
-        undoSnapshots = emptyList(),
-        version = 0,
-        createdAt = Instant.now(),
-        updatedAt = Instant.now()
+        selectedRuleConfigurationId = GameRules.freePlayRuleConfigurationId,
+        selectedStartingSide = Side.dragons
     )
 
     fun getGame(): GameSession = storedGame.session
+
+    internal fun resetForTests(
+        selectedRuleConfigurationId: String = GameRules.freePlayRuleConfigurationId,
+        selectedStartingSide: Side = Side.dragons
+    ) {
+        storedGame = createFreshStoredGame(
+            snapshot = GameRules.createIdleSnapshot(selectedRuleConfigurationId, selectedStartingSide),
+            selectedRuleConfigurationId = selectedRuleConfigurationId,
+            selectedStartingSide = selectedStartingSide
+        )
+    }
+
+    internal fun resetForTests(
+        snapshot: GameSnapshot,
+        selectedRuleConfigurationId: String = snapshot.ruleConfigurationId,
+        selectedStartingSide: Side = Side.dragons
+    ) {
+        storedGame = createFreshStoredGame(
+            snapshot = snapshot,
+            selectedRuleConfigurationId = selectedRuleConfigurationId,
+            selectedStartingSide = selectedStartingSide
+        )
+    }
 
     fun applyCommand(command: GameCommandRequest): GameSession = synchronized(this) {
         val current = storedGame
@@ -34,9 +55,20 @@ class GameSessionService {
         val nextState = when (command.type) {
             "start-game" -> applyInPhase(current, command, Phase.none) {
                 current.next(
-                    snapshot = GameRules.startGame(),
+                    snapshot = GameRules.startGame(
+                        current.session.selectedRuleConfigurationId,
+                        current.session.selectedStartingSide
+                    ),
                     undoSnapshots = emptyList()
                 )
+            }
+
+            "select-rule-configuration" -> applyInPhase(current, command, Phase.none) {
+                current.withSelectedRuleConfiguration(requireRuleConfigurationId(command))
+            }
+
+            "select-starting-side" -> applyInPhase(current, command, Phase.none) {
+                current.withSelectedStartingSide(requireSide(command))
             }
 
             "cycle-setup" -> applyInPhase(current, command, Phase.setup) { snapshot ->
@@ -44,7 +76,7 @@ class GameSessionService {
             }
 
             "end-setup" -> applyInPhase(current, command, Phase.setup) { snapshot ->
-                current.next(snapshot = GameRules.endSetup(snapshot))
+                current.next(snapshot = GameRules.endSetup(snapshot, current.session.selectedStartingSide))
             }
 
             "move-piece" -> applyInPhase(current, command, Phase.move) { snapshot ->
@@ -54,18 +86,27 @@ class GameSessionService {
             }
 
             "capture-piece" -> applyInPhase(current, command, Phase.capture) { snapshot ->
+                if (!GameRules.isManualCapture(snapshot)) {
+                    throw InvalidCommandException("This rule configuration resolves captures automatically.")
+                }
                 current.next(snapshot = GameRules.capturePiece(snapshot, requireSquare(command)))
             }
 
             "skip-capture" -> applyInPhase(current, command, Phase.capture) { snapshot ->
+                if (!GameRules.isManualCapture(snapshot)) {
+                    throw InvalidCommandException("This rule configuration resolves captures automatically.")
+                }
                 current.next(snapshot = GameRules.commitTurn(snapshot))
             }
 
             "undo" -> current.undo()
 
             "end-game" -> applyWhenGameActive(current, command) { snapshot ->
+                if (!GameRules.hasManualEndGame(snapshot)) {
+                    throw InvalidCommandException("This rule configuration ends automatically.")
+                }
                 current.next(
-                    snapshot = GameRules.endGame(snapshot),
+                    snapshot = GameRules.endGame(snapshot, "Game ended"),
                     undoSnapshots = emptyList()
                 )
             }
@@ -98,7 +139,9 @@ class GameSessionService {
         undoSnapshots: List<GameSnapshot>,
         version: Long,
         createdAt: Instant,
-        updatedAt: Instant
+        updatedAt: Instant,
+        selectedRuleConfigurationId: String,
+        selectedStartingSide: Side
     ): StoredGame = StoredGame(
         session = GameSession(
             id = "default",
@@ -106,10 +149,30 @@ class GameSessionService {
             createdAt = createdAt,
             updatedAt = updatedAt,
             snapshot = snapshot,
-            canUndo = undoSnapshots.isNotEmpty()
+            canUndo = undoSnapshots.isNotEmpty(),
+            availableRuleConfigurations = GameRules.availableRuleConfigurations(),
+            selectedRuleConfigurationId = selectedRuleConfigurationId,
+            selectedStartingSide = selectedStartingSide
         ),
         undoSnapshots = undoSnapshots
     )
+
+    private fun createFreshStoredGame(
+        snapshot: GameSnapshot,
+        selectedRuleConfigurationId: String,
+        selectedStartingSide: Side
+    ): StoredGame {
+        val now = Instant.now()
+        return createStoredGame(
+            snapshot = snapshot,
+            undoSnapshots = emptyList(),
+            version = 0,
+            createdAt = now,
+            updatedAt = now,
+            selectedRuleConfigurationId = selectedRuleConfigurationId,
+            selectedStartingSide = selectedStartingSide
+        )
+    }
 
     private fun broadcast(session: GameSession) {
         emitters.forEach { emitter ->
@@ -163,29 +226,63 @@ class GameSessionService {
     }
 
     private fun requireSquare(command: GameCommandRequest): String =
-        command.square ?: throw InvalidCommandException("Command ${command.type} requires square.")
+        requireBoardSquare(command.square, "square", command.type)
 
     private fun requireOrigin(command: GameCommandRequest): String =
-        command.origin ?: throw InvalidCommandException("Command ${command.type} requires origin.")
+        requireBoardSquare(command.origin, "origin", command.type)
 
     private fun requireDestination(command: GameCommandRequest): String =
-        command.destination ?: throw InvalidCommandException("Command ${command.type} requires destination.")
+        requireBoardSquare(command.destination, "destination", command.type)
+
+    private fun requireRuleConfigurationId(command: GameCommandRequest): String {
+        val ruleConfigurationId = command.ruleConfigurationId
+            ?: throw InvalidCommandException("Command ${command.type} requires ruleConfigurationId.")
+        GameRules.getRuleConfigurationSummary(ruleConfigurationId)
+        return ruleConfigurationId
+    }
+
+    private fun requireSide(command: GameCommandRequest): Side =
+        command.side ?: throw InvalidCommandException("Command ${command.type} requires side.")
+
+    private fun requireBoardSquare(square: String?, fieldName: String, commandType: String): String {
+        val value = square ?: throw InvalidCommandException("Command $commandType requires $fieldName.")
+        if (!BoardCoordinates.isValidSquare(value)) {
+            throw InvalidCommandException("Square $value is outside the 7x7 board.")
+        }
+        return value
+    }
 
     private fun StoredGame.next(
         snapshot: GameSnapshot,
-        undoSnapshots: List<GameSnapshot> = this.undoSnapshots
+        undoSnapshots: List<GameSnapshot> = this.undoSnapshots,
+        selectedRuleConfigurationId: String = this.session.selectedRuleConfigurationId,
+        selectedStartingSide: Side = this.session.selectedStartingSide
     ): StoredGame = createStoredGame(
         snapshot = snapshot,
         undoSnapshots = undoSnapshots,
         version = session.version + 1,
         createdAt = session.createdAt,
-        updatedAt = Instant.now()
+        updatedAt = Instant.now(),
+        selectedRuleConfigurationId = selectedRuleConfigurationId,
+        selectedStartingSide = selectedStartingSide
     )
 
     private fun StoredGame.nextWithUndo(snapshot: GameSnapshot): StoredGame =
         next(
             snapshot = snapshot,
             undoSnapshots = undoSnapshots + session.snapshot
+        )
+
+    private fun StoredGame.withSelectedRuleConfiguration(ruleConfigurationId: String): StoredGame =
+        next(
+            snapshot = GameRules.createIdleSnapshot(ruleConfigurationId, session.selectedStartingSide),
+            selectedRuleConfigurationId = ruleConfigurationId
+        )
+
+    private fun StoredGame.withSelectedStartingSide(side: Side): StoredGame =
+        next(
+            snapshot = GameRules.createIdleSnapshot(session.selectedRuleConfigurationId, side),
+            selectedStartingSide = side
         )
 
     private fun StoredGame.undo(): StoredGame {

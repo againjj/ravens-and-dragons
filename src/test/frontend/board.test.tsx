@@ -22,7 +22,7 @@ vi.mock("../../main/frontend/hooks/useFullscreen.js", () => ({
 }));
 
 describe("Board", () => {
-    test("shows numbered rows and lettered columns while square names stay letter-number", () => {
+    test("shows 7x7 row and column labels while square names stay letter-number", () => {
         renderWithStore(<App />, {
             preloadedState: {
                 game: {
@@ -30,7 +30,7 @@ describe("Board", () => {
                         phase: "none",
                         board: {
                             a1: "dragon",
-                            e5: "gold"
+                            d4: "gold"
                         }
                     }),
                     isSubmitting: false,
@@ -47,10 +47,10 @@ describe("Board", () => {
         const rowLabels = Array.from(document.querySelectorAll("#row-labels-left span")).map((element) => element.textContent);
         const columnLabels = Array.from(document.querySelectorAll("#column-labels-bottom span")).map((element) => element.textContent);
 
-        expect(rowLabels).toEqual(["9", "8", "7", "6", "5", "4", "3", "2", "1"]);
-        expect(columnLabels).toEqual(["a", "b", "c", "d", "e", "f", "g", "h", "i"]);
+        expect(rowLabels).toEqual(["7", "6", "5", "4", "3", "2", "1"]);
+        expect(columnLabels).toEqual(["a", "b", "c", "d", "e", "f", "g"]);
         expect(screen.getByRole("button", { name: "Square a1" })).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Square e5" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Square d4" })).toBeInTheDocument();
     });
 
     test("does not select pieces when no game is in progress", async () => {
@@ -89,7 +89,7 @@ describe("Board", () => {
                         phase: "move",
                         board: {
                             a1: "dragon",
-                            e5: "gold",
+                            d4: "gold",
                             b2: "raven"
                         }
                     }),
@@ -126,7 +126,7 @@ describe("Board", () => {
                         board: {
                             a1: "dragon",
                             b2: "raven",
-                            e5: "gold"
+                            d4: "gold"
                         }
                     }),
                     isSubmitting: false,
@@ -155,7 +155,7 @@ describe("Board", () => {
                         board: {
                             a1: "dragon",
                             b2: "raven",
-                            e5: "gold"
+                            d4: "gold"
                         }
                     }),
                     isSubmitting: false,

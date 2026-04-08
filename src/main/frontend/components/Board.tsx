@@ -1,5 +1,5 @@
 import { useAppDispatch, useAppSelector } from "../app/hooks.js";
-import { getPieceAtSquare, getSquareName, rowNumbers, sideOwnsPiece, type Piece } from "../game.js";
+import { boardDimension, getPieceAtSquare, getSquareName, rowNumbers, sideOwnsPiece, type Piece } from "../game.js";
 import { selectCapturableSquares, selectSelectedSquare, selectSnapshot, selectTargetableSquares } from "../features/game/gameSelectors.js";
 import { capturePiece, cycleSetup, movePiece } from "../features/game/gameThunks.js";
 import { uiActions } from "../features/ui/uiSlice.js";
@@ -120,9 +120,9 @@ export const Board = () => {
                     <span key={number}>{number}</span>
                 ))}
             </div>
-            <div id="board" className="board" aria-label="9 by 9 game board">
-                {Array.from({ length: 9 }, (_, rowIndex) =>
-                    Array.from({ length: 9 }, (_, colIndex) => {
+            <div id="board" className="board" aria-label={`${boardDimension} by ${boardDimension} game board`}>
+                {Array.from({ length: boardDimension }, (_, rowIndex) =>
+                    Array.from({ length: boardDimension }, (_, colIndex) => {
                         const squareName = getSquareName(rowIndex, colIndex);
                         const piece = snapshot ? getPieceAtSquare(snapshot, squareName) : undefined;
 

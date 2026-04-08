@@ -12,8 +12,8 @@ describe("MoveList", () => {
                 game: {
                     session: createSession({}, {
                         turns: [
-                            { type: "move", from: "a1", to: "a2" },
-                            { type: "gameOver" }
+                            { type: "move", from: "a1", to: "a2", capturedSquares: ["b2", "c2"] },
+                            { type: "gameOver", outcome: "Dragons win" }
                         ]
                     }),
                     isSubmitting: false,
@@ -29,9 +29,9 @@ describe("MoveList", () => {
 
         const items = screen.getAllByRole("listitem");
 
-        expect(items[0]).toHaveTextContent("a1-a2");
+        expect(items[0]).toHaveTextContent("a1-a2xb2xc2");
         expect(items).toHaveLength(1);
-        expect(screen.getByText("Game Over")).toBeInTheDocument();
-        expect(screen.getByText("Game Over").tagName).toBe("DIV");
+        expect(screen.getByText("Game Over: Dragons win")).toBeInTheDocument();
+        expect(screen.getByText("Game Over: Dragons win").tagName).toBe("DIV");
     });
 });

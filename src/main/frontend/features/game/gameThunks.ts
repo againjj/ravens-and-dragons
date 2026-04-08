@@ -79,6 +79,12 @@ const createCommandThunk = (
 export const startGame = (): AppThunk<Promise<void>> =>
     createCommandThunk({ type: "start-game" }, { clearSelection: true });
 
+export const selectRuleConfiguration = (ruleConfigurationId: string): AppThunk<Promise<void>> =>
+    createCommandThunk({ type: "select-rule-configuration", ruleConfigurationId }, { clearSelection: true });
+
+export const selectStartingSide = (side: import("../../game.js").Side): AppThunk<Promise<void>> =>
+    createCommandThunk({ type: "select-starting-side", side }, { clearSelection: true });
+
 export const endSetup = (): AppThunk<Promise<void>> =>
     createCommandThunk({ type: "end-setup" }, { clearSelection: true });
 

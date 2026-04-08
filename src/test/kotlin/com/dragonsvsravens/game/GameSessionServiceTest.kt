@@ -61,6 +61,44 @@ class GameSessionServiceTest {
     }
 
     @Test
+    fun `selecting a rule configuration updates the shared session in the no game state`() {
+        val service = GameSessionService()
+
+        val updated = service.applyCommand(
+            GameCommandRequest(
+                expectedVersion = 0,
+                type = "select-rule-configuration",
+                ruleConfigurationId = "trivial"
+            )
+        )
+
+        assertEquals("trivial", updated.selectedRuleConfigurationId)
+        assertEquals("trivial", updated.snapshot.ruleConfigurationId)
+        assertEquals(Phase.none, updated.snapshot.phase)
+        assertEquals(Piece.dragon, updated.snapshot.board["a1"])
+        assertEquals(Piece.gold, updated.snapshot.board["a2"])
+        assertEquals(Piece.raven, updated.snapshot.board["a7"])
+        assertTrue(updated.snapshot.turns.isEmpty())
+    }
+
+    @Test
+    fun `selecting a starting side updates free play in the no game state`() {
+        val service = GameSessionService()
+
+        val updated = service.applyCommand(
+            GameCommandRequest(
+                expectedVersion = 0,
+                type = "select-starting-side",
+                side = Side.ravens
+            )
+        )
+
+        assertEquals(Side.ravens, updated.selectedStartingSide)
+        assertEquals(Side.ravens, updated.snapshot.activeSide)
+        assertEquals(GameRules.freePlayRuleConfigurationId, updated.snapshot.ruleConfigurationId)
+    }
+
+    @Test
     fun `undo restores the previous snapshot and updates can undo`() {
         val service = GameSessionService()
 
@@ -110,6 +148,49 @@ class GameSessionServiceTest {
         assertEquals(Piece.dragon, ended.snapshot.board["a2"])
         assertEquals(TurnType.gameOver, ended.snapshot.turns.last().type)
         assertFalse(ended.canUndo)
+    }
+
+    @Test
+    fun `starting original game uses its preset board and opening side`() {
+        val service = GameSessionService()
+
+        service.applyCommand(
+            GameCommandRequest(
+                expectedVersion = 0,
+                type = "select-rule-configuration",
+                ruleConfigurationId = "original-game"
+            )
+        )
+
+        val started = service.applyCommand(GameCommandRequest(expectedVersion = 1, type = "start-game"))
+
+        assertEquals("original-game", started.snapshot.ruleConfigurationId)
+        assertEquals(Phase.move, started.snapshot.phase)
+        assertEquals(Side.ravens, started.snapshot.activeSide)
+        assertEquals(Piece.gold, started.snapshot.board["d4"])
+        assertEquals(Piece.dragon, started.snapshot.board["d5"])
+        assertEquals(Piece.raven, started.snapshot.board["d7"])
+    }
+
+    @Test
+    fun `starting free play honors the selected starting side through setup`() {
+        val service = GameSessionService()
+
+        service.applyCommand(
+            GameCommandRequest(
+                expectedVersion = 0,
+                type = "select-starting-side",
+                side = Side.ravens
+            )
+        )
+
+        val started = service.applyCommand(GameCommandRequest(expectedVersion = 1, type = "start-game"))
+        assertEquals(Phase.setup, started.snapshot.phase)
+        assertEquals(Side.ravens, started.snapshot.activeSide)
+
+        val endedSetup = service.applyCommand(GameCommandRequest(expectedVersion = 2, type = "end-setup"))
+        assertEquals(Phase.move, endedSetup.snapshot.phase)
+        assertEquals(Side.ravens, endedSetup.snapshot.activeSide)
     }
 
     @Test

@@ -5,9 +5,17 @@ import { Board } from "./components/Board.js";
 import { ControlsPanel } from "./components/ControlsPanel.js";
 import { MoveList } from "./components/MoveList.js";
 import { StatusBanner } from "./components/StatusBanner.js";
-import { selectStatusText } from "./features/game/gameSelectors.js";
+import { selectCurrentRuleConfiguration, selectStatusText } from "./features/game/gameSelectors.js";
 import { gameActions } from "./features/game/gameSlice.js";
-import { endGame, endSetup, skipCapture, startGame, undoMove } from "./features/game/gameThunks.js";
+import {
+    endGame,
+    endSetup,
+    selectRuleConfiguration,
+    selectStartingSide,
+    skipCapture,
+    startGame,
+    undoMove
+} from "./features/game/gameThunks.js";
 import { columnLetters } from "./game.js";
 import { useGameSession } from "./features/game/useGameSession.js";
 import { useBoardSizing } from "./hooks/useBoardSizing.js";
@@ -16,6 +24,7 @@ import { useFullscreen } from "./hooks/useFullscreen.js";
 export const App = () => {
     const dispatch = useAppDispatch();
     const statusText = useAppSelector(selectStatusText);
+    const currentRuleConfiguration = useAppSelector(selectCurrentRuleConfiguration);
     const pageRef = useRef<HTMLElement | null>(null);
     const boardShellRef = useRef<HTMLDivElement | null>(null);
     const { toggleFullscreen } = useFullscreen(pageRef);
@@ -73,6 +82,12 @@ export const App = () => {
                             onStartGame={() => {
                                 void dispatch(startGame());
                             }}
+                            onSelectRuleConfiguration={(ruleConfigurationId) => {
+                                void dispatch(selectRuleConfiguration(ruleConfigurationId));
+                            }}
+                            onSelectStartingSide={(side) => {
+                                void dispatch(selectStartingSide(side));
+                            }}
                             onEndSetup={() => {
                                 void dispatch(endSetup());
                             }}
@@ -89,18 +104,15 @@ export const App = () => {
                     </section>
 
                     <section className="legend">
-                        <h2>Overview</h2>
-                        <p>Ravens are trying to steal the dragons&apos; gold! Start a game. Place pieces during setup, then dragons and ravens alternate turns.</p>
-                    </section>
-
-                    <section className="legend">
-                        <h2>Setup Phase</h2>
-                        <p>Click any square to cycle through dragon, raven, gold, then empty. Click "End Setup" when all the pieces are placed.</p>
-                    </section>
-
-                    <section className="legend">
-                        <h2>Turns</h2>
-                        <p>Dragons move first. Dragons may move the gold on their turns. To move, click on a piece, and then click on the destination square. After moving, you may optionally capture an opposing piece. End the game to play a new game.</p>
+                        <h2>Rules</h2>
+                        {(currentRuleConfiguration?.descriptionSections ?? []).map((section, index) => (
+                            <div key={`${section.heading ?? "section"}-${index}`} className="legend-section">
+                                {section.heading ? <h3>{section.heading}</h3> : null}
+                                {section.paragraphs.map((paragraph) => (
+                                    <p key={paragraph}>{paragraph}</p>
+                                ))}
+                            </div>
+                        ))}
                     </section>
                 </section>
 

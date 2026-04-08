@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+    boardDimension,
     columnLetters,
     getCapturableSquares,
     getPieceAtSquare,
@@ -22,7 +23,9 @@ const snapshot = {
     phase: "move",
     activeSide: "dragons",
     pendingMove: null,
-    turns: []
+    turns: [],
+    ruleConfigurationId: "free-play",
+    positionKeys: []
 };
 
 test("capturable squares come from the shared server snapshot", () => {
@@ -35,16 +38,17 @@ test("targetable squares are all empty squares except the selected one during mo
     assert.equal(targetableSquares.includes("a1"), false);
     assert.equal(targetableSquares.includes("b2"), false);
     assert.equal(targetableSquares.includes("c3"), true);
-    assert.equal(targetableSquares.length, 78);
+    assert.equal(targetableSquares.length, (boardDimension * boardDimension) - Object.keys(snapshot.board).length);
 });
 
 test("square names follow column letters and row numbers in letter-number order", () => {
-    assert.deepEqual(columnLetters, ["a", "b", "c", "d", "e", "f", "g", "h", "i"]);
-    assert.deepEqual(rowNumbers, ["9", "8", "7", "6", "5", "4", "3", "2", "1"]);
-    assert.equal(getSquareName(0, 0), "a9");
-    assert.equal(getSquareName(4, 4), "e5");
-    assert.equal(getSquareName(8, 0), "a1");
-    assert.equal(getSquareName(8, 8), "i1");
+    assert.equal(boardDimension, 7);
+    assert.deepEqual(columnLetters, ["a", "b", "c", "d", "e", "f", "g"]);
+    assert.deepEqual(rowNumbers, ["7", "6", "5", "4", "3", "2", "1"]);
+    assert.equal(getSquareName(0, 0), "a7");
+    assert.equal(getSquareName(3, 3), "d4");
+    assert.equal(getSquareName(6, 0), "a1");
+    assert.equal(getSquareName(6, 6), "g1");
 });
 
 test("selected square stays local only when it remains valid for the shared snapshot", () => {
@@ -60,7 +64,7 @@ test("pieces are read from the server snapshot board object", () => {
 
 test("turn notation includes captures only when present and supports game over", () => {
     assert.equal(turnToNotation({ type: "move", from: "a1", to: "a2" }), "a1-a2");
-    assert.equal(turnToNotation({ type: "move", from: "a1", to: "a2", captured: "b2" }), "a1-a2xb2");
+    assert.equal(turnToNotation({ type: "move", from: "a1", to: "a2", capturedSquares: ["b2"] }), "a1-a2xb2");
     assert.equal(turnToNotation({ type: "gameOver" }), "Game Over");
 });
 
@@ -74,12 +78,12 @@ test("turn history rows provide render-ready labels for moves and game over", ()
             {
                 type: "move",
                 label: "a1-a2",
-                key: "move-a1-a2-none-0"
+                key: "move-a1-a2-none-none-0"
             },
             {
                 type: "gameOver",
                 label: "Game Over",
-                key: "gameOver-none-none-none-1"
+                key: "gameOver-none-none-none-none-1"
             }
         ]
     );

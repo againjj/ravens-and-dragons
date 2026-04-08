@@ -23,16 +23,12 @@ class GameControllerTest {
     @Autowired
     lateinit var objectMapper: ObjectMapper
 
+    @Autowired
+    lateinit var gameSessionService: GameSessionService
+
     @BeforeEach
     fun resetGameToNoGame() {
-        while (true) {
-            val game = getGame()
-            when (game.snapshot.phase) {
-                Phase.none -> return
-                Phase.setup -> executeCommand(command(game.version, "end-setup"))
-                Phase.move, Phase.capture -> executeCommand(command(game.version, "end-game"))
-            }
-        }
+        gameSessionService.resetForTests()
     }
 
     @Test
@@ -54,6 +50,78 @@ class GameControllerTest {
             status { isOk() }
             jsonPath("$.version", equalTo((game.version + 1).toInt()))
             jsonPath("$.snapshot.phase", equalTo("setup"))
+        }
+    }
+
+    @Test
+    fun `selecting original game updates the idle session and start game uses its preset board`() {
+        val game = getGame()
+
+        postCommand(command(game.version, "select-rule-configuration", ruleConfigurationId = "original-game")).andExpect {
+            status { isOk() }
+            jsonPath("$.selectedRuleConfigurationId", equalTo("original-game"))
+            jsonPath("$.snapshot.ruleConfigurationId", equalTo("original-game"))
+            jsonPath("$.snapshot.phase", equalTo("none"))
+            jsonPath("$.snapshot.board.d4", equalTo("gold"))
+            jsonPath("$.snapshot.board.d5", equalTo("dragon"))
+            jsonPath("$.snapshot.board.d7", equalTo("raven"))
+        }
+
+        postCommand(command(getGame().version, "start-game")).andExpect {
+            status { isOk() }
+            jsonPath("$.snapshot.phase", equalTo("move"))
+            jsonPath("$.snapshot.activeSide", equalTo("ravens"))
+            jsonPath("$.snapshot.board.d4", equalTo("gold"))
+            jsonPath("$.snapshot.board.d5", equalTo("dragon"))
+            jsonPath("$.snapshot.board.d7", equalTo("raven"))
+        }
+    }
+
+    @Test
+    fun `selecting free play starting side updates idle session and setup handoff`() {
+        val game = getGame()
+
+        postCommand(command(game.version, "select-starting-side", side = Side.ravens)).andExpect {
+            status { isOk() }
+            jsonPath("$.selectedStartingSide", equalTo("ravens"))
+            jsonPath("$.snapshot.activeSide", equalTo("ravens"))
+        }
+
+        postCommand(command(getGame().version, "start-game")).andExpect {
+            status { isOk() }
+            jsonPath("$.snapshot.phase", equalTo("setup"))
+            jsonPath("$.snapshot.activeSide", equalTo("ravens"))
+        }
+
+        postCommand(command(getGame().version, "end-setup")).andExpect {
+            status { isOk() }
+            jsonPath("$.snapshot.phase", equalTo("move"))
+            jsonPath("$.snapshot.activeSide", equalTo("ravens"))
+        }
+    }
+
+    @Test
+    fun `original game rejects a move that would leave the moved piece captured`() {
+        gameSessionService.resetForTests(
+            GameSnapshot(
+                board = linkedMapOf(
+                    "b4" to Piece.raven,
+                    "c1" to Piece.dragon,
+                    "g7" to Piece.gold
+                ),
+                phase = Phase.move,
+                activeSide = Side.ravens,
+                pendingMove = null,
+                turns = emptyList(),
+                ruleConfigurationId = "original-game",
+                positionKeys = emptyList()
+            ),
+            selectedRuleConfigurationId = "original-game"
+        )
+
+        postCommand(command(getGame().version, "move-piece", origin = "b4", destination = "b1")).andExpect {
+            status { isBadRequest() }
+            jsonPath("$.message", equalTo("You may not move so that your piece is captured."))
         }
     }
 
@@ -115,6 +183,32 @@ class GameControllerTest {
             before = before,
             command = command(before.version, "cycle-setup", square = "a1"),
             message = "Command cycle-setup is not allowed during move."
+        )
+    }
+
+    @Test
+    fun `out of bounds square is rejected`() {
+        startSetup()
+        val before = getGame()
+
+        assertRejectedCommandLeavesGameUnchanged(
+            before = before,
+            command = command(before.version, "cycle-setup", square = "i9"),
+            message = "Square i9 is outside the 7x7 board."
+        )
+    }
+
+    @Test
+    fun `out of bounds move destination is rejected`() {
+        startSetup()
+        setupDragonAt("a1")
+        endSetup()
+        val before = getGame()
+
+        assertRejectedCommandLeavesGameUnchanged(
+            before = before,
+            command = command(before.version, "move-piece", origin = "a1", destination = "h1"),
+            message = "Square h1 is outside the 7x7 board."
         )
     }
 
@@ -358,13 +452,17 @@ class GameControllerTest {
         type: String,
         square: String? = null,
         origin: String? = null,
-        destination: String? = null
+        destination: String? = null,
+        ruleConfigurationId: String? = null,
+        side: Side? = null
     ): GameCommandRequest = GameCommandRequest(
         expectedVersion = expectedVersion,
         type = type,
         square = square,
         origin = origin,
-        destination = destination
+        destination = destination,
+        ruleConfigurationId = ruleConfigurationId,
+        side = side
     )
 
     private fun getGame(): GameSession =

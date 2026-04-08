@@ -24,11 +24,11 @@ A Spring Boot + Kotlin web app that serves a browser-based board game prototype 
 Then open [http://localhost:8080](http://localhost:8080).
 
 Open the app in two browser tabs to see the shared game stay in sync through server-sent events.
-When the page first loads, no game is in progress and only the `Start Game` control is shown.
-Starting a game enters setup with an empty board. During setup, each click cycles a square through `empty -> dragon -> raven -> gold -> empty`, with any number of gold pieces allowed.
-Ending setup begins turns with dragons moving first.
-Ending the game returns to the no-game state while preserving the final board position and full completed history, including a `Game Over` entry, until the next game is started.
-The board now displays numbered rows from top to bottom and lettered columns from left to right, while square names still use `letter + number` notation such as `a1` and `e5`.
+When the page first loads, no game is in progress and the controls include a play-style dropdown plus `Start Game`.
+`Free Play` preserves the original behavior: before starting, you can choose whether dragons or ravens move first; starting a game then enters setup with an empty board, setup clicks cycle `empty -> dragon -> raven -> gold -> empty`, capture is manual, and the game is ended manually.
+`Trivial` and `Original Game` start from preset boards with no setup phase, resolve captures automatically, and end automatically based on their own rules.
+Game over returns to the no-game state while preserving the final board position and full completed history, including a terminal `Game Over: ...` entry, until the next game is started.
+The board now displays numbered rows from top to bottom and lettered columns from left to right on a 7x7 grid, while square names still use `letter + number` notation such as `a1` and `d4`.
 
 ## Run Tests
 
@@ -80,5 +80,7 @@ Read docs/code-summary.md and docs/codex-rules.md before making changes. Follow 
 - Spring Boot serves the generated frontend assets as static resources and exposes `/api/game` plus `/api/game/stream`.
 - Undo is server-backed, shared across clients, and exposed as `canUndo` in the session payload so the UI can disable the button exactly.
 - Turn history now includes both completed moves and a terminal `Game Over` entry when a game is ended.
+- The shared session now exposes available rule configurations plus the currently selected configuration so all clients stay in sync on the next play style.
+- `Original Game` follows the published Ravens and Dragons setup and movement/capture rules, including automatic wins and draws.
 - If `./gradlew bootRun` cannot bind its default port, treat that as a local environment issue to fix instead of silently switching ports.
 - If you change architecture, workflow, or gameplay in a meaningful way, update `docs/code-summary.md`.

@@ -17,9 +17,9 @@
     --label-row-height: 30px;
     --board-label-gap: 8px;
     --board-size: 560px;
+    --board-dimension: 7;
     --board-inner-pad: calc(var(--board-size) / 70);
     --board-gap: calc(var(--board-size) / 112);
-    --cell-size: calc((var(--board-size) - (2 * var(--board-inner-pad)) - (8 * var(--board-gap))) / 9);
     --board-frame-radius: calc(var(--board-size) / 28);
     --square-radius: calc(var(--board-size) / 47);
     --square-border-width: calc(var(--board-size) / 560);
@@ -69,7 +69,8 @@ body {
 }
 
 h1,
-h2 {
+h2,
+h3 {
     margin: 0;
     font-family: Georgia, "Times New Roman", serif;
 }
@@ -81,6 +82,10 @@ h1 {
 
 h2 {
     font-size: 1.25rem;
+}
+
+h3 {
+    font-size: 1rem;
 }
 
 .game-layout {
@@ -159,7 +164,7 @@ h2 {
 
 .column-labels {
     width: var(--board-size);
-    grid-template-columns: repeat(9, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--board-dimension), minmax(0, 1fr));
     gap: var(--board-gap);
     padding-inline: var(--board-inner-pad);
     height: var(--label-row-height);
@@ -169,7 +174,7 @@ h2 {
 
 .row-labels {
     width: var(--label-col-width);
-    grid-template-rows: repeat(9, minmax(0, 1fr));
+    grid-template-rows: repeat(var(--board-dimension), minmax(0, 1fr));
     gap: var(--board-gap);
     padding-block: var(--board-inner-pad);
     align-items: center;
@@ -181,7 +186,7 @@ h2 {
     width: var(--board-size);
     height: var(--board-size);
     display: grid;
-    grid-template-columns: repeat(9, minmax(0, 1fr));
+    grid-template-columns: repeat(var(--board-dimension), minmax(0, 1fr));
     gap: var(--board-gap);
     padding: var(--board-inner-pad);
     border-radius: var(--board-frame-radius);
@@ -307,6 +312,57 @@ h2 {
     flex-direction: column;
 }
 
+.control-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: center;
+    gap: 12px;
+}
+
+.control-label {
+    font-size: 0.95rem;
+    font-weight: 700;
+}
+
+.select-shell {
+    position: relative;
+}
+
+.select-shell::after {
+    content: "";
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    width: 10px;
+    height: 10px;
+    border-right: 2px solid rgba(58, 46, 32, 0.8);
+    border-bottom: 2px solid rgba(58, 46, 32, 0.8);
+    transform: translateY(-65%) rotate(45deg);
+    pointer-events: none;
+}
+
+select {
+    appearance: none;
+    width: 100%;
+    border: 1px solid rgba(46, 48, 78, 0.14);
+    border-radius: 16px;
+    padding: 11px 42px 11px 14px;
+    font: inherit;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.92);
+    cursor: pointer;
+}
+
+select:focus {
+    outline: 2px solid rgba(58, 46, 32, 0.14);
+    outline-offset: 1px;
+}
+
+select:disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
 button {
     appearance: none;
     border: 0;
@@ -356,10 +412,22 @@ button:disabled {
     margin: 0 0 8px;
 }
 
+.legend-section + .legend-section {
+    margin-top: 14px;
+}
+
+.legend h3 {
+    margin: 0 0 6px;
+}
+
 .legend p {
     margin: 0;
     color: var(--muted);
     line-height: 1.4;
+}
+
+.legend-section p + p {
+    margin-top: 8px;
 }
 
 .turns {

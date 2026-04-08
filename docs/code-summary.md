@@ -81,12 +81,17 @@ The canonical board is represented on the server as `Map<String, Piece>` and on 
 - `activeSide`
 - `pendingMove`
 - `turns`
+- `ruleConfigurationId`
+- `positionKeys`
 
 `turns` now stores typed turn history entries, so the shared history can include both completed moves and a terminal `gameOver` marker.
 
 `GameSession` currently also contains:
 
 - `canUndo`
+- `availableRuleConfigurations`
+- `selectedRuleConfigurationId`
+- `selectedStartingSide`
 
 Important implication: the shared game is entirely in-memory on the server. Multiple clients see the same game, but restarting the server resets it.
 
@@ -99,7 +104,7 @@ The Kotlin game module is now the source of truth for game rules and state trans
 - Creates the initial shared snapshot with an empty board and no active game.
 - Owns setup cycling logic.
 - Owns turn transitions.
-- Owns movement and capture resolution.
+- Owns rule-configuration lookup, movement validation, capture resolution, and automatic game-over checks.
 - Wraps the current snapshot in a versioned in-memory game session.
 - Keeps server-only undo snapshot history alongside the public shared session payload.
 - Broadcasts updated snapshots to SSE clients.
@@ -121,39 +126,41 @@ Most UI-only changes should start in the relevant component, selector, or browse
 
 ## Current Rules Implemented
 
-### Setup phase
+### Free Play
 
-- The browser initially loads into a no-game state with an empty board and only a start control.
-- Starting a new game enters setup with an empty board and cleared history.
-- Clicking a square in setup cycles: empty -> dragon -> raven -> gold -> empty.
-- Any square, including `e5`, can be changed during setup.
-- Any number of gold pieces may be placed during setup.
+- The browser initially loads into a no-game state with a play-style dropdown and `Start Game`.
+- When `Free Play` is selected in the no-game state, the browser also shows a starting-side dropdown so the shared setup can begin with either dragons or ravens.
+- `Free Play` preserves the original setup flow:
+  - starting the game enters `setup`
+  - clicking a square cycles `empty -> dragon -> raven -> gold -> empty`
+  - any square, including `d4`, can be changed during setup
+  - any number of gold pieces may be placed during setup
+- Ending setup switches to `move`, the selected starting side moves first, dragons may move dragons or gold, ravens may move ravens, and movement allows any owned piece to move to any empty square.
+- If an opposing piece exists after a move, the game enters `capture`, where dragons may capture one raven and ravens may capture one dragon or gold.
+- Capture can still be skipped.
+- Active play still exposes `End Game`, which appends a terminal `gameOver` turn and returns the game to `none`.
 
-### Turn flow
+### Trivial
 
-- Ending setup switches phase from `setup` to `move`.
-- Dragons always move first.
-- On dragon turns, the player may move either a `dragon` piece or the `gold`.
-- On raven turns, the player may move a `raven`.
-- Movement currently allows moving a selected owned piece to any empty square on the 9x9 board.
-  - There is no pathfinding, adjacency rule, collision rule beyond destination occupancy, or piece-specific movement constraint.
+- `Trivial` starts from a preset board with dragons at `a1` and `g7`, gold at `a2` and `g6`, and ravens at `a7` and `g1`.
+- There is no setup phase.
+- Movement uses the same broad empty-square movement as `Free Play`.
+- Captures are automatic: any opposing piece orthogonally adjacent to the moved piece is removed.
+- Dragons win if any gold reaches `d4` or all ravens are removed.
+- Ravens win if all gold pieces are removed.
 
-### Capture flow
+### Original Game
 
-- After a move, the code checks whether any capturable opposing piece exists anywhere on the board.
-- If one exists, phase changes to `capture`.
-- During capture:
-  - Dragons may capture one `raven`.
-  - Ravens may capture one `dragon` or the `gold`.
-- Capture is optional because the UI exposes a "Skip Capture" button.
-- Completing capture or skipping it commits the turn, appends to move history, and swaps the active side.
-- Undo can roll back either an in-progress move in capture phase or the most recently completed move.
-
-### Ending flow
-
-- During active play, the UI exposes an "End Game" control.
-- Ending the game appends a `gameOver` turn entry, clears undo availability, and returns the session to the no-game phase.
-- The board and full completed history remain visible in the no-game state until the next game starts.
+- `Original Game` starts from the published cross-shaped setup with ravens moving first.
+- Pieces move any distance orthogonally without jumping over occupied squares.
+- No piece may land on `d4`, and only the gold may land on the corner squares.
+- Moving between two enemy pieces is illegal.
+- Captures resolve automatically after each move.
+- Non-gold pieces are captured by orthogonal sandwiches, by an enemy plus the empty center, or by an enemy plus a corner.
+- The gold is captured by four ravens in the center, by three ravens when beside the center, and otherwise like another piece.
+- Dragons win when the gold reaches a corner.
+- Ravens win when the gold is captured.
+- The game is drawn on repeated positions or when the side to move has no legal move.
 
 ### Shared play behavior
 
@@ -162,6 +169,8 @@ Most UI-only changes should start in the relevant component, selector, or browse
 - Mutation requests include an expected version.
 - On a version conflict, the server returns `409` with the latest game snapshot.
 - Freshly loaded clients receive an exact `canUndo` flag from the server.
+- Freshly loaded clients also receive the shared selected play style and the full list of available rule configurations.
+- Freshly loaded clients also receive the shared selected starting side for `Free Play`.
 - The browser keeps piece selection local; other clients do not see half-finished selections.
 - In the no-game phase, the board remains visible but is not interactive.
 
@@ -177,15 +186,15 @@ The frontend now uses React components backed by Redux state.
   - `selected`
   - `targetable`
   - `capture-target`
-- Move history is shown as simple notation like `a1-b2` or `a1-b2xc3`, plus a terminal `Game Over` row when a game is ended.
+- Move history is shown as simple notation like `a1-b2`, `a1-b2xc3`, or multi-capture variants, plus a terminal `Game Over: ...` row when a game ends.
 
 Future UI changes should preserve the split of transport logic, Redux state, render derivations, and presentational components.
 
 ## Layout And UX Notes
 
-- The board is a 9x9 CSS grid.
+- The board is a 7x7 CSS grid.
 - The UI now displays numbered row labels on the left and lettered column labels along the bottom.
-- Square names still use `letter + number` notation, so the bottom-left square is `a1` and the center square remains `e5`.
+- Square names still use `letter + number` notation, so the bottom-left square is `a1` and the center square is `d4`.
 - CSS custom properties drive sizing and proportions.
 - `updateBoardSize()` computes `--board-size` from the available container space.
 - A `ResizeObserver` and `window.resize` listener keep the board responsive.
@@ -199,13 +208,13 @@ Future UI changes should preserve the split of transport logic, Redux state, ren
 - The backend now has dedicated rules and API tests.
 - The frontend tests currently cover:
   - server-backed capturable squares
-  - targetable square calculation
+  - targetable square calculation for both free movement and Original Game orthogonal movement
   - board square-name mapping for lettered columns and numbered rows
   - local selection normalization
   - reading pieces from the wire snapshot
-  - turn notation including `Game Over`
+  - turn notation including captures and winner text
   - Redux-backed status and target derivation
-  - controls enablement and click behavior
+  - controls enablement, play-style selection, and config-specific control visibility
   - visible row and column labels on the rendered board
   - board selection behavior, idle-board no-op handling, and capture highlighting
 - The backend tests currently cover:

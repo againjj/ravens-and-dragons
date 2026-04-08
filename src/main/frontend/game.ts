@@ -2,6 +2,18 @@ export type Piece = "dragon" | "raven" | "gold";
 export type Side = "dragons" | "ravens";
 export type Phase = "none" | "setup" | "move" | "capture";
 export type TurnType = "move" | "gameOver";
+export interface RuleDescriptionSection {
+    heading?: string;
+    paragraphs: string[];
+}
+export interface RuleConfigurationSummary {
+    id: string;
+    name: string;
+    descriptionSections: RuleDescriptionSection[];
+    hasSetupPhase: boolean;
+    hasManualCapture: boolean;
+    hasManualEndGame: boolean;
+}
 export type TurnHistoryRow =
     | { type: "move"; label: string; key: string }
     | { type: "gameOver"; label: string; key: string };
@@ -10,7 +22,8 @@ export interface TurnRecord {
     type: TurnType;
     from?: string;
     to?: string;
-    captured?: string;
+    capturedSquares?: string[];
+    outcome?: string;
 }
 
 export interface ServerGameSnapshot {
@@ -19,6 +32,8 @@ export interface ServerGameSnapshot {
     activeSide: Side;
     pendingMove: TurnRecord | null;
     turns: TurnRecord[];
+    ruleConfigurationId: string;
+    positionKeys: string[];
 }
 
 export interface ServerGameSession {
@@ -28,20 +43,39 @@ export interface ServerGameSession {
     updatedAt: string;
     snapshot: ServerGameSnapshot;
     canUndo: boolean;
+    availableRuleConfigurations: RuleConfigurationSummary[];
+    selectedRuleConfigurationId: string;
+    selectedStartingSide: Side;
 }
 
 export interface GameCommandRequest {
     expectedVersion: number;
-    type: "start-game" | "cycle-setup" | "end-setup" | "move-piece" | "capture-piece" | "skip-capture" | "undo" | "end-game";
+    type:
+        | "start-game"
+        | "select-rule-configuration"
+        | "select-starting-side"
+        | "cycle-setup"
+        | "end-setup"
+        | "move-piece"
+        | "capture-piece"
+        | "skip-capture"
+        | "undo"
+        | "end-game";
     square?: string;
     origin?: string;
     destination?: string;
+    ruleConfigurationId?: string;
+    side?: Side;
 }
 
-export const columnLetters = ["a", "b", "c", "d", "e", "f", "g", "h", "i"];
-export const rowNumbers = ["9", "8", "7", "6", "5", "4", "3", "2", "1"];
+export const columnLetters = ["a", "b", "c", "d", "e", "f", "g"];
+export const rowNumbers = ["7", "6", "5", "4", "3", "2", "1"];
+export const boardDimension = columnLetters.length;
 
 export const getSquareName = (rowIndex: number, colIndex: number): string => `${columnLetters[colIndex]}${rowNumbers[rowIndex]}`;
+const allSquares = rowNumbers.flatMap((_, rowIndex) =>
+    columnLetters.map((_, colIndex) => getSquareName(rowIndex, colIndex))
+);
 
 export const sideOwnsPiece = (side: Side, piece: Piece): boolean => {
     if (piece === "gold") {
@@ -58,21 +92,222 @@ export const getCapturableSquares = (snapshot: ServerGameSnapshot): string[] =>
         .filter(([, piece]) => canCapturePiece(snapshot.activeSide, piece))
         .map(([square]) => square);
 
+const getOrthogonalPath = (origin: string, destination: string): string[] | null => {
+    const originFile = columnLetters.indexOf(origin[0]);
+    const destinationFile = columnLetters.indexOf(destination[0]);
+    const originRank = rowNumbers.indexOf(origin[1]);
+    const destinationRank = rowNumbers.indexOf(destination[1]);
+
+    if (originFile !== destinationFile && originRank !== destinationRank) {
+        return null;
+    }
+
+    const fileStep = Math.sign(destinationFile - originFile);
+    const rankStep = Math.sign(destinationRank - originRank);
+    const path: string[] = [];
+    let nextFile = originFile + fileStep;
+    let nextRank = originRank + rankStep;
+
+    while (nextFile !== destinationFile || nextRank !== destinationRank) {
+        path.push(`${columnLetters[nextFile]}${rowNumbers[nextRank]}`);
+        nextFile += fileStep;
+        nextRank += rankStep;
+    }
+
+    return path;
+};
+
+const isCenterSquare = (square: string): boolean => square === "d4";
+const isCornerSquare = (square: string): boolean => ["a1", "a7", "g1", "g7"].includes(square);
+
+const getNeighbors = (square: string): string[] => {
+    const fileIndex = columnLetters.indexOf(square[0]);
+    const rankIndex = rowNumbers.indexOf(square[1]);
+    const pairs = [
+        [fileIndex, rankIndex - 1],
+        [fileIndex + 1, rankIndex],
+        [fileIndex, rankIndex + 1],
+        [fileIndex - 1, rankIndex]
+    ];
+
+    return pairs
+        .filter(([file, rank]) => file >= 0 && file < columnLetters.length && rank >= 0 && rank < rowNumbers.length)
+        .map(([file, rank]) => `${columnLetters[file]}${rowNumbers[rank]}`);
+};
+
+const isEnemyPiece = (piece: Piece | undefined, movedPiece: Piece): boolean => {
+    if (!piece) {
+        return false;
+    }
+
+    return movedPiece === "raven" ? piece === "dragon" || piece === "gold" : piece === "raven";
+};
+
+const getOppositePairs = (square: string): Array<[string, string]> => {
+    const fileIndex = columnLetters.indexOf(square[0]);
+    const rankIndex = rowNumbers.indexOf(square[1]);
+    const pairs = [
+        [
+            [fileIndex, rankIndex - 1],
+            [fileIndex, rankIndex + 1]
+        ],
+        [
+            [fileIndex - 1, rankIndex],
+            [fileIndex + 1, rankIndex]
+        ]
+    ];
+
+    return pairs
+        .filter(([[firstFile, firstRank], [secondFile, secondRank]]) =>
+            firstFile >= 0 &&
+            firstFile < columnLetters.length &&
+            firstRank >= 0 &&
+            firstRank < rowNumbers.length &&
+            secondFile >= 0 &&
+            secondFile < columnLetters.length &&
+            secondRank >= 0 &&
+            secondRank < rowNumbers.length
+        )
+        .map(([[firstFile, firstRank], [secondFile, secondRank]]) => [
+            `${columnLetters[firstFile]}${rowNumbers[firstRank]}`,
+            `${columnLetters[secondFile]}${rowNumbers[secondRank]}`
+        ]);
+};
+
+const sideOwnsPieceForOriginalGameCapture = (side: Side, piece: Piece): boolean =>
+    side === "dragons" ? piece === "dragon" || piece === "gold" : piece === "raven";
+
+const isHostileSquareForOriginalGame = (
+    board: Record<string, Piece>,
+    square: string,
+    capturingSide: Side
+): boolean => {
+    const piece = board[square];
+    if (piece) {
+        return sideOwnsPieceForOriginalGameCapture(capturingSide, piece);
+    }
+
+    return isCenterSquare(square) || isCornerSquare(square);
+};
+
+const isRegularPieceCapturedInOriginalGame = (
+    board: Record<string, Piece>,
+    square: string,
+    capturingSide: Side
+): boolean =>
+    getOppositePairs(square).some(([first, second]) =>
+        isHostileSquareForOriginalGame(board, first, capturingSide) &&
+        isHostileSquareForOriginalGame(board, second, capturingSide)
+    );
+
+const isGoldCapturedInOriginalGame = (board: Record<string, Piece>, square: string): boolean => {
+    if (isCenterSquare(square)) {
+        return getNeighbors(square).every((neighbor) => board[neighbor] === "raven");
+    }
+
+    if (getNeighbors(square).includes("d4")) {
+        return getNeighbors(square)
+            .filter((neighbor) => neighbor !== "d4")
+            .every((neighbor) => board[neighbor] === "raven");
+    }
+
+    return isRegularPieceCapturedInOriginalGame(board, square, "ravens");
+};
+
+const getAutoCapturedSquaresInOriginalGame = (
+    board: Record<string, Piece>,
+    capturingSide: Side
+): string[] =>
+    Object.entries(board)
+        .filter(([, piece]) => !sideOwnsPiece(capturingSide, piece))
+        .filter(([square, piece]) =>
+            piece === "gold"
+                ? isGoldCapturedInOriginalGame(board, square)
+                : isRegularPieceCapturedInOriginalGame(board, square, capturingSide)
+        )
+        .map(([square]) => square);
+
+const wouldCauseFriendlyCaptureInOriginalGame = (
+    snapshot: ServerGameSnapshot,
+    origin: string,
+    destination: string,
+    piece: Piece
+): boolean => {
+    const movedBoard = { ...snapshot.board };
+    delete movedBoard[origin];
+    movedBoard[destination] = piece;
+
+    for (const capturedSquare of getAutoCapturedSquaresInOriginalGame(movedBoard, snapshot.activeSide)) {
+        delete movedBoard[capturedSquare];
+    }
+
+    const opposingSide = snapshot.activeSide === "dragons" ? "ravens" : "dragons";
+    return Object.entries(movedBoard)
+        .filter(([, remainingPiece]) => sideOwnsPiece(snapshot.activeSide, remainingPiece))
+        .some(([square, remainingPiece]) =>
+            remainingPiece === "gold"
+                ? isGoldCapturedInOriginalGame(movedBoard, square)
+                : isRegularPieceCapturedInOriginalGame(movedBoard, square, opposingSide)
+        );
+};
+
+const isIllegalOriginalGameDestination = (
+    snapshot: ServerGameSnapshot,
+    origin: string,
+    piece: Piece,
+    destination: string
+): boolean => {
+    if (isCenterSquare(destination)) {
+        return true;
+    }
+
+    if (piece !== "gold" && isCornerSquare(destination)) {
+        return true;
+    }
+
+    const neighbors = [
+        ["up", getNeighbors(destination).find((square) => columnLetters.indexOf(square[0]) === columnLetters.indexOf(destination[0]) && rowNumbers.indexOf(square[1]) === rowNumbers.indexOf(destination[1]) - 1)],
+        ["down", getNeighbors(destination).find((square) => columnLetters.indexOf(square[0]) === columnLetters.indexOf(destination[0]) && rowNumbers.indexOf(square[1]) === rowNumbers.indexOf(destination[1]) + 1)],
+        ["left", getNeighbors(destination).find((square) => columnLetters.indexOf(square[0]) === columnLetters.indexOf(destination[0]) - 1 && rowNumbers.indexOf(square[1]) === rowNumbers.indexOf(destination[1]))],
+        ["right", getNeighbors(destination).find((square) => columnLetters.indexOf(square[0]) === columnLetters.indexOf(destination[0]) + 1 && rowNumbers.indexOf(square[1]) === rowNumbers.indexOf(destination[1]))]
+    ];
+    const up = neighbors[0][1];
+    const down = neighbors[1][1];
+    const left = neighbors[2][1];
+    const right = neighbors[3][1];
+
+    return Boolean(
+        (up && down && isEnemyPiece(snapshot.board[up], piece) && isEnemyPiece(snapshot.board[down], piece)) ||
+        (left && right && isEnemyPiece(snapshot.board[left], piece) && isEnemyPiece(snapshot.board[right], piece))
+    ) || wouldCauseFriendlyCaptureInOriginalGame(snapshot, origin, destination, piece);
+};
+
 export const getTargetableSquares = (snapshot: ServerGameSnapshot, selectedSquare: string | null): string[] => {
     if (snapshot.phase !== "move" || !selectedSquare) {
         return [];
     }
 
-    const targetableSquares: string[] = [];
-    for (let rowIndex = 0; rowIndex < 9; rowIndex += 1) {
-        for (let colIndex = 0; colIndex < 9; colIndex += 1) {
-            const square = getSquareName(rowIndex, colIndex);
-            if (!(square in snapshot.board) && square !== selectedSquare) {
-                targetableSquares.push(square);
-            }
-        }
+    const selectedPiece = snapshot.board[selectedSquare];
+    if (!selectedPiece) {
+        return [];
     }
-    return targetableSquares;
+
+    return allSquares.filter((square) => {
+        if (square in snapshot.board || square === selectedSquare) {
+            return false;
+        }
+
+        if (snapshot.ruleConfigurationId !== "original-game") {
+            return true;
+        }
+
+        const path = getOrthogonalPath(selectedSquare, square);
+        if (path === null || path.some((pathSquare) => pathSquare in snapshot.board)) {
+            return false;
+        }
+
+        return !isIllegalOriginalGameDestination(snapshot, selectedSquare, selectedPiece, square);
+    });
 };
 
 export const getPieceAtSquare = (snapshot: ServerGameSnapshot, square: string): Piece | undefined => snapshot.board[square];
@@ -91,15 +326,16 @@ export const normalizeSelectedSquare = (
 
 export const turnToNotation = (turn: TurnRecord): string => {
     if (turn.type === "gameOver") {
-        return "Game Over";
+        return turn.outcome ? `Game Over: ${turn.outcome}` : "Game Over";
     }
 
-    return `${turn.from}-${turn.to}${turn.captured ? `x${turn.captured}` : ""}`;
+    const captures = (turn.capturedSquares ?? []).map((square) => `x${square}`).join("");
+    return `${turn.from}-${turn.to}${captures}`;
 };
 
 export const getTurnHistoryRows = (turns: TurnRecord[]): TurnHistoryRow[] =>
     turns.map((turn, index) => ({
         type: turn.type,
         label: turnToNotation(turn),
-        key: `${turn.type}-${turn.from ?? "none"}-${turn.to ?? "none"}-${turn.captured ?? "none"}-${index}`
+        key: `${turn.type}-${turn.from ?? "none"}-${turn.to ?? "none"}-${(turn.capturedSquares ?? []).join(".") || "none"}-${turn.outcome ?? "none"}-${index}`
     }));

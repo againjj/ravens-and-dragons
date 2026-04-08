@@ -25,11 +25,26 @@ enum class TurnType {
     gameOver
 }
 
+data class RuleConfigurationSummary(
+    val id: String,
+    val name: String,
+    val descriptionSections: List<RuleDescriptionSection>,
+    val hasSetupPhase: Boolean,
+    val hasManualCapture: Boolean,
+    val hasManualEndGame: Boolean
+)
+
+data class RuleDescriptionSection(
+    val heading: String? = null,
+    val paragraphs: List<String>
+)
+
 data class TurnRecord(
     val type: TurnType,
     val from: String? = null,
     val to: String? = null,
-    val captured: String? = null
+    val capturedSquares: List<String> = emptyList(),
+    val outcome: String? = null
 )
 
 data class GameSnapshot(
@@ -37,7 +52,9 @@ data class GameSnapshot(
     val phase: Phase,
     val activeSide: Side,
     val pendingMove: TurnRecord?,
-    val turns: List<TurnRecord>
+    val turns: List<TurnRecord>,
+    val ruleConfigurationId: String,
+    val positionKeys: List<String> = emptyList()
 )
 
 data class GameSession(
@@ -46,7 +63,10 @@ data class GameSession(
     val createdAt: Instant,
     val updatedAt: Instant,
     val snapshot: GameSnapshot,
-    val canUndo: Boolean
+    val canUndo: Boolean,
+    val availableRuleConfigurations: List<RuleConfigurationSummary>,
+    val selectedRuleConfigurationId: String,
+    val selectedStartingSide: Side
 )
 
 data class GameCommandRequest(
@@ -54,7 +74,9 @@ data class GameCommandRequest(
     val type: String,
     val square: String? = null,
     val origin: String? = null,
-    val destination: String? = null
+    val destination: String? = null,
+    val ruleConfigurationId: String? = null,
+    val side: Side? = null
 )
 
 data class ErrorResponse(

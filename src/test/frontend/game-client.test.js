@@ -15,12 +15,31 @@ const createGame = (version = 1) => ({
     createdAt: "2026-04-05T00:00:00Z",
     updatedAt: `2026-04-05T00:00:0${version}Z`,
     canUndo: false,
+    availableRuleConfigurations: [
+        {
+            id: "free-play",
+            name: "Free Play",
+            descriptionSections: [
+                {
+                    heading: "Overview",
+                    paragraphs: ["Free Play description"]
+                }
+            ],
+            hasSetupPhase: true,
+            hasManualCapture: true,
+            hasManualEndGame: true
+        }
+    ],
+    selectedRuleConfigurationId: "free-play",
+    selectedStartingSide: "dragons",
     snapshot: {
         board: {},
         phase: "none",
         activeSide: "dragons",
         pendingMove: null,
-        turns: []
+        turns: [],
+        ruleConfigurationId: "free-play",
+        positionKeys: []
     }
 });
 
@@ -54,6 +73,54 @@ test("sendGameCommandRequest includes the expected version and returns the next 
     assert.deepEqual(requestBody, { expectedVersion: 2, type: "start-game" });
     assert.equal(result.game.version, 3);
     assert.equal(result.errorMessage, undefined);
+});
+
+test("sendGameCommandRequest includes rule configuration changes", async () => {
+    const currentGame = createGame(2);
+    let requestBody = null;
+
+    await sendGameCommandRequest(
+        currentGame,
+        { type: "select-rule-configuration", ruleConfigurationId: "trivial" },
+        async (_url, init) => {
+            requestBody = JSON.parse(init.body);
+            return {
+                ok: true,
+                status: 200,
+                json: async () => createGame(3)
+            };
+        }
+    );
+
+    assert.deepEqual(requestBody, {
+        expectedVersion: 2,
+        type: "select-rule-configuration",
+        ruleConfigurationId: "trivial"
+    });
+});
+
+test("sendGameCommandRequest includes starting side changes", async () => {
+    const currentGame = createGame(2);
+    let requestBody = null;
+
+    await sendGameCommandRequest(
+        currentGame,
+        { type: "select-starting-side", side: "ravens" },
+        async (_url, init) => {
+            requestBody = JSON.parse(init.body);
+            return {
+                ok: true,
+                status: 200,
+                json: async () => createGame(3)
+            };
+        }
+    );
+
+    assert.deepEqual(requestBody, {
+        expectedVersion: 2,
+        type: "select-starting-side",
+        side: "ravens"
+    });
 });
 
 test("sendGameCommandRequest treats conflicts as latest-game responses", async () => {

@@ -8,9 +8,21 @@ export const selectSnapshot = (state: RootState) => state.game.session?.snapshot
 export const selectCanUndo = (state: RootState) => state.game.session?.canUndo ?? false;
 export const selectSelectedSquare = (state: RootState) => state.ui.selectedSquare;
 export const selectIsSubmitting = (state: RootState) => state.game.isSubmitting;
+export const selectAvailableRuleConfigurations = (state: RootState) =>
+    state.game.session?.availableRuleConfigurations ?? [];
+export const selectSelectedRuleConfigurationId = (state: RootState) =>
+    state.game.session?.selectedRuleConfigurationId ?? null;
+export const selectSelectedStartingSide = (state: RootState) =>
+    state.game.session?.selectedStartingSide ?? "dragons";
+export const selectCurrentRuleConfiguration = createSelector(
+    selectAvailableRuleConfigurations,
+    selectSelectedRuleConfigurationId,
+    (ruleConfigurations, selectedRuleConfigurationId) =>
+        ruleConfigurations.find((ruleConfiguration) => ruleConfiguration.id === selectedRuleConfigurationId) ?? null
+);
 
 export const selectCapturableSquares = createSelector(selectSnapshot, (snapshot) =>
-    snapshot ? getCapturableSquares(snapshot) : []
+    snapshot && snapshot.phase === "capture" ? getCapturableSquares(snapshot) : []
 );
 
 export const selectTargetableSquares = createSelector(
