@@ -27,6 +27,7 @@ The server also respects the `PORT` environment variable, so the same app can ru
 
 Open the app in two browser tabs to see the shared game stay in sync through server-sent events.
 The browser now opens on a lobby screen at `/`, where you can create a new game or open an existing one by ID.
+The lobby now presents separate `Start Fresh` and `Rejoin Game` cards, normalizes typed game IDs to uppercase, and disables `Open Game` until an ID is entered.
 Each game has its own URL at `/g/{gameId}`.
 Loading a game URL directly opens that game, and after you create or open a game from the lobby the browser updates the address bar to that game's `/g/{gameId}` URL.
 The browser stays subscribed to that game's SSE stream until you go back to the lobby.
@@ -36,9 +37,11 @@ Once a game is open, the controls include the play-style dropdown plus the usual
 `Trivial Configuration`, `Original Game`, and `Sherwood Rules` start from preset boards with no setup phase, resolve captures automatically, and end automatically based on their own rules.
 `Sherwood Rules` matches `Original Game` except the gold may move only one orthogonal square at a time.
 Game over returns the session to a finished no-game state while preserving the final board position and full completed history, including a terminal `Game Over: ...` entry.
+When `Free Play` is ended manually, the terminal history entry is rendered as `Game Over`.
 Finished games stay viewable on their existing game IDs, and if the session still has undo history you can undo the terminal game-over state to resume play from the previous snapshot.
 You still cannot restart or reconfigure a finished game on that same ID while it remains finished; creating another game gives you a fresh ID.
 The board now displays numbered rows from top to bottom and lettered columns from left to right on a 7x7 grid, while square names still use `letter + number` notation such as `a1` and `d4`.
+Only actionable board squares now show pointer/hover affordances, and the move list shows an empty-state message before play begins and auto-scrolls to the latest history entry during play.
 
 ## Run Tests
 
@@ -114,4 +117,5 @@ Read docs/code-summary.md and docs/codex-rules.md before making changes. Follow 
 - Newly created games now use 7-character IDs drawn from the Open Location Code ("PLUS code") alphabet: `23456789CFGHJMPQRVWX`.
 - In-memory games are evicted automatically after more than one hour without a load, command, or active SSE viewer.
 - If `./gradlew bootRun` cannot bind its default port, treat that as a local environment issue to fix instead of silently switching ports.
+- `docs/codex-rules.md` now explicitly says not to modify the codebase until the user asks for implementation work.
 - If you change architecture, workflow, or gameplay in a meaningful way, update `docs/code-summary.md`.

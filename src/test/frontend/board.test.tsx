@@ -75,7 +75,10 @@ describe("Board", () => {
             }
         });
 
-        await user.click(screen.getByRole("button", { name: "Square a1" }));
+        const inactiveSquare = screen.getByRole("button", { name: "Square a1" });
+
+        expect(inactiveSquare).toHaveClass("is-inactive");
+        await user.click(inactiveSquare);
 
         expect(store.getState().ui.selectedSquare).toBeNull();
     });
@@ -171,5 +174,33 @@ describe("Board", () => {
 
         expect(screen.getByRole("button", { name: "Square b2" })).toHaveClass("capture-target");
         expect(screen.getByRole("button", { name: "Square a1" })).not.toHaveClass("capture-target");
+    });
+
+    test("only shows pointer affordance for actionable squares", () => {
+        renderWithStore(<Board />, {
+            preloadedState: {
+                game: {
+                    session: createSession({}, {
+                        phase: "move",
+                        activeSide: "dragons",
+                        board: {
+                            a1: "dragon",
+                            b2: "raven"
+                        }
+                    }),
+                    isSubmitting: false,
+                    loadState: "ready",
+                    connectionState: "open",
+                    feedbackMessage: null
+                },
+                ui: {
+                    selectedSquare: null
+                }
+            }
+        });
+
+        expect(screen.getByRole("button", { name: "Square a1" })).toHaveClass("is-clickable");
+        expect(screen.getByRole("button", { name: "Square b2" })).not.toHaveClass("is-clickable");
+        expect(screen.getByRole("button", { name: "Square c3" })).not.toHaveClass("is-clickable");
     });
 });

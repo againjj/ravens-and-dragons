@@ -66,6 +66,7 @@ test("turn notation includes captures only when present and supports game over",
     assert.equal(turnToNotation({ type: "move", from: "a1", to: "a2" }), "a1-a2");
     assert.equal(turnToNotation({ type: "move", from: "a1", to: "a2", capturedSquares: ["b2"] }), "a1-a2xb2");
     assert.equal(turnToNotation({ type: "gameOver" }), "Game Over");
+    assert.equal(turnToNotation({ type: "gameOver", outcome: "Game ended" }), "Game Over");
 });
 
 test("turn history rows provide render-ready labels for moves and game over", () => {

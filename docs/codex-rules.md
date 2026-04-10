@@ -9,6 +9,7 @@ This file contains repository-specific instructions for AI-assisted work in this
 
 ## Project Priorities
 
+- Do not make changes to the codebase until the user explicitly asks for implementation work.
 - Preserve existing behavior unless the user explicitly asks to change gameplay or UX.
 - Prefer small, reviewable refactors over broad rewrites.
 - Keep the codebase easy to extend for future rule changes.

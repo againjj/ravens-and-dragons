@@ -349,6 +349,9 @@ export const normalizeSelectedSquare = (
 
 export const turnToNotation = (turn: TurnRecord): string => {
     if (turn.type === "gameOver") {
+        if (turn.outcome === "Game ended") {
+            return "Game Over";
+        }
         return turn.outcome ? `Game Over: ${turn.outcome}` : "Game Over";
     }
 

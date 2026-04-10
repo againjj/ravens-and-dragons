@@ -23,13 +23,34 @@ const getSquareClassName = (
         selectedSquare: string | null;
         targetableSquares: Set<string>;
         capturableSquares: Set<string>;
+        snapshot: NonNullable<ReturnType<typeof selectSnapshot>> | null;
         isCapturePhase: boolean;
     }
 ): string => {
     const classNames = ["square"];
+    const currentPiece = options.snapshot ? getPieceAtSquare(options.snapshot, squareName) : undefined;
+    const isClickable =
+        !options.snapshot
+            ? false
+            : options.snapshot.phase === "setup"
+              ? true
+              : options.snapshot.phase === "capture"
+                ? options.capturableSquares.has(squareName)
+                : options.snapshot.phase === "move"
+                  ? options.targetableSquares.has(squareName) ||
+                    (!!currentPiece && sideOwnsPiece(options.snapshot.activeSide, currentPiece))
+                  : false;
 
     if (options.selectedSquare === squareName) {
         classNames.push("selected");
+    }
+
+    if (options.snapshot?.phase === "none") {
+        classNames.push("is-inactive");
+    }
+
+    if (isClickable) {
+        classNames.push("is-clickable");
     }
 
     if (options.targetableSquares.has(squareName)) {
@@ -134,6 +155,7 @@ export const Board = () => {
                                     selectedSquare,
                                     targetableSquares: targetableSquareSet,
                                     capturableSquares: capturableSquareSet,
+                                    snapshot,
                                     isCapturePhase: snapshot?.phase === "capture"
                                 })}
                                 data-square={squareName}

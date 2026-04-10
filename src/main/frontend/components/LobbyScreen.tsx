@@ -14,51 +14,68 @@ export const LobbyScreen = ({
     onOpenGame
 }: LobbyScreenProps) => {
     const [gameId, setGameId] = useState("");
+    const trimmedGameId = gameId.trim();
 
     return (
         <section className="lobby-screen panel">
             <div className="lobby-copy">
                 <h2>Game Lobby</h2>
-                <p>Create a fresh game or open an existing one by ID.</p>
+                <p>Start a shared session for a new matchup or rejoin one with its game ID.</p>
             </div>
 
-            <div className="lobby-actions">
-                <button
-                    id="create-game-button"
-                    type="button"
-                    disabled={isLoading}
-                    onClick={onCreateGame}
-                >
-                    Create Game
-                </button>
-
-                <div className="control-row">
-                    <label className="control-label" htmlFor="game-id-input">
-                        Game ID
-                    </label>
-                    <input
-                        id="game-id-input"
-                        className="text-input"
-                        type="text"
-                        value={gameId}
+            <div className="lobby-grid">
+                <section className="lobby-card">
+                    <div className="lobby-card-copy">
+                        <h3>Start Fresh</h3>
+                        <p>Create a new game, and choose either flee play or a preset ruleset.</p>
+                    </div>
+                    <button
+                        id="create-game-button"
+                        type="button"
                         disabled={isLoading}
-                        placeholder="Paste a game ID"
-                        onChange={(event) => {
-                            setGameId(event.target.value);
-                        }}
-                    />
-                </div>
+                        onClick={onCreateGame}
+                    >
+                        Create Game
+                    </button>
+                </section>
 
-                <button
-                    id="open-game-button"
-                    type="button"
-                    disabled={isLoading}
-                    onClick={() => {
-                        onOpenGame(gameId);
-                    }}
-                >
-                    Open Game
-                </button>
+                <section className="lobby-card">
+                    <div className="lobby-card-copy">
+                        <h3>Rejoin Game</h3>
+                        <p>Paste an existing game ID to open the shared board and move history. Game IDs are case-insensitive.</p>
+                    </div>
+                    <div className="lobby-actions">
+                        <div className="control-row">
+                            <label className="control-label" htmlFor="game-id-input">
+                                Game ID
+                            </label>
+                            <input
+                                id="game-id-input"
+                                className="text-input"
+                                type="text"
+                                value={gameId}
+                                disabled={isLoading}
+                                placeholder="Example: C7H2RMW"
+                                autoCapitalize="characters"
+                                spellCheck={false}
+                                onChange={(event) => {
+                                    setGameId(event.target.value.toUpperCase());
+                                }}
+                            />
+                        </div>
+
+                        <button
+                            id="open-game-button"
+                            type="button"
+                            disabled={isLoading || trimmedGameId.length === 0}
+                            onClick={() => {
+                                onOpenGame(trimmedGameId);
+                            }}
+                        >
+                            Open Game
+                        </button>
+                    </div>
+                </section>
             </div>
 
             <p className="lobby-feedback" aria-live="polite">

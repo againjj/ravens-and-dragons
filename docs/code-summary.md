@@ -144,6 +144,7 @@ Most UI-only changes should start in the relevant component, selector, or browse
 
 - The browser initially loads into a lobby screen.
 - The lobby can create a new in-memory game or open an existing game by id.
+- The lobby presents separate create and rejoin cards, uppercases typed game ids locally, and keeps `Open Game` disabled until an id is present.
 - Once a game is created or opened, the browser enters that game's board screen and updates the URL to `/g/{gameId}`.
 - Loading `/g/{gameId}` directly also enters that game's board screen.
 - The game screen shows the current game id and includes a `Back to Lobby` button.
@@ -162,6 +163,7 @@ Most UI-only changes should start in the relevant component, selector, or browse
 - Capture can still be skipped.
 - Active play still exposes `End Game`, which appends a terminal `gameOver` turn and marks the session finished.
 - Finished games stay viewable on the same game id, and `Undo` can roll back the terminal game-over state to resume the previous playable snapshot when undo history exists.
+- Manually ending `Free Play` renders the terminal history entry as `Game Over`.
 - Finished games still cannot be restarted or reconfigured on the same game id while they remain finished.
 
 ### Trivial Configuration
@@ -206,6 +208,8 @@ Most UI-only changes should start in the relevant component, selector, or browse
 - Freshly loaded clients also receive the shared selected starting side for `Free Play`.
 - The browser keeps piece selection local; other clients do not see half-finished selections.
 - In the no-game phase, the board remains visible but is not interactive.
+- Only actionable squares show hover/pointer affordances; inactive and non-actionable squares stay visually still on mouseover.
+- The move list now shows an empty-state message before any moves exist and auto-scrolls to the latest entry when history changes.
 - Games that have not been loaded, mutated, or watched for more than one hour are evicted from the in-memory store.
 - An active SSE subscription keeps a game alive even if no commands are sent during that hour.
 

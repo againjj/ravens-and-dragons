@@ -21,11 +21,11 @@ describe("LobbyScreen", () => {
         );
 
         await user.click(screen.getByRole("button", { name: "Create Game" }));
-        await user.type(screen.getByLabelText("Game ID"), "game-606");
+        await user.type(screen.getByLabelText("Game ID"), "c7h2rmw");
         await user.click(screen.getByRole("button", { name: "Open Game" }));
 
         expect(onCreateGame).toHaveBeenCalledTimes(1);
-        expect(onOpenGame).toHaveBeenCalledWith("game-606");
+        expect(onOpenGame).toHaveBeenCalledWith("C7H2RMW");
     });
 
     test("renders feedback text from the lobby state", () => {
@@ -39,5 +39,20 @@ describe("LobbyScreen", () => {
         );
 
         expect(screen.getByText('Unable to open game "missing-game".')).toBeInTheDocument();
+    });
+
+    test("disables opening until a game id is provided", () => {
+        renderWithStore(
+            <LobbyScreen
+                feedbackMessage={null}
+                isLoading={false}
+                onCreateGame={vi.fn()}
+                onOpenGame={vi.fn()}
+            />
+        );
+
+        expect(screen.getByRole("button", { name: "Open Game" })).toBeDisabled();
+        expect(screen.getByText("Start Fresh")).toBeInTheDocument();
+        expect(screen.getByText("Rejoin Game")).toBeInTheDocument();
     });
 });
