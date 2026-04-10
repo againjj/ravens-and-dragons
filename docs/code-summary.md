@@ -149,6 +149,7 @@ Most UI-only changes should start in the relevant component, selector, or browse
 - Loading `/g/{gameId}` directly also enters that game's board screen.
 - The game screen shows the current game id and includes a `Back to Lobby` button.
 - Returning to the lobby closes the active SSE stream, clears browser-local selection, and returns the URL to `/`.
+- If the browser entered the app directly on `/g/{gameId}`, returning to the lobby replaces that direct-entry history slot so browser Back still leaves the app instead of reopening the same game route.
 
 ### Free Play
 

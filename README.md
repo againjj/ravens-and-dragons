@@ -30,6 +30,7 @@ The browser now opens on a lobby screen at `/`, where you can create a new game 
 The lobby now presents separate `Start Fresh` and `Rejoin Game` cards, normalizes typed game IDs to uppercase, and disables `Open Game` until an ID is entered.
 Each game has its own URL at `/g/{gameId}`.
 Loading a game URL directly opens that game, and after you create or open a game from the lobby the browser updates the address bar to that game's `/g/{gameId}` URL.
+If you load a game URL directly and then return to the lobby, the app now replaces that direct-entry history slot instead of trapping the browser Back button inside the app.
 The browser stays subscribed to that game's SSE stream until you go back to the lobby.
 The active game screen shows the current game ID plus a `Back to Lobby` button.
 Once a game is open, the controls include the play-style dropdown plus the usual gameplay actions.

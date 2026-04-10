@@ -20,10 +20,12 @@ export const useGameRoute = (): void => {
     const dispatch = useAppDispatch();
     const currentGameId = useAppSelector(selectCurrentGameId);
     const view = useAppSelector(selectGameView);
-    const hasSyncedInitialRoute = useRef(false);
+    const initialDirectGameId = useRef<string | null>(getRouteGameId(window.location.pathname));
+    const pendingLocationPath = useRef<string | null>(window.location.pathname);
 
     useEffect(() => {
         const syncFromLocation = () => {
+            pendingLocationPath.current = window.location.pathname;
             const routeGameId = getRouteGameId(window.location.pathname);
             if (routeGameId) {
                 void dispatch(openGame(routeGameId));
@@ -34,7 +36,6 @@ export const useGameRoute = (): void => {
         };
 
         syncFromLocation();
-        hasSyncedInitialRoute.current = true;
         window.addEventListener("popstate", syncFromLocation);
 
         return () => {
@@ -43,12 +44,31 @@ export const useGameRoute = (): void => {
     }, [dispatch]);
 
     useEffect(() => {
-        if (!hasSyncedInitialRoute.current) {
+        const targetPath = getPathForGame(currentGameId, view);
+        const syncedLocationPath = pendingLocationPath.current;
+        if (syncedLocationPath !== null) {
+            const syncedGameId = getRouteGameId(syncedLocationPath);
+            const syncedTargetPath = getPathForGame(syncedGameId, syncedGameId ? "game" : "lobby");
+
+            if (targetPath !== syncedTargetPath) {
+                return;
+            }
+
+            pendingLocationPath.current = null;
             return;
         }
 
-        const targetPath = getPathForGame(currentGameId, view);
         if (window.location.pathname === targetPath) {
+            return;
+        }
+
+        if (
+            targetPath === "/" &&
+            initialDirectGameId.current &&
+            window.location.pathname === getPathForGame(initialDirectGameId.current, "game")
+        ) {
+            window.history.replaceState({}, "", targetPath);
+            initialDirectGameId.current = null;
             return;
         }
 
