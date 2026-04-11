@@ -1,5 +1,6 @@
 package com.dragonsvsravens.game
 
+import org.springframework.http.MediaType
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ExceptionHandler
@@ -27,8 +28,15 @@ class GameController(
         @RequestBody command: GameCommandRequest
     ): GameSession = gameSessionService.applyCommand(gameId, command)
 
-    @GetMapping("/api/games/{gameId}/stream")
-    fun streamGame(@PathVariable gameId: String): SseEmitter = gameSessionService.createEmitter(gameId)
+    @GetMapping("/api/games/{gameId}/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
+    fun streamGame(@PathVariable gameId: String): ResponseEntity<SseEmitter> =
+        try {
+            ResponseEntity.ok()
+                .contentType(MediaType.TEXT_EVENT_STREAM)
+                .body(gameSessionService.createEmitter(gameId))
+        } catch (_: GameNotFoundException) {
+            ResponseEntity.notFound().build()
+        }
 
     @ExceptionHandler(GameNotFoundException::class)
     fun handleGameNotFound(exception: GameNotFoundException): ResponseEntity<ErrorResponse> =

@@ -553,10 +553,38 @@ button:disabled {
 
 .turns ol {
     margin: 0;
-    padding-left: 2rem;
+    padding-left: 0;
     color: var(--muted);
     line-height: 1.4;
     word-break: break-word;
+}
+
+.move-list {
+    display: grid;
+    gap: 8px;
+    padding-left: 0;
+    list-style: none;
+}
+
+.move-list-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 3px;
+    align-items: start;
+}
+
+.move-list-number {
+    min-width: 2.1rem;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
+.move-list-cell {
+    display: block;
+}
+
+.move-list-cell:empty {
+    display: none;
 }
 
 .turns-empty {
@@ -569,7 +597,19 @@ button:disabled {
 }
 
 .turns li + li {
-    margin-top: 8px;
+    margin-top: 0;
+}
+
+@media (min-width: 520px) {
+    .move-list-row {
+        grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+        column-gap: 18px;
+        align-items: start;
+    }
+
+    .move-list-cell:empty {
+        display: block;
+    }
 }
 
 #game-over-entry {

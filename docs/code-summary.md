@@ -223,6 +223,7 @@ Most UI-only changes should start in the relevant component, selector, or browse
 - In the no-game phase, the board remains visible but is not interactive.
 - Only actionable squares show hover/pointer affordances; inactive and non-actionable squares stay visually still on mouseover.
 - The move list now shows an empty-state message before any moves exist and auto-scrolls to the latest entry when history changes.
+- The move list now groups completed moves into numbered two-column display rows while still rendering a terminal `Game Over` entry separately.
 - Games that have not been loaded, mutated, or watched for more than one hour are evicted from the in-memory store.
 - An active SSE subscription keeps a game alive even if no commands are sent during that hour.
 
@@ -239,7 +240,7 @@ The frontend now uses React components backed by Redux state.
   - `selected`
   - `targetable`
   - `capture-target`
-- Move history is shown as simple notation like `a1-b2`, `a1-b2xc3`, or multi-capture variants, plus a terminal `Game Over: ...` row when a game ends.
+- Move history is shown as simple notation like `a1-b2`, `a1-b2xc3`, or multi-capture variants, grouped into numbered two-column rows, plus a terminal `Game Over: ...` row when a game ends.
 - Original-style draws now surface their specific cause in that terminal row.
 
 Future UI changes should preserve the split of transport logic, Redux state, render derivations, and presentational components.

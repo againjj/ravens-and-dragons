@@ -22,6 +22,13 @@ export type TurnHistoryRow =
     | { type: "move"; label: string; key: string }
     | { type: "gameOver"; label: string; key: string };
 
+export interface GroupedMoveHistoryRow {
+    key: string;
+    leftLabel: string;
+    moveNumber: number;
+    rightLabel: string | null;
+}
+
 export interface TurnRecord {
     type: TurnType;
     from?: string;
@@ -416,3 +423,22 @@ export const getTurnHistoryRows = (turns: TurnRecord[]): TurnHistoryRow[] =>
         label: turnToNotation(turn),
         key: `${turn.type}-${turn.from ?? "none"}-${turn.to ?? "none"}-${(turn.capturedSquares ?? []).join(".") || "none"}-${turn.outcome ?? "none"}-${index}`
     }));
+
+export const getGroupedMoveHistoryRows = (turnHistoryRows: TurnHistoryRow[]): GroupedMoveHistoryRow[] => {
+    const moveRows = turnHistoryRows.filter((row): row is Extract<TurnHistoryRow, { type: "move" }> => row.type === "move");
+    const groupedRows: GroupedMoveHistoryRow[] = [];
+
+    for (let index = 0; index < moveRows.length; index += 2) {
+        const leftMove = moveRows[index];
+        const rightMove = moveRows[index + 1];
+
+        groupedRows.push({
+            key: rightMove ? `${leftMove.key}-${rightMove.key}` : leftMove.key,
+            leftLabel: leftMove.label,
+            moveNumber: (index / 2) + 1,
+            rightLabel: rightMove?.label ?? null
+        });
+    }
+
+    return groupedRows;
+};

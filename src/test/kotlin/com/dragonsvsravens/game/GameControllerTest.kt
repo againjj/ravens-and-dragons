@@ -72,6 +72,16 @@ class GameControllerTest : AbstractGameControllerTestSupport() {
     }
 
     @Test
+    fun `missing game stream returns not found for sse requests`() {
+        mockMvc.get("/api/games/missing-game/stream") {
+            accept = MediaType.TEXT_EVENT_STREAM
+        }.andExpect {
+            status { isNotFound() }
+            content { string("") }
+        }
+    }
+
+    @Test
     fun `removed default compatibility routes return not found`() {
         mockMvc.get("/api/game")
             .andExpect {

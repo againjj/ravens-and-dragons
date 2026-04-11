@@ -7,6 +7,7 @@ import {
     getBoardDimension,
     getColumnLetters,
     getCapturableSquares,
+    getGroupedMoveHistoryRows,
     getPieceAtSquare,
     getRowNumbers,
     getTargetableSquares,
@@ -98,6 +99,40 @@ test("turn history rows provide render-ready labels for moves and game over", ()
                 type: "gameOver",
                 label: "Game Over",
                 key: "gameOver-none-none-none-none-1"
+            }
+        ]
+    );
+});
+
+test("move history rows group two moves under one visible turn number", () => {
+    assert.deepEqual(
+        getGroupedMoveHistoryRows(
+            getTurnHistoryRows([
+                { type: "move", from: "h5", to: "h7" },
+                { type: "move", from: "f5", to: "f2" },
+                { type: "move", from: "e3", to: "f3" },
+                { type: "move", from: "e4", to: "e3" },
+                { type: "move", from: "c5", to: "c3" }
+            ])
+        ),
+        [
+            {
+                key: "move-h5-h7-none-none-0-move-f5-f2-none-none-1",
+                leftLabel: "h5-h7",
+                moveNumber: 1,
+                rightLabel: "f5-f2"
+            },
+            {
+                key: "move-e3-f3-none-none-2-move-e4-e3-none-none-3",
+                leftLabel: "e3-f3",
+                moveNumber: 2,
+                rightLabel: "e4-e3"
+            },
+            {
+                key: "move-c5-c3-none-none-4",
+                leftLabel: "c5-c3",
+                moveNumber: 3,
+                rightLabel: null
             }
         ]
     );

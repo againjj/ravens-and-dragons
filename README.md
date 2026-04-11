@@ -43,7 +43,7 @@ When `Free Play` is ended manually, the terminal history entry is rendered as `G
 Finished games stay viewable on their existing game IDs, and if the session still has undo history you can undo the terminal game-over state to resume play from the previous snapshot.
 You still cannot restart or reconfigure a finished game on that same ID while it remains finished; creating another game gives you a fresh ID.
 The board now displays numbered rows from top to bottom and lettered columns from left to right on a 7x7 grid, while square names still use `letter + number` notation such as `a1` and `d4`.
-Only actionable board squares now show pointer/hover affordances, and the move list shows an empty-state message before play begins and auto-scrolls to the latest history entry during play.
+Only actionable board squares now show pointer/hover affordances, and the move list shows an empty-state message before play begins, auto-scrolls to the latest history entry during play, and groups moves into numbered two-column rows.
 
 ## Run Tests
 
@@ -118,6 +118,7 @@ Read docs/code-summary.md and docs/codex-rules.md before making changes. Follow 
 - `Original Game` follows the published Ravens and Dragons setup and movement/capture rules, including automatic wins and draws.
 - `Sherwood Rules` reuses the `Original Game` setup, capture, and win/draw conditions, but limits the gold to one-square orthogonal movement.
 - The browser client now uses the per-game routes under `/api/games` for create, load, command, and stream behavior.
+- Missing SSE subscriptions for unknown game IDs now return a plain `404` response instead of logging a media-type exception on the server.
 - Browser navigation now uses `/` for the lobby and `/g/{gameId}` for an active game view.
 - Newly created games now use 7-character IDs drawn from the Open Location Code ("PLUS code") alphabet: `23456789CFGHJMPQRVWX`.
 - In-memory games are evicted automatically after more than one hour without a load, command, or active SSE viewer.

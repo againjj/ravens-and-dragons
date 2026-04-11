@@ -27,7 +27,7 @@ export const LobbyScreen = ({
                 <section className="lobby-card">
                     <div className="lobby-card-copy">
                         <h3>Start Fresh</h3>
-                        <p>Create a new game, and choose either flee play or a preset ruleset.</p>
+                        <p>Create a new game, and choose either free play or a preset ruleset.</p>
                     </div>
                     <button
                         id="create-game-button"

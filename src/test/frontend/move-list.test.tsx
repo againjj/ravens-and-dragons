@@ -1,4 +1,4 @@
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 
 import { MoveList } from "../../main/frontend/components/MoveList.js";
@@ -81,6 +81,78 @@ describe("MoveList", () => {
         expect(items).toHaveLength(1);
         expect(screen.getByText("Game Over: Dragons win")).toBeInTheDocument();
         expect(screen.getByText("Game Over: Dragons win").tagName).toBe("DIV");
+    });
+
+    test("renders move rows in two columns with one turn number per pair", () => {
+        renderWithStore(<MoveList />, {
+            preloadedState: {
+                game: {
+                    session: createSession({}, {
+                        turns: [
+                            { type: "move", from: "h5", to: "h7" },
+                            { type: "move", from: "f5", to: "f2" },
+                            { type: "move", from: "e3", to: "f3" },
+                            { type: "move", from: "e4", to: "e3" },
+                            { type: "move", from: "c5", to: "c3" },
+                            { type: "move", from: "e6", to: "f6" }
+                        ]
+                    }),
+                    isSubmitting: false,
+                    loadState: "ready",
+                    connectionState: "open",
+                    feedbackMessage: null
+                },
+                ui: {
+                    selectedSquare: null
+                }
+            }
+        });
+
+        const items = screen.getAllByRole("listitem");
+
+        expect(items).toHaveLength(3);
+        expect(within(items[0]).getByText("1.")).toBeInTheDocument();
+        expect(items[0]).toHaveAttribute("value", "1");
+        expect(within(items[0]).getByText("h5-h7")).toBeInTheDocument();
+        expect(within(items[0]).getByText("f5-f2")).toBeInTheDocument();
+        expect(within(items[1]).getByText("2.")).toBeInTheDocument();
+        expect(items[1]).toHaveAttribute("value", "2");
+        expect(within(items[1]).getByText("e3-f3")).toBeInTheDocument();
+        expect(within(items[1]).getByText("e4-e3")).toBeInTheDocument();
+        expect(within(items[2]).getByText("3.")).toBeInTheDocument();
+        expect(items[2]).toHaveAttribute("value", "3");
+        expect(within(items[2]).getByText("c5-c3")).toBeInTheDocument();
+        expect(within(items[2]).getByText("e6-f6")).toBeInTheDocument();
+    });
+
+    test("renders the final move row with a single move when history length is odd", () => {
+        renderWithStore(<MoveList />, {
+            preloadedState: {
+                game: {
+                    session: createSession({}, {
+                        turns: [
+                            { type: "move", from: "h5", to: "h7" },
+                            { type: "move", from: "f5", to: "f2" },
+                            { type: "move", from: "e3", to: "f3" }
+                        ]
+                    }),
+                    isSubmitting: false,
+                    loadState: "ready",
+                    connectionState: "open",
+                    feedbackMessage: null
+                },
+                ui: {
+                    selectedSquare: null
+                }
+            }
+        });
+
+        const items = screen.getAllByRole("listitem");
+
+        expect(items).toHaveLength(2);
+        expect(items[1]).toHaveAttribute("value", "2");
+        expect(within(items[1]).getByText("e3-f3")).toBeInTheDocument();
+        expect(within(items[1]).queryByText("e4-e3")).toBeNull();
     });
 
     test("renders a manual free play ending as plain game over", () => {
