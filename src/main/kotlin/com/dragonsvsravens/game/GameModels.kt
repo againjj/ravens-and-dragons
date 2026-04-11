@@ -1,5 +1,6 @@
 package com.dragonsvsravens.game
 
+import com.dragonsvsravens.auth.AuthUserSummary
 import java.time.Instant
 
 enum class Piece {
@@ -76,7 +77,10 @@ data class GameSession(
     val availableRuleConfigurations: List<RuleConfigurationSummary>,
     val selectedRuleConfigurationId: String,
     val selectedStartingSide: Side,
-    val selectedBoardSize: Int
+    val selectedBoardSize: Int,
+    val dragonsPlayerUserId: String? = null,
+    val ravensPlayerUserId: String? = null,
+    val createdByUserId: String? = null
 )
 
 data class CreateGameRequest(
@@ -102,6 +106,30 @@ data class GameCommandRequest(
 
 data class ErrorResponse(
     val message: String
+)
+
+enum class ViewerRole {
+    anonymous,
+    spectator,
+    dragons,
+    ravens
+}
+
+data class GamePlayerSummary(
+    val id: String,
+    val displayName: String
+)
+
+data class ClaimSideRequest(
+    val side: Side
+)
+
+data class GameViewResponse(
+    val game: GameSession,
+    val currentUser: AuthUserSummary?,
+    val dragonsPlayer: GamePlayerSummary?,
+    val ravensPlayer: GamePlayerSummary?,
+    val viewerRole: ViewerRole
 )
 
 class InvalidCommandException(message: String) : RuntimeException(message)

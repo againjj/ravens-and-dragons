@@ -4,12 +4,16 @@
 
 This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a browser-based board game prototype. The backend supports multiple persisted game sessions, addressed by game id, and broadcasts updates over server-sent events per game. The frontend now opens on a lobby screen, creates or opens games by id, and then talks to the per-game backend API for the active session.
 
+The backend now also includes session-cookie authentication for guest and local users, optional OAuth login wiring, persisted seat ownership on games, and request-scoped game-view metadata that the frontend can consume in a later auth UI milestone.
+
 ## Current Architecture
 
 - `src/main/kotlin/com/dragonsvsravens/DragonsVsRavensApplication.kt`
   - Spring Boot entrypoint.
 - `src/main/kotlin/com/dragonsvsravens/game/*.kt`
   - Server-side game state models, pure-ish rules, the JDBC-backed game store, the session service, and REST/SSE endpoints.
+- `src/main/kotlin/com/dragonsvsravens/auth/*.kt`
+  - Session auth models, JDBC-backed user persistence, guest and local login flows, optional OAuth login integration, and session cleanup hooks for temporary guest users.
 - `src/main/resources/db/migration/*.sql`
   - Flyway migrations for the persistent game schema.
 - `src/main/frontend/index.html`
@@ -66,8 +70,14 @@ This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a brows
   - The browser lobby lives at `/`.
   - The browser treats `/g/{gameId}` as the canonical active-game URL.
   - Loading `/g/{gameId}` directly opens that game in the browser.
+  - Session inspection uses `GET /api/auth/session`.
+  - Guest login uses `POST /api/auth/guest`.
+  - Local signup and login use `POST /api/auth/signup` and `POST /api/auth/login`.
+  - Local and guest logout use `POST /api/auth/logout`.
   - Creating a game uses `POST /api/games`.
   - Opening a game by id uses `GET /api/games/{gameId}`.
+  - Seat claiming uses `POST /api/games/{gameId}/claim-side`.
+  - A request-scoped auth-aware game view is available at `GET /api/games/{gameId}/view`.
   - The active game screen sends mutations to `POST /api/games/{gameId}/commands`.
   - The active game screen subscribes to `GET /api/games/{gameId}/stream` for live updates.
   - Games are stored in the configured database and are automatically evicted when they have not been accessed for more than one hour and no SSE viewers are connected.
@@ -110,6 +120,16 @@ The canonical board is represented on the server as `Map<String, Piece>` and on 
 - `selectedRuleConfigurationId`
 - `selectedStartingSide`
 - `selectedBoardSize`
+- `dragonsPlayerUserId`
+- `ravensPlayerUserId`
+- `createdByUserId`
+
+The backend also now exposes auth-oriented DTOs outside the canonical session payload:
+
+- `AuthSessionResponse`
+- `GameViewResponse`
+- `viewerRole`
+- player summaries for the claimed dragons and ravens seats
 
 Important implication: game state is now persisted in the configured database, so clients can reopen the same game after server restart. SSE subscriptions and live fanout remain in memory per app instance, so persistence does not by itself add cross-instance push delivery.
 
@@ -128,8 +148,20 @@ The Kotlin game module is now the source of truth for game rules and state trans
 - Serializes snapshots and undo history into the `games` table.
 - Broadcasts updated snapshots to SSE clients scoped by game id.
 - Tracks last access time server-side for stale-game eviction.
+- Persists which local user, if any, currently owns each side.
+- Enforces that only the authenticated player on the active side may submit commands on the web API path.
 
 Most gameplay changes should start on the backend here.
+
+### Backend auth module
+
+The auth module now owns identity and session concerns without moving canonical game rules out of the game module.
+
+- Creates persisted guest and local users.
+- Supports session-cookie sign-in and sign-out.
+- Wires optional OAuth login so configured providers can resolve to the same local user model.
+- Stores only request-scoped viewer identity in auth/session DTOs instead of persisting viewer role on the game session.
+- Deletes session-only guest users on logout or session destruction and releases any seats they held without ending the game.
 
 ### React frontend
 
@@ -218,6 +250,10 @@ Most UI-only changes should start in the relevant component, selector, or browse
 
 - Clients connected to the same game id see the same server-owned game session.
 - The backend can create additional persisted games with generated ids.
+- Reads and SSE remain public.
+- Command submission and seat claiming now require an authenticated session.
+- Authenticated users may claim one open side on a game; unclaimed viewers remain spectators.
+- If a guest session ends, that guest user is deleted and any seats they held become unclaimed while the game itself stays active and viewable.
 - Generated game ids now use 7 characters from the Open Location Code ("PLUS code") alphabet `23456789CFGHJMPQRVWX`, which is the shortest fixed width that still covers more than 1,000,000,000 possible games.
 - Mutation requests include an expected version.
 - On a version conflict, the server returns `409` with the latest snapshot for that game only.

@@ -108,6 +108,36 @@ class JdbcGameStoreTest {
     }
 
     @Test
+    fun `clear user references releases seats and creator references`() {
+        val storedGame = GameSessionFactory.createStoredGame(
+            gameId = "owned-game",
+            snapshot = freePlaySnapshot(),
+            undoSnapshots = emptyList(),
+            version = 0,
+            createdAt = createdAt,
+            updatedAt = createdAt,
+            lastAccessedAt = createdAt,
+            lifecycle = GameLifecycle.new,
+            selectedRuleConfigurationId = GameRules.freePlayRuleConfigurationId,
+            selectedStartingSide = Side.dragons,
+            selectedBoardSize = GameRules.defaultBoardSize,
+            dragonsPlayerUserId = "guest-user",
+            ravensPlayerUserId = "guest-user",
+            createdByUserId = "guest-user"
+        )
+        assertTrue(gameStore.putIfAbsent(storedGame))
+
+        val updatedGames = gameStore.clearUserReferences("guest-user")
+        val reloaded = gameStore.get("owned-game")
+
+        assertEquals(1, updatedGames.size)
+        assertNotNull(reloaded)
+        assertNull(reloaded!!.session.dragonsPlayerUserId)
+        assertNull(reloaded.session.ravensPlayerUserId)
+        assertNull(reloaded.session.createdByUserId)
+    }
+
+    @Test
     fun `persisted game can be reopened through a fresh service instance`() {
         val clock = Clock.fixed(Instant.parse("2026-04-08T12:00:00Z"), ZoneOffset.UTC)
         val firstService = GameSessionService(gameStore, clock)

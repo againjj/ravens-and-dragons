@@ -21,6 +21,8 @@ interface GameStore {
     fun entries(): List<StoredGame>
 
     fun remove(gameId: String): Boolean
+
+    fun clearUserReferences(userId: String): List<StoredGame>
 }
 
 class InMemoryGameStore : GameStore {
@@ -45,6 +47,25 @@ class InMemoryGameStore : GameStore {
     override fun entries(): List<StoredGame> = games.values.toList()
 
     override fun remove(gameId: String): Boolean = games.remove(gameId) != null
+
+    override fun clearUserReferences(userId: String): List<StoredGame> {
+        val updatedGames = mutableListOf<StoredGame>()
+        games.forEach { (gameId, storedGame) ->
+            val session = storedGame.session
+            if (session.dragonsPlayerUserId == userId || session.ravensPlayerUserId == userId || session.createdByUserId == userId) {
+                val updated = storedGame.copy(
+                    session = session.copy(
+                        dragonsPlayerUserId = session.dragonsPlayerUserId.takeUnless { it == userId },
+                        ravensPlayerUserId = session.ravensPlayerUserId.takeUnless { it == userId },
+                        createdByUserId = session.createdByUserId.takeUnless { it == userId }
+                    )
+                )
+                games[gameId] = updated
+                updatedGames += updated
+            }
+        }
+        return updatedGames
+    }
 
     fun clear() {
         games.clear()

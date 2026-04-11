@@ -1,5 +1,6 @@
 package com.dragonsvsravens.game
 
+import com.dragonsvsravens.auth.ForbiddenActionException
 import org.springframework.stereotype.Service
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.time.Clock
@@ -20,7 +21,7 @@ class GameSessionService(
     private val emittersByGame = ConcurrentHashMap<String, CopyOnWriteArrayList<SseEmitter>>()
     private val gameLocks = ConcurrentHashMap<String, Any>()
 
-    fun createGame(request: CreateGameRequest = CreateGameRequest()): GameSession {
+    fun createGame(request: CreateGameRequest = CreateGameRequest(), createdByUserId: String? = null): GameSession {
         val selectedRuleConfigurationId = request.ruleConfigurationId ?: GameRules.freePlayRuleConfigurationId
         GameRules.getRuleConfigurationSummary(selectedRuleConfigurationId)
         val selectedStartingSide = request.startingSide ?: Side.dragons
@@ -34,6 +35,7 @@ class GameSessionService(
                 selectedRuleConfigurationId = selectedRuleConfigurationId,
                 selectedStartingSide = selectedStartingSide,
                 selectedBoardSize = selectedBoardSize,
+                createdByUserId = createdByUserId,
                 now = Instant.now(clock)
             )
             if (gameStore.putIfAbsent(game)) {
@@ -48,8 +50,20 @@ class GameSessionService(
         current.session
     }
 
-    fun applyCommand(gameId: String, command: GameCommandRequest): GameSession = withGameLock(gameId) {
+    fun claimSide(gameId: String, side: Side, userId: String): GameSession = withGameLock(gameId) {
         val current = getStoredGame(gameId)
+        val nextState = current.claimSide(side, userId)
+        gameStore.put(nextState)
+        broadcast(gameId, nextState.session)
+        nextState.session
+    }
+
+    fun applyCommand(gameId: String, command: GameCommandRequest): GameSession =
+        applyCommand(gameId, command, null)
+
+    fun applyCommand(gameId: String, command: GameCommandRequest, actingUserId: String?): GameSession = withGameLock(gameId) {
+        val current = getStoredGame(gameId)
+        actingUserId?.let { requireAuthorizedPlayer(current, it, command.type) }
         if (command.expectedVersion != current.session.version) {
             throw VersionConflictException(current.session)
         }
@@ -136,6 +150,12 @@ class GameSessionService(
         nextState.session
     }
 
+    fun clearUserReferences(userId: String) {
+        gameStore.clearUserReferences(userId).forEach { updatedGame ->
+            broadcast(updatedGame.session.id, updatedGame.session)
+        }
+    }
+
     fun createEmitter(gameId: String): SseEmitter = createEmitter(gameId, SseEmitter(0L))
 
     internal fun createEmitter(gameId: String, emitter: SseEmitter): SseEmitter {
@@ -209,7 +229,10 @@ class GameSessionService(
         lifecycle: GameLifecycle = this.session.lifecycle,
         selectedRuleConfigurationId: String = this.session.selectedRuleConfigurationId,
         selectedStartingSide: Side = this.session.selectedStartingSide,
-        selectedBoardSize: Int = this.session.selectedBoardSize
+        selectedBoardSize: Int = this.session.selectedBoardSize,
+        dragonsPlayerUserId: String? = this.session.dragonsPlayerUserId,
+        ravensPlayerUserId: String? = this.session.ravensPlayerUserId,
+        createdByUserId: String? = this.session.createdByUserId
     ): StoredGame = GameSessionFactory.createStoredGame(
         gameId = session.id,
         snapshot = snapshot,
@@ -220,7 +243,10 @@ class GameSessionService(
         lifecycle = resolveLifecycle(snapshot, lifecycle),
         selectedRuleConfigurationId = selectedRuleConfigurationId,
         selectedStartingSide = selectedStartingSide,
-        selectedBoardSize = selectedBoardSize
+        selectedBoardSize = selectedBoardSize,
+        dragonsPlayerUserId = dragonsPlayerUserId,
+        ravensPlayerUserId = ravensPlayerUserId,
+        createdByUserId = createdByUserId
     )
 
     private fun touchGame(gameId: String, accessedAt: Instant = Instant.now(clock)) {
@@ -282,6 +308,29 @@ class GameSessionService(
     private fun validateLifecycle(current: StoredGame) {
         if (current.session.lifecycle == GameLifecycle.finished) {
             throw InvalidCommandException("Game ${current.session.id} is finished. Create a new game to play again.")
+        }
+    }
+
+    private fun requireAuthorizedPlayer(current: StoredGame, actingUserId: String, commandType: String) {
+        val dragonsPlayerUserId = current.session.dragonsPlayerUserId
+        val ravensPlayerUserId = current.session.ravensPlayerUserId
+        val assignedSide =
+            when {
+                dragonsPlayerUserId == actingUserId && ravensPlayerUserId == actingUserId -> current.session.snapshot.activeSide
+                dragonsPlayerUserId == actingUserId -> Side.dragons
+                ravensPlayerUserId == actingUserId -> Side.ravens
+                else -> null
+            } ?: throw ForbiddenActionException("You must claim a side before submitting commands.")
+
+        val phase = current.session.snapshot.phase
+        if (phase == Phase.none) {
+            return
+        }
+        if (assignedSide != current.session.snapshot.activeSide) {
+            throw ForbiddenActionException("It is not your turn.")
+        }
+        if (commandType == "undo" || commandType == "end-game") {
+            return
         }
     }
 
@@ -385,6 +434,33 @@ class GameSessionService(
             } else {
                 GameLifecycle.active
             }
+        )
+    }
+
+    private fun StoredGame.claimSide(side: Side, userId: String): StoredGame {
+        val session = session
+        val currentHolder = when (side) {
+            Side.dragons -> session.dragonsPlayerUserId
+            Side.ravens -> session.ravensPlayerUserId
+        }
+        if (currentHolder == userId) {
+            return this
+        }
+        if (currentHolder != null) {
+            throw ForbiddenActionException("${side.name.replaceFirstChar(Char::titlecase)} is already claimed.")
+        }
+        val oppositeHolder = when (side) {
+            Side.dragons -> session.ravensPlayerUserId
+            Side.ravens -> session.dragonsPlayerUserId
+        }
+        if (oppositeHolder == userId) {
+            throw ForbiddenActionException("One user cannot claim both sides.")
+        }
+        return next(
+            snapshot = session.snapshot,
+            undoSnapshots = undoSnapshots,
+            dragonsPlayerUserId = if (side == Side.dragons) userId else session.dragonsPlayerUserId,
+            ravensPlayerUserId = if (side == Side.ravens) userId else session.ravensPlayerUserId
         )
     }
 }

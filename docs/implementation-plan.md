@@ -192,18 +192,37 @@ This order fits the current codebase because the app is still modeled as a share
 24. Add a user domain model.
     - Goal: establish identity before authorization rules.
     - Add user entity, repository, and basic service.
-    - Keep fields minimal at first: id, username or email, password hash, createdAt.
+    - Support multiple authentication modes behind one local user model:
+      - session-only guest users
+      - local username or email plus password users
+      - OAuth-backed users linked to an external provider identity
+    - Keep fields minimal at first on the core user record:
+      - `id`
+      - `displayName`
+      - optional `username` or `email`
+      - optional `passwordHash`
+      - `authType`
+      - `createdAt`
+    - If OAuth support is added in the same milestone, prefer a small companion identity-link table instead of overloading the main user record with provider-specific columns.
+    - Guest users should be persisted only for the lifetime of their authenticated server session and deleted when that session ends.
 
 25. Add Spring Security.
     - Goal: support authenticated sessions.
     - Update `build.gradle.kts` with security dependencies.
     - Add backend security configuration.
     - Recommended first pass: session-cookie auth, not JWT.
+    - Keep reads and SSE public in Milestone E so unauthenticated users may still watch games.
+    - Protect seat-claiming and command-mutation routes behind authentication.
+    - Add the session-lifecycle hooks needed to detect guest-session destruction so temporary guest users can be cleaned up automatically.
 
 26. Add signup, login, and logout endpoints.
     - Goal: make auth usable end to end.
     - Add controller classes for auth flows.
-    - Decide whether to support self-signup or seeded test users first.
+    - Support self-signup and session login for local accounts.
+    - Add a guest-login entry point, for example `POST /api/auth/guest`, that creates a temporary guest user and authenticates that session immediately.
+    - Add a current-session endpoint so the client can discover whether a viewer is anonymous, a guest, or a signed-in user.
+    - Add OAuth login initiation and callback handling through Spring Security for at least one provider, while still resolving the result to the same local session-cookie model used by local and guest auth.
+    - Keep the frontend-facing auth shape consistent across guest, local, and OAuth logins.
 
 27. Persist player-seat assignments on games.
     - Goal: connect users to sides.
@@ -212,16 +231,24 @@ This order fits the current codebase because the app is still modeled as a share
       - `ravens_user_id`
       - optional `created_by_user_id`
     - Update game models, repository, and store accordingly.
+    - Keep all seat references nullable so a side may become unclaimed later.
+    - If a guest user is deleted on session expiry, release any seats they held instead of deleting or ending the game.
+    - If `created_by_user_id` is stored for guests, clear or null it safely during guest cleanup rather than preserving a dangling reference.
 
 28. Add seat-claiming or invitation flow.
     - Goal: let a user join a side.
     - Recommended first pass:
       - creator makes a game
-      - either side can be claimed if empty
+      - either side can be claimed explicitly if empty
       - unclaimed users are spectators
+      - claiming a side does not happen automatically on first move
     - Add endpoints such as:
       - `POST /api/games/{gameId}/join`
       - or `POST /api/games/{gameId}/claim-side`
+    - Prefer a dedicated `claim-side` route over invitation machinery in Milestone E.
+    - Treat claiming a side you already own as an idempotent success if that simplifies retries.
+    - Do not allow one user to hold both sides at once unless product requirements change later.
+    - Consider adding a small `release-side` route if it simplifies testing or guest-session cleanup, but the key requirement is that cleanup can release abandoned seats automatically.
 
 29. Enforce authorization on commands.
     - Goal: only the correct logged-in player can act.
@@ -229,7 +256,9 @@ This order fits the current codebase because the app is still modeled as a share
       - authenticated user is assigned to the active side
       - spectators cannot mutate
       - wrong-side users cannot mutate
-    - Reads and SSE can remain public or authenticated depending on product choice.
+    - Keep this enforcement in the backend game/service layer rather than in React components or controllers alone.
+    - Reads and SSE remain public for this milestone.
+    - If a guest session expires while the game remains open in another tab or browser, later mutation attempts should fail cleanly until that viewer authenticates again.
 
 30. Expose viewer identity and game seat info to the client.
     - Goal: frontend can render correct affordances.
@@ -238,6 +267,9 @@ This order fits the current codebase because the app is still modeled as a share
       - dragons player
       - ravens player
       - viewer role for this game
+    - Keep a clear separation between persisted canonical game state and request-scoped viewer metadata.
+    - Prefer computing `viewerRole` from the authenticated request context rather than persisting it on the game session itself.
+    - Make the response shape rich enough for Milestone F to distinguish anonymous viewers, guests, spectators, and the currently assigned player for each side.
 
 31. Add login UI and auth state handling.
     - Goal: users can actually sign in and know who they are.
@@ -263,6 +295,34 @@ This order fits the current codebase because the app is still modeled as a share
     - Goal: make the multiplayer model clear.
     - Update `README.md` and `docs/code-summary.md`.
 
+### Epic 5: Local Account Deletion
+
+35. Add a self-service local account deletion flow.
+    - Goal: let a password-based user remove their own account intentionally.
+    - Keep this separate from guest-session cleanup so Milestone E stays focused on login and seat assignment.
+    - Add an authenticated account-deletion endpoint for the current user.
+    - Scope the first pass to local password accounts only; do not require guest or OAuth deletion flows in the same milestone.
+
+36. Require explicit identity confirmation before deleting a local account.
+    - Goal: prevent accidental or unauthorized deletion.
+    - Require the logged-in local user to confirm their password again before deletion succeeds.
+    - Treat account deletion as an explicit user action, not something tied to session expiry.
+    - Admin-triggered deletion may be added later, but it is out of scope for this milestone unless product requirements change.
+
+37. Release seats and preserve games when a local user is deleted.
+    - Goal: remove the user without damaging active games.
+    - On deletion:
+      - release any claimed seats held by that user
+      - clear nullable ownership references such as `created_by_user_id` if present
+      - keep every game intact and readable
+      - end the deleted user's authenticated session
+    - Perform the cleanup in one transaction so seat release and user deletion cannot drift apart.
+    - Add backend tests covering:
+      - successful deletion with password confirmation
+      - deletion releasing claimed seats
+      - games remaining active after user deletion
+      - rejected deletion when the password confirmation is wrong
+
 ## Milestone Cuts
 
 - Milestone A: tickets 1-5
@@ -286,8 +346,14 @@ This order fits the current codebase because the app is still modeled as a share
   - SSE emitter tracking remains in memory per app instance, while game state persists across restarts and reconnects.
 - Milestone E: tickets 24-30
   - Auth and backend player ownership.
+  - Includes session-cookie auth for guest, local, and OAuth login flows.
+  - Guest accounts are intentionally session-scoped: when the session ends, the guest user is deleted and any seats they held are released without ending the game.
+  - Seat claiming stays explicit and server-enforced, while reads and SSE remain public.
 - Milestone F: tickets 31-34
   - Auth-complete user experience.
+- Milestone G: tickets 35-37
+  - Self-service deletion for local password accounts.
+  - Deleting a local user releases their seats and clears nullable ownership references without deleting or ending games.
 
 ## Milestone B Implementation Summary
 
