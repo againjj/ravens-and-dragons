@@ -3,23 +3,33 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { App } from "../../main/frontend/App.js";
-import { createSession } from "./fixtures.js";
+import { createGameView, createSession } from "./fixtures.js";
 import { renderWithStore } from "./test-utils.js";
 
 const {
     createGameSessionMock,
-    fetchGameSessionMock,
+    fetchAuthSessionMock,
+    fetchGameViewMock,
+    loginAsGuestMock,
     sendGameCommandRequestMock
 } = vi.hoisted(() => ({
     createGameSessionMock: vi.fn(),
-    fetchGameSessionMock: vi.fn(),
+    fetchAuthSessionMock: vi.fn(),
+    fetchGameViewMock: vi.fn(),
+    loginAsGuestMock: vi.fn(),
     sendGameCommandRequestMock: vi.fn()
 }));
 
 vi.mock("../../main/frontend/game-client.js", () => ({
     createGameSession: createGameSessionMock,
-    fetchGameSession: fetchGameSessionMock,
+    fetchAuthSession: fetchAuthSessionMock,
+    fetchGameView: fetchGameViewMock,
+    getOAuthLoginUrl: (provider: string) => `/oauth2/authorization/${provider}`,
+    loginAsGuest: loginAsGuestMock,
+    loginRequest: vi.fn(),
+    logoutRequest: vi.fn(),
     sendGameCommandRequest: sendGameCommandRequestMock,
+    signupRequest: vi.fn(),
     openGameStream: vi.fn(),
     isSameServerGame: vi.fn()
 }));
@@ -41,8 +51,22 @@ vi.mock("../../main/frontend/hooks/useFullscreen.js", () => ({
 describe("App routing", () => {
     beforeEach(() => {
         createGameSessionMock.mockReset();
-        fetchGameSessionMock.mockReset();
+        fetchAuthSessionMock.mockReset();
+        fetchGameViewMock.mockReset();
+        loginAsGuestMock.mockReset();
         sendGameCommandRequestMock.mockReset();
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: false,
+            user: null
+        });
+        loginAsGuestMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "guest-1",
+                displayName: "Guest 1",
+                authType: "guest"
+            }
+        });
         window.history.pushState({}, "", "/");
     });
 
@@ -50,85 +74,170 @@ describe("App routing", () => {
         window.history.pushState({}, "", "/");
     });
 
-    test("loading a /g/XXXXXXX URL opens that game", async () => {
-        fetchGameSessionMock.mockResolvedValue(createSession({ id: "CFGHJMP" }));
+    test("unauthenticated users loading a game route are redirected to /login and then back after login", async () => {
+        const user = userEvent.setup();
+        const pushStateSpy = vi.spyOn(window.history, "pushState");
+        fetchGameViewMock.mockResolvedValue(createGameView({ id: "CFGHJMP" }));
         window.history.pushState({}, "", "/g/CFGHJMP");
 
         renderWithStore(<App />);
 
-        await screen.findByText("Game ID: CFGHJMP");
-        expect(fetchGameSessionMock).toHaveBeenCalledWith("CFGHJMP");
+        await screen.findByRole("button", { name: "Continue as Guest" });
+        expect(window.location.pathname).toBe("/login");
+        expect(new URLSearchParams(window.location.search).get("next")).toBe("/g/CFGHJMP");
+
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "player-dragons",
+                displayName: "Dragon Player",
+                authType: "local"
+            }
+        });
+
+        await user.click(screen.getByRole("button", { name: "Continue as Guest" }));
+        expect(fetchGameViewMock).toHaveBeenCalledWith("CFGHJMP");
         expect(window.location.pathname).toBe("/g/CFGHJMP");
+        expect(pushStateSpy).toHaveBeenCalledWith({}, "", "/g/CFGHJMP");
+        pushStateSpy.mockRestore();
     });
 
-    test("opening a game from the lobby updates the URL", async () => {
-        const user = userEvent.setup();
-        fetchGameSessionMock.mockResolvedValue(createSession({ id: "QRVWXC2" }));
+    test("logged in users loading / are redirected to /lobby", async () => {
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "player-dragons",
+                displayName: "Dragon Player",
+                authType: "local"
+            }
+        });
 
         renderWithStore(<App />);
 
+        await screen.findByRole("heading", { name: "Game Lobby" });
+        expect(window.location.pathname).toBe("/lobby");
+    });
+
+    test("opening a game from /lobby updates the URL", async () => {
+        const user = userEvent.setup();
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "player-dragons",
+                displayName: "Dragon Player",
+                authType: "local"
+            }
+        });
+        fetchGameViewMock.mockResolvedValue(createGameView({ id: "QRVWXC2" }));
+        window.history.pushState({}, "", "/lobby");
+
+        renderWithStore(<App />);
+
+        await screen.findByRole("heading", { name: "Game Lobby" });
         await user.type(screen.getByLabelText("Game ID"), "QRVWXC2");
         await user.click(screen.getByRole("button", { name: "Open Game" }));
 
-        await screen.findByText("Game ID: QRVWXC2");
+        await screen.findByRole("heading", { name: "Game QRVWXC2" });
         expect(window.location.pathname).toBe("/g/QRVWXC2");
     });
 
-    test("back to lobby returns the app to the root URL", async () => {
+    test("back to lobby returns the app to /lobby", async () => {
         const user = userEvent.setup();
-        fetchGameSessionMock.mockResolvedValue(createSession({ id: "MPQRVWX" }));
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "player-dragons",
+                displayName: "Dragon Player",
+                authType: "local"
+            }
+        });
+        fetchGameViewMock.mockResolvedValue(createGameView({ id: "MPQRVWX" }));
         window.history.pushState({}, "", "/g/MPQRVWX");
 
         renderWithStore(<App />);
 
-        await screen.findByText("Game ID: MPQRVWX");
+        await screen.findByRole("heading", { name: "Game MPQRVWX" });
         await user.click(screen.getByRole("button", { name: "Back to Lobby" }));
 
         await waitFor(() => {
-            expect(window.location.pathname).toBe("/");
+            expect(window.location.pathname).toBe("/lobby");
         });
         expect(screen.getByRole("heading", { name: "Game Lobby" })).toBeInTheDocument();
     });
 
-    test("leaving a directly loaded game does not trap browser back inside the app", async () => {
-        const user = userEvent.setup();
-        const pushStateSpy = vi.spyOn(History.prototype, "pushState");
-        const replaceStateSpy = vi.spyOn(History.prototype, "replaceState");
-        fetchGameSessionMock.mockResolvedValue(createSession({ id: "MPQRVWX" }));
-        window.history.pushState({}, "", "/g/MPQRVWX");
+    test("loading /lobby while signed out redirects to /login with a return target", async () => {
+        window.history.pushState({}, "", "/lobby");
 
         renderWithStore(<App />);
 
-        await screen.findByText("Game ID: MPQRVWX");
-        pushStateSpy.mockClear();
-        replaceStateSpy.mockClear();
-
-        await user.click(screen.getByRole("button", { name: "Back to Lobby" }));
-
-        await waitFor(() => {
-            expect(window.location.pathname).toBe("/");
-        });
-        expect(replaceStateSpy).toHaveBeenCalledWith({}, "", "/");
-        expect(pushStateSpy).not.toHaveBeenCalled();
+        await screen.findByRole("button", { name: "Continue as Guest" });
+        expect(window.location.pathname).toBe("/login");
+        expect(new URLSearchParams(window.location.search).get("next")).toBe("/lobby");
     });
 
-    test("browser back from a lobby-opened game returns to the lobby", async () => {
+    test("browser back from a lobby-opened game returns to /lobby", async () => {
         const user = userEvent.setup();
-        fetchGameSessionMock.mockResolvedValue(createSession({ id: "QRVWXC2" }));
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "player-dragons",
+                displayName: "Dragon Player",
+                authType: "local"
+            }
+        });
+        fetchGameViewMock.mockResolvedValue(createGameView({ id: "QRVWXC2" }));
+        window.history.pushState({}, "", "/lobby");
 
         renderWithStore(<App />);
 
+        await screen.findByRole("heading", { name: "Game Lobby" });
         await user.type(screen.getByLabelText("Game ID"), "QRVWXC2");
         await user.click(screen.getByRole("button", { name: "Open Game" }));
 
-        await screen.findByText("Game ID: QRVWXC2");
+        await screen.findByRole("heading", { name: "Game QRVWXC2" });
 
         window.history.back();
         window.dispatchEvent(new PopStateEvent("popstate"));
 
         await waitFor(() => {
-            expect(window.location.pathname).toBe("/");
+            expect(window.location.pathname).toBe("/lobby");
         });
         expect(screen.getByRole("heading", { name: "Game Lobby" })).toBeInTheDocument();
+    });
+
+    test("browser forward after returning to the lobby reopens the game route", async () => {
+        const user = userEvent.setup();
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "player-dragons",
+                displayName: "Dragon Player",
+                authType: "local"
+            }
+        });
+        fetchGameViewMock.mockResolvedValue(createGameView({ id: "QRVWXC2" }));
+        window.history.pushState({}, "", "/lobby");
+
+        renderWithStore(<App />);
+
+        await screen.findByRole("heading", { name: "Game Lobby" });
+        await user.type(screen.getByLabelText("Game ID"), "QRVWXC2");
+        await user.click(screen.getByRole("button", { name: "Open Game" }));
+        await screen.findByRole("heading", { name: "Game QRVWXC2" });
+
+        window.history.back();
+        window.dispatchEvent(new PopStateEvent("popstate"));
+
+        await waitFor(() => {
+            expect(window.location.pathname).toBe("/lobby");
+        });
+
+        window.history.forward();
+        window.dispatchEvent(new PopStateEvent("popstate"));
+
+        await waitFor(() => {
+            expect(window.location.pathname).toBe("/g/QRVWXC2");
+        });
+        expect(fetchGameViewMock).toHaveBeenLastCalledWith("QRVWXC2");
     });
 });

@@ -2,10 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+    claimGameSide,
     createGameSession,
+    fetchAuthSession,
+    fetchGameView,
     defaultCommandErrorMessage,
     fetchGameSession,
     isSameServerGame,
+    loginAsGuest,
     openGameStream,
     sendGameCommandRequest
 } from "../../../build/generated/frontend/game-client.js";
@@ -34,8 +38,13 @@ const createGame = (version = 1) => ({
     ],
     selectedRuleConfigurationId: "free-play",
     selectedStartingSide: "dragons",
+    selectedBoardSize: 7,
+    dragonsPlayerUserId: "player-dragons",
+    ravensPlayerUserId: "player-ravens",
     snapshot: {
         board: {},
+        boardSize: 7,
+        specialSquare: "d4",
         phase: "none",
         activeSide: "dragons",
         pendingMove: null,
@@ -43,6 +52,24 @@ const createGame = (version = 1) => ({
         ruleConfigurationId: "free-play",
         positionKeys: []
     }
+});
+
+const createGameView = (version = 1) => ({
+    game: createGame(version),
+    currentUser: {
+        id: "player-dragons",
+        displayName: "Dragon Player",
+        authType: "local"
+    },
+    dragonsPlayer: {
+        id: "player-dragons",
+        displayName: "Dragon Player"
+    },
+    ravensPlayer: {
+        id: "player-ravens",
+        displayName: "Raven Player"
+    },
+    viewerRole: "dragons"
 });
 
 test("createGameSession posts to the multi-game endpoint and returns the created game", async () => {
@@ -79,6 +106,58 @@ test("fetchGameSession returns the parsed game payload for a game id", async () 
 
     assert.deepEqual(result, game);
     assert.equal(calls[0], "/api/games/game-123");
+});
+
+test("fetchGameView returns auth-aware game metadata for a game id", async () => {
+    const gameView = createGameView(2);
+    const calls = [];
+
+    const result = await fetchGameView("game-123", async (url) => {
+        calls.push(url);
+        return {
+            ok: true,
+            json: async () => gameView
+        };
+    });
+
+    assert.deepEqual(result, gameView);
+    assert.equal(calls[0], "/api/games/game-123/view");
+});
+
+test("fetchAuthSession returns the current auth session", async () => {
+    const session = {
+        authenticated: true,
+        user: {
+            id: "guest-1",
+            displayName: "Guest 1",
+            authType: "guest"
+        }
+    };
+
+    const result = await fetchAuthSession(async () => ({
+        ok: true,
+        json: async () => session
+    }));
+
+    assert.deepEqual(result, session);
+});
+
+test("loginAsGuest returns an authenticated session shape", async () => {
+    const result = await loginAsGuest(async (_url, init) => ({
+        ok: true,
+        json: async () => ({
+            user: {
+                id: "guest-1",
+                displayName: "Guest 1",
+                authType: "guest"
+            }
+        }),
+        status: 200,
+        init
+    }));
+
+    assert.equal(result.authenticated, true);
+    assert.equal(result.user.id, "guest-1");
 });
 
 test("sendGameCommandRequest includes the expected version and returns the next game", async () => {
@@ -184,6 +263,25 @@ test("sendGameCommandRequest returns a fallback message for non-json failures", 
 
     assert.equal(result.game, undefined);
     assert.equal(result.errorMessage, defaultCommandErrorMessage);
+});
+
+test("claimGameSide posts the selected side to the claim endpoint", async () => {
+    let requestBody = null;
+    let requestUrl = null;
+
+    const result = await claimGameSide("game-77", { side: "dragons" }, async (url, init) => {
+        requestUrl = url;
+        requestBody = JSON.parse(init.body);
+        return {
+            ok: true,
+            status: 200,
+            json: async () => createGame(8)
+        };
+    });
+
+    assert.equal(requestUrl, "/api/games/game-77/claim-side");
+    assert.deepEqual(requestBody, { side: "dragons" });
+    assert.equal(result.data.version, 8);
 });
 
 test("isSameServerGame only matches identical version and updatedAt values", () => {

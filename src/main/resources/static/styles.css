@@ -116,24 +116,50 @@ h3 {
     align-items: stretch;
 }
 
-.lobby-screen {
+.game-page,
+.lobby-layout,
+.auth-layout {
     max-width: 980px;
     margin: 0 auto;
+    display: grid;
+    gap: 16px;
+    align-content: start;
+}
+
+.game-page {
+    max-width: none;
+}
+
+.auth-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    align-content: start;
+}
+
+.page-header-panel {
+    padding: 24px 28px;
+    background:
+        linear-gradient(135deg, rgba(255, 250, 242, 0.96), rgba(244, 228, 202, 0.9)),
+        var(--panel-strong);
+}
+
+.page-header-copy {
+    display: grid;
+    gap: 10px;
+}
+
+.page-header-copy p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.auth-panel {
     padding: 30px;
     display: grid;
     gap: 22px;
     align-content: start;
-}
-
-.lobby-copy {
-    display: grid;
-    gap: 8px;
-}
-
-.lobby-copy p {
-    margin: 0;
-    color: var(--muted);
-    line-height: 1.5;
 }
 
 .lobby-grid {
@@ -177,12 +203,40 @@ h3 {
     font-weight: 600;
 }
 
+.auth-guidance {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.4;
+}
+
 .panel {
     background: var(--panel);
     border: 1px solid rgba(58, 46, 32, 0.12);
     border-radius: 22px;
-    box-shadow: var(--shadow);
     backdrop-filter: blur(8px);
+}
+
+.modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(42, 28, 18, 0.32);
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    z-index: 20;
+}
+
+.modal-dialog {
+    width: min(100%, 420px);
+    padding: 24px;
+    display: grid;
+    gap: 18px;
+}
+
+.modal-dialog p {
+    margin: 0;
+    color: var(--muted);
+    line-height: 1.5;
 }
 
 .board-panel {
@@ -199,7 +253,6 @@ h3 {
     min-height: 1.5em;
     margin: 0;
     color: var(--muted);
-    font-weight: 600;
     line-height: 1.3;
 }
 
@@ -394,6 +447,10 @@ h3 {
     display: flex;
     flex-wrap: wrap;
     gap: 12px;
+}
+
+.legend .controls {
+    margin-top: 8px;
 }
 
 .controls-sidebar {
@@ -685,7 +742,8 @@ button:disabled {
         grid-template-rows: auto auto auto;
     }
 
-    .lobby-grid {
+    .lobby-grid,
+    .auth-grid {
         grid-template-columns: 1fr;
     }
 
@@ -735,7 +793,11 @@ button:disabled {
         justify-content: space-between;
     }
 
-    .lobby-screen {
+    .auth-panel {
+        padding: 20px;
+    }
+
+    .page-header-panel {
         padding: 20px;
     }
 

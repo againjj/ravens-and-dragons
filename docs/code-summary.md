@@ -4,7 +4,7 @@
 
 This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a browser-based board game prototype. The backend supports multiple persisted game sessions, addressed by game id, and broadcasts updates over server-sent events per game. The frontend now opens on a lobby screen, creates or opens games by id, and then talks to the per-game backend API for the active session.
 
-The backend now also includes session-cookie authentication for guest and local users, optional OAuth login wiring, persisted seat ownership on games, and request-scoped game-view metadata that the frontend can consume in a later auth UI milestone.
+The backend now also includes session-cookie authentication for guest and local users, optional OAuth login wiring, persisted seat ownership on games, and request-scoped game-view metadata. The frontend now consumes that auth-aware view data, surfaces guest/local auth controls, and gates gameplay actions by claimed side and active turn.
 
 ## Current Architecture
 
@@ -33,11 +33,13 @@ The backend now also includes session-cookie authentication for guest and local 
   - Redux store setup and typed hooks.
 - `src/main/frontend/features/game/*.ts`
   - Game slice, selectors, thunks, and stream lifecycle wiring.
-  - Includes current-game and current-view state, exact undo availability, and small command-thunk wrappers.
+  - Includes current-game and current-view state, auth-aware game metadata, exact undo availability, and command/claim-side thunks.
+- `src/main/frontend/features/auth/*.ts`
+  - Auth session slice, selectors, and guest/local auth thunks.
 - `src/main/frontend/features/ui/*.ts`
   - Local-only UI state such as selected square.
 - `src/main/frontend/components/*.tsx`
-  - React components for the lobby screen, board rendering, controls, move list, and status text.
+  - React components for the lobby screen, auth panel, seat display, board rendering, controls, move list, and status text.
 - `src/main/frontend/hooks/*.ts`
   - Browser hooks for responsive sizing, fullscreen behavior, and URL-to-game routing.
 - `src/test/frontend/game.test.js`
@@ -168,9 +170,10 @@ The auth module now owns identity and session concerns without moving canonical 
 The React frontend is now split by responsibility.
 
 - `App.tsx` composes the page shell and top-level sections.
-- Redux owns shared client state such as the latest server session, loading/submission state, connection state, feedback messages, and local selection.
+- Redux owns shared client state such as the latest server session, auth session, loading/submission state, connection state, feedback messages, and local selection.
 - Redux also owns the current browser view (`lobby` or `game`) plus the current game id.
-- `gameThunks.ts` coordinates lobby create/open actions plus command submission against the backend API.
+- `gameThunks.ts` coordinates lobby create/open actions, game-view refreshes, seat claiming, and command submission against the backend API.
+- `authThunks.ts` coordinates current-session loading plus guest/local login and logout flows.
 - `gameStream.ts` plus `useGameSession.ts` open and maintain the SSE subscription only for the active game screen.
 - `useGameRoute.ts` maps browser URLs to lobby or game state and keeps the address bar in sync with the active game id.
 - `Board.tsx`, `ControlsPanel.tsx`, `MoveList.tsx`, and `StatusBanner.tsx` render the current UI from Redux state.
@@ -185,6 +188,7 @@ Most UI-only changes should start in the relevant component, selector, or browse
 
 - The browser initially loads into a lobby screen.
 - The lobby can create a new persisted game or open an existing game by id.
+- The page shell now also shows auth controls for guest access, local signup/login, logout, and an OAuth sign-in link for supported deployments.
 - The lobby presents separate create and rejoin cards, uppercases typed game ids locally, and keeps `Open Game` disabled until an id is present.
 - Once a game is created or opened, the browser enters that game's board screen and updates the URL to `/g/{gameId}`.
 - Loading `/g/{gameId}` directly also enters that game's board screen.
@@ -253,6 +257,7 @@ Most UI-only changes should start in the relevant component, selector, or browse
 - Reads and SSE remain public.
 - Command submission and seat claiming now require an authenticated session.
 - Authenticated users may claim one open side on a game; unclaimed viewers remain spectators.
+- The game screen now shows current seat ownership and disables gameplay controls when the viewer is anonymous, spectating, or on the wrong side for the active turn.
 - If a guest session ends, that guest user is deleted and any seats they held become unclaimed while the game itself stays active and viewable.
 - Generated game ids now use 7 characters from the Open Location Code ("PLUS code") alphabet `23456789CFGHJMPQRVWX`, which is the shortest fixed width that still covers more than 1,000,000,000 possible games.
 - Mutation requests include an expected version.

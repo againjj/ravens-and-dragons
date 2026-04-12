@@ -1,14 +1,16 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { useAppDispatch, useAppSelector } from "../app/hooks.js";
-import { selectCurrentGameId, selectGameView } from "../features/game/gameSelectors.js";
+import { selectAuthLoadState, selectIsAuthenticated } from "../features/auth/authSelectors.js";
+import { selectGameView } from "../features/game/gameSelectors.js";
 import { openGame, returnToLobby } from "../features/game/gameThunks.js";
 import { generatedGameIdPattern } from "../game.js";
 
 const gameRoutePattern = /^\/g\/([23456789CFGHJMPQRVWX]{7})$/;
 
-const getPathForGame = (gameId: string | null, view: "lobby" | "game"): string =>
-    view === "game" && gameId ? `/g/${encodeURIComponent(gameId)}` : "/";
+export type AppPage = "login" | "lobby" | "game" | "loading";
+
+type NavigationMode = "push" | "replace";
 
 const getRouteGameId = (pathname: string): string | null => {
     const match = pathname.match(gameRoutePattern);
@@ -16,62 +18,125 @@ const getRouteGameId = (pathname: string): string | null => {
     return routeGameId && generatedGameIdPattern.test(routeGameId) ? routeGameId : null;
 };
 
-export const useGameRoute = (): void => {
+const getLoginRedirectPath = (): string => {
+    const next = new URLSearchParams(window.location.search).get("next");
+    if (!next || next === "/login") {
+        return "/lobby";
+    }
+    return next === "/" ? "/lobby" : next;
+};
+
+const replaceToLogin = (nextPath: string) => {
+    const search = new URLSearchParams({ next: nextPath });
+    window.history.replaceState({}, "", `/login?${search.toString()}`);
+};
+
+const writeHistory = (path: string, mode: NavigationMode) => {
+    if (mode === "replace") {
+        window.history.replaceState({}, "", path);
+        return;
+    }
+    window.history.pushState({}, "", path);
+};
+
+export const useGameRoute = (): {
+    page: AppPage;
+    navigateToLobby: (mode?: NavigationMode) => void;
+    navigateToGame: (gameId: string, options?: { mode?: NavigationMode; loadGame?: boolean }) => void;
+} => {
     const dispatch = useAppDispatch();
-    const currentGameId = useAppSelector(selectCurrentGameId);
+    const authLoadState = useAppSelector(selectAuthLoadState);
+    const isAuthenticated = useAppSelector(selectIsAuthenticated);
     const view = useAppSelector(selectGameView);
-    const initialDirectGameId = useRef<string | null>(getRouteGameId(window.location.pathname));
-    const pendingLocationPath = useRef<string | null>(window.location.pathname);
+    const [locationPath, setLocationPath] = useState(() => `${window.location.pathname}${window.location.search}`);
+
+    const navigateToLobby = (mode: NavigationMode = "push") => {
+        writeHistory("/lobby", mode);
+        setLocationPath("/lobby");
+        dispatch(returnToLobby());
+    };
+
+    const navigateToGame = (
+        gameId: string,
+        options: { mode?: NavigationMode; loadGame?: boolean } = {}
+    ) => {
+        const trimmedGameId = gameId.trim();
+        const targetPath = `/g/${encodeURIComponent(trimmedGameId)}`;
+        writeHistory(targetPath, options.mode ?? "push");
+        setLocationPath(targetPath);
+        if (options.loadGame ?? true) {
+            void dispatch(openGame(trimmedGameId));
+        }
+    };
 
     useEffect(() => {
+        if (authLoadState === "idle" || authLoadState === "loading") {
+            return;
+        }
+
         const syncFromLocation = () => {
-            pendingLocationPath.current = window.location.pathname;
-            const routeGameId = getRouteGameId(window.location.pathname);
+            const pathname = window.location.pathname;
+            const nextLocationPath = `${window.location.pathname}${window.location.search}`;
+            setLocationPath(nextLocationPath);
+            const routeGameId = getRouteGameId(pathname);
+
+            if (!isAuthenticated) {
+                if (pathname !== "/login") {
+                    const nextPath = nextLocationPath;
+                    replaceToLogin(nextPath === "" ? "/" : nextPath);
+                    setLocationPath(`${window.location.pathname}${window.location.search}`);
+                }
+                dispatch(returnToLobby());
+                return;
+            }
+
+            if (pathname === "/") {
+                navigateToLobby("replace");
+                return;
+            }
+
+            if (pathname === "/login") {
+                const targetPath = getLoginRedirectPath();
+                if (getRouteGameId(targetPath)) {
+                    navigateToGame(getRouteGameId(targetPath)!, { mode: "push" });
+                } else {
+                    navigateToLobby("push");
+                }
+                return;
+            }
+
             if (routeGameId) {
                 void dispatch(openGame(routeGameId));
                 return;
             }
 
-            dispatch(returnToLobby());
+            if (pathname === "/lobby") {
+                dispatch(returnToLobby());
+                return;
+            }
+
+            navigateToLobby("replace");
         };
 
         syncFromLocation();
         window.addEventListener("popstate", syncFromLocation);
-
         return () => {
             window.removeEventListener("popstate", syncFromLocation);
         };
-    }, [dispatch]);
+    }, [authLoadState, dispatch, isAuthenticated]);
 
-    useEffect(() => {
-        const targetPath = getPathForGame(currentGameId, view);
-        const syncedLocationPath = pendingLocationPath.current;
-        if (syncedLocationPath !== null) {
-            const syncedGameId = getRouteGameId(syncedLocationPath);
-            const syncedTargetPath = getPathForGame(syncedGameId, syncedGameId ? "game" : "lobby");
-
-            if (targetPath !== syncedTargetPath) {
-                return;
-            }
-
-            pendingLocationPath.current = null;
-            return;
+    const page = useMemo<AppPage>(() => {
+        if (authLoadState === "idle" || authLoadState === "loading") {
+            return "loading";
         }
-
-        if (window.location.pathname === targetPath) {
-            return;
+        if (!isAuthenticated) {
+            return "login";
         }
-
-        if (
-            targetPath === "/" &&
-            initialDirectGameId.current &&
-            window.location.pathname === getPathForGame(initialDirectGameId.current, "game")
-        ) {
-            window.history.replaceState({}, "", targetPath);
-            initialDirectGameId.current = null;
-            return;
+        if (locationPath.startsWith("/login")) {
+            return "loading";
         }
+        return view === "game" ? "game" : "lobby";
+    }, [authLoadState, isAuthenticated, locationPath, view]);
 
-        window.history.pushState({}, "", targetPath);
-    }, [currentGameId, view]);
+    return { page, navigateToLobby, navigateToGame };
 };

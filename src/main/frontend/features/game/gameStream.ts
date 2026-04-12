@@ -1,7 +1,7 @@
 import { openGameStream } from "../../game-client.js";
 import type { AppDispatch } from "../../app/store.js";
 import { gameActions } from "./gameSlice.js";
-import { applyServerSession } from "./gameThunks.js";
+import { applyServerSession, refreshCurrentGameView } from "./gameThunks.js";
 
 export const connectGameStream = (dispatch: AppDispatch, gameId: string): (() => void) =>
     openGameStream(
@@ -9,6 +9,7 @@ export const connectGameStream = (dispatch: AppDispatch, gameId: string): (() =>
         gameId,
         (session) => {
             dispatch(applyServerSession(session));
+            void dispatch(refreshCurrentGameView());
         },
         () => {
             dispatch(gameActions.streamConnected());

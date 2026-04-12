@@ -28,6 +28,7 @@ By default, the backend uses an H2 file database at `build/db/dragons-vs-ravens`
 
 Open the app in two browser tabs to see the shared game stay in sync through server-sent events.
 The browser now opens on a lobby screen at `/`, where you can create a new game or open an existing one by ID.
+The page now also includes auth controls for guest play, local signup/login/logout, and a Google OAuth entry link for deployments that configure that provider.
 The lobby now presents separate `Start Fresh` and `Rejoin Game` cards, normalizes typed game IDs to uppercase, and disables `Open Game` until an ID is entered.
 Each game has its own URL at `/g/{gameId}`.
 Loading a game URL directly opens that game, and after you create or open a game from the lobby the browser updates the address bar to that game's `/g/{gameId}` URL.
@@ -51,6 +52,7 @@ The backend now also exposes session-cookie auth APIs for guest and local login,
 Reads and SSE remain public, but claiming a side and submitting commands now require an authenticated session.
 Games may track claimed `dragons` and `ravens` seats, and the auth-aware game view endpoint lives at `GET /api/games/{gameId}/view`.
 Guest accounts are session-only: logging out or losing the session deletes the guest user and releases any seats they held without ending the game.
+On the game screen, the browser now shows claimed seats, allows signed-in users to claim an open side, and disables gameplay controls for anonymous viewers, spectators, or the wrong side.
 
 ## Run Tests
 

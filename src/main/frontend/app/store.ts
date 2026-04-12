@@ -1,17 +1,21 @@
 import { combineReducers, configureStore } from "@reduxjs/toolkit";
 import type { ThunkAction, UnknownAction } from "@reduxjs/toolkit";
 
+import type { AuthState } from "../features/auth/authSlice.js";
+import { authReducer, initialAuthState } from "../features/auth/authSlice.js";
 import type { GameState } from "../features/game/gameSlice.js";
 import { gameReducer, initialGameState } from "../features/game/gameSlice.js";
 import type { UiState } from "../features/ui/uiSlice.js";
 import { initialUiState, uiReducer } from "../features/ui/uiSlice.js";
 
 const rootReducer = combineReducers({
+    auth: authReducer,
     game: gameReducer,
     ui: uiReducer
 });
 
 export interface PreloadedAppState {
+    auth?: AuthState;
     game?: GameState;
     ui?: UiState;
 }
@@ -37,6 +41,14 @@ export const createAppStore = (preloadedState?: PreloadedAppState) =>
     configureStore({
         reducer: rootReducer,
         preloadedState: {
+            auth: {
+                ...initialAuthState,
+                ...preloadedState?.auth,
+                session: {
+                    ...initialAuthState.session,
+                    ...preloadedState?.auth?.session
+                }
+            },
             game: buildPreloadedGameState(preloadedState?.game),
             ui: {
                 ...initialUiState,

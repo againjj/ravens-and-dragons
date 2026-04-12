@@ -1,6 +1,7 @@
 import { useAppSelector } from "../app/hooks.js";
 import {
     selectAvailableRuleConfigurations,
+    selectCanViewerAct,
     selectCanUndo,
     selectCurrentRuleConfiguration,
     selectIsSubmitting,
@@ -35,6 +36,7 @@ export const ControlsPanel = ({
 }: ControlsPanelProps) => {
     const snapshot = useAppSelector(selectSnapshot);
     const canUndo = useAppSelector(selectCanUndo);
+    const canViewerAct = useAppSelector(selectCanViewerAct);
     const isSubmitting = useAppSelector(selectIsSubmitting);
     const showPreGameControls = useAppSelector(selectShowPreGameControls);
     const availableRuleConfigurations = useAppSelector(selectAvailableRuleConfigurations);
@@ -42,7 +44,7 @@ export const ControlsPanel = ({
     const selectedRuleConfigurationId = useAppSelector(selectSelectedRuleConfigurationId);
     const selectedStartingSide = useAppSelector(selectSelectedStartingSide);
     const selectedBoardSize = useAppSelector(selectSelectedBoardSize);
-    const disabled = !snapshot || isSubmitting;
+    const disabled = !snapshot || isSubmitting || !canViewerAct;
     const phase = snapshot?.phase;
     const isActivePlay = phase === "move" || phase === "capture";
     const isFinishedGame = phase === "none" && snapshot && !showPreGameControls;

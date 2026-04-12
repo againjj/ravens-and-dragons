@@ -2,19 +2,27 @@ import { createSelector } from "@reduxjs/toolkit";
 
 import { getCapturableSquares, getTargetableSquares, normalizeSelectedSquare } from "../../game.js";
 import type { RootState } from "../../app/store.js";
+import type { RuleConfigurationSummary } from "../../game.js";
+import { selectCurrentUser, selectIsAuthenticated } from "../auth/authSelectors.js";
+
+const emptyRuleConfigurations: RuleConfigurationSummary[] = [];
+const emptySquares: string[] = [];
 
 export const selectGameState = (state: RootState) => state.game;
 export const selectGameView = (state: RootState) => state.game.view;
 export const selectCurrentGameId = (state: RootState) => state.game.currentGameId;
 export const selectSnapshot = (state: RootState) => state.game.session?.snapshot ?? null;
 export const selectLifecycle = (state: RootState) => state.game.session?.lifecycle ?? null;
+export const selectViewerRole = (state: RootState) => state.game.viewerRole ?? "anonymous";
+export const selectDragonsPlayer = (state: RootState) => state.game.dragonsPlayer;
+export const selectRavensPlayer = (state: RootState) => state.game.ravensPlayer;
 export const selectCanUndo = (state: RootState) => state.game.session?.canUndo ?? false;
 export const selectSelectedSquare = (state: RootState) => state.ui.selectedSquare;
 export const selectIsSubmitting = (state: RootState) => state.game.isSubmitting;
 export const selectIsLoadingGame = (state: RootState) => state.game.loadState === "loading";
 export const selectFeedbackMessage = (state: RootState) => state.game.feedbackMessage;
 export const selectAvailableRuleConfigurations = (state: RootState) =>
-    state.game.session?.availableRuleConfigurations ?? [];
+    state.game.session?.availableRuleConfigurations ?? emptyRuleConfigurations;
 export const selectSelectedRuleConfigurationId = (state: RootState) =>
     state.game.session?.selectedRuleConfigurationId ?? null;
 export const selectSelectedStartingSide = (state: RootState) =>
@@ -28,8 +36,54 @@ export const selectCurrentRuleConfiguration = createSelector(
         ruleConfigurations.find((ruleConfiguration) => ruleConfiguration.id === selectedRuleConfigurationId) ?? null
 );
 
+export const selectViewerOwnsASeat = createSelector(
+    selectViewerRole,
+    (viewerRole) => viewerRole === "dragons" || viewerRole === "ravens"
+);
+
+export const selectCanViewerAct = createSelector(
+    selectSnapshot,
+    selectViewerRole,
+    selectViewerOwnsASeat,
+    (snapshot, viewerRole, viewerOwnsASeat) => {
+        if (!snapshot || !viewerOwnsASeat) {
+            return false;
+        }
+
+        if (snapshot.phase === "none") {
+            return true;
+        }
+
+        return viewerRole === snapshot.activeSide;
+    }
+);
+
+export const selectCanClaimDragons = createSelector(
+    selectIsAuthenticated,
+    selectCurrentUser,
+    selectDragonsPlayer,
+    selectRavensPlayer,
+    (isAuthenticated, currentUser, dragonsPlayer, ravensPlayer) =>
+        isAuthenticated &&
+        !!currentUser &&
+        dragonsPlayer == null &&
+        ravensPlayer?.id !== currentUser.id
+);
+
+export const selectCanClaimRavens = createSelector(
+    selectIsAuthenticated,
+    selectCurrentUser,
+    selectDragonsPlayer,
+    selectRavensPlayer,
+    (isAuthenticated, currentUser, dragonsPlayer, ravensPlayer) =>
+        isAuthenticated &&
+        !!currentUser &&
+        ravensPlayer == null &&
+        dragonsPlayer?.id !== currentUser.id
+);
+
 export const selectCapturableSquares = createSelector(selectSnapshot, (snapshot) =>
-    snapshot && snapshot.phase === "capture" ? getCapturableSquares(snapshot) : []
+    snapshot && snapshot.phase === "capture" ? getCapturableSquares(snapshot) : emptySquares
 );
 
 export const selectIsFinishedGame = createSelector(
@@ -49,7 +103,7 @@ export const selectTargetableSquares = createSelector(
     selectSelectedSquare,
     (snapshot, selectedSquare) => {
         if (!snapshot) {
-            return [];
+            return emptySquares;
         }
 
         return getTargetableSquares(snapshot, normalizeSelectedSquare(snapshot, selectedSquare));

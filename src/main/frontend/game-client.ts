@@ -1,7 +1,24 @@
-import type { CreateGameRequest, CreateGameResponse, GameCommandRequest, ServerGameSession } from "./game.js";
+import type {
+    AuthSessionResponse,
+    ClaimSideRequest,
+    CreateGameRequest,
+    CreateGameResponse,
+    GameCommandRequest,
+    GameViewResponse,
+    GuestLoginResponse,
+    LoginRequest,
+    ServerGameSession,
+    SignupRequest
+} from "./game.js";
 
 export interface ErrorMessage {
     message?: string;
+}
+
+export interface ApiResult<T> {
+    data?: T;
+    errorMessage?: string;
+    status?: number;
 }
 
 export interface EventSourceLike {
@@ -15,6 +32,7 @@ export type FetchLike = typeof fetch;
 export type EventSourceFactory = (url: string) => EventSourceLike;
 export const defaultCommandErrorMessage = "Unable to apply that action right now.";
 const getGameUrl = (gameId: string): string => `/api/games/${encodeURIComponent(gameId)}`;
+export const getOAuthLoginUrl = (provider: string): string => `/oauth2/authorization/${encodeURIComponent(provider)}`;
 
 const parseJson = async <T>(response: { json(): Promise<unknown> }): Promise<T> =>
     await response.json() as T;
@@ -63,11 +81,113 @@ export const fetchGameSession = async (gameId: string, fetchImpl: FetchLike = fe
     return parseJson<ServerGameSession>(response);
 };
 
+export const fetchGameView = async (gameId: string, fetchImpl: FetchLike = fetch): Promise<GameViewResponse> => {
+    const response = await fetchImpl(`${getGameUrl(gameId)}/view`);
+    if (!response.ok) {
+        throw new Error(`Failed to load game view: ${response.status}`);
+    }
+
+    return parseJson<GameViewResponse>(response);
+};
+
+export const fetchAuthSession = async (fetchImpl: FetchLike = fetch): Promise<AuthSessionResponse> => {
+    const response = await fetchImpl("/api/auth/session");
+    if (!response.ok) {
+        throw new Error(`Failed to load auth session: ${response.status}`);
+    }
+
+    return parseJson<AuthSessionResponse>(response);
+};
+
+export const loginAsGuest = async (fetchImpl: FetchLike = fetch): Promise<AuthSessionResponse> => {
+    const response = await fetchImpl("/api/auth/guest", {
+        method: "POST"
+    });
+    if (!response.ok) {
+        throw new Error(`Failed to continue as guest: ${response.status}`);
+    }
+
+    const result = await parseJson<GuestLoginResponse>(response);
+    return {
+        authenticated: true,
+        user: result.user
+    };
+};
+
+export const signupRequest = async (
+    request: SignupRequest,
+    fetchImpl: FetchLike = fetch
+): Promise<AuthSessionResponse> => {
+    const response = await fetchImpl("/api/auth/signup", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(request)
+    });
+    if (!response.ok) {
+        throw new Error(await parseErrorMessage(response));
+    }
+
+    return parseJson<AuthSessionResponse>(response);
+};
+
+export const loginRequest = async (
+    request: LoginRequest,
+    fetchImpl: FetchLike = fetch
+): Promise<AuthSessionResponse> => {
+    const response = await fetchImpl("/api/auth/login", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(request)
+    });
+    if (!response.ok) {
+        throw new Error(await parseErrorMessage(response));
+    }
+
+    return parseJson<AuthSessionResponse>(response);
+};
+
+export const logoutRequest = async (fetchImpl: FetchLike = fetch): Promise<void> => {
+    const response = await fetchImpl("/api/auth/logout", {
+        method: "POST"
+    });
+    if (!response.ok) {
+        throw new Error(`Failed to log out: ${response.status}`);
+    }
+};
+
+export const claimGameSide = async (
+    gameId: string,
+    request: ClaimSideRequest,
+    fetchImpl: FetchLike = fetch
+): Promise<ApiResult<ServerGameSession>> => {
+    const response = await fetchImpl(`${getGameUrl(gameId)}/claim-side`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(request)
+    });
+    if (response.ok) {
+        return {
+            data: await parseJson<ServerGameSession>(response)
+        };
+    }
+
+    return {
+        errorMessage: await parseErrorMessage(response),
+        status: response.status
+    };
+};
+
 export const sendGameCommandRequest = async (
     currentGame: ServerGameSession,
     partialCommand: Omit<GameCommandRequest, "expectedVersion">,
     fetchImpl: FetchLike = fetch
-): Promise<{ game?: ServerGameSession; errorMessage?: string }> => {
+): Promise<{ game?: ServerGameSession; errorMessage?: string; status?: number }> => {
     const command: GameCommandRequest = {
         ...partialCommand,
         expectedVersion: currentGame.version
@@ -88,7 +208,8 @@ export const sendGameCommandRequest = async (
     }
 
     return {
-        errorMessage: await parseErrorMessage(response)
+        errorMessage: await parseErrorMessage(response),
+        status: response.status
     };
 };
 

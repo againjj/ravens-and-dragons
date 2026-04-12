@@ -1,6 +1,6 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
-import type { ServerGameSession } from "../../game.js";
+import type { GamePlayerSummary, GameViewResponse, ServerGameSession, ViewerRole } from "../../game.js";
 
 export type GameView = "lobby" | "game";
 
@@ -8,6 +8,9 @@ export interface GameState {
     currentGameId: string | null;
     view: GameView;
     session: ServerGameSession | null;
+    viewerRole: ViewerRole | null;
+    dragonsPlayer: GamePlayerSummary | null;
+    ravensPlayer: GamePlayerSummary | null;
     isSubmitting: boolean;
     loadState: "idle" | "loading" | "ready" | "error";
     connectionState: "idle" | "connecting" | "open" | "reconnecting";
@@ -18,6 +21,9 @@ export const initialGameState: GameState = {
     currentGameId: null,
     view: "lobby",
     session: null,
+    viewerRole: null,
+    dragonsPlayer: null,
+    ravensPlayer: null,
     isSubmitting: false,
     loadState: "idle",
     connectionState: "idle",
@@ -32,6 +38,9 @@ const gameSlice = createSlice({
             state.currentGameId = action.payload;
             state.view = "game";
             state.session = null;
+            state.viewerRole = null;
+            state.dragonsPlayer = null;
+            state.ravensPlayer = null;
             state.isSubmitting = false;
             state.loadState = "loading";
             state.connectionState = "connecting";
@@ -46,6 +55,9 @@ const gameSlice = createSlice({
             state.currentGameId = null;
             state.view = "lobby";
             state.session = null;
+            state.viewerRole = null;
+            state.dragonsPlayer = null;
+            state.ravensPlayer = null;
             state.isSubmitting = false;
             state.loadState = "idle";
             state.connectionState = "idle";
@@ -59,6 +71,9 @@ const gameSlice = createSlice({
         loadFailed(state) {
             state.loadState = "error";
             state.session = null;
+            state.viewerRole = null;
+            state.dragonsPlayer = null;
+            state.ravensPlayer = null;
         },
         commandStarted(state) {
             state.isSubmitting = true;
@@ -72,6 +87,23 @@ const gameSlice = createSlice({
             state.session = action.payload;
             state.loadState = "ready";
             state.feedbackMessage = null;
+        },
+        gameViewUpdated(state, action: PayloadAction<GameViewResponse>) {
+            state.currentGameId = action.payload.game.id;
+            state.session = action.payload.game;
+            state.viewerRole = action.payload.viewerRole;
+            state.dragonsPlayer = action.payload.dragonsPlayer;
+            state.ravensPlayer = action.payload.ravensPlayer;
+            state.loadState = "ready";
+            state.feedbackMessage = null;
+        },
+        viewerMetadataUpdated(
+            state,
+            action: PayloadAction<Pick<GameViewResponse, "viewerRole" | "dragonsPlayer" | "ravensPlayer">>
+        ) {
+            state.viewerRole = action.payload.viewerRole;
+            state.dragonsPlayer = action.payload.dragonsPlayer;
+            state.ravensPlayer = action.payload.ravensPlayer;
         },
         feedbackMessageSet(state, action: PayloadAction<string>) {
             state.feedbackMessage = action.payload;

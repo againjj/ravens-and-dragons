@@ -17,11 +17,13 @@ export const LobbyScreen = ({
     const trimmedGameId = gameId.trim();
 
     return (
-        <section className="lobby-screen panel">
-            <div className="lobby-copy">
-                <h2>Game Lobby</h2>
-                <p>Start a shared session for a new matchup or rejoin one with its game ID.</p>
-            </div>
+        <section className="lobby-layout">
+            <section className="panel page-header-panel">
+                <div className="page-header-copy">
+                    <h2>Game Lobby</h2>
+                    <p>Start a shared session for a new matchup or rejoin one with its game ID.</p>
+                </div>
+            </section>
 
             <div className="lobby-grid">
                 <section className="lobby-card">

@@ -10,6 +10,8 @@ This file contains repository-specific instructions for AI-assisted work in this
 ## Project Priorities
 
 - Do not make changes to the codebase until the user explicitly asks for implementation work.
+- Do not make code changes unless the user asks in the imperative tense.
+- If the user talks about possible changes without using the imperative voice, work in plan mode rather than implementation mode.
 - Do not assume the user wants code changes.
 - A request that describes a feature, fix, or desired outcome is not by itself permission to edit files.
 - If the user asks for planning, review, investigation, or explanation first, stay in analysis mode and do not edit files.
@@ -77,6 +79,7 @@ If a requested change would alter one of those rules, implement it only when tha
 - When backend gameplay logic changes, update or add tests in `src/test/kotlin/com/dragonsvsravens/game/GameRulesTest.kt` and related server tests.
 - When frontend helper behavior changes, update or add tests in `src/test/frontend/game.test.js`.
 - When React/Redux UI behavior changes, update or add tests under `src/test/frontend/*.test.ts(x)`.
+- When adding a new browser route, add a test that proves the route can be loaded directly by URL.
 - When fixing a bug, start by writing or updating a test that reproduces the failure before fixing the implementation.
 - When logic is extracted or refactored, keep tests focused on behavior rather than implementation details.
 - Run `./gradlew test` before finishing code changes whenever practical.
@@ -123,6 +126,7 @@ If a requested change would alter one of those rules, implement it only when tha
 
 ## Local Run Rules
 
+- If the user asks to start the app and no app terminal session is attached to the current thread, create one first.
 - If the user asks to start the server, first try the default app configuration.
 - If the server was started in an active terminal session, try stopping it with `Ctrl-C` before using other process-killing commands.
 - If the default port is already in use, do not start the server on a different port unless the user explicitly asks for that fallback.

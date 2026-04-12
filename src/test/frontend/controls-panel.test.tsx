@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 
 import { ControlsPanel } from "../../main/frontend/components/ControlsPanel.js";
-import { createSession } from "./fixtures.js";
+import { createAuthSession, createSession } from "./fixtures.js";
 import { renderWithStore } from "./test-utils.js";
 
 const renderPanel = (session = createSession()) =>
@@ -20,8 +20,14 @@ const renderPanel = (session = createSession()) =>
         />,
         {
             preloadedState: {
+                auth: {
+                    session: createAuthSession()
+                },
                 game: {
                     session,
+                    viewerRole: session.snapshot.activeSide,
+                    dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
+                    ravensPlayer: { id: "player-ravens", displayName: "Raven Player" },
                     isSubmitting: false,
                     loadState: "ready",
                     connectionState: "open",
@@ -52,8 +58,14 @@ describe("ControlsPanel", () => {
             />,
             {
                 preloadedState: {
+                    auth: {
+                        session: createAuthSession()
+                    },
                     game: {
                         session: createSession(),
+                        viewerRole: "dragons",
+                        dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
+                        ravensPlayer: { id: "player-ravens", displayName: "Raven Player" },
                         isSubmitting: false,
                         loadState: "ready",
                         connectionState: "open",
@@ -97,8 +109,14 @@ describe("ControlsPanel", () => {
             />,
             {
                 preloadedState: {
+                    auth: {
+                        session: createAuthSession()
+                    },
                     game: {
                         session: createSession({}, { phase: "setup" }),
+                        viewerRole: "dragons",
+                        dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
+                        ravensPlayer: { id: "player-ravens", displayName: "Raven Player" },
                         isSubmitting: false,
                         loadState: "ready",
                         connectionState: "open",
@@ -178,8 +196,14 @@ describe("ControlsPanel", () => {
             />,
             {
                 preloadedState: {
+                    auth: {
+                        session: createAuthSession()
+                    },
                     game: {
                         session: createSession(),
+                        viewerRole: "dragons",
+                        dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
+                        ravensPlayer: { id: "player-ravens", displayName: "Raven Player" },
                         isSubmitting: false,
                         loadState: "ready",
                         connectionState: "open",
@@ -214,8 +238,14 @@ describe("ControlsPanel", () => {
             />,
             {
                 preloadedState: {
+                    auth: {
+                        session: createAuthSession()
+                    },
                     game: {
                         session: createSession(),
+                        viewerRole: "dragons",
+                        dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
+                        ravensPlayer: { id: "player-ravens", displayName: "Raven Player" },
                         isSubmitting: false,
                         loadState: "ready",
                         connectionState: "open",
@@ -250,8 +280,14 @@ describe("ControlsPanel", () => {
             />,
             {
                 preloadedState: {
+                    auth: {
+                        session: createAuthSession()
+                    },
                     game: {
                         session: createSession(),
+                        viewerRole: "dragons",
+                        dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
+                        ravensPlayer: { id: "player-ravens", displayName: "Raven Player" },
                         isSubmitting: false,
                         loadState: "ready",
                         connectionState: "open",
@@ -308,5 +344,42 @@ describe("ControlsPanel", () => {
         expect(screen.queryByLabelText("Starting Side")).toBeNull();
         expect(screen.getByRole("button", { name: "Undo" })).toBeEnabled();
         expect(screen.queryByRole("button", { name: "End Game" })).toBeNull();
+    });
+
+    test("disables game actions for a spectator", () => {
+        renderWithStore(
+            <ControlsPanel
+                onStartGame={vi.fn()}
+                onSelectRuleConfiguration={vi.fn()}
+                onSelectStartingSide={vi.fn()}
+                onSelectBoardSize={vi.fn()}
+                onEndSetup={vi.fn()}
+                onEndGame={vi.fn()}
+                onUndo={vi.fn()}
+                onSkipCapture={vi.fn()}
+            />,
+            {
+                preloadedState: {
+                    auth: {
+                        session: createAuthSession({ user: { id: "spectator", displayName: "Spectator", authType: "local" } })
+                    },
+                    game: {
+                        session: createSession(),
+                        viewerRole: "spectator",
+                        dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
+                        ravensPlayer: { id: "player-ravens", displayName: "Raven Player" },
+                        isSubmitting: false,
+                        loadState: "ready",
+                        connectionState: "open",
+                        feedbackMessage: null
+                    },
+                    ui: {
+                        selectedSquare: null
+                    }
+                }
+            }
+        );
+
+        expect(screen.getByRole("button", { name: "Start Game" })).toBeDisabled();
     });
 });

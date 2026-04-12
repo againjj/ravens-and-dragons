@@ -1,4 +1,4 @@
-import type { ServerGameSession } from "../../main/frontend/game.js";
+import type { AuthSessionResponse, GameViewResponse, ServerGameSession } from "../../main/frontend/game.js";
 
 export const createSession = (
     overrides: Partial<ServerGameSession> = {},
@@ -76,6 +76,9 @@ export const createSession = (
     selectedRuleConfigurationId: "free-play",
     selectedStartingSide: "dragons",
     selectedBoardSize: 7,
+    dragonsPlayerUserId: "player-dragons",
+    ravensPlayerUserId: "player-ravens",
+    createdByUserId: "player-dragons",
     snapshot: {
         board: {},
         boardSize: 7,
@@ -89,4 +92,33 @@ export const createSession = (
         ...snapshotOverrides
     },
     ...overrides
+});
+
+export const createAuthSession = (overrides: Partial<AuthSessionResponse> = {}): AuthSessionResponse => ({
+    authenticated: true,
+    user: {
+        id: "player-dragons",
+        displayName: "Dragon Player",
+        authType: "local"
+    },
+    ...overrides
+});
+
+export const createGameView = (
+    sessionOverrides: Partial<ServerGameSession> = {},
+    snapshotOverrides: Partial<ServerGameSession["snapshot"]> = {},
+    viewOverrides: Partial<GameViewResponse> = {}
+): GameViewResponse => ({
+    game: createSession(sessionOverrides, snapshotOverrides),
+    currentUser: createAuthSession().user,
+    dragonsPlayer: {
+        id: "player-dragons",
+        displayName: "Dragon Player"
+    },
+    ravensPlayer: {
+        id: "player-ravens",
+        displayName: "Raven Player"
+    },
+    viewerRole: "dragons",
+    ...viewOverrides
 });

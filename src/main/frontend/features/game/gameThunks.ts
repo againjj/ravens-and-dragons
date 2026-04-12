@@ -1,9 +1,10 @@
 import type { GameCommandRequest } from "../../game.js";
-import { createGameSession, fetchGameSession, sendGameCommandRequest } from "../../game-client.js";
+import { claimGameSide, createGameSession, fetchGameView, sendGameCommandRequest } from "../../game-client.js";
 import { normalizeSelectedSquare } from "../../game.js";
 import type { AppThunk } from "../../app/store.js";
 import { gameActions } from "./gameSlice.js";
 import { uiActions } from "../ui/uiSlice.js";
+import { authActions } from "../auth/authSlice.js";
 
 const resetSessionScopedUiState = (): AppThunk => (dispatch) => {
     dispatch(uiActions.selectedSquareSet(null));
@@ -26,18 +27,35 @@ const sendSelectionClearingCommand = (
     await dispatch(sendCommand(partialCommand));
 };
 
-export const createGame = (): AppThunk<Promise<boolean>> => async (dispatch) => {
+export const createGame = (): AppThunk<Promise<string | null>> => async (dispatch) => {
     dispatch(gameActions.loadStarted());
 
     try {
         const session = await createGameSession();
         dispatch(gameActions.gameOpened(session.id));
-        dispatch(gameActions.sessionUpdated(session));
+        await dispatch(loadGameView(session.id));
+        return session.id;
+    } catch {
+        dispatch(gameActions.loadFailed());
+        dispatch(gameActions.feedbackMessageSet("Unable to create a new game right now."));
+        return null;
+    }
+};
+
+export const loadGameView = (gameId: string): AppThunk<Promise<boolean>> => async (dispatch) => {
+    try {
+        const view = await fetchGameView(gameId);
+        dispatch(gameActions.gameViewUpdated(view));
+        dispatch(
+            authActions.authSessionSet({
+                authenticated: view.currentUser != null,
+                user: view.currentUser
+            })
+        );
         dispatch(syncSelectedSquare());
         return true;
     } catch {
         dispatch(gameActions.loadFailed());
-        dispatch(gameActions.feedbackMessageSet("Unable to create a new game right now."));
         return false;
     }
 };
@@ -52,15 +70,11 @@ export const openGame = (gameId: string): AppThunk<Promise<boolean>> => async (d
     dispatch(resetSessionScopedUiState());
     dispatch(gameActions.gameLoadRequested(trimmedGameId));
 
-    try {
-        const session = await fetchGameSession(trimmedGameId);
-        dispatch(applyServerSession(session));
-        return true;
-    } catch {
-        dispatch(gameActions.loadFailed());
+    const loaded = await dispatch(loadGameView(trimmedGameId));
+    if (!loaded) {
         dispatch(gameActions.feedbackMessageSet(`Unable to open game "${trimmedGameId}".`));
-        return false;
     }
+    return loaded;
 };
 
 export const returnToLobby = (): AppThunk => (dispatch) => {
@@ -71,6 +85,27 @@ export const returnToLobby = (): AppThunk => (dispatch) => {
 export const applyServerSession = (session: import("../../game.js").ServerGameSession): AppThunk => (dispatch) => {
     dispatch(gameActions.sessionUpdated(session));
     dispatch(syncSelectedSquare());
+};
+
+export const refreshCurrentGameView = (): AppThunk<Promise<void>> => async (dispatch, getState) => {
+    const currentGameId = getState().game.currentGameId;
+    if (!currentGameId || getState().game.view !== "game") {
+        return;
+    }
+
+    try {
+        const view = await fetchGameView(currentGameId);
+        dispatch(gameActions.gameViewUpdated(view));
+        dispatch(
+            authActions.authSessionSet({
+                authenticated: view.currentUser != null,
+                user: view.currentUser
+            })
+        );
+        dispatch(syncSelectedSquare());
+    } catch {
+        // Keep the current board visible if metadata refresh fails.
+    }
 };
 
 export const sendCommand = (
@@ -91,6 +126,50 @@ export const sendCommand = (
         }
 
         dispatch(gameActions.feedbackMessageSet(result.errorMessage ?? "Unable to apply that action right now."));
+        if (result.status === 401) {
+            dispatch(
+                authActions.authSessionSet({
+                    authenticated: false,
+                    user: null
+                })
+            );
+            await dispatch(refreshCurrentGameView());
+        }
+        if (result.status === 403) {
+            await dispatch(refreshCurrentGameView());
+        }
+    } finally {
+        dispatch(gameActions.commandFinished());
+    }
+};
+
+export const claimSide = (side: import("../../game.js").Side): AppThunk<Promise<void>> => async (dispatch, getState) => {
+    const gameId = getState().game.currentGameId;
+    if (!gameId || getState().game.isSubmitting) {
+        return;
+    }
+
+    dispatch(gameActions.commandStarted());
+    try {
+        const result = await claimGameSide(gameId, { side });
+        if (result.data) {
+            dispatch(applyServerSession(result.data));
+            await dispatch(refreshCurrentGameView());
+            return;
+        }
+
+        dispatch(gameActions.feedbackMessageSet(result.errorMessage ?? "Unable to claim that side right now."));
+        if (result.status === 401) {
+            dispatch(
+                authActions.authSessionSet({
+                    authenticated: false,
+                    user: null
+                })
+            );
+        }
+        if (result.status === 401 || result.status === 403) {
+            await dispatch(refreshCurrentGameView());
+        }
     } finally {
         dispatch(gameActions.commandFinished());
     }

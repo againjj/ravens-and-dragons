@@ -3,6 +3,8 @@ export type Side = "dragons" | "ravens";
 export type Phase = "none" | "setup" | "move" | "capture";
 export type TurnType = "move" | "gameOver";
 export type GameLifecycle = "new" | "active" | "finished";
+export type AuthType = "guest" | "local" | "oauth";
+export type ViewerRole = "anonymous" | "spectator" | "dragons" | "ravens";
 
 export interface RuleDescriptionSection {
     heading?: string;
@@ -61,6 +63,49 @@ export interface ServerGameSession {
     selectedRuleConfigurationId: string;
     selectedStartingSide: Side;
     selectedBoardSize: number;
+    dragonsPlayerUserId?: string | null;
+    ravensPlayerUserId?: string | null;
+    createdByUserId?: string | null;
+}
+
+export interface AuthUserSummary {
+    id: string;
+    displayName: string;
+    authType: AuthType;
+}
+
+export interface AuthSessionResponse {
+    authenticated: boolean;
+    user: AuthUserSummary | null;
+}
+
+export interface GuestLoginResponse {
+    user: AuthUserSummary;
+}
+
+export interface LoginRequest {
+    username: string;
+    password: string;
+}
+
+export interface SignupRequest {
+    username: string;
+    password: string;
+    displayName?: string;
+    email?: string;
+}
+
+export interface GamePlayerSummary {
+    id: string;
+    displayName: string;
+}
+
+export interface GameViewResponse {
+    game: ServerGameSession;
+    currentUser: AuthUserSummary | null;
+    dragonsPlayer: GamePlayerSummary | null;
+    ravensPlayer: GamePlayerSummary | null;
+    viewerRole: ViewerRole;
 }
 
 export interface CreateGameRequest {
@@ -95,6 +140,10 @@ export interface GameCommandRequest {
     ruleConfigurationId?: string;
     side?: Side;
     boardSize?: number;
+}
+
+export interface ClaimSideRequest {
+    side: Side;
 }
 
 const maxColumnLetters = Array.from({ length: 26 }, (_, index) => String.fromCharCode(97 + index));
