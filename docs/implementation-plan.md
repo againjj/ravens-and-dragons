@@ -211,8 +211,8 @@ This order fits the current codebase because the app is still modeled as a share
     - Update `build.gradle.kts` with security dependencies.
     - Add backend security configuration.
     - Recommended first pass: session-cookie auth, not JWT.
-    - Keep reads and SSE public in Milestone E so unauthenticated users may still watch games.
-    - Protect seat-claiming and command-mutation routes behind authentication.
+    - Require authentication for lobby access, game reads, and SSE watching in Milestone E.
+    - Protect seat-claiming and command-mutation routes behind authentication as well.
     - Add the session-lifecycle hooks needed to detect guest-session destruction so temporary guest users can be cleaned up automatically.
 
 26. Add signup, login, and logout endpoints.
@@ -220,7 +220,7 @@ This order fits the current codebase because the app is still modeled as a share
     - Add controller classes for auth flows.
     - Support self-signup and session login for local accounts.
     - Add a guest-login entry point, for example `POST /api/auth/guest`, that creates a temporary guest user and authenticates that session immediately.
-    - Add a current-session endpoint so the client can discover whether a viewer is anonymous, a guest, or a signed-in user.
+    - Add a current-session endpoint so the client can discover whether a viewer is signed out, a guest, or a signed-in user.
     - Add OAuth login initiation and callback handling through Spring Security for at least one provider, while still resolving the result to the same local session-cookie model used by local and guest auth.
     - Keep the frontend-facing auth shape consistent across guest, local, and OAuth logins.
 
@@ -257,7 +257,7 @@ This order fits the current codebase because the app is still modeled as a share
       - spectators cannot mutate
       - wrong-side users cannot mutate
     - Keep this enforcement in the backend game/service layer rather than in React components or controllers alone.
-    - Reads and SSE remain public for this milestone.
+    - Reads and SSE should also require authentication for this milestone.
     - If a guest session expires while the game remains open in another tab or browser, later mutation attempts should fail cleanly until that viewer authenticates again.
 
 30. Expose viewer identity and game seat info to the client.
@@ -269,7 +269,7 @@ This order fits the current codebase because the app is still modeled as a share
       - viewer role for this game
     - Keep a clear separation between persisted canonical game state and request-scoped viewer metadata.
     - Prefer computing `viewerRole` from the authenticated request context rather than persisting it on the game session itself.
-    - Make the response shape rich enough for Milestone F to distinguish anonymous viewers, guests, spectators, and the currently assigned player for each side.
+    - Make the response shape rich enough for Milestone F to distinguish signed-out viewers, guests, spectators, and the currently assigned player for each side.
 
 31. Add login UI and auth state handling.
     - Goal: users can actually sign in and know who they are.
@@ -351,6 +351,10 @@ This order fits the current codebase because the app is still modeled as a share
   - Seat claiming stays explicit and server-enforced, while reads and SSE remain public.
 - Milestone F: tickets 31-34
   - Auth-complete user experience.
+- Milestone F.5
+  - OAuth login cleanup.
+  - Hide OAuth provider buttons unless that provider is actually configured on the backend.
+  - Preserve the `next` redirect target through OAuth login so provider sign-in returns the user to the requested lobby or game route.
 - Milestone G: tickets 35-37
   - Self-service deletion for local password accounts.
   - Deleting a local user releases their seats and clears nullable ownership references without deleting or ending games.

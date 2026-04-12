@@ -44,7 +44,7 @@ data class GuestLoginResponse(
 data class SignupRequest(
     val username: String,
     val password: String,
-    val displayName: String? = null,
+    val displayName: String,
     val email: String? = null
 )
 

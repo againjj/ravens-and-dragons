@@ -106,13 +106,11 @@ describe("authThunks", () => {
                 session: createSession({ id: "game-101" })
             }
         });
-        fetchGameViewMock.mockResolvedValue(
-            createGameView({ id: "game-101" }, {}, { currentUser: null, viewerRole: "anonymous" })
-        );
 
         await store.dispatch(logout());
 
         expect(store.getState().auth.session.authenticated).toBe(false);
         expect(store.getState().auth.session.user).toBeNull();
+        expect(fetchGameViewMock).not.toHaveBeenCalled();
     });
 });

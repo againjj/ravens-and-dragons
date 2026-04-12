@@ -127,6 +127,7 @@ abstract class AbstractGameControllerTestSupport {
     protected fun createGame(request: CreateGameRequest = CreateGameRequest()): GameSession =
         objectMapper.readValue(
             mockMvc.post("/api/games") {
+                with(authenticated("create-game", defaultTestUserId))
                 contentType = MediaType.APPLICATION_JSON
                 content = objectMapper.writeValueAsString(request)
             }
@@ -139,9 +140,11 @@ abstract class AbstractGameControllerTestSupport {
             CreateGameResponse::class.java
         ).game.also { assignSides(it.id, defaultTestUserId, defaultTestUserId) }
 
-    protected fun getGame(gameId: String): GameSession =
+    protected fun getGame(gameId: String, userId: String = currentActorFor(gameId)): GameSession =
         objectMapper.readValue(
-            mockMvc.get("/api/games/$gameId")
+            mockMvc.get("/api/games/$gameId") {
+                with(authenticated(gameId, userId))
+            }
                 .andExpect {
                     status { isOk() }
                 }
@@ -150,6 +153,9 @@ abstract class AbstractGameControllerTestSupport {
                 .contentAsString,
             GameSession::class.java
         )
+
+    protected fun anonymousGetGame(gameId: String) =
+        mockMvc.get("/api/games/$gameId")
 
     protected fun executeGameCommand(gameId: String, command: GameCommandRequest): GameSession =
         objectMapper.readValue(
@@ -184,7 +190,7 @@ abstract class AbstractGameControllerTestSupport {
     protected fun authenticatedPostGameCommand(
         gameId: String,
         command: GameCommandRequest,
-        userId: String = currentActorFor(gameId)
+        userId: String = currentActorFor(gameId, command.type)
     ) =
         mockMvc.post("/api/games/$gameId/commands") {
             with(authenticated(gameId, userId))
@@ -213,8 +219,15 @@ abstract class AbstractGameControllerTestSupport {
         )
     }
 
-    protected fun currentActorFor(gameId: String): String {
+    protected fun currentActorFor(gameId: String, commandType: String? = null): String {
         val current = gameStore.get(gameId)?.session ?: return defaultTestUserId
+        if (commandType == "undo") {
+            return when (current.undoOwnerSide) {
+                Side.dragons -> current.dragonsPlayerUserId
+                Side.ravens -> current.ravensPlayerUserId
+                null -> current.dragonsPlayerUserId ?: current.ravensPlayerUserId
+            } ?: defaultTestUserId
+        }
         return when (current.snapshot.phase) {
             Phase.capture,
             Phase.move,

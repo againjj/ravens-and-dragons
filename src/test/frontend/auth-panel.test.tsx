@@ -37,8 +37,13 @@ describe("AuthPanel", () => {
         await user.type(screen.getByLabelText("Username", { selector: "#signup-username-input" }), "new-player");
         await user.type(screen.getByLabelText("Password", { selector: "#signup-password-input" }), "short");
         expect(screen.getByRole("button", { name: "Sign Up" })).toBeDisabled();
+        await user.clear(screen.getByLabelText("Display Name"));
+        await user.type(screen.getByLabelText("Display Name"), "   ");
         await user.clear(screen.getByLabelText("Password", { selector: "#signup-password-input" }));
         await user.type(screen.getByLabelText("Password", { selector: "#signup-password-input" }), "password123");
+        expect(screen.getByRole("button", { name: "Sign Up" })).toBeDisabled();
+        await user.clear(screen.getByLabelText("Display Name"));
+        await user.type(screen.getByLabelText("Display Name"), "New Player");
         expect(screen.getByRole("button", { name: "Sign Up" })).toBeEnabled();
         await user.click(screen.getByRole("button", { name: "Sign Up" }));
         expect(onContinueAsGuest).toHaveBeenCalledTimes(1);

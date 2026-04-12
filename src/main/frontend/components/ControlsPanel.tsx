@@ -2,13 +2,14 @@ import { useAppSelector } from "../app/hooks.js";
 import {
     selectAvailableRuleConfigurations,
     selectCanViewerAct,
-    selectCanUndo,
+    selectCanViewerUndo,
     selectCurrentRuleConfiguration,
+    selectIsFinishedGame,
     selectIsSubmitting,
     selectSelectedBoardSize,
     selectSelectedRuleConfigurationId,
     selectSelectedStartingSide,
-    selectShowPreGameControls,
+    selectShowOwnedPreGameControls,
     selectSnapshot
 } from "../features/game/gameSelectors.js";
 import type { Side } from "../game.js";
@@ -35,10 +36,11 @@ export const ControlsPanel = ({
     onSkipCapture
 }: ControlsPanelProps) => {
     const snapshot = useAppSelector(selectSnapshot);
-    const canUndo = useAppSelector(selectCanUndo);
     const canViewerAct = useAppSelector(selectCanViewerAct);
+    const canViewerUndo = useAppSelector(selectCanViewerUndo);
     const isSubmitting = useAppSelector(selectIsSubmitting);
-    const showPreGameControls = useAppSelector(selectShowPreGameControls);
+    const showPreGameControls = useAppSelector(selectShowOwnedPreGameControls);
+    const isFinishedGame = useAppSelector(selectIsFinishedGame);
     const availableRuleConfigurations = useAppSelector(selectAvailableRuleConfigurations);
     const currentRuleConfiguration = useAppSelector(selectCurrentRuleConfiguration);
     const selectedRuleConfigurationId = useAppSelector(selectSelectedRuleConfigurationId);
@@ -47,7 +49,6 @@ export const ControlsPanel = ({
     const disabled = !snapshot || isSubmitting || !canViewerAct;
     const phase = snapshot?.phase;
     const isActivePlay = phase === "move" || phase === "capture";
-    const isFinishedGame = phase === "none" && snapshot && !showPreGameControls;
     const canSkipCapture = phase === "capture" && currentRuleConfiguration?.hasManualCapture;
     const canManualEndGame = isActivePlay && currentRuleConfiguration?.hasManualEndGame;
     const showUndo = (isActivePlay || isFinishedGame) && !!snapshot;
@@ -55,7 +56,7 @@ export const ControlsPanel = ({
         <button
             id="undo-button"
             type="button"
-            disabled={disabled || !canUndo}
+            disabled={isSubmitting || !canViewerUndo}
             onClick={onUndo}
         >
             Undo

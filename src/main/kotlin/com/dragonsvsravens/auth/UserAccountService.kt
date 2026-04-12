@@ -40,14 +40,18 @@ class UserAccountService(
     @Transactional
     fun signup(request: SignupRequest): UserRecord {
         val username = request.username.trim()
+        val displayName = request.displayName.trim()
         if (username.isBlank()) {
             throw IllegalArgumentException("Username is required.")
+        }
+        if (displayName.isBlank()) {
+            throw IllegalArgumentException("Display name is required.")
         }
         if (request.password.length < 8) {
             throw IllegalArgumentException("Password must be at least 8 characters.")
         }
         return userRepository.createUser(
-            displayName = request.displayName?.trim().takeUnless { it.isNullOrBlank() } ?: username,
+            displayName = displayName,
             username = username,
             email = request.email?.trim().takeUnless { it.isNullOrBlank() },
             passwordHash = passwordEncoder.encode(request.password),

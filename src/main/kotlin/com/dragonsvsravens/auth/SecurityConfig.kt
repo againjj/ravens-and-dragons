@@ -1,5 +1,6 @@
 package com.dragonsvsravens.auth
 
+import jakarta.servlet.DispatcherType
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import jakarta.servlet.http.HttpSessionEvent
@@ -10,7 +11,6 @@ import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
-import org.springframework.security.config.Customizer
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
@@ -23,6 +23,8 @@ import org.springframework.security.oauth2.core.user.OAuth2User
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.HttpStatusEntryPoint
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 @Configuration
 @EnableWebSecurity
@@ -37,14 +39,22 @@ class SecurityConfig {
         val builder = http
             .csrf { it.disable() }
             .authorizeHttpRequests {
-                it.requestMatchers(HttpMethod.GET, "/", "/g/**", "/api/games/**", "/api/auth/session", "/styles.css", "/assets/**").permitAll()
-                it.requestMatchers(HttpMethod.POST, "/api/games").permitAll()
+                it.dispatcherTypeMatchers(DispatcherType.FORWARD).permitAll()
+                it.requestMatchers(HttpMethod.GET, "/login", "/api/auth/session", "/styles.css", "/assets/**", "/favicon.ico").permitAll()
                 it.requestMatchers("/api/auth/guest", "/api/auth/signup", "/api/auth/login", "/login/**", "/oauth2/**").permitAll()
-                it.requestMatchers(HttpMethod.POST, "/api/games/*/commands", "/api/games/*/claim-side").authenticated()
-                it.anyRequest().permitAll()
+                it.requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll()
+                it.requestMatchers("/", "/lobby", "/g/**", "/api/games/**").authenticated()
+                it.anyRequest().authenticated()
             }
             .exceptionHandling {
-                it.authenticationEntryPoint(HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED))
+                it.authenticationEntryPoint { request, response, _ ->
+                    if (request.requestURI.startsWith("/api/") || request.method != HttpMethod.GET.name()) {
+                        HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED).commence(request, response, null)
+                        return@authenticationEntryPoint
+                    }
+
+                    response.sendRedirect(loginRedirectTarget(request))
+                }
             }
             .httpBasic { it.disable() }
             .formLogin { it.disable() }
@@ -56,6 +66,18 @@ class SecurityConfig {
             }
         }
         return builder.build()
+    }
+
+    private fun loginRedirectTarget(request: HttpServletRequest): String {
+        val nextPath = buildString {
+            append(request.requestURI)
+            if (!request.queryString.isNullOrBlank()) {
+                append("?")
+                append(request.queryString)
+            }
+        }
+        val encodedNext = URLEncoder.encode(nextPath, StandardCharsets.UTF_8)
+        return "/login?next=$encodedNext"
     }
 
     @Bean

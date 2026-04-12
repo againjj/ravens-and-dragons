@@ -72,6 +72,23 @@ class AuthControllerTest : AbstractGameControllerTestSupport() {
     }
 
     @Test
+    fun `signup rejects a blank display name`() {
+        mockMvc.post("/api/auth/signup") {
+            contentType = MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsString(
+                SignupRequest(
+                    username = "new-player",
+                    password = "password123",
+                    displayName = "   "
+                )
+            )
+        }.andExpect {
+            status { isBadRequest() }
+            jsonPath("$.message", equalTo("Display name is required."))
+        }
+    }
+
+    @Test
     fun `logout clears a guest session and deletes the guest user`() {
         val loginResult = mockMvc.post("/api/auth/guest")
             .andExpect {

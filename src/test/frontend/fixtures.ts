@@ -10,6 +10,7 @@ export const createSession = (
     updatedAt: "2026-04-05T00:00:01Z",
     lifecycle: "new",
     canUndo: false,
+    undoOwnerSide: null,
     availableRuleConfigurations: [
         {
             id: "free-play",

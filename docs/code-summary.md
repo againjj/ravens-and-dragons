@@ -4,7 +4,7 @@
 
 This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a browser-based board game prototype. The backend supports multiple persisted game sessions, addressed by game id, and broadcasts updates over server-sent events per game. The frontend now opens on a lobby screen, creates or opens games by id, and then talks to the per-game backend API for the active session.
 
-The backend now also includes session-cookie authentication for guest and local users, optional OAuth login wiring, persisted seat ownership on games, and request-scoped game-view metadata. The frontend now consumes that auth-aware view data, surfaces guest/local auth controls, and gates gameplay actions by claimed side and active turn.
+The backend now also includes session-cookie authentication for guest and local users, optional OAuth login wiring, persisted seat ownership on games, and request-scoped game-view metadata. The frontend now consumes that auth-aware view data, surfaces guest/local auth controls, requires authentication before entering the lobby or a game, and gates gameplay actions by claimed side and active turn.
 
 ## Current Architecture
 
@@ -33,7 +33,7 @@ The backend now also includes session-cookie authentication for guest and local 
   - Redux store setup and typed hooks.
 - `src/main/frontend/features/game/*.ts`
   - Game slice, selectors, thunks, and stream lifecycle wiring.
-  - Includes current-game and current-view state, auth-aware game metadata, exact undo availability, and command/claim-side thunks.
+  - Includes current-game and current-view state, auth-aware game metadata, exact undo availability and ownership, and command/claim-side thunks.
 - `src/main/frontend/features/auth/*.ts`
   - Auth session slice, selectors, and guest/local auth thunks.
 - `src/main/frontend/features/ui/*.ts`
@@ -254,15 +254,15 @@ Most UI-only changes should start in the relevant component, selector, or browse
 
 - Clients connected to the same game id see the same server-owned game session.
 - The backend can create additional persisted games with generated ids.
-- Reads and SSE remain public.
-- Command submission and seat claiming now require an authenticated session.
+- Opening the lobby, loading a game, and SSE subscription now require an authenticated session.
+- Command submission and seat claiming also require an authenticated session.
 - Authenticated users may claim one open side on a game; unclaimed viewers remain spectators.
-- The game screen now shows current seat ownership and disables gameplay controls when the viewer is anonymous, spectating, or on the wrong side for the active turn.
+- The game screen now shows current seat ownership, hides pre-game setup controls until the viewer claims a side, hides claim buttons after a seat is claimed, and suppresses gameplay affordances when the viewer is spectating or on the wrong side for the active turn.
 - If a guest session ends, that guest user is deleted and any seats they held become unclaimed while the game itself stays active and viewable.
 - Generated game ids now use 7 characters from the Open Location Code ("PLUS code") alphabet `23456789CFGHJMPQRVWX`, which is the shortest fixed width that still covers more than 1,000,000,000 possible games.
 - Mutation requests include an expected version.
 - On a version conflict, the server returns `409` with the latest snapshot for that game only.
-- Freshly loaded clients receive an exact `canUndo` flag from the server, including after a finished game if undo can still roll back the terminal game-over state.
+- Freshly loaded clients receive an exact `canUndo` flag plus the side that currently owns undo, including after a finished game if undo can still roll back the terminal game-over state.
 - Freshly loaded clients also receive whether the shared session is `new`, `active`, or `finished`.
 - Freshly loaded clients also receive the shared selected play style and the full list of available rule configurations.
 - Freshly loaded clients also receive the shared selected starting side for `Free Play`.

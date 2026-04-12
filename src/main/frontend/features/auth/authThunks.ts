@@ -75,7 +75,6 @@ export const logout = (): AppThunk<Promise<void>> => async (dispatch) => {
                 user: null
             })
         );
-        await dispatch(refreshCurrentGameView());
     } catch {
         dispatch(authActions.authFeedbackMessageSet("Unable to log out right now."));
     } finally {

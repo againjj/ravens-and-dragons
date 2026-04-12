@@ -59,6 +59,7 @@ export interface ServerGameSession {
     lifecycle: GameLifecycle;
     snapshot: ServerGameSnapshot;
     canUndo: boolean;
+    undoOwnerSide?: Side | null;
     availableRuleConfigurations: RuleConfigurationSummary[];
     selectedRuleConfigurationId: string;
     selectedStartingSide: Side;
@@ -91,7 +92,7 @@ export interface LoginRequest {
 export interface SignupRequest {
     username: string;
     password: string;
-    displayName?: string;
+    displayName: string;
     email?: string;
 }
 

@@ -17,6 +17,7 @@ export const selectViewerRole = (state: RootState) => state.game.viewerRole ?? "
 export const selectDragonsPlayer = (state: RootState) => state.game.dragonsPlayer;
 export const selectRavensPlayer = (state: RootState) => state.game.ravensPlayer;
 export const selectCanUndo = (state: RootState) => state.game.session?.canUndo ?? false;
+export const selectUndoOwnerSide = (state: RootState) => state.game.session?.undoOwnerSide ?? null;
 export const selectSelectedSquare = (state: RootState) => state.ui.selectedSquare;
 export const selectIsSubmitting = (state: RootState) => state.game.isSubmitting;
 export const selectIsLoadingGame = (state: RootState) => state.game.loadState === "loading";
@@ -56,6 +57,16 @@ export const selectCanViewerAct = createSelector(
 
         return viewerRole === snapshot.activeSide;
     }
+);
+
+export const selectCanViewerUndo = createSelector(
+    selectCanUndo,
+    selectUndoOwnerSide,
+    selectViewerRole,
+    (canUndo, undoOwnerSide, viewerRole) =>
+        canUndo &&
+        undoOwnerSide != null &&
+        viewerRole === undoOwnerSide
 );
 
 export const selectCanClaimDragons = createSelector(
@@ -98,6 +109,12 @@ export const selectShowPreGameControls = createSelector(
     (snapshot, lifecycle) => snapshot?.phase === "none" && lifecycle === "new"
 );
 
+export const selectShowOwnedPreGameControls = createSelector(
+    selectShowPreGameControls,
+    selectViewerOwnsASeat,
+    (showPreGameControls, viewerOwnsASeat) => showPreGameControls && viewerOwnsASeat
+);
+
 export const selectTargetableSquares = createSelector(
     selectSnapshot,
     selectSelectedSquare,
@@ -110,7 +127,12 @@ export const selectTargetableSquares = createSelector(
     }
 );
 
-export const selectStatusText = createSelector(selectGameState, selectSnapshot, selectIsFinishedGame, (gameState, snapshot, isFinishedGame) => {
+export const selectStatusText = createSelector(
+    selectGameState,
+    selectSnapshot,
+    selectIsFinishedGame,
+    selectViewerOwnsASeat,
+    (gameState, snapshot, isFinishedGame, viewerOwnsASeat) => {
     if (gameState.feedbackMessage) {
         return gameState.feedbackMessage;
     }
@@ -132,7 +154,9 @@ export const selectStatusText = createSelector(selectGameState, selectSnapshot, 
     if (snapshot.phase === "none") {
         return isFinishedGame
             ? "This game is finished. Go back to the lobby to create a new game."
-            : "No game in progress. Select a play style and start a game.";
+            : viewerOwnsASeat
+                ? "No game in progress. Select a play style and start the game."
+                : "No game in progress. Claim a side or wait for someone else to start the game.";
     }
 
     if (snapshot.phase === "capture") {

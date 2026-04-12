@@ -6,6 +6,7 @@ import { describe, expect, test, vi } from "vitest";
 
 import { Board } from "../../main/frontend/components/Board.js";
 import { getColumnLetters } from "../../main/frontend/game.js";
+import { createAuthSession } from "./fixtures.js";
 import { createSession } from "./fixtures.js";
 import { renderWithStore } from "./test-utils.js";
 
@@ -121,6 +122,9 @@ describe("Board", () => {
         const user = userEvent.setup();
         const { store } = renderWithStore(<Board />, {
             preloadedState: {
+                auth: {
+                    session: createAuthSession()
+                },
                 game: {
                     session: createSession({}, {
                         phase: "move",
@@ -130,6 +134,9 @@ describe("Board", () => {
                             b2: "raven"
                         }
                     }),
+                    viewerRole: "dragons",
+                    dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
+                    ravensPlayer: { id: "player-ravens", displayName: "Raven Player" },
                     isSubmitting: false,
                     loadState: "ready",
                     connectionState: "open",
@@ -185,6 +192,9 @@ describe("Board", () => {
     test("marks capturable squares during capture phase", () => {
         renderWithStore(<Board />, {
             preloadedState: {
+                auth: {
+                    session: createAuthSession()
+                },
                 game: {
                     session: createSession({}, {
                         phase: "capture",
@@ -195,6 +205,9 @@ describe("Board", () => {
                             d4: "gold"
                         }
                     }),
+                    viewerRole: "dragons",
+                    dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
+                    ravensPlayer: { id: "player-ravens", displayName: "Raven Player" },
                     isSubmitting: false,
                     loadState: "ready",
                     connectionState: "open",
@@ -213,6 +226,9 @@ describe("Board", () => {
     test("only shows pointer affordance for actionable squares", () => {
         renderWithStore(<Board />, {
             preloadedState: {
+                auth: {
+                    session: createAuthSession()
+                },
                 game: {
                     session: createSession({}, {
                         phase: "move",
@@ -222,6 +238,9 @@ describe("Board", () => {
                             b2: "raven"
                         }
                     }),
+                    viewerRole: "dragons",
+                    dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
+                    ravensPlayer: { id: "player-ravens", displayName: "Raven Player" },
                     isSubmitting: false,
                     loadState: "ready",
                     connectionState: "open",
@@ -236,5 +255,87 @@ describe("Board", () => {
         expect(screen.getByRole("button", { name: "Square a1" })).toHaveClass("is-clickable");
         expect(screen.getByRole("button", { name: "Square b2" })).not.toHaveClass("is-clickable");
         expect(screen.getByRole("button", { name: "Square c3" })).not.toHaveClass("is-clickable");
+    });
+
+    test("does not show move affordances to the wrong-side player", async () => {
+        const user = userEvent.setup();
+        const { store } = renderWithStore(<Board />, {
+            preloadedState: {
+                auth: {
+                    session: createAuthSession({ user: { id: "player-ravens", displayName: "Raven Player", authType: "local" } })
+                },
+                game: {
+                    session: createSession({}, {
+                        phase: "move",
+                        activeSide: "dragons",
+                        board: {
+                            a1: "dragon",
+                            b2: "raven"
+                        }
+                    }),
+                    viewerRole: "ravens",
+                    dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
+                    ravensPlayer: { id: "player-ravens", displayName: "Raven Player" },
+                    isSubmitting: false,
+                    loadState: "ready",
+                    connectionState: "open",
+                    feedbackMessage: null
+                },
+                ui: {
+                    selectedSquare: null
+                }
+            }
+        });
+
+        const dragonsSquare = screen.getByRole("button", { name: "Square a1" });
+        const ravensSquare = screen.getByRole("button", { name: "Square b2" });
+
+        expect(dragonsSquare).not.toHaveClass("is-clickable");
+        expect(ravensSquare).not.toHaveClass("is-clickable");
+
+        await user.click(dragonsSquare);
+        await user.click(ravensSquare);
+
+        expect(store.getState().ui.selectedSquare).toBeNull();
+    });
+
+    test("does not show capture affordances to spectators", async () => {
+        const user = userEvent.setup();
+        const { store } = renderWithStore(<Board />, {
+            preloadedState: {
+                auth: {
+                    session: createAuthSession({ user: { id: "spectator", displayName: "Spectator", authType: "local" } })
+                },
+                game: {
+                    session: createSession({}, {
+                        phase: "capture",
+                        activeSide: "dragons",
+                        board: {
+                            a1: "dragon",
+                            b2: "raven"
+                        }
+                    }),
+                    viewerRole: "spectator",
+                    dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
+                    ravensPlayer: { id: "player-ravens", displayName: "Raven Player" },
+                    isSubmitting: false,
+                    loadState: "ready",
+                    connectionState: "open",
+                    feedbackMessage: null
+                },
+                ui: {
+                    selectedSquare: null
+                }
+            }
+        });
+
+        const captureTarget = screen.getByRole("button", { name: "Square b2" });
+
+        expect(captureTarget).not.toHaveClass("capture-target");
+        expect(captureTarget).not.toHaveClass("is-clickable");
+
+        await user.click(captureTarget);
+
+        expect(store.getState().ui.selectedSquare).toBeNull();
     });
 });

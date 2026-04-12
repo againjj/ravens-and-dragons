@@ -78,6 +78,7 @@ describe("game selectors", () => {
         const store = createAppStore({
             game: {
                 session: createSession(),
+                viewerRole: "dragons",
                 isSubmitting: false,
                 loadState: "ready",
                 connectionState: "open",
@@ -88,7 +89,27 @@ describe("game selectors", () => {
             }
         });
 
-        expect(selectStatusText(store.getState())).toBe("No game in progress. Select a play style and start a game.");
+        expect(selectStatusText(store.getState())).toBe("No game in progress. Select a play style and start the game.");
+    });
+
+    test("status text prompts spectators to claim a side before a game starts", () => {
+        const store = createAppStore({
+            game: {
+                session: createSession(),
+                viewerRole: "spectator",
+                isSubmitting: false,
+                loadState: "ready",
+                connectionState: "open",
+                feedbackMessage: null
+            },
+            ui: {
+                selectedSquare: null
+            }
+        });
+
+        expect(selectStatusText(store.getState())).toBe(
+            "No game in progress. Claim a side or wait for someone else to start the game."
+        );
     });
 
     test("status text uses the game over copy after ending a game", () => {

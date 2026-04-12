@@ -12,12 +12,12 @@ import org.springframework.test.web.servlet.get
 class AppRoutesControllerTest : AbstractGameControllerTestSupport() {
 
     @Test
-    fun `root route loads the frontend app shell directly`() {
+    fun `signed out root route redirects to login`() {
         mockMvc.get("/") {
-            accept = MediaType.TEXT_HTML
+            secure = false
         }.andExpect {
-            status { isOk() }
-            forwardedUrl("index.html")
+            status { is3xxRedirection() }
+            redirectedUrl("/login?next=%2F")
         }
     }
 
@@ -32,19 +32,29 @@ class AppRoutesControllerTest : AbstractGameControllerTestSupport() {
     }
 
     @Test
-    fun `lobby route loads the frontend app shell directly`() {
+    fun `signed out lobby route redirects to login`() {
         mockMvc.get("/lobby") {
-            accept = MediaType.TEXT_HTML
+            secure = false
         }.andExpect {
-            status { isOk() }
-            forwardedUrl("/index.html")
+            status { is3xxRedirection() }
+            redirectedUrl("/login?next=%2Flobby")
         }
     }
 
     @Test
-    fun `game route loads the frontend app shell directly`() {
+    fun `signed out game route redirects to login with next parameter`() {
         mockMvc.get("/g/CFGHJMP") {
-            accept = MediaType.TEXT_HTML
+            secure = false
+        }.andExpect {
+            status { is3xxRedirection() }
+            redirectedUrl("/login?next=%2Fg%2FCFGHJMP")
+        }
+    }
+
+    @Test
+    fun `authenticated game route loads the frontend app shell directly`() {
+        mockMvc.get("/g/CFGHJMP") {
+            with(authenticated("CFGHJMP"))
         }.andExpect {
             status { isOk() }
             forwardedUrl("/index.html")

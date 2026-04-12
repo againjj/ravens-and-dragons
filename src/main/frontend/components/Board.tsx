@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 
 import { useAppDispatch, useAppSelector } from "../app/hooks.js";
 import { getBoardDimension, getPieceAtSquare, getRowNumbers, getSquareName, normalizeSelectedSquare, sideOwnsPiece, type Piece } from "../game.js";
-import { selectCapturableSquares, selectSelectedSquare, selectSnapshot, selectTargetableSquares } from "../features/game/gameSelectors.js";
+import { selectCanViewerAct, selectCapturableSquares, selectSelectedSquare, selectSnapshot, selectTargetableSquares } from "../features/game/gameSelectors.js";
 import { capturePiece, cycleSetup, movePiece } from "../features/game/gameThunks.js";
 import { uiActions } from "../features/ui/uiSlice.js";
 
@@ -27,6 +27,7 @@ const getSquareClassName = (
         capturableSquares: Set<string>;
         snapshot: NonNullable<ReturnType<typeof selectSnapshot>> | null;
         isCapturePhase: boolean;
+        canViewerAct: boolean;
     }
 ): string => {
     const classNames = ["square"];
@@ -34,6 +35,8 @@ const getSquareClassName = (
     const isClickable =
         !options.snapshot
             ? false
+            : !options.canViewerAct
+              ? false
             : options.snapshot.phase === "setup"
               ? true
               : options.snapshot.phase === "capture"
@@ -70,8 +73,13 @@ const getBoardClickAction = (
     square: string,
     snapshot: NonNullable<ReturnType<typeof selectSnapshot>>,
     selectedSquare: string | null,
-    capturableSquares: string[]
+    capturableSquares: string[],
+    canViewerAct: boolean
 ): BoardClickAction => {
+    if (!canViewerAct) {
+        return { type: "none" };
+    }
+
     if (snapshot.phase === "none") {
         return { type: "none" };
     }
@@ -106,11 +114,12 @@ export const Board = () => {
     const dispatch = useAppDispatch();
     const snapshot = useAppSelector(selectSnapshot);
     const selectedSquare = useAppSelector(selectSelectedSquare);
+    const canViewerAct = useAppSelector(selectCanViewerAct);
     const capturableSquares = useAppSelector(selectCapturableSquares);
     const targetableSquares = useAppSelector(selectTargetableSquares);
-    const normalizedSelectedSquare = snapshot ? normalizeSelectedSquare(snapshot, selectedSquare) : null;
-    const capturableSquareSet = new Set(capturableSquares);
-    const targetableSquareSet = new Set(targetableSquares);
+    const normalizedSelectedSquare = snapshot && canViewerAct ? normalizeSelectedSquare(snapshot, selectedSquare) : null;
+    const capturableSquareSet = new Set(canViewerAct ? capturableSquares : []);
+    const targetableSquareSet = new Set(canViewerAct ? targetableSquares : []);
     const boardDimension = getBoardDimension(snapshot);
     const rowNumbers = getRowNumbers(boardDimension);
     const boardStyle = { "--board-dimension": String(boardDimension) } as CSSProperties;
@@ -120,7 +129,7 @@ export const Board = () => {
             return;
         }
 
-        const action = getBoardClickAction(square, snapshot, selectedSquare, capturableSquares);
+        const action = getBoardClickAction(square, snapshot, selectedSquare, capturableSquares, canViewerAct);
         switch (action.type) {
             case "cycle-setup":
                 void dispatch(cycleSetup(action.square));
@@ -162,7 +171,8 @@ export const Board = () => {
                                     targetableSquares: targetableSquareSet,
                                     capturableSquares: capturableSquareSet,
                                     snapshot,
-                                    isCapturePhase: snapshot?.phase === "capture"
+                                    isCapturePhase: snapshot?.phase === "capture",
+                                    canViewerAct
                                 })}
                                 data-square={squareName}
                                 aria-label={`Square ${squareName}`}

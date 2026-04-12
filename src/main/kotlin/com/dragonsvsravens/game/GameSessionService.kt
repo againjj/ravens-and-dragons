@@ -313,23 +313,36 @@ class GameSessionService(
 
     private fun requireAuthorizedPlayer(current: StoredGame, actingUserId: String, commandType: String) {
         val dragonsPlayerUserId = current.session.dragonsPlayerUserId
-        val ravensPlayerUserId = current.session.ravensPlayerUserId
+       val ravensPlayerUserId = current.session.ravensPlayerUserId
         val assignedSide =
             when {
-                dragonsPlayerUserId == actingUserId && ravensPlayerUserId == actingUserId -> current.session.snapshot.activeSide
+                dragonsPlayerUserId == actingUserId && ravensPlayerUserId == actingUserId ->
+                    if (commandType == "undo") {
+                        current.session.undoOwnerSide ?: current.session.snapshot.activeSide
+                    } else {
+                        current.session.snapshot.activeSide
+                    }
                 dragonsPlayerUserId == actingUserId -> Side.dragons
                 ravensPlayerUserId == actingUserId -> Side.ravens
                 else -> null
             } ?: throw ForbiddenActionException("You must claim a side before submitting commands.")
 
         val phase = current.session.snapshot.phase
+        if (commandType == "undo") {
+            current.session.undoOwnerSide?.let { undoOwnerSide ->
+                if (assignedSide != undoOwnerSide) {
+                    throw ForbiddenActionException("Only the player who made the last move may undo.")
+                }
+            }
+            return
+        }
         if (phase == Phase.none) {
             return
         }
         if (assignedSide != current.session.snapshot.activeSide) {
             throw ForbiddenActionException("It is not your turn.")
         }
-        if (commandType == "undo" || commandType == "end-game") {
+        if (commandType == "end-game") {
             return
         }
     }

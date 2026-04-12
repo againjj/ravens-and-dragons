@@ -29,6 +29,7 @@ By default, the backend uses an H2 file database at `build/db/dragons-vs-ravens`
 Open the app in two browser tabs to see the shared game stay in sync through server-sent events.
 The browser now opens on a lobby screen at `/`, where you can create a new game or open an existing one by ID.
 The page now also includes auth controls for guest play, local signup/login/logout, and a Google OAuth entry link for deployments that configure that provider.
+Users must authenticate before opening the lobby or viewing a game.
 The lobby now presents separate `Start Fresh` and `Rejoin Game` cards, normalizes typed game IDs to uppercase, and disables `Open Game` until an ID is entered.
 Each game has its own URL at `/g/{gameId}`.
 Loading a game URL directly opens that game, and after you create or open a game from the lobby the browser updates the address bar to that game's `/g/{gameId}` URL.
@@ -43,16 +44,16 @@ Once a game is open, the controls include the play-style dropdown plus the usual
 Game over returns the session to a finished no-game state while preserving the final board position and full completed history, including a terminal `Game Over: ...` entry.
 `Original Game` and `Sherwood Rules` now label draws by cause in turn history, such as `Game Over: Draw by repetition` and `Game Over: Draw by no legal move`.
 When `Free Play` is ended manually, the terminal history entry is rendered as `Game Over`.
-Finished games stay viewable on their existing game IDs, and if the session still has undo history you can undo the terminal game-over state to resume play from the previous snapshot.
+Finished games stay viewable on their existing game IDs, and if the session still has undo history the player who made the last undoable move can undo the terminal game-over state to resume play from the previous snapshot.
 You still cannot restart or reconfigure a finished game on that same ID while it remains finished; creating another game gives you a fresh ID.
 The board now displays numbered rows from top to bottom and lettered columns from left to right on a 7x7 grid, while square names still use `letter + number` notation such as `a1` and `d4`.
 Only actionable board squares now show pointer/hover affordances, and the move list shows an empty-state message before play begins, auto-scrolls to the latest history entry during play, and groups moves into numbered two-column rows.
 Games remain subject to stale cleanup and are removed after more than one hour without a load, command, or active SSE viewer.
 The backend now also exposes session-cookie auth APIs for guest and local login, plus optional OAuth login wiring when a provider is configured.
-Reads and SSE remain public, but claiming a side and submitting commands now require an authenticated session.
+Opening a game, subscribing to its SSE stream, claiming a side, and submitting commands now all require an authenticated session.
 Games may track claimed `dragons` and `ravens` seats, and the auth-aware game view endpoint lives at `GET /api/games/{gameId}/view`.
 Guest accounts are session-only: logging out or losing the session deletes the guest user and releases any seats they held without ending the game.
-On the game screen, the browser now shows claimed seats, allows signed-in users to claim an open side, and disables gameplay controls for anonymous viewers, spectators, or the wrong side.
+On the game screen, the browser now shows claimed seats, hides pre-game setup controls until a side is claimed, hides the claim buttons after a seat is claimed, and only shows actionable board and control affordances to the player who can act. Undo is reserved for the player who made the last undoable move.
 
 ## Run Tests
 

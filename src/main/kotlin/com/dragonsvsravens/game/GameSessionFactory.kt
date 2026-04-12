@@ -49,6 +49,7 @@ object GameSessionFactory {
             lifecycle = lifecycle,
             snapshot = snapshot,
             canUndo = undoSnapshots.isNotEmpty(),
+            undoOwnerSide = undoSnapshots.lastOrNull()?.activeSide,
             availableRuleConfigurations = GameRules.availableRuleConfigurations(),
             selectedRuleConfigurationId = selectedRuleConfigurationId,
             selectedStartingSide = selectedStartingSide,

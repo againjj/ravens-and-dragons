@@ -42,4 +42,25 @@ describe("SeatPanel", () => {
         expect(onClaimDragons).toHaveBeenCalledTimes(1);
         expect(onClaimRavens).not.toHaveBeenCalled();
     });
+
+    test("hides claim buttons after the viewer has claimed a side", () => {
+        renderWithStore(
+            <SeatPanel onClaimDragons={vi.fn()} onClaimRavens={vi.fn()} />,
+            {
+                preloadedState: {
+                    auth: {
+                        session: createAuthSession()
+                    },
+                    game: {
+                        viewerRole: "dragons",
+                        dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
+                        ravensPlayer: null
+                    }
+                }
+            }
+        );
+
+        expect(screen.queryByRole("button", { name: "Claim Dragons" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Claim Ravens" })).toBeNull();
+    });
 });

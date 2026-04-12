@@ -11,12 +11,14 @@ const {
     fetchAuthSessionMock,
     fetchGameViewMock,
     loginAsGuestMock,
+    logoutRequestMock,
     sendGameCommandRequestMock
 } = vi.hoisted(() => ({
     createGameSessionMock: vi.fn(),
     fetchAuthSessionMock: vi.fn(),
     fetchGameViewMock: vi.fn(),
     loginAsGuestMock: vi.fn(),
+    logoutRequestMock: vi.fn(),
     sendGameCommandRequestMock: vi.fn()
 }));
 
@@ -27,7 +29,7 @@ vi.mock("../../main/frontend/game-client.js", () => ({
     getOAuthLoginUrl: (provider: string) => `/oauth2/authorization/${provider}`,
     loginAsGuest: loginAsGuestMock,
     loginRequest: vi.fn(),
-    logoutRequest: vi.fn(),
+    logoutRequest: logoutRequestMock,
     sendGameCommandRequest: sendGameCommandRequestMock,
     signupRequest: vi.fn(),
     openGameStream: vi.fn(),
@@ -54,6 +56,7 @@ describe("App routing", () => {
         fetchAuthSessionMock.mockReset();
         fetchGameViewMock.mockReset();
         loginAsGuestMock.mockReset();
+        logoutRequestMock.mockReset();
         sendGameCommandRequestMock.mockReset();
         fetchAuthSessionMock.mockResolvedValue({
             authenticated: false,
@@ -67,6 +70,7 @@ describe("App routing", () => {
                 authType: "guest"
             }
         });
+        logoutRequestMock.mockResolvedValue(undefined);
         window.history.pushState({}, "", "/");
     });
 
@@ -116,6 +120,16 @@ describe("App routing", () => {
 
         await screen.findByRole("heading", { name: "Game Lobby" });
         expect(window.location.pathname).toBe("/lobby");
+    });
+
+    test("signed out users loading / are redirected to /login with a return target", async () => {
+        window.history.pushState({}, "", "/");
+
+        renderWithStore(<App />);
+
+        await screen.findByRole("button", { name: "Continue as Guest" });
+        expect(window.location.pathname).toBe("/login");
+        expect(new URLSearchParams(window.location.search).get("next")).toBe("/");
     });
 
     test("opening a game from /lobby updates the URL", async () => {
@@ -173,6 +187,30 @@ describe("App routing", () => {
         await screen.findByRole("button", { name: "Continue as Guest" });
         expect(window.location.pathname).toBe("/login");
         expect(new URLSearchParams(window.location.search).get("next")).toBe("/lobby");
+    });
+
+    test("logging out from a game route returns the app to the login screen", async () => {
+        const user = userEvent.setup();
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "player-dragons",
+                displayName: "Dragon Player",
+                authType: "local"
+            }
+        });
+        fetchGameViewMock.mockResolvedValue(createGameView({ id: "MPQRVWX" }));
+        window.history.pushState({}, "", "/g/MPQRVWX");
+
+        renderWithStore(<App />);
+
+        await screen.findByRole("heading", { name: "Game MPQRVWX" });
+        await user.click(screen.getByRole("button", { name: "Log Out" }));
+
+        await waitFor(() => {
+            expect(window.location.pathname).toBe("/login");
+        });
+        expect(new URLSearchParams(window.location.search).get("next")).toBe("/g/MPQRVWX");
     });
 
     test("browser back from a lobby-opened game returns to /lobby", async () => {

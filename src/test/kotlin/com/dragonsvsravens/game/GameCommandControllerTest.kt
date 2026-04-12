@@ -17,7 +17,9 @@ class GameCommandControllerTest : AbstractGameControllerTestSupport() {
     fun `get game returns the requested session in no game state`() {
         val game = createGame()
 
-        mockMvc.get("/api/games/${game.id}")
+        mockMvc.get("/api/games/${game.id}") {
+            with(authenticated(game.id))
+        }
             .andExpect {
                 status { isOk() }
                 jsonPath("$.id", equalTo(game.id))
@@ -399,7 +401,9 @@ class GameCommandControllerTest : AbstractGameControllerTestSupport() {
         endSetup(game.id)
         executeGameCommand(game.id, command(currentVersion(game.id), "move-piece", origin = "a1", destination = "a2"))
 
-        mockMvc.get("/api/games/${game.id}")
+        mockMvc.get("/api/games/${game.id}") {
+            with(authenticated(game.id))
+        }
             .andExpect {
                 status { isOk() }
                 jsonPath("$.snapshot.board.a2", equalTo("dragon"))
@@ -528,7 +532,9 @@ class GameCommandControllerTest : AbstractGameControllerTestSupport() {
         val game = seedGame(gameId = "evicted-game")
         gameStore.remove(game.id)
 
-        mockMvc.get("/api/games/${game.id}")
+        mockMvc.get("/api/games/${game.id}") {
+            with(authenticated(game.id))
+        }
             .andExpect {
                 status { isNotFound() }
                 jsonPath("$.message", equalTo("Game ${game.id} was not found."))

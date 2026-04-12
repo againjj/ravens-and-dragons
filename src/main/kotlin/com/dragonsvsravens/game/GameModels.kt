@@ -74,6 +74,7 @@ data class GameSession(
     val lifecycle: GameLifecycle,
     val snapshot: GameSnapshot,
     val canUndo: Boolean,
+    val undoOwnerSide: Side? = null,
     val availableRuleConfigurations: List<RuleConfigurationSummary>,
     val selectedRuleConfigurationId: String,
     val selectedStartingSide: Side,

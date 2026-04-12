@@ -15,6 +15,7 @@ class GameControllerTest : AbstractGameControllerTestSupport() {
     @Test
     fun `create game returns a new non default session`() {
         mockMvc.post("/api/games") {
+            with(authenticated("create-game"))
             contentType = MediaType.APPLICATION_JSON
             content = objectMapper.writeValueAsString(CreateGameRequest())
         }.andExpect {
@@ -37,7 +38,9 @@ class GameControllerTest : AbstractGameControllerTestSupport() {
             jsonPath("$.snapshot.phase", equalTo("setup"))
         }
 
-        mockMvc.get("/api/games/${secondGame.id}")
+        mockMvc.get("/api/games/${secondGame.id}") {
+            with(authenticated(secondGame.id))
+        }
             .andExpect {
                 status { isOk() }
                 jsonPath("$.id", equalTo(secondGame.id))
@@ -68,7 +71,9 @@ class GameControllerTest : AbstractGameControllerTestSupport() {
 
         executeGameCommand(created.id, command(created.version, "start-game"))
 
-        mockMvc.get("/api/games/${created.id}")
+        mockMvc.get("/api/games/${created.id}") {
+            with(authenticated(created.id))
+        }
             .andExpect {
                 status { isOk() }
                 jsonPath("$.id", equalTo(created.id))
@@ -79,7 +84,9 @@ class GameControllerTest : AbstractGameControllerTestSupport() {
 
     @Test
     fun `missing game returns not found on multi game routes`() {
-        mockMvc.get("/api/games/missing-game")
+        mockMvc.get("/api/games/missing-game") {
+            with(authenticated("missing-game"))
+        }
             .andExpect {
                 status { isNotFound() }
                 jsonPath("$.message", equalTo("Game missing-game was not found."))
@@ -89,6 +96,7 @@ class GameControllerTest : AbstractGameControllerTestSupport() {
     @Test
     fun `missing game stream returns not found for sse requests`() {
         mockMvc.get("/api/games/missing-game/stream") {
+            with(authenticated("missing-game"))
             accept = MediaType.TEXT_EVENT_STREAM
         }.andExpect {
             status { isNotFound() }
@@ -98,19 +106,24 @@ class GameControllerTest : AbstractGameControllerTestSupport() {
 
     @Test
     fun `removed default compatibility routes return not found`() {
-        mockMvc.get("/api/game")
+        mockMvc.get("/api/game") {
+            with(authenticated("legacy-route"))
+        }
             .andExpect {
                 status { isNotFound() }
             }
 
         mockMvc.post("/api/game/commands") {
+            with(authenticated("legacy-route"))
             contentType = MediaType.APPLICATION_JSON
             content = objectMapper.writeValueAsString(command(0, "start-game"))
         }.andExpect {
             status { isNotFound() }
         }
 
-        mockMvc.get("/api/game/stream")
+        mockMvc.get("/api/game/stream") {
+            with(authenticated("legacy-route"))
+        }
             .andExpect {
                 status { isNotFound() }
             }
@@ -119,6 +132,7 @@ class GameControllerTest : AbstractGameControllerTestSupport() {
     @Test
     fun `game route serves the frontend app shell`() {
         mockMvc.get("/g/CFGHJMP") {
+            with(authenticated("CFGHJMP"))
             accept = MediaType.TEXT_HTML
         }.andExpect {
             status { isOk() }

@@ -12,6 +12,37 @@ import org.springframework.test.web.servlet.get
 class GameAuthorizationControllerTest : AbstractGameControllerTestSupport() {
 
     @Test
+    fun `anonymous users cannot load a game`() {
+        val game = createGame()
+
+        anonymousGetGame(game.id).andExpect {
+            status { isUnauthorized() }
+        }
+    }
+
+    @Test
+    fun `anonymous users cannot load a game view`() {
+        val game = createGame()
+
+        mockMvc.get("/api/games/${game.id}/view") {
+            accept = MediaType.APPLICATION_JSON
+        }.andExpect {
+            status { isUnauthorized() }
+        }
+    }
+
+    @Test
+    fun `anonymous users cannot open a game stream`() {
+        val game = createGame()
+
+        mockMvc.get("/api/games/${game.id}/stream") {
+            accept = MediaType.TEXT_EVENT_STREAM
+        }.andExpect {
+            status { isUnauthorized() }
+        }
+    }
+
+    @Test
     fun `anonymous users cannot submit commands`() {
         val game = createGame()
 
@@ -68,6 +99,99 @@ class GameAuthorizationControllerTest : AbstractGameControllerTestSupport() {
         ).andExpect {
             status { isForbidden() }
             jsonPath("$.message", equalTo("It is not your turn."))
+        }
+    }
+
+    @Test
+    fun `player who made the last move can undo after the turn passes`() {
+        val game = createGame()
+        assignSides(game.id, defaultTestUserId, alternateTestUserId)
+
+        authenticatedPostGameCommand(
+            game.id,
+            command(game.version, "start-game"),
+            userId = defaultTestUserId
+        ).andExpect {
+            status { isOk() }
+        }
+
+        authenticatedPostGameCommand(
+            game.id,
+            command(1, "cycle-setup", square = "a1"),
+            userId = defaultTestUserId
+        ).andExpect {
+            status { isOk() }
+        }
+
+        authenticatedPostGameCommand(
+            game.id,
+            command(2, "end-setup"),
+            userId = defaultTestUserId
+        ).andExpect {
+            status { isOk() }
+        }
+
+        authenticatedPostGameCommand(
+            game.id,
+            command(3, "move-piece", origin = "a1", destination = "a2"),
+            userId = defaultTestUserId
+        ).andExpect {
+            status { isOk() }
+        }
+
+        authenticatedPostGameCommand(
+            game.id,
+            command(4, "undo"),
+            userId = defaultTestUserId
+        ).andExpect {
+            status { isOk() }
+        }
+    }
+
+    @Test
+    fun `current player cannot undo the opponent last move`() {
+        val game = createGame()
+        assignSides(game.id, defaultTestUserId, alternateTestUserId)
+
+        authenticatedPostGameCommand(
+            game.id,
+            command(game.version, "start-game"),
+            userId = defaultTestUserId
+        ).andExpect {
+            status { isOk() }
+        }
+
+        authenticatedPostGameCommand(
+            game.id,
+            command(1, "cycle-setup", square = "a1"),
+            userId = defaultTestUserId
+        ).andExpect {
+            status { isOk() }
+        }
+
+        authenticatedPostGameCommand(
+            game.id,
+            command(2, "end-setup"),
+            userId = defaultTestUserId
+        ).andExpect {
+            status { isOk() }
+        }
+
+        authenticatedPostGameCommand(
+            game.id,
+            command(3, "move-piece", origin = "a1", destination = "a2"),
+            userId = defaultTestUserId
+        ).andExpect {
+            status { isOk() }
+        }
+
+        authenticatedPostGameCommand(
+            game.id,
+            command(4, "undo"),
+            userId = alternateTestUserId
+        ).andExpect {
+            status { isForbidden() }
+            jsonPath("$.message", equalTo("Only the player who made the last move may undo."))
         }
     }
 

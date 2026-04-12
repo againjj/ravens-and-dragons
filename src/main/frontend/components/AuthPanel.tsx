@@ -8,7 +8,7 @@ import { getOAuthLoginUrl } from "../game-client.js";
 interface AuthPanelProps {
     onContinueAsGuest: () => void;
     onLogin: (request: { username: string; password: string }) => void;
-    onSignup: (request: { username: string; password: string; displayName?: string }) => void;
+    onSignup: (request: { username: string; password: string; displayName: string }) => void;
     onLogout: () => void;
 }
 
@@ -29,6 +29,7 @@ export const AuthPanel = ({
     const [signupPassword, setSignupPassword] = useState("");
     const [signupDisplayName, setSignupDisplayName] = useState("");
     const isSignupPasswordValid = signupPassword.length >= 8;
+    const isSignupDisplayNameValid = signupDisplayName.trim() !== "";
     const dismissFeedback = () => {
         dispatch(authActions.authFeedbackMessageSet(null));
     };
@@ -174,12 +175,17 @@ export const AuthPanel = ({
                             <p className="auth-guidance">Use at least 8 characters for your password.</p>
                             <button
                                 type="button"
-                                disabled={isSubmitting || signupUsername.trim() === "" || !isSignupPasswordValid}
+                                disabled={
+                                    isSubmitting ||
+                                    signupUsername.trim() === "" ||
+                                    !isSignupDisplayNameValid ||
+                                    !isSignupPasswordValid
+                                }
                                 onClick={() => {
                                     onSignup({
                                         username: signupUsername.trim(),
                                         password: signupPassword,
-                                        displayName: signupDisplayName.trim() || undefined
+                                        displayName: signupDisplayName.trim()
                                     });
                                 }}
                             >
