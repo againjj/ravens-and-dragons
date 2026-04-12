@@ -71,7 +71,7 @@ This runs:
 
 Railway can deploy this app directly from the repository or from the Railway CLI. The app is a single Spring Boot service, and Railway should build it with Gradle automatically.
 
-This repo includes [`railway.json`](/Users/jrayazian/code/dragons-vs-ravens/railway.json), which sets the Railway start command to the Spring Boot jar produced by Gradle.
+This repo includes [`railway.json`](/Users/jrayazian/code/dragons-vs-ravens/railway.json), which sets the Railway start command to the Spring Boot jar produced by Gradle and points Railway health checks at the public `/health` endpoint instead of the auth-gated root route.
 
 If you want to deploy from your local machine with the Railway CLI:
 

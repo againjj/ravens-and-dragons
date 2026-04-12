@@ -32,6 +32,16 @@ class AppRoutesControllerTest : AbstractGameControllerTestSupport() {
     }
 
     @Test
+    fun `health route is publicly available`() {
+        mockMvc.get("/health") {
+            secure = false
+        }.andExpect {
+            status { isOk() }
+            content { string("ok") }
+        }
+    }
+
+    @Test
     fun `signed out lobby route redirects to login`() {
         mockMvc.get("/lobby") {
             secure = false

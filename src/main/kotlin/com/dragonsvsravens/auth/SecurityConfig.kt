@@ -40,7 +40,7 @@ class SecurityConfig {
             .csrf { it.disable() }
             .authorizeHttpRequests {
                 it.dispatcherTypeMatchers(DispatcherType.FORWARD).permitAll()
-                it.requestMatchers(HttpMethod.GET, "/login", "/api/auth/session", "/styles.css", "/assets/**", "/favicon.ico").permitAll()
+                it.requestMatchers(HttpMethod.GET, "/health", "/login", "/api/auth/session", "/styles.css", "/assets/**", "/favicon.ico").permitAll()
                 it.requestMatchers("/api/auth/guest", "/api/auth/signup", "/api/auth/login", "/login/**", "/oauth2/**").permitAll()
                 it.requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll()
                 it.requestMatchers("/", "/lobby", "/g/**", "/api/games/**").authenticated()

@@ -87,7 +87,7 @@ The backend now also includes session-cookie authentication for guest and local 
   - `server.port` reads `${PORT:8080}` so the app keeps its local default while also working on Railway-style platforms that inject the listen port at runtime.
   - `spring.datasource.*` defaults to an H2 file database for local persistence and may be overridden for PostgreSQL deploys.
   - Flyway runs startup migrations from `classpath:db/migration`.
-  - `railway.json` overrides Railway's deploy start command to `java -jar build/libs/dragons-vs-ravens.jar`, matching the Spring Boot fat jar produced by the Gradle build.
+  - `railway.json` overrides Railway's deploy start command to `java -jar build/libs/dragons-vs-ravens.jar`, points Railway health checks at `GET /health`, and matches the Spring Boot fat jar produced by the Gradle build.
 - Result:
   - Running `./gradlew bootRun` serves the Vite-built frontend bundle plus static CSS through Spring Boot.
 
