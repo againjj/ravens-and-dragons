@@ -73,7 +73,7 @@ Railway can deploy this app directly from the repository or from the Railway CLI
 
 This repo includes [`railway.json`](/Users/jrayazian/code/dragons-vs-ravens/railway.json), which sets the Railway start command to the Spring Boot jar produced by Gradle and points Railway health checks at the public `/health` endpoint instead of the auth-gated root route.
 
-If you want to deploy from your local machine with the Railway CLI:
+If you want to launch or update the app from your local machine with the Railway CLI:
 
 ```bash
 railway login --browserless
@@ -81,17 +81,21 @@ railway init
 railway up
 ```
 
-Railway injects `PORT` at runtime, and the app now binds to that port automatically.
-For persistent production storage, also set:
+Use `railway up` when you want Railway to build and run your current local workspace. `railway service redeploy` only restarts the latest already-uploaded deployment and will not include newer unuploaded local changes.
+
+Railway injects `PORT` at runtime, and the app binds to that port automatically.
+For persistent production storage, set the Spring datasource variables on the app service to the linked Railway Postgres values:
 
 ```text
-SPRING_DATASOURCE_URL=jdbc:postgresql://...
-SPRING_DATASOURCE_USERNAME=...
-SPRING_DATASOURCE_PASSWORD=...
+SPRING_DATASOURCE_URL=jdbc:postgresql://<PGHOST>:<PGPORT>/<PGDATABASE>
+SPRING_DATASOURCE_USERNAME=<PGUSER>
+SPRING_DATASOURCE_PASSWORD=<PGPASSWORD>
 SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver
 ```
 
-Flyway runs the schema migration automatically on startup for both local H2 and deployed PostgreSQL databases.
+Do not embed `username:password@` inside `SPRING_DATASOURCE_URL`. This app expects a JDBC URL plus separate username and password variables.
+
+Flyway runs the schema migration automatically on startup for both local H2 and deployed PostgreSQL databases. The build also pins Flyway to a Railway-compatible version and includes the PostgreSQL Flyway database module so Railway's managed Postgres startup can migrate successfully.
 
 The current Railway production URL is [https://dragons-vs-ravens-production.up.railway.app](https://dragons-vs-ravens-production.up.railway.app).
 

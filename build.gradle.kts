@@ -13,6 +13,8 @@ plugins {
 group = "com.dragonsvsravens"
 version = "0.0.1-SNAPSHOT"
 
+extra["flyway.version"] = "10.22.0"
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(21)
@@ -41,6 +43,7 @@ dependencies {
     implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
     implementation("org.flywaydb:flyway-core")
+    implementation("org.flywaydb:flyway-database-postgresql")
     runtimeOnly("com.h2database:h2")
     runtimeOnly("org.postgresql:postgresql")
 
