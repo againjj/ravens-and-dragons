@@ -140,7 +140,7 @@ class JdbcGameStoreTest {
     @Test
     fun `persisted game can be reopened through a fresh service instance`() {
         val clock = Clock.fixed(Instant.parse("2026-04-08T12:00:00Z"), ZoneOffset.UTC)
-        val firstService = GameSessionService(gameStore, clock)
+        val firstService = GameSessionService(gameStore, clock, GameSessionService.defaultStaleGameThreshold)
 
         val created = firstService.createGame()
         val started = firstService.applyCommand(
@@ -148,7 +148,7 @@ class JdbcGameStoreTest {
             GameCommandRequest(expectedVersion = created.version, type = "start-game")
         )
 
-        val restartedService = GameSessionService(gameStore, clock)
+        val restartedService = GameSessionService(gameStore, clock, GameSessionService.defaultStaleGameThreshold)
         val reloaded = restartedService.getGame(created.id)
 
         assertEquals(started.id, reloaded.id)

@@ -6,13 +6,12 @@ import { createSession } from "./fixtures.js";
 import { renderWithStore } from "./test-utils.js";
 
 describe("MoveList", () => {
-    test("scrolls to the end of the move list when history changes", () => {
+    test("scrolls the move list container to the end when history changes", () => {
         const scrollIntoView = vi.fn();
-        vi.stubGlobal("HTMLElement", HTMLElement);
         const originalScrollIntoView = HTMLElement.prototype.scrollIntoView;
         HTMLElement.prototype.scrollIntoView = scrollIntoView;
 
-        renderWithStore(<MoveList />, {
+        const { container } = renderWithStore(<MoveList />, {
             preloadedState: {
                 game: {
                     session: createSession({}, {
@@ -29,7 +28,10 @@ describe("MoveList", () => {
             }
         });
 
-        expect(scrollIntoView).toHaveBeenCalledWith({ block: "end" });
+        const historyContainer = container.querySelector(".turn-history") as HTMLDivElement | null;
+        expect(historyContainer).not.toBeNull();
+        expect(historyContainer?.scrollTop).toBe(historyContainer?.scrollHeight ?? 0);
+        expect(scrollIntoView).not.toHaveBeenCalled();
 
         HTMLElement.prototype.scrollIntoView = originalScrollIntoView;
     });

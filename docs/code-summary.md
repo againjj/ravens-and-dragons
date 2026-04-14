@@ -42,6 +42,7 @@ The backend now also includes session-cookie authentication for guest and local 
   - React components for the lobby screen, auth panel, seat display, board rendering, controls, move list, and status text.
 - `src/main/frontend/hooks/*.ts`
   - Browser hooks for responsive sizing, fullscreen behavior, and URL-to-game routing.
+  - `useBoardSizing.ts` now measures the padded board panel so the board can shrink and grow without overflowing the panel.
 - `src/test/frontend/game.test.js`
   - Frontend helper tests for server-backed snapshots and local-only selection behavior.
 - `src/test/kotlin/com/dragonsvsravens/game/GameRulesTest.kt`
@@ -82,10 +83,11 @@ The backend now also includes session-cookie authentication for guest and local 
   - A request-scoped auth-aware game view is available at `GET /api/games/{gameId}/view`.
   - The active game screen sends mutations to `POST /api/games/{gameId}/commands`.
   - The active game screen subscribes to `GET /api/games/{gameId}/stream` for live updates.
-  - Games are stored in the configured database and are automatically evicted when they have not been accessed for more than one hour and no SSE viewers are connected.
+  - Games are stored in the configured database and are automatically evicted when they have not been accessed longer than the configured stale threshold and no SSE viewers are connected.
 - Runtime configuration:
   - `server.port` reads `${PORT:8080}` so the app keeps its local default while also working on Railway-style platforms that inject the listen port at runtime.
   - `spring.datasource.*` defaults to an H2 file database for local persistence and may be overridden for PostgreSQL deploys.
+  - `dragons-vs-ravens.games.stale-threshold` controls how long an inactive game can sit before eviction, and defaults to six weeks (`1008h`).
   - Google OAuth is enabled only when the environment defines a `google` Spring client registration through `SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID`, `SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET`, and typically `SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_SCOPE=openid,profile,email`.
   - Google callback URLs should use `/login/oauth2/code/google`, such as `http://localhost:8080/login/oauth2/code/google` locally or `https://<deploy-host>/login/oauth2/code/google` in production.
   - Railway deploys should set `SPRING_DATASOURCE_URL` to a JDBC host-only URL such as `jdbc:postgresql://<host>:<port>/<db>` and pass username/password separately through `SPRING_DATASOURCE_USERNAME` and `SPRING_DATASOURCE_PASSWORD`.
@@ -275,9 +277,13 @@ Most UI-only changes should start in the relevant component, selector, or browse
 - In the no-game phase, the board remains visible but is not interactive.
 - Only actionable squares show hover/pointer affordances; inactive and non-actionable squares stay visually still on mouseover.
 - The move list now shows an empty-state message before any moves exist and auto-scrolls to the latest entry when history changes.
+- Move-list autoscroll is now container-only, so new turns no longer pull the entire page downward.
 - The move list now groups completed moves into numbered two-column display rows while still rendering a terminal `Game Over` entry separately.
-- Games that have not been loaded, mutated, or watched for more than one hour are evicted from the persistent store.
-- An active SSE subscription keeps a game alive even if no commands are sent during that hour.
+- The desktop game layout now allocates a wider third column to the move-list panel.
+- Games that have not been loaded, mutated, or watched longer than the configured stale threshold are evicted from the persistent store.
+- An active SSE subscription keeps a game alive even if no commands are sent during that threshold window.
+- Board sizing now subtracts board-panel padding when computing `--board-size`, which keeps the board inside its panel and lets it re-expand after the window grows.
+- Original-style terminal win checks now resolve a captured gold as `Ravens win` before evaluating post-turn draw conditions such as no legal move.
 
 ## Rendering Strategy
 

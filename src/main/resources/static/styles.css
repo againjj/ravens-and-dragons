@@ -110,7 +110,7 @@ h3 {
 .game-layout {
     min-height: 0;
     display: grid;
-    grid-template-columns: minmax(0, 1.45fr) minmax(220px, 0.75fr) minmax(170px, 0.5fr);
+    grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr) minmax(255px, 1fr);
     grid-template-rows: minmax(0, 1fr);
     gap: var(--layout-gap);
     align-items: stretch;
@@ -606,6 +606,8 @@ button:disabled {
     min-height: 0;
     display: grid;
     grid-template-rows: auto auto minmax(0, 1fr);
+    overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .turns ol {
@@ -613,7 +615,6 @@ button:disabled {
     padding-left: 0;
     color: var(--muted);
     line-height: 1.4;
-    word-break: break-word;
 }
 
 .move-list {
@@ -625,8 +626,8 @@ button:disabled {
 
 .move-list-row {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr);
-    column-gap: 3px;
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 8px;
     align-items: start;
 }
 
@@ -655,18 +656,6 @@ button:disabled {
 
 .turns li + li {
     margin-top: 0;
-}
-
-@media (min-width: 520px) {
-    .move-list-row {
-        grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
-        column-gap: 18px;
-        align-items: start;
-    }
-
-    .move-list-cell:empty {
-        display: block;
-    }
 }
 
 #game-over-entry {

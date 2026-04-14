@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 
@@ -443,11 +444,11 @@ class GameSessionServiceTest {
     }
 
     @Test
-    fun `game older than one hour with no viewers is removed`() {
+    fun `game older than the stale threshold with no viewers is removed`() {
         val store = InMemoryGameStore()
         val service = createService(store)
         val oldAccessedAt = Instant.parse("2026-04-08T00:00:00Z")
-        val now = oldAccessedAt.plus(GameSessionService.staleGameThreshold).plusSeconds(1)
+        val now = oldAccessedAt.plus(GameSessionService.defaultStaleGameThreshold).plusSeconds(1)
         val game = createStoredGame(
             store = store,
             gameId = "stale-game",
@@ -464,7 +465,7 @@ class GameSessionServiceTest {
         val store = InMemoryGameStore()
         val service = createService(store)
         val oldAccessedAt = Instant.parse("2026-04-08T00:00:00Z")
-        val now = oldAccessedAt.plus(GameSessionService.staleGameThreshold).plusSeconds(1)
+        val now = oldAccessedAt.plus(GameSessionService.defaultStaleGameThreshold).plusSeconds(1)
         val game = createStoredGame(
             store = store,
             gameId = "recent-game",
@@ -482,7 +483,7 @@ class GameSessionServiceTest {
         val store = InMemoryGameStore()
         val service = createService(store)
         val oldAccessedAt = Instant.parse("2026-04-08T00:00:00Z")
-        val now = oldAccessedAt.plus(GameSessionService.staleGameThreshold).plusSeconds(1)
+        val now = oldAccessedAt.plus(GameSessionService.defaultStaleGameThreshold).plusSeconds(1)
         val game = createStoredGame(
             store = store,
             gameId = "watched-game",
@@ -502,7 +503,7 @@ class GameSessionServiceTest {
         val store = InMemoryGameStore()
         val service = createService(store)
         val oldAccessedAt = Instant.parse("2026-04-08T00:00:00Z")
-        val now = oldAccessedAt.plus(GameSessionService.staleGameThreshold).plusSeconds(1)
+        val now = oldAccessedAt.plus(GameSessionService.defaultStaleGameThreshold).plusSeconds(1)
         val game = createStoredGame(
             store = store,
             gameId = "disconnect-game",
@@ -527,8 +528,9 @@ class GameSessionServiceTest {
 
     private fun createService(
         store: InMemoryGameStore = InMemoryGameStore(),
-        clock: Clock = fixedClock()
-    ): GameSessionService = GameSessionService(store, clock)
+        clock: Clock = fixedClock(),
+        staleGameThreshold: Duration = GameSessionService.defaultStaleGameThreshold
+    ): GameSessionService = GameSessionService(store, clock, staleGameThreshold)
 
     private fun createGameId(service: GameSessionService): String = service.createGame().id
 

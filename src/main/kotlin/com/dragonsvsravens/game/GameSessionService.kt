@@ -1,6 +1,7 @@
 package com.dragonsvsravens.game
 
 import com.dragonsvsravens.auth.ForbiddenActionException
+import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.time.Clock
@@ -12,10 +13,12 @@ import java.util.concurrent.CopyOnWriteArrayList
 @Service
 class GameSessionService(
     private val gameStore: GameStore,
-    private val clock: Clock
+    private val clock: Clock,
+    @Value("\${dragons-vs-ravens.games.stale-threshold:1008h}")
+    private val staleGameThreshold: Duration
 ) {
     companion object {
-        val staleGameThreshold: Duration = Duration.ofHours(1)
+        val defaultStaleGameThreshold: Duration = Duration.ofDays(42)
     }
 
     private val emittersByGame = ConcurrentHashMap<String, CopyOnWriteArrayList<SseEmitter>>()

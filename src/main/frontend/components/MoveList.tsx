@@ -10,20 +10,25 @@ export const MoveList = () => {
     const moveRows = getGroupedMoveHistoryRows(turnHistoryRows);
     const gameOverRow = turnHistoryRows.find((row) => row.type === "gameOver");
     const hasHistory = moveRows.length > 0 || !!gameOverRow;
-    const endOfHistoryRef = useRef<HTMLDivElement | null>(null);
+    const historyContainerRef = useRef<HTMLDivElement | null>(null);
 
     useEffect(() => {
         if (!hasHistory) {
             return;
         }
 
-        endOfHistoryRef.current?.scrollIntoView?.({ block: "end" });
+        const historyContainer = historyContainerRef.current;
+        if (!historyContainer) {
+            return;
+        }
+
+        historyContainer.scrollTop = historyContainer.scrollHeight;
     }, [hasHistory, turnHistoryRows]);
 
     return (
         <section className="turns">
             <h2>Move List</h2>
-            <div className="turn-history">
+            <div ref={historyContainerRef} className="turn-history">
                 {moveRows.length > 0 ? (
                     <ol id="move-list" className="move-list">
                         {moveRows.map((row) => (
@@ -38,7 +43,6 @@ export const MoveList = () => {
                     <p className="turns-empty">Moves will appear here once play begins.</p>
                 )}
                 {gameOverRow ? <div id="game-over-entry">{gameOverRow.label}</div> : null}
-                <div ref={endOfHistoryRef} aria-hidden="true"></div>
                 <div className={`turns-spacer${hasHistory ? "" : " is-empty"}`} aria-hidden="true"></div>
             </div>
         </section>

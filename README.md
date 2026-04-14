@@ -41,6 +41,7 @@ Once a game is open, the controls include the play-style dropdown plus the usual
 `Free Play` preserves the original behavior: before starting, you can choose whether dragons or ravens move first; starting a game then enters setup with an empty board, setup clicks cycle `empty -> dragon -> raven -> gold -> empty`, capture is manual, and the game is ended manually.
 `Trivial Configuration`, `Original Game`, and `Sherwood Rules` start from preset boards with no setup phase, resolve captures automatically, and end automatically based on their own rules.
 `Sherwood Rules` matches `Original Game` except the gold may move only one orthogonal square at a time.
+Original-style games now award `Ravens win` immediately when the gold is captured, even if the dragons would otherwise have no legal reply.
 Game over returns the session to a finished no-game state while preserving the final board position and full completed history, including a terminal `Game Over: ...` entry.
 `Original Game` and `Sherwood Rules` now label draws by cause in turn history, such as `Game Over: Draw by repetition` and `Game Over: Draw by no legal move`.
 When `Free Play` is ended manually, the terminal history entry is rendered as `Game Over`.
@@ -48,7 +49,9 @@ Finished games stay viewable on their existing game IDs, and if the session stil
 You still cannot restart or reconfigure a finished game on that same ID while it remains finished; creating another game gives you a fresh ID.
 The board now displays numbered rows from top to bottom and lettered columns from left to right on a 7x7 grid, while square names still use `letter + number` notation such as `a1` and `d4`.
 Only actionable board squares now show pointer/hover affordances, and the move list shows an empty-state message before play begins, auto-scrolls to the latest history entry during play, and groups moves into numbered two-column rows.
-Games remain subject to stale cleanup and are removed after more than one hour without a load, command, or active SSE viewer.
+Move-list autoscroll now stays inside the move-list panel instead of scrolling the page, and the desktop layout now gives the move-list panel a wider column.
+Board sizing now measures the padded board panel so the board stays inside its panel and can grow again after the window expands.
+Games remain subject to stale cleanup and are removed after they exceed the configured stale threshold without a load, command, or active SSE viewer. The default threshold is six weeks.
 The backend now also exposes session-cookie auth APIs for guest and local login, plus optional OAuth login wiring when a provider is configured.
 Opening a game, subscribing to its SSE stream, claiming a side, and submitting commands now all require an authenticated session.
 Games may track claimed `dragons` and `ravens` seats, and the auth-aware game view endpoint lives at `GET /api/games/{gameId}/view`.
@@ -183,16 +186,19 @@ Read docs/code-summary.md and docs/codex-rules.md before making changes. Follow 
 - Undo is server-backed, shared across clients, and exposed as `canUndo` in the session payload so the UI can disable the button exactly, including after a manual game over when a rollback is still available.
 - Turn history now includes both completed moves and a terminal `Game Over` entry when a game is ended.
 - Original-style automatic draws now report whether they happened by repetition or by no legal move.
+- Original-style terminal win checks now take precedence over the post-turn no-legal-move draw check when the gold is captured.
 - The shared session now exposes available rule configurations plus the currently selected configuration so all clients stay in sync on the next play style.
 - `Original Game` follows the published Ravens and Dragons setup and movement/capture rules, including automatic wins and draws.
 - `Sherwood Rules` reuses the `Original Game` setup, capture, and win/draw conditions, but limits the gold to one-square orthogonal movement.
 - The browser client now uses the per-game routes under `/api/games` for create, load, command, and stream behavior.
+- Move-list autoscroll now updates the move-list container without nudging the page scroll position.
+- Board sizing now measures the padded board panel correctly and can expand again after the window grows.
 - Missing SSE subscriptions for unknown game IDs now return a plain `404` response instead of logging a media-type exception on the server.
 - Browser navigation now uses `/` for the lobby and `/g/{gameId}` for an active game view.
 - Newly created games now use 7-character IDs drawn from the Open Location Code ("PLUS code") alphabet: `23456789CFGHJMPQRVWX`.
 - Game sessions are stored durably in the configured database, while SSE emitter tracking remains in memory per app instance.
 - The database now also stores local users, optional OAuth identity links, and claimed game-seat ownership.
-- Persisted games are evicted automatically after more than one hour without a load, command, or active SSE viewer.
+- Persisted games are evicted automatically after they exceed the configured stale threshold without a load, command, or active SSE viewer. The default threshold is six weeks.
 - If `./gradlew bootRun` cannot bind its default port, treat that as a local environment issue to fix instead of silently switching ports.
 - `docs/codex-rules.md` now explicitly says not to modify the codebase until the user asks for implementation work.
 - If you change architecture, workflow, or gameplay in a meaningful way, update `docs/code-summary.md`.

@@ -30,6 +30,18 @@ class GameRulesTest {
     }
 
     @Test
+    fun `free play rules do not claim dragons always move first`() {
+        val freePlaySummary = GameRules.availableRuleConfigurations()
+            .first { it.id == GameRules.freePlayRuleConfigurationId }
+
+        val turnsParagraphs = freePlaySummary.descriptionSections
+            .first { it.heading == "Turns" }
+            .paragraphs
+
+        assertFalse(turnsParagraphs.any { it.contains("Dragons move first.") })
+    }
+
+    @Test
     fun `setup cycles empty to dragon to raven to gold to empty`() {
         val first = GameRules.cycleSetupPiece(GameRules.startGame(), "a1")
         val second = GameRules.cycleSetupPiece(first, "a1")
@@ -486,6 +498,36 @@ class GameRulesTest {
 
         assertEquals(Phase.none, moved.phase)
         assertEquals("Draw by no legal move", moved.turns.last().outcome)
+    }
+
+    @Test
+    fun `original game awards ravens win when gold is captured even if dragons then have no legal move`() {
+        val moved = GameRules.movePiece(
+            createSnapshot(
+                board = linkedMapOf(
+                    "d7" to Piece.raven,
+                    "b6" to Piece.raven,
+                    "b5" to Piece.raven,
+                    "c5" to Piece.gold,
+                    "f5" to Piece.raven,
+                    "b2" to Piece.raven,
+                    "f2" to Piece.raven,
+                    "d1" to Piece.raven
+                ),
+                activeSide = Side.ravens,
+                ruleConfigurationId = "original-game",
+                positionKeys = listOf(
+                    "original-game|ravens|b2:raven,b5:raven,b6:raven,c5:gold,d1:raven,d7:raven,f2:raven,f5:raven"
+                )
+            ),
+            "f5",
+            "d5"
+        )
+
+        assertEquals(Phase.none, moved.phase)
+        assertFalse(moved.board.containsKey("c5"))
+        assertEquals(listOf("c5"), moved.turns.first().capturedSquares)
+        assertEquals("Ravens win", moved.turns.last().outcome)
     }
 
     private fun createFreePlayCaptureSnapshot(): GameSnapshot = createSnapshot(

@@ -73,7 +73,7 @@ object GameRules {
                 RuleDescriptionSection(
                     heading = "Turns",
                     paragraphs = listOf(
-                        "Dragons move first. Dragons may move the gold on their turns. To move, click on a piece, and then click on the destination square. After moving, you may optionally capture an opposing piece. End the game to finish this game, then create a new game in the lobby to play again."
+                        "The selected starting side moves first. Dragons may move the gold on their turns. To move, click on a piece, and then click on the destination square. After moving, you may optionally capture an opposing piece. End the game to finish this game, then create a new game in the lobby to play again."
                     )
                 )
             ),
@@ -368,17 +368,23 @@ object GameRules {
         snapshot: GameSnapshot,
         capturedSquares: List<String> = emptyList()
     ): GameSnapshot {
+        val committed = commitAutomaticTurn(snapshot, capturedSquares)
+        val configuration = getRuleConfiguration(committed.ruleConfigurationId)
+        return configuration.ruleSet.finishCommittedTurn(committed)
+    }
+
+    private fun commitAutomaticTurn(
+        snapshot: GameSnapshot,
+        capturedSquares: List<String> = emptyList()
+    ): GameSnapshot {
         val pendingMove = snapshot.pendingMove ?: return snapshot
         val completedMove = pendingMove.copy(capturedSquares = capturedSquares)
-        val committed = snapshot.copy(
+        return snapshot.copy(
             phase = Phase.move,
             activeSide = oppositeSide(snapshot.activeSide),
             pendingMove = null,
             turns = snapshot.turns + completedMove
         )
-
-        val configuration = getRuleConfiguration(committed.ruleConfigurationId)
-        return configuration.ruleSet.finishCommittedTurn(committed)
     }
 
     private fun applyAutomaticMove(
@@ -387,15 +393,20 @@ object GameRules {
         destination: String,
         piece: Piece,
         capturedSquares: (GameSnapshot) -> List<String>,
-        resolveOutcome: (GameSnapshot, String) -> GameSnapshot = { resolvedSnapshot, _ -> resolvedSnapshot }
+        resolveOutcome: (GameSnapshot, String) -> String? = { _, _ -> null }
     ): GameSnapshot {
         val movedSnapshot = createMovedSnapshot(snapshot, origin, destination, piece)
         val autoCapturedSquares = capturedSquares(movedSnapshot)
         val boardAfterCapture = LinkedHashMap(movedSnapshot.board)
         autoCapturedSquares.forEach(boardAfterCapture::remove)
         val resolvedSnapshot = movedSnapshot.copy(board = boardAfterCapture)
-        val completedSnapshot = completeAutomaticTurn(resolvedSnapshot, autoCapturedSquares)
-        return resolveOutcome(completedSnapshot, destination)
+        val outcome = resolveOutcome(resolvedSnapshot, destination)
+        val completedSnapshot = commitAutomaticTurn(resolvedSnapshot, autoCapturedSquares)
+        return if (outcome != null) {
+            endGame(completedSnapshot, outcome)
+        } else {
+            getRuleConfiguration(completedSnapshot.ruleConfigurationId).ruleSet.finishCommittedTurn(completedSnapshot)
+        }
     }
 
     private fun nextSetupPiece(piece: Piece?): Piece? {
@@ -541,18 +552,17 @@ object GameRules {
                 resolveOutcome = ::determineTrivialOutcome
             )
 
-        private fun determineTrivialOutcome(snapshot: GameSnapshot, destination: String): GameSnapshot {
-            val goldReachedCenter = snapshot.turns.lastOrNull()?.to == destination &&
-                snapshot.board[destination] == Piece.gold &&
+        private fun determineTrivialOutcome(snapshot: GameSnapshot, destination: String): String? {
+            val goldReachedCenter = snapshot.board[destination] == Piece.gold &&
                 BoardCoordinates.isCenter(destination, snapshot.specialSquare)
             if (goldReachedCenter || snapshot.board.values.none { it == Piece.raven }) {
-                return endGame(snapshot, "Dragons win")
+                return "Dragons win"
             }
 
             return if (snapshot.board.values.none { it == Piece.gold }) {
-                endGame(snapshot, "Ravens win")
+                "Ravens win"
             } else {
-                snapshot
+                null
             }
         }
     }
@@ -604,9 +614,7 @@ object GameRules {
         override fun finishCommittedTurn(snapshot: GameSnapshot): GameSnapshot {
             val positionKey = positionKey(snapshot)
             val repeated = snapshot.positionKeys.contains(positionKey)
-            val snapshotWithHistory = snapshot.copy(
-                positionKeys = snapshot.positionKeys + positionKey
-            )
+            val snapshotWithHistory = snapshot.copy(positionKeys = snapshot.positionKeys + positionKey)
 
             if (repeated) {
                 return endGame(snapshotWithHistory, "Draw by repetition")
@@ -678,15 +686,15 @@ object GameRules {
                 }
         }
 
-        private fun determineOriginalGameOutcome(snapshot: GameSnapshot, destination: String): GameSnapshot {
+        private fun determineOriginalGameOutcome(snapshot: GameSnapshot, destination: String): String? {
             if (snapshot.board[destination] == Piece.gold && BoardCoordinates.isCorner(destination, snapshot.boardSize)) {
-                return endGame(snapshot, "Dragons win")
+                return "Dragons win"
             }
 
             return if (snapshot.board.values.none { it == Piece.gold }) {
-                endGame(snapshot, "Ravens win")
+                "Ravens win"
             } else {
-                snapshot
+                null
             }
         }
 
