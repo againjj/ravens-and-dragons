@@ -61,6 +61,7 @@ On the game screen, the browser now shows claimed seats, hides pre-game setup co
 ## Google OAuth Setup
 
 Google sign-in appears automatically when the app sees a configured `google` OAuth client registration at startup. If those settings are missing, the login screen hides the Google button.
+When the app runs behind a proxy such as Railway, it now honors forwarded host and scheme headers so Google OAuth callback URLs stay on the public `https` domain instead of the internal app address.
 
 This repo does not check in a real or placeholder Google OAuth registration. Enable Google sign-in by setting:
 
@@ -141,6 +142,7 @@ https://dragons-vs-ravens-production.up.railway.app/login/oauth2/code/google
 ```
 
 If Railway uses a different public domain, update the Google OAuth redirect URI to match that exact deployed domain.
+The app now also honors Railway's forwarded proxy headers when it builds the OAuth callback URL, so the browser-to-Google redirect should keep the deployed `https` host automatically.
 
 Flyway runs the schema migration automatically on startup for both local H2 and deployed PostgreSQL databases. The build also pins Flyway to a Railway-compatible version and includes the PostgreSQL Flyway database module so Railway's managed Postgres startup can migrate successfully.
 

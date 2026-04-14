@@ -4,10 +4,13 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.springframework.boot.test.context.TestConfiguration
 import org.springframework.mock.web.MockHttpServletRequest
 import org.springframework.mock.web.MockHttpServletResponse
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.beans.factory.support.StaticListableBeanFactory
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Import
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.jdbc.core.JdbcTemplate
@@ -18,15 +21,21 @@ import org.springframework.security.oauth2.client.registration.ClientRegistratio
 import org.springframework.security.oauth2.client.registration.InMemoryClientRegistrationRepository
 import org.springframework.security.oauth2.core.AuthorizationGrantType
 import org.springframework.security.oauth2.core.user.DefaultOAuth2User
+import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.get
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@Import(OAuthSupportTest.OAuthClientRegistrationTestConfig::class)
 class OAuthSupportTest {
     @Autowired
     lateinit var jdbcTemplate: JdbcTemplate
 
     @Autowired
     lateinit var oauthLoginSuccessHandler: OAuthLoginSuccessHandler
+
+    @Autowired
+    lateinit var mockMvc: MockMvc
 
     @BeforeEach
     fun resetUsers() {
@@ -98,6 +107,36 @@ class OAuthSupportTest {
         assertEquals("/", response.redirectedUrl)
     }
 
+    @Test
+    fun `oauth authorization redirect uses forwarded https headers for base url`() {
+        val result = mockMvc.get("/oauth2/authorization/google") {
+            secure = false
+            header("Host", "dragons-vs-ravens.railway.internal")
+            header("X-Forwarded-Proto", "https")
+            header("X-Forwarded-Host", "dragons-vs-ravens-production.up.railway.app")
+            header("X-Forwarded-Port", "443")
+        }.andExpect {
+            status { is3xxRedirection() }
+        }.andReturn()
+
+        val redirectUrl = result.response.getHeader("Location") ?: error("missing redirect location")
+        kotlin.test.assertTrue(
+            redirectUrl.startsWith("https://example.com/oauth2/authorize?"),
+            "Expected OAuth redirect to target the provider authorization endpoint, but was: $redirectUrl"
+        )
+        kotlin.test.assertTrue(
+            redirectUrl.contains("redirect_uri=https://dragons-vs-ravens-production.up.railway.app/login/oauth2/code/google"),
+            "Expected redirect URI to use the forwarded https Railway host, but was: $redirectUrl"
+        )
+    }
+
+    @TestConfiguration
+    class OAuthClientRegistrationTestConfig {
+        @Bean
+        fun clientRegistrationRepository(): ClientRegistrationRepository =
+            InMemoryClientRegistrationRepository(registration("google"))
+    }
+
     private fun googleAuthentication(): OAuth2AuthenticationToken {
         val principal = DefaultOAuth2User(
             listOf(SimpleGrantedAuthority("ROLE_USER")),
@@ -117,17 +156,19 @@ class OAuthSupportTest {
     private fun githubRegistration(): ClientRegistration =
         registration("github")
 
-    private fun registration(registrationId: String): ClientRegistration =
-        ClientRegistration.withRegistrationId(registrationId)
-            .clientId("client-id")
-            .clientSecret("client-secret")
-            .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
-            .redirectUri("{baseUrl}/login/oauth2/code/{registrationId}")
-            .scope("openid", "profile", "email")
-            .authorizationUri("https://example.com/oauth2/authorize")
-            .tokenUri("https://example.com/oauth2/token")
-            .userInfoUri("https://example.com/userinfo")
-            .userNameAttributeName("sub")
-            .clientName(registrationId)
-            .build()
+    companion object {
+        private fun registration(registrationId: String): ClientRegistration =
+            ClientRegistration.withRegistrationId(registrationId)
+                .clientId("client-id")
+                .clientSecret("client-secret")
+                .authorizationGrantType(AuthorizationGrantType.AUTHORIZATION_CODE)
+                .redirectUri("{baseUrl}/login/oauth2/code/{registrationId}")
+                .scope("openid", "profile", "email")
+                .authorizationUri("https://example.com/oauth2/authorize")
+                .tokenUri("https://example.com/oauth2/token")
+                .userInfoUri("https://example.com/userinfo")
+                .userNameAttributeName("sub")
+                .clientName(registrationId)
+                .build()
+    }
 }

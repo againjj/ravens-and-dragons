@@ -18,6 +18,7 @@ import org.springframework.security.config.annotation.web.configuration.EnableWe
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository
+import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestRedirectFilter
 import org.springframework.security.oauth2.client.web.DefaultOAuth2AuthorizationRequestResolver
 import org.springframework.security.oauth2.client.web.OAuth2AuthorizationRequestResolver
 import org.springframework.security.oauth2.client.userinfo.DefaultOAuth2UserService
@@ -28,6 +29,7 @@ import org.springframework.security.oauth2.core.user.OAuth2User
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.HttpStatusEntryPoint
 import org.springframework.security.web.authentication.SimpleUrlAuthenticationSuccessHandler
+import org.springframework.web.filter.ForwardedHeaderFilter
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 
@@ -44,6 +46,7 @@ class SecurityConfig {
     ): SecurityFilterChain {
         val builder = http
             .csrf { it.disable() }
+            .addFilterBefore(forwardedHeaderFilter(), OAuth2AuthorizationRequestRedirectFilter::class.java)
             .authorizeHttpRequests {
                 it.dispatcherTypeMatchers(DispatcherType.FORWARD).permitAll()
                 it.requestMatchers(HttpMethod.GET, "/health", "/login", "/api/auth/session", "/styles.css", "/assets/**", "/favicon.ico").permitAll()
@@ -115,6 +118,9 @@ class SecurityConfig {
         ServletListenerRegistrationBean(
             GuestSessionCleanupListener(userAccountService)
         )
+
+    @Bean
+    fun forwardedHeaderFilter(): ForwardedHeaderFilter = ForwardedHeaderFilter()
 }
 
 class OAuthLoginSuccessHandler(
@@ -162,14 +168,18 @@ class NextAwareAuthorizationRequestResolver(
     private val delegate = DefaultOAuth2AuthorizationRequestResolver(clientRegistrationRepository, "/oauth2/authorization")
 
     override fun resolve(request: HttpServletRequest): OAuth2AuthorizationRequest? =
-        delegate.resolve(request)?.also {
-            storeNextPath(request)
-        }
+        delegate.resolve(request)
+            ?.let { authorizationRequest ->
+                storeNextPath(request)
+                authorizationRequest.withForwardedRedirectUriIfPresent(request)
+            }
 
     override fun resolve(request: HttpServletRequest, clientRegistrationId: String): OAuth2AuthorizationRequest? =
-        delegate.resolve(request, clientRegistrationId)?.also {
-            storeNextPath(request)
-        }
+        delegate.resolve(request, clientRegistrationId)
+            ?.let { authorizationRequest ->
+                storeNextPath(request)
+                authorizationRequest.withForwardedRedirectUriIfPresent(request, clientRegistrationId)
+            }
 
     private fun storeNextPath(request: HttpServletRequest) {
         request.getSession(false)?.removeAttribute(OAuthLoginSuccessHandler.oauthNextPathSessionAttribute)
@@ -180,6 +190,33 @@ class NextAwareAuthorizationRequestResolver(
 
     private fun isSafeLocalPath(path: String): Boolean =
         path.startsWith("/") && !path.startsWith("//") && !path.startsWith("/\\")
+
+    private fun OAuth2AuthorizationRequest.withForwardedRedirectUriIfPresent(
+        request: HttpServletRequest,
+        clientRegistrationId: String = request.requestURI.substringAfterLast("/")
+    ): OAuth2AuthorizationRequest {
+        val forwardedProto = request.getHeader("X-Forwarded-Proto")?.substringBefore(",")?.trim()?.takeIf { it.isNotBlank() }
+        val forwardedHostHeader = request.getHeader("X-Forwarded-Host")?.substringBefore(",")?.trim()?.takeIf { it.isNotBlank() }
+        if (forwardedProto == null || forwardedHostHeader == null) {
+            return this
+        }
+
+        val forwardedPort = request.getHeader("X-Forwarded-Port")?.substringBefore(",")?.trim()?.takeIf { it.isNotBlank() }
+        val host = forwardedHostHeader.substringBefore(":")
+        val explicitPort = forwardedHostHeader.substringAfter(":", "")
+        val port = explicitPort.ifBlank { forwardedPort.orEmpty() }
+        val authority = when {
+            port.isBlank() -> host
+            forwardedProto == "https" && port == "443" -> host
+            forwardedProto == "http" && port == "80" -> host
+            else -> "$host:$port"
+        }
+        val contextPath = request.contextPath.orEmpty()
+        val redirectUri = "$forwardedProto://$authority$contextPath/login/oauth2/code/$clientRegistrationId"
+        return OAuth2AuthorizationRequest.from(this)
+            .redirectUri(redirectUri)
+            .build()
+    }
 }
 
 class GuestSessionCleanupListener(

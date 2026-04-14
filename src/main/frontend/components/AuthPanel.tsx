@@ -67,7 +67,7 @@ export const AuthPanel = ({
                     <section className="panel auth-panel">
                         <div className="lobby-card-copy">
                             <h2>Sign In</h2>
-                            <p>Use a local account, a temporary guest session, or Google if it is configured.</p>
+                            <p>Sign in with your account, as a guest, or with Google if it is configured.</p>
                         </div>
                         <div className="lobby-actions">
                             <div className="control-row">

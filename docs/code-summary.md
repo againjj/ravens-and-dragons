@@ -90,6 +90,7 @@ The backend now also includes session-cookie authentication for guest and local 
   - `dragons-vs-ravens.games.stale-threshold` controls how long an inactive game can sit before eviction, and defaults to six weeks (`1008h`).
   - Google OAuth is enabled only when the environment defines a `google` Spring client registration through `SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID`, `SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET`, and typically `SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_SCOPE=openid,profile,email`.
   - Google callback URLs should use `/login/oauth2/code/google`, such as `http://localhost:8080/login/oauth2/code/google` locally or `https://<deploy-host>/login/oauth2/code/google` in production.
+  - The app now honors forwarded proxy headers when building Google OAuth authorization requests, so Railway deployments keep the public `https` callback host instead of generating the internal `http` service URL.
   - Railway deploys should set `SPRING_DATASOURCE_URL` to a JDBC host-only URL such as `jdbc:postgresql://<host>:<port>/<db>` and pass username/password separately through `SPRING_DATASOURCE_USERNAME` and `SPRING_DATASOURCE_PASSWORD`.
   - `railway up` uploads the current local workspace, while `railway service redeploy` only restarts the latest already-uploaded deployment.
   - Flyway runs startup migrations from `classpath:db/migration`, and the Gradle build now pins Flyway to `10.22.0` plus `flyway-database-postgresql` so Railway's PostgreSQL 18 startup is accepted.
