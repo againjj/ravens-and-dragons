@@ -48,7 +48,9 @@ When `Free Play` is ended manually, the terminal history entry is rendered as `G
 Finished games stay viewable on their existing game IDs, and if the session still has undo history the player who made the last undoable move can undo the terminal game-over state to resume play from the previous snapshot.
 You still cannot restart or reconfigure a finished game on that same ID while it remains finished; creating another game gives you a fresh ID.
 The board now displays numbered rows from top to bottom and lettered columns from left to right on a 7x7 grid, while square names still use `letter + number` notation such as `a1` and `d4`.
+The board now highlights the center and corner squares in light gray, and on even-sized boards it highlights all four middle squares.
 Only actionable board squares now show pointer/hover affordances, and the move list shows an empty-state message before play begins, auto-scrolls to the latest history entry during play, and groups moves into numbered two-column rows.
+The move-list empty state now matches the panel background instead of rendering as a separate white tile.
 Move-list autoscroll now stays inside the move-list panel instead of scrolling the page, and the desktop layout now gives the move-list panel a wider column.
 Board sizing now measures the padded board panel so the board stays inside its panel and can grow again after the window expands.
 Games remain subject to stale cleanup and are removed after they exceed the configured stale threshold without a load, command, or active SSE viewer. The default threshold is six weeks.

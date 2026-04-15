@@ -221,6 +221,31 @@ const isCornerSquare = (square: string, boardSize: number): boolean => {
     ].includes(square);
 };
 
+const getVisualCenterSquares = (boardSize: number, specialSquare: string): string[] => {
+    if (boardSize % 2 === 1) {
+        return [specialSquare];
+    }
+
+    const columns = getColumnLetters(boardSize);
+    const rows = getRowNumbers(boardSize);
+    const lowerFile = (boardSize / 2) - 1;
+    const upperFile = boardSize / 2;
+    const upperRank = (boardSize / 2) - 1;
+    const lowerRank = boardSize / 2;
+
+    return [
+        `${columns[lowerFile]}${rows[upperRank]}`,
+        `${columns[upperFile]}${rows[upperRank]}`,
+        `${columns[lowerFile]}${rows[lowerRank]}`,
+        `${columns[upperFile]}${rows[lowerRank]}`
+    ];
+};
+
+export const isHighlightedBoardSquare = (
+    square: string,
+    snapshot: Pick<ServerGameSnapshot, "specialSquare" | "boardSize">
+): boolean => getVisualCenterSquares(snapshot.boardSize, snapshot.specialSquare).includes(square) || isCornerSquare(square, snapshot.boardSize);
+
 const originalStyleRuleConfigurationIds = new Set(["original-game", "sherwood-rules", "sherwood-x-9"]);
 const sherwoodStyleRuleConfigurationIds = new Set(["sherwood-rules", "sherwood-x-9"]);
 

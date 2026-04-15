@@ -276,8 +276,10 @@ Most UI-only changes should start in the relevant component, selector, or browse
 - Freshly loaded clients also receive the shared selected starting side for `Free Play`.
 - The browser keeps piece selection local; other clients do not see half-finished selections.
 - In the no-game phase, the board remains visible but is not interactive.
+- The board now renders the center and corner squares with light-gray highlighting, and even-sized boards highlight all four middle squares instead of only one.
 - Only actionable squares show hover/pointer affordances; inactive and non-actionable squares stay visually still on mouseover.
 - The move list now shows an empty-state message before any moves exist and auto-scrolls to the latest entry when history changes.
+- The move-list empty state now uses the same panel surface instead of a contrasting inset tile.
 - Move-list autoscroll is now container-only, so new turns no longer pull the entire page downward.
 - The move list now groups completed moves into numbered two-column display rows while still rendering a terminal `Game Over` entry separately.
 - The desktop game layout now allocates a wider third column to the move-list panel.

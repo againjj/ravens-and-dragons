@@ -88,6 +88,61 @@ describe("Board", () => {
         expect(screen.getByRole("button", { name: "Square e5" })).toBeInTheDocument();
     });
 
+    test("marks the center and corner squares with the special styling class", () => {
+        renderWithStore(<Board />, {
+            preloadedState: {
+                game: {
+                    session: createSession({}, {
+                        boardSize: 9,
+                        specialSquare: "e5",
+                        phase: "none"
+                    }),
+                    isSubmitting: false,
+                    loadState: "ready",
+                    connectionState: "open",
+                    feedbackMessage: null
+                },
+                ui: {
+                    selectedSquare: null
+                }
+            }
+        });
+
+        expect(screen.getByRole("button", { name: "Square a1" })).toHaveClass("special-square");
+        expect(screen.getByRole("button", { name: "Square a9" })).toHaveClass("special-square");
+        expect(screen.getByRole("button", { name: "Square i1" })).toHaveClass("special-square");
+        expect(screen.getByRole("button", { name: "Square i9" })).toHaveClass("special-square");
+        expect(screen.getByRole("button", { name: "Square e5" })).toHaveClass("special-square");
+        expect(screen.getByRole("button", { name: "Square e4" })).not.toHaveClass("special-square");
+    });
+
+    test("marks all four center squares on even-sized boards", () => {
+        renderWithStore(<Board />, {
+            preloadedState: {
+                game: {
+                    session: createSession({}, {
+                        boardSize: 8,
+                        specialSquare: "d4",
+                        phase: "none"
+                    }),
+                    isSubmitting: false,
+                    loadState: "ready",
+                    connectionState: "open",
+                    feedbackMessage: null
+                },
+                ui: {
+                    selectedSquare: null
+                }
+            }
+        });
+
+        expect(screen.getByRole("button", { name: "Square d5" })).toHaveClass("special-square");
+        expect(screen.getByRole("button", { name: "Square e5" })).toHaveClass("special-square");
+        expect(screen.getByRole("button", { name: "Square d4" })).toHaveClass("special-square");
+        expect(screen.getByRole("button", { name: "Square e4" })).toHaveClass("special-square");
+        expect(screen.getByRole("button", { name: "Square c4" })).not.toHaveClass("special-square");
+    });
+
     test("does not select pieces when no game is in progress", async () => {
         const user = userEvent.setup();
         const { store } = renderWithStore(<Board />, {

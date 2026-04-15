@@ -1,7 +1,7 @@
 import type { CSSProperties } from "react";
 
 import { useAppDispatch, useAppSelector } from "../app/hooks.js";
-import { getBoardDimension, getPieceAtSquare, getRowNumbers, getSquareName, normalizeSelectedSquare, sideOwnsPiece, type Piece } from "../game.js";
+import { getBoardDimension, getPieceAtSquare, getRowNumbers, getSquareName, isHighlightedBoardSquare, normalizeSelectedSquare, sideOwnsPiece, type Piece } from "../game.js";
 import { selectCanViewerAct, selectCapturableSquares, selectSelectedSquare, selectSnapshot, selectTargetableSquares } from "../features/game/gameSelectors.js";
 import { capturePiece, cycleSetup, movePiece } from "../features/game/gameThunks.js";
 import { uiActions } from "../features/ui/uiSlice.js";
@@ -48,6 +48,10 @@ const getSquareClassName = (
 
     if (options.selectedSquare === squareName) {
         classNames.push("selected");
+    }
+
+    if (options.snapshot && isHighlightedBoardSquare(squareName, options.snapshot)) {
+        classNames.push("special-square");
     }
 
     if (options.snapshot?.phase === "none") {

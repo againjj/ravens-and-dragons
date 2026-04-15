@@ -344,6 +344,10 @@ h3 {
     overflow: hidden;
 }
 
+.square.special-square {
+    background: rgba(228, 228, 228, 0.9);
+}
+
 .square::before {
     content: "";
     position: absolute;
@@ -649,7 +653,7 @@ button:disabled {
     margin: 0;
     padding: 14px 16px;
     border-radius: 16px;
-    background: rgba(255, 255, 255, 0.58);
+    background: transparent;
     color: var(--muted);
     line-height: 1.5;
 }
