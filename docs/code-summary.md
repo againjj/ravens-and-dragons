@@ -6,7 +6,7 @@ This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a brows
 
 The backend now also includes session-cookie authentication for guest and local users, optional OAuth login wiring, persisted seat ownership on games, request-scoped game-view metadata, and self-service local-account profile management. The frontend now consumes that auth-aware view data, surfaces guest/local auth controls, requires authentication before entering the lobby or a game, gates gameplay actions by claimed side and active turn, and exposes a local-only profile page for display-name updates plus account deletion. Google OAuth availability is now configuration-aware, and successful Google login returns to the original `/login?next=...` destination.
 
-The repository now also includes `docs/refactor-plan.md`, which captures a phased plan for the next round of code-organization improvements without changing gameplay behavior. Phase 1 of that plan is now complete on the frontend: the old `game.ts` helper module has been split into focused files for shared types, board geometry, client-side rules helpers, and move-history formatting. Phase 2 is now complete on the backend: the oversized `GameRules.kt` module has been split into a rule catalog, snapshot factory, shared rule-engine contract, and dedicated free-play, trivial, and original-style rule-engine files while preserving the existing `GameRules` facade for callers. Phase 3 is now complete on the frontend: repeated game-view fetch, auth-session patching, selection normalization, and `401`/`403` recovery logic in `gameThunks.ts` has been consolidated into shared thunk helpers so open, refresh, command, and seat-claim flows stay aligned.
+The repository now also includes `docs/refactor-plan.md`, which captures a phased plan for the next round of code-organization improvements without changing gameplay behavior. Phase 1 of that plan is now complete on the frontend: the old `game.ts` helper module has been split into focused files for shared types, board geometry, client-side rules helpers, and move-history formatting. Phase 2 is now complete on the backend: the oversized `GameRules.kt` module has been split into a rule catalog, snapshot factory, shared rule-engine contract, and dedicated free-play, trivial, and original-style rule-engine files while preserving the existing `GameRules` facade for callers. Phase 3 is now complete on the frontend: repeated game-view fetch, auth-session patching, selection normalization, and `401`/`403` recovery logic in `gameThunks.ts` has been consolidated into shared thunk helpers so open, refresh, command, and seat-claim flows stay aligned. Phase 4 is now complete on the frontend: the game-only layout and wiring have been extracted from `App.tsx` into a dedicated `GameScreen.tsx` container so the app shell stays focused on auth bootstrap, shared chrome, and route selection.
 
 ## Current Architecture
 
@@ -36,7 +36,9 @@ The repository now also includes `docs/refactor-plan.md`, which captures a phase
   - Transport helpers for REST commands and SSE subscription setup.
 - `src/main/frontend/App.tsx`
   - Top-level React layout and shell composition.
-  - Switches between the login, lobby, profile, and active game screens.
+  - Handles auth bootstrap plus switching between the login, lobby, profile, and active game screens.
+- `src/main/frontend/components/GameScreen.tsx`
+  - Owns the active game screen layout, board sizing hookup, controls wiring, seat panel, rules legend, and move list composition.
 - `src/main/frontend/app/*.ts`
   - Redux store setup and typed hooks.
 - `src/main/frontend/features/game/*.ts`
@@ -193,11 +195,12 @@ The auth module now owns identity and session concerns without moving canonical 
 
 The React frontend is now split by responsibility.
 
-- `App.tsx` composes the page shell and top-level sections.
+- `App.tsx` composes the page shell, auth bootstrap, and top-level route selection.
 - `game-types.ts` is the dependency-light home for shared frontend wire types.
 - `board-geometry.ts` owns board coordinate helpers without depending on browser or Redux code.
 - `game-rules-client.ts` layers client-side targeting and local-selection rules on top of shared types and board geometry.
 - `move-history.ts` owns turn-label and grouped-history formatting helpers.
+- `GameScreen.tsx` owns the active game view container and connects that layout to Redux thunks and selectors.
 - Redux owns shared client state such as the latest server session, auth session, loading/submission state, connection state, feedback messages, and local selection.
 - Redux also owns the current browser view (`lobby` or `game`) plus the current game id.
 - `gameThunks.ts` coordinates lobby create/open actions, game-view refreshes, seat claiming, and command submission against the backend API.
@@ -315,10 +318,10 @@ Most UI-only changes should start in the relevant component, selector, or browse
 The frontend now uses React components backed by Redux state.
 
 - `main.tsx` bootstraps the React app and Redux provider.
-- `App.tsx` is the top-level shell.
+- `App.tsx` is the top-level shell and route switcher.
 - Selectors derive render-ready values from the latest server snapshot plus local UI state.
 - Components rerender declaratively when Redux state changes after REST responses or SSE events.
-- `App.tsx` now switches between a lobby screen and the main three-column game layout.
+- `App.tsx` now switches between route-level screens while `GameScreen.tsx` renders the main three-column game layout.
 - Visual highlights remain class-based:
   - `selected`
   - `targetable`
