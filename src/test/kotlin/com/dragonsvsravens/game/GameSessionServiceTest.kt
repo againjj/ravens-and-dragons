@@ -530,7 +530,12 @@ class GameSessionServiceTest {
         store: InMemoryGameStore = InMemoryGameStore(),
         clock: Clock = fixedClock(),
         staleGameThreshold: Duration = GameSessionService.defaultStaleGameThreshold
-    ): GameSessionService = GameSessionService(store, clock, staleGameThreshold)
+    ): GameSessionService = GameSessionService(
+        store,
+        clock,
+        staleGameThreshold,
+        GameCommandService(clock)
+    )
 
     private fun createGameId(service: GameSessionService): String = service.createGame().id
 

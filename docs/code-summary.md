@@ -6,7 +6,7 @@ This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a brows
 
 The backend now also includes session-cookie authentication for guest and local users, optional OAuth login wiring, persisted seat ownership on games, request-scoped game-view metadata, and self-service local-account profile management. The frontend now consumes that auth-aware view data, surfaces guest/local auth controls, requires authentication before entering the lobby or a game, gates gameplay actions by claimed side and active turn, and exposes a local-only profile page for display-name updates plus account deletion. Google OAuth availability is now configuration-aware, and successful Google login returns to the original `/login?next=...` destination.
 
-The repository now also includes `docs/refactor-plan.md`, which captures a phased plan for the next round of code-organization improvements without changing gameplay behavior. Phase 1 of that plan is now complete on the frontend: the old `game.ts` helper module has been split into focused files for shared types, board geometry, client-side rules helpers, and move-history formatting. Phase 2 is now complete on the backend: the oversized `GameRules.kt` module has been split into a rule catalog, snapshot factory, shared rule-engine contract, and dedicated free-play, trivial, and original-style rule-engine files while preserving the existing `GameRules` facade for callers. Phase 3 is now complete on the frontend: repeated game-view fetch, auth-session patching, selection normalization, and `401`/`403` recovery logic in `gameThunks.ts` has been consolidated into shared thunk helpers so open, refresh, command, and seat-claim flows stay aligned. Phase 4 is now complete on the frontend: the game-only layout and wiring have been extracted from `App.tsx` into a dedicated `GameScreen.tsx` container so the app shell stays focused on auth bootstrap, shared chrome, and route selection.
+The repository now also includes `docs/refactor-plan.md`, which captures a phased plan for the next round of code-organization improvements without changing gameplay behavior. Phase 1 of that plan is now complete on the frontend: the old `game.ts` helper module has been split into focused files for shared types, board geometry, client-side rules helpers, and move-history formatting. Phase 2 is now complete on the backend: the oversized `GameRules.kt` module has been split into a rule catalog, snapshot factory, shared rule-engine contract, and dedicated free-play, trivial, and original-style rule-engine files while preserving the existing `GameRules` facade for callers. Phase 3 is now complete on the frontend: repeated game-view fetch, auth-session patching, selection normalization, and `401`/`403` recovery logic in `gameThunks.ts` has been consolidated into shared thunk helpers so open, refresh, command, and seat-claim flows stay aligned. Phase 4 is now complete on the frontend: the game-only layout and wiring have been extracted from `App.tsx` into a dedicated `GameScreen.tsx` container so the app shell stays focused on auth bootstrap, shared chrome, and route selection. Phase 5 is now complete on the backend: command authorization, validation, undo transitions, and side-claim logic have been extracted into `GameCommandService.kt`, leaving `GameSessionService.kt` focused on store orchestration, SSE lifecycle, and stale-game cleanup.
 
 ## Current Architecture
 
@@ -15,6 +15,7 @@ The repository now also includes `docs/refactor-plan.md`, which captures a phase
 - `src/main/kotlin/com/dragonsvsravens/game/*.kt`
   - Server-side game state models, pure-ish rules, the JDBC-backed game store, the session service, and REST/SSE endpoints.
   - Rule metadata and execution are now separated across `RuleCatalog.kt`, `GameSnapshotFactory.kt`, `RuleEngine.kt`, and per-ruleset engine files, with `GameRules.kt` kept as a thin facade.
+  - `GameCommandService.kt` now owns command authorization, validation, undo handling, and seat-claim transitions, while `GameSessionService.kt` keeps persisted-game loading, broadcasting, emitter lifecycle, and stale cleanup.
 - `src/main/kotlin/com/dragonsvsravens/auth/*.kt`
   - Session auth models, JDBC-backed user persistence, guest and local login flows, optional OAuth login integration, local-account profile management, and session cleanup hooks for temporary guest users.
 - `src/main/resources/db/migration/*.sql`
@@ -176,6 +177,7 @@ The Kotlin game module is now the source of truth for game rules and state trans
 - Tracks last access time server-side for stale-game eviction.
 - Persists which local user, if any, currently owns each side.
 - Enforces that only the authenticated player on the active side may submit commands on the web API path.
+- Splits command-transition logic into `GameCommandService.kt` and session/store orchestration into `GameSessionService.kt`.
 
 Most gameplay changes should start on the backend here.
 

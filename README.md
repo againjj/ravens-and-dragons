@@ -178,6 +178,7 @@ The current Railway production URL is [https://dragons-vs-ravens-production.up.r
 - `src/main/kotlin/com/dragonsvsravens/game`
   - backend game state, rules, and API endpoints
   - includes a thin `GameRules.kt` facade plus focused rule catalog, snapshot factory, and per-ruleset engine files
+  - splits command and side-claim transitions into `GameCommandService.kt`, while `GameSessionService.kt` handles store orchestration, SSE management, and stale cleanup
 - `src/main/resources/static/styles.css`
   - layout and styling
 - `docs/code-summary.md`
@@ -207,6 +208,7 @@ Read docs/code-summary.md and AGENTS.md before making changes. Follow those inst
 - Original-style automatic draws now report whether they happened by repetition or by no legal move.
 - Original-style terminal win checks now take precedence over the post-turn no-legal-move draw check when the gold is captured.
 - Backend rule metadata and execution are now split into focused Kotlin files so future rules changes do not all land in one oversized `GameRules.kt`.
+- Backend command authorization, validation, undo transitions, and side-claim logic now live in `GameCommandService.kt`, while `GameSessionService.kt` focuses on persistence orchestration and SSE/stale-game infrastructure.
 - Frontend game thunks now centralize fetched game-view application and `401`/`403` auth-refresh recovery so open, refresh, command, and side-claim flows stay aligned.
 - `App.tsx` now stays focused on shared shell and route selection, while `GameScreen.tsx` owns the active board screen layout and wiring.
 - The shared session now exposes available rule configurations plus the currently selected configuration so all clients stay in sync on the next play style.
