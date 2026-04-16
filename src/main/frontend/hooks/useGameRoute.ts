@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { useAppDispatch, useAppSelector } from "../app/hooks.js";
-import { selectAuthLoadState, selectIsAuthenticated } from "../features/auth/authSelectors.js";
+import { selectAuthLoadState, selectCurrentUser, selectIsAuthenticated } from "../features/auth/authSelectors.js";
 import { selectGameView } from "../features/game/gameSelectors.js";
 import { openGame, returnToLobby } from "../features/game/gameThunks.js";
 import { generatedGameIdPattern } from "../game.js";
 
 const gameRoutePattern = /^\/g\/([23456789CFGHJMPQRVWX]{7})$/;
 
-export type AppPage = "login" | "lobby" | "game" | "loading";
+export type AppPage = "login" | "lobby" | "game" | "profile" | "loading";
 
 type NavigationMode = "push" | "replace";
 
@@ -42,18 +42,30 @@ const writeHistory = (path: string, mode: NavigationMode) => {
 export const useGameRoute = (): {
     page: AppPage;
     navigateToLobby: (mode?: NavigationMode) => void;
+    navigateToProfile: (mode?: NavigationMode) => void;
     navigateToGame: (gameId: string, options?: { mode?: NavigationMode; loadGame?: boolean }) => void;
 } => {
     const dispatch = useAppDispatch();
     const authLoadState = useAppSelector(selectAuthLoadState);
     const isAuthenticated = useAppSelector(selectIsAuthenticated);
+    const currentUser = useAppSelector(selectCurrentUser);
     const view = useAppSelector(selectGameView);
     const [locationPath, setLocationPath] = useState(() => `${window.location.pathname}${window.location.search}`);
+
+    const clearActiveGameView = () => {
+        dispatch(returnToLobby());
+    };
 
     const navigateToLobby = (mode: NavigationMode = "push") => {
         writeHistory("/lobby", mode);
         setLocationPath("/lobby");
-        dispatch(returnToLobby());
+        clearActiveGameView();
+    };
+
+    const navigateToProfile = (mode: NavigationMode = "push") => {
+        writeHistory("/profile", mode);
+        setLocationPath("/profile");
+        clearActiveGameView();
     };
 
     const navigateToGame = (
@@ -86,7 +98,7 @@ export const useGameRoute = (): {
                     replaceToLogin(nextPath === "" ? "/" : nextPath);
                     setLocationPath(`${window.location.pathname}${window.location.search}`);
                 }
-                dispatch(returnToLobby());
+                clearActiveGameView();
                 return;
             }
 
@@ -99,6 +111,8 @@ export const useGameRoute = (): {
                 const targetPath = getLoginRedirectPath();
                 if (getRouteGameId(targetPath)) {
                     navigateToGame(getRouteGameId(targetPath)!, { mode: "push" });
+                } else if (targetPath === "/profile") {
+                    navigateToProfile("push");
                 } else {
                     navigateToLobby("push");
                 }
@@ -111,7 +125,16 @@ export const useGameRoute = (): {
             }
 
             if (pathname === "/lobby") {
-                dispatch(returnToLobby());
+                clearActiveGameView();
+                return;
+            }
+
+            if (pathname === "/profile") {
+                if (currentUser?.authType !== "local") {
+                    navigateToLobby("replace");
+                    return;
+                }
+                clearActiveGameView();
                 return;
             }
 
@@ -123,7 +146,7 @@ export const useGameRoute = (): {
         return () => {
             window.removeEventListener("popstate", syncFromLocation);
         };
-    }, [authLoadState, dispatch, isAuthenticated]);
+    }, [authLoadState, currentUser?.authType, dispatch, isAuthenticated]);
 
     const page = useMemo<AppPage>(() => {
         if (authLoadState === "idle" || authLoadState === "loading") {
@@ -135,8 +158,11 @@ export const useGameRoute = (): {
         if (locationPath.startsWith("/login")) {
             return "loading";
         }
+        if (locationPath === "/profile") {
+            return "profile";
+        }
         return view === "game" ? "game" : "lobby";
     }, [authLoadState, isAuthenticated, locationPath, view]);
 
-    return { page, navigateToLobby, navigateToGame };
+    return { page, navigateToLobby, navigateToProfile, navigateToGame };
 };

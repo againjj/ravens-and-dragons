@@ -10,6 +10,7 @@ import org.junit.jupiter.api.assertAll
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.MediaType
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder
 import org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.get
@@ -98,7 +99,7 @@ abstract class AbstractGameControllerTestSupport {
             displayName,
             username,
             null,
-            "\$2a\$10\$xQ4h0N4Qn2dLZ0s8AjtS2OgKzdON3NofM8JrIoYNewc19hXtOD87e",
+            BCryptPasswordEncoder().encode("password123"),
             authType.name,
             java.sql.Timestamp.from(Instant.now())
         )
@@ -178,12 +179,16 @@ abstract class AbstractGameControllerTestSupport {
             content = objectMapper.writeValueAsString(command)
         }
 
-    protected fun authenticated(gameId: String, userId: String = currentActorFor(gameId)): RequestPostProcessor =
+    protected fun authenticated(
+        gameId: String,
+        userId: String = currentActorFor(gameId),
+        authType: AuthType = AuthType.local
+    ): RequestPostProcessor =
         RequestPostProcessor { request ->
             val processed = user(userId).roles("USER").postProcessRequest(request)
             val session = processed.getSession(true)!!
             session.setAttribute(AuthSessionSupport.currentUserIdSessionAttribute, userId)
-            session.setAttribute(AuthSessionSupport.currentAuthTypeSessionAttribute, AuthType.local.name)
+            session.setAttribute(AuthSessionSupport.currentAuthTypeSessionAttribute, authType.name)
             processed
         }
 

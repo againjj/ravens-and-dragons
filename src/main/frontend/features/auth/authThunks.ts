@@ -1,14 +1,23 @@
 import {
+    deleteLocalAccountRequest,
     fetchAuthSession,
+    fetchLocalProfile,
     loginAsGuest,
     loginRequest,
     logoutRequest,
-    signupRequest
+    signupRequest,
+    updateLocalProfileRequest
 } from "../../game-client.js";
-import type { LoginRequest, SignupRequest } from "../../game.js";
+import type { AuthSessionResponse, DeleteAccountRequest, LoginRequest, SignupRequest, UpdateProfileRequest } from "../../game.js";
 import type { AppThunk } from "../../app/store.js";
 import { authActions } from "./authSlice.js";
 import { refreshCurrentGameView } from "../game/gameThunks.js";
+
+const signedOutSession = (oauthProviders: string[]): AuthSessionResponse => ({
+    authenticated: false,
+    user: null,
+    oauthProviders
+});
 
 export const loadAuthSession = (): AppThunk<Promise<void>> => async (dispatch) => {
     dispatch(authActions.authLoadStarted());
@@ -69,15 +78,57 @@ export const logout = (): AppThunk<Promise<void>> => async (dispatch, getState) 
 
     try {
         await logoutRequest();
-        dispatch(
-            authActions.authSessionSet({
-                authenticated: false,
-                user: null,
-                oauthProviders: getState().auth.session.oauthProviders
-            })
-        );
+        window.history.pushState({}, "", "/login");
+        dispatch(authActions.authSessionSet(signedOutSession(getState().auth.session.oauthProviders)));
     } catch {
         dispatch(authActions.authFeedbackMessageSet("Unable to log out right now."));
+    } finally {
+        dispatch(authActions.authRequestFinished());
+    }
+};
+
+export const loadLocalProfile = (): AppThunk<Promise<void>> => async (dispatch, getState) => {
+    if (getState().auth.session.user?.authType !== "local") {
+        dispatch(authActions.localProfileCleared());
+        return;
+    }
+
+    dispatch(authActions.localProfileLoadStarted());
+    try {
+        const profile = await fetchLocalProfile();
+        dispatch(authActions.localProfileSet(profile));
+    } catch (error) {
+        dispatch(authActions.localProfileLoadFailed());
+        dispatch(authActions.authFeedbackMessageSet(error instanceof Error ? error.message : "Unable to load your profile right now."));
+    }
+};
+
+export const updateLocalProfile = (request: UpdateProfileRequest): AppThunk<Promise<void>> => async (dispatch, getState) => {
+    dispatch(authActions.authRequestStarted());
+
+    try {
+        const session = await updateLocalProfileRequest(request);
+        dispatch(authActions.authSessionSet(session));
+        const currentProfile = getState().auth.profile;
+        if (currentProfile) {
+            dispatch(authActions.localProfileSet({ ...currentProfile, displayName: request.displayName }));
+        }
+        await dispatch(refreshCurrentGameView());
+    } catch (error) {
+        dispatch(authActions.authFeedbackMessageSet(error instanceof Error ? error.message : "Unable to update your profile right now."));
+    } finally {
+        dispatch(authActions.authRequestFinished());
+    }
+};
+
+export const deleteLocalAccount = (request: DeleteAccountRequest): AppThunk<Promise<void>> => async (dispatch, getState) => {
+    dispatch(authActions.authRequestStarted());
+
+    try {
+        await deleteLocalAccountRequest(request);
+        dispatch(authActions.authSessionSet(signedOutSession(getState().auth.session.oauthProviders)));
+    } catch (error) {
+        dispatch(authActions.authFeedbackMessageSet(error instanceof Error ? error.message : "Unable to delete your account right now."));
     } finally {
         dispatch(authActions.authRequestFinished());
     }

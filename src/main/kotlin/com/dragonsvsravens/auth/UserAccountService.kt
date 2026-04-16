@@ -39,14 +39,8 @@ class UserAccountService(
 
     @Transactional
     fun signup(request: SignupRequest): UserRecord {
-        val username = request.username.trim()
-        val displayName = request.displayName.trim()
-        if (username.isBlank()) {
-            throw IllegalArgumentException("Username is required.")
-        }
-        if (displayName.isBlank()) {
-            throw IllegalArgumentException("Display name is required.")
-        }
+        val username = validateUsername(request.username)
+        val displayName = validateDisplayName(request.displayName)
         if (request.password.length < 8) {
             throw IllegalArgumentException("Password must be at least 8 characters.")
         }
@@ -67,6 +61,35 @@ class UserAccountService(
             throw AuthenticationFailedException("Invalid username or password.")
         }
         return user
+    }
+
+    fun getLocalProfile(userId: String): LocalProfileResponse {
+        val user = requireLocalUser(userId)
+        return LocalProfileResponse(
+            id = user.id,
+            username = user.username ?: throw IllegalStateException("Local user ${user.id} is missing a username."),
+            displayName = user.displayName
+        )
+    }
+
+    @Transactional
+    fun updateLocalDisplayName(userId: String, request: UpdateProfileRequest): UserRecord {
+        val user = requireLocalUser(userId)
+        val displayName = validateDisplayName(request.displayName)
+        userRepository.updateDisplayName(user.id, displayName)
+        return user.copy(displayName = displayName)
+    }
+
+    @Transactional
+    fun deleteLocalAccount(userId: String, request: DeleteAccountRequest) {
+        val user = requireLocalUser(userId)
+        val passwordHash = user.passwordHash
+            ?: throw ForbiddenActionException("Only local password accounts may delete themselves here.")
+        if (!passwordEncoder.matches(request.password, passwordHash)) {
+            throw AuthenticationFailedException("Password confirmation was incorrect.")
+        }
+        gameSessionService.clearUserReferences(user.id)
+        userRepository.deleteById(user.id)
     }
 
     @Transactional
@@ -114,6 +137,31 @@ class UserAccountService(
                     gameSessionService.clearUserReferences(userId)
                 }
             }
+    }
+
+    private fun validateDisplayName(displayName: String): String {
+        val trimmedDisplayName = displayName.trim()
+        if (trimmedDisplayName.isBlank()) {
+            throw IllegalArgumentException("Display name is required.")
+        }
+        return trimmedDisplayName
+    }
+
+    private fun validateUsername(username: String): String {
+        val trimmedUsername = username.trim()
+        if (trimmedUsername.isBlank()) {
+            throw IllegalArgumentException("Username is required.")
+        }
+        return trimmedUsername
+    }
+
+    private fun requireLocalUser(userId: String): UserRecord {
+        val user = userRepository.findById(userId)
+            ?: throw AuthenticationFailedException("You must sign in before managing your profile.")
+        if (user.authType != AuthType.local) {
+            throw ForbiddenActionException("Only local password accounts may manage profiles here.")
+        }
+        return user
     }
 
     private fun UserRecord.toSummary(): AuthUserSummary =

@@ -72,6 +72,18 @@ class UserRepository(
             username
         ).firstOrNull()
 
+    fun updateDisplayName(userId: String, displayName: String) {
+        jdbcTemplate.update(
+            """
+            update users
+            set display_name = ?
+            where id = ?
+            """.trimIndent(),
+            displayName,
+            userId
+        )
+    }
+
     fun createIdentity(userId: String, provider: String, providerSubject: String, createdAt: Instant = Instant.now()) {
         jdbcTemplate.update(
             """

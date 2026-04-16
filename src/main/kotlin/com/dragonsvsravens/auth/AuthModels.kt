@@ -50,6 +50,20 @@ data class LoginRequest(
     val password: String
 )
 
+data class LocalProfileResponse(
+    val id: String,
+    val username: String,
+    val displayName: String
+)
+
+data class UpdateProfileRequest(
+    val displayName: String
+)
+
+data class DeleteAccountRequest(
+    val password: String
+)
+
 class AuthenticationFailedException(message: String) : RuntimeException(message)
 
 class ForbiddenActionException(message: String) : RuntimeException(message)

@@ -53,6 +53,6 @@ describe("LobbyScreen", () => {
 
         expect(screen.getByRole("button", { name: "Open Game" })).toBeDisabled();
         expect(screen.getByText("Start Fresh")).toBeInTheDocument();
-        expect(screen.getByText("Rejoin Game")).toBeInTheDocument();
+        expect(screen.getByText("Join Game")).toBeInTheDocument();
     });
 });

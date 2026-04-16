@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { useAppDispatch, useAppSelector } from "../app/hooks.js";
 import { authActions } from "../features/auth/authSlice.js";
-import { selectAuthFeedbackMessage, selectCurrentUser, selectIsAuthSubmitting, selectIsAuthenticated } from "../features/auth/authSelectors.js";
+import { selectAuthFeedbackMessage, selectCurrentUser, selectIsAuthSubmitting, selectIsAuthenticated, selectOAuthProviders } from "../features/auth/authSelectors.js";
 import { getOAuthLoginUrl } from "../game-client.js";
 
 interface AuthPanelProps {
@@ -21,7 +21,7 @@ export const AuthPanel = ({
     const dispatch = useAppDispatch();
     const isAuthenticated = useAppSelector(selectIsAuthenticated);
     const currentUser = useAppSelector(selectCurrentUser);
-    const oauthProviders = useAppSelector((state) => state.auth.session.oauthProviders ?? []);
+    const oauthProviders = useAppSelector(selectOAuthProviders);
     const isSubmitting = useAppSelector(selectIsAuthSubmitting);
     const feedbackMessage = useAppSelector(selectAuthFeedbackMessage);
     const googleOauthEnabled = oauthProviders.includes("google");

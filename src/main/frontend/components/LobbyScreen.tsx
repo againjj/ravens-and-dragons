@@ -43,7 +43,7 @@ export const LobbyScreen = ({
 
                 <section className="lobby-card">
                     <div className="lobby-card-copy">
-                        <h3>Rejoin Game</h3>
+                        <h3>Join Game</h3>
                         <p>Paste an existing game ID to open the shared board and move history. Game IDs are case-insensitive.</p>
                     </div>
                     <div className="lobby-actions">

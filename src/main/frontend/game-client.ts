@@ -3,11 +3,14 @@ import type {
     ClaimSideRequest,
     CreateGameRequest,
     CreateGameResponse,
+    DeleteAccountRequest,
     GameCommandRequest,
     GameViewResponse,
+    LocalProfileResponse,
     LoginRequest,
     ServerGameSession,
-    SignupRequest
+    SignupRequest,
+    UpdateProfileRequest
 } from "./game.js";
 
 export interface ErrorMessage {
@@ -158,6 +161,49 @@ export const logoutRequest = async (fetchImpl: FetchLike = fetch): Promise<void>
     });
     if (!response.ok) {
         throw new Error(`Failed to log out: ${response.status}`);
+    }
+};
+
+export const fetchLocalProfile = async (fetchImpl: FetchLike = fetch): Promise<LocalProfileResponse> => {
+    const response = await fetchImpl("/api/auth/profile");
+    if (!response.ok) {
+        throw new Error(await parseErrorMessage(response));
+    }
+
+    return parseJson<LocalProfileResponse>(response);
+};
+
+export const updateLocalProfileRequest = async (
+    request: UpdateProfileRequest,
+    fetchImpl: FetchLike = fetch
+): Promise<AuthSessionResponse> => {
+    const response = await fetchImpl("/api/auth/profile", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(request)
+    });
+    if (!response.ok) {
+        throw new Error(await parseErrorMessage(response));
+    }
+
+    return parseJson<AuthSessionResponse>(response);
+};
+
+export const deleteLocalAccountRequest = async (
+    request: DeleteAccountRequest,
+    fetchImpl: FetchLike = fetch
+): Promise<void> => {
+    const response = await fetchImpl("/api/auth/delete-account", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(request)
+    });
+    if (!response.ok) {
+        throw new Error(await parseErrorMessage(response));
     }
 };
 

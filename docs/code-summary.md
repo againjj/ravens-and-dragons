@@ -4,7 +4,7 @@
 
 This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a browser-based board game prototype. The backend supports multiple persisted game sessions, addressed by game id, and broadcasts updates over server-sent events per game. The frontend now opens on a lobby screen, creates or opens games by id, and then talks to the per-game backend API for the active session.
 
-The backend now also includes session-cookie authentication for guest and local users, optional OAuth login wiring, persisted seat ownership on games, and request-scoped game-view metadata. The frontend now consumes that auth-aware view data, surfaces guest/local auth controls, requires authentication before entering the lobby or a game, and gates gameplay actions by claimed side and active turn. Google OAuth availability is now configuration-aware, and successful Google login returns to the original `/login?next=...` destination.
+The backend now also includes session-cookie authentication for guest and local users, optional OAuth login wiring, persisted seat ownership on games, request-scoped game-view metadata, and self-service local-account profile management. The frontend now consumes that auth-aware view data, surfaces guest/local auth controls, requires authentication before entering the lobby or a game, gates gameplay actions by claimed side and active turn, and exposes a local-only profile page for display-name updates plus account deletion. Google OAuth availability is now configuration-aware, and successful Google login returns to the original `/login?next=...` destination.
 
 ## Current Architecture
 
@@ -13,7 +13,7 @@ The backend now also includes session-cookie authentication for guest and local 
 - `src/main/kotlin/com/dragonsvsravens/game/*.kt`
   - Server-side game state models, pure-ish rules, the JDBC-backed game store, the session service, and REST/SSE endpoints.
 - `src/main/kotlin/com/dragonsvsravens/auth/*.kt`
-  - Session auth models, JDBC-backed user persistence, guest and local login flows, optional OAuth login integration, and session cleanup hooks for temporary guest users.
+  - Session auth models, JDBC-backed user persistence, guest and local login flows, optional OAuth login integration, local-account profile management, and session cleanup hooks for temporary guest users.
 - `src/main/resources/db/migration/*.sql`
   - Flyway migrations for the persistent game schema.
 - `src/main/frontend/index.html`
@@ -28,18 +28,18 @@ The backend now also includes session-cookie authentication for guest and local 
   - Transport helpers for REST commands and SSE subscription setup.
 - `src/main/frontend/App.tsx`
   - Top-level React layout and shell composition.
-  - Switches between the lobby screen and the active game screen.
+  - Switches between the login, lobby, profile, and active game screens.
 - `src/main/frontend/app/*.ts`
   - Redux store setup and typed hooks.
 - `src/main/frontend/features/game/*.ts`
   - Game slice, selectors, thunks, and stream lifecycle wiring.
   - Includes current-game and current-view state, auth-aware game metadata, exact undo availability and ownership, and command/claim-side thunks.
 - `src/main/frontend/features/auth/*.ts`
-  - Auth session slice, selectors, and guest/local auth thunks.
+  - Auth session slice, selectors, profile state, and guest/local auth thunks.
 - `src/main/frontend/features/ui/*.ts`
   - Local-only UI state such as selected square.
 - `src/main/frontend/components/*.tsx`
-  - React components for the lobby screen, auth panel, seat display, board rendering, controls, move list, and status text.
+  - React components for the lobby screen, auth panel, local profile screen, seat display, board rendering, controls, move list, and status text.
 - `src/main/frontend/hooks/*.ts`
   - Browser hooks for responsive sizing, fullscreen behavior, and URL-to-game routing.
   - `useBoardSizing.ts` now measures the padded board panel so the board can shrink and grow without overflowing the panel.
@@ -77,6 +77,9 @@ The backend now also includes session-cookie authentication for guest and local 
   - Guest login uses `POST /api/auth/guest`.
   - Local signup and login use `POST /api/auth/signup` and `POST /api/auth/login`.
   - Local and guest logout use `POST /api/auth/logout`.
+  - Local-account profile load uses `GET /api/auth/profile`.
+  - Local-account display-name updates use `POST /api/auth/profile`.
+  - Local-account deletion uses `POST /api/auth/delete-account`.
   - Creating a game uses `POST /api/games`.
   - Opening a game by id uses `GET /api/games/{gameId}`.
   - Seat claiming uses `POST /api/games/{gameId}/claim-side`.
@@ -136,6 +139,7 @@ The canonical board is represented on the server as `Map<String, Piece>` and on 
 The backend also now exposes auth-oriented DTOs outside the canonical session payload:
 
 - `AuthSessionResponse`
+- `LocalProfileResponse`
 - `GameViewResponse`
 - `viewerRole`
 - player summaries for the claimed dragons and ravens seats
@@ -170,8 +174,10 @@ The auth module now owns identity and session concerns without moving canonical 
 - Creates persisted guest and local users.
 - Supports session-cookie sign-in and sign-out.
 - Wires optional OAuth login so configured providers can resolve to the same local user model.
+- Lets authenticated local password users load their profile, update their display name, and delete their own account after password confirmation.
 - Stores only request-scoped viewer identity in auth/session DTOs instead of persisting viewer role on the game session.
 - Deletes session-only guest users on logout or session destruction and releases any seats they held without ending the game.
+- Deletes local accounts transactionally while releasing claimed seats and clearing nullable game ownership references without deleting games.
 
 ### React frontend
 
@@ -197,10 +203,12 @@ Most UI-only changes should start in the relevant component, selector, or browse
 - The browser initially loads into a lobby screen.
 - The lobby can create a new persisted game or open an existing game by id.
 - The page shell now also shows auth controls for guest access, local signup/login, logout, and an OAuth sign-in link for supported deployments.
+- Local password accounts now also see a `Profile` button in the upper-right app chrome that opens `/profile`.
 - The lobby presents separate create and rejoin cards, uppercases typed game ids locally, and keeps `Open Game` disabled until an id is present.
 - Once a game is created or opened, the browser enters that game's board screen and updates the URL to `/g/{gameId}`.
 - Loading `/g/{gameId}` directly also enters that game's board screen.
 - The game screen shows the current game id and includes a `Back to Lobby` button.
+- The `/profile` page is available only to local password accounts, prefills the current display name, allows display-name updates, and requires password confirmation before deleting the account.
 - Returning to the lobby closes the active SSE stream, clears browser-local selection, and returns the URL to `/`.
 - If the browser entered the app directly on `/g/{gameId}`, returning to the lobby replaces that direct-entry history slot so browser Back still leaves the app instead of reopening the same game route.
 

@@ -4,39 +4,51 @@ import { createAppStore } from "../../main/frontend/app/store.js";
 import { createAuthSession, createGameView, createSession } from "./fixtures.js";
 
 const {
+    deleteLocalAccountRequestMock,
     fetchAuthSessionMock,
+    fetchLocalProfileMock,
     loginAsGuestMock,
     loginRequestMock,
     logoutRequestMock,
     signupRequestMock,
+    updateLocalProfileRequestMock,
     fetchGameViewMock
 } = vi.hoisted(() => ({
+    deleteLocalAccountRequestMock: vi.fn(),
     fetchAuthSessionMock: vi.fn(),
+    fetchLocalProfileMock: vi.fn(),
     loginAsGuestMock: vi.fn(),
     loginRequestMock: vi.fn(),
     logoutRequestMock: vi.fn(),
     signupRequestMock: vi.fn(),
+    updateLocalProfileRequestMock: vi.fn(),
     fetchGameViewMock: vi.fn()
 }));
 
 vi.mock("../../main/frontend/game-client.js", () => ({
+    deleteLocalAccountRequest: deleteLocalAccountRequestMock,
     fetchAuthSession: fetchAuthSessionMock,
+    fetchLocalProfile: fetchLocalProfileMock,
     loginAsGuest: loginAsGuestMock,
     loginRequest: loginRequestMock,
     logoutRequest: logoutRequestMock,
     signupRequest: signupRequestMock,
+    updateLocalProfileRequest: updateLocalProfileRequestMock,
     fetchGameView: fetchGameViewMock
 }));
 
-import { continueAsGuest, loadAuthSession, login, logout, signup } from "../../main/frontend/features/auth/authThunks.js";
+import { continueAsGuest, deleteLocalAccount, loadAuthSession, loadLocalProfile, login, logout, signup, updateLocalProfile } from "../../main/frontend/features/auth/authThunks.js";
 
 describe("authThunks", () => {
     beforeEach(() => {
+        deleteLocalAccountRequestMock.mockReset();
         fetchAuthSessionMock.mockReset();
+        fetchLocalProfileMock.mockReset();
         loginAsGuestMock.mockReset();
         loginRequestMock.mockReset();
         logoutRequestMock.mockReset();
         signupRequestMock.mockReset();
+        updateLocalProfileRequestMock.mockReset();
         fetchGameViewMock.mockReset();
     });
 
@@ -137,5 +149,89 @@ describe("authThunks", () => {
         await store.dispatch(logout());
 
         expect(store.getState().auth.session.oauthProviders).toEqual(["google"]);
+    });
+
+    test("loadLocalProfile stores the local profile details", async () => {
+        fetchLocalProfileMock.mockResolvedValue({
+            id: "player-dragons",
+            username: "player-dragons",
+            displayName: "Dragon Player"
+        });
+        const store = createAppStore({
+            auth: {
+                session: createAuthSession()
+            }
+        });
+
+        await store.dispatch(loadLocalProfile());
+
+        expect(store.getState().auth.profile?.username).toBe("player-dragons");
+        expect(store.getState().auth.profileLoadState).toBe("ready");
+    });
+
+    test("updateLocalProfile syncs the auth session and cached profile", async () => {
+        updateLocalProfileRequestMock.mockResolvedValue(
+            createAuthSession({
+                user: {
+                    id: "player-dragons",
+                    displayName: "Renamed Player",
+                    authType: "local"
+                }
+            })
+        );
+        const store = createAppStore({
+            auth: {
+                session: createAuthSession(),
+                profile: {
+                    id: "player-dragons",
+                    username: "player-dragons",
+                    displayName: "Dragon Player"
+                },
+                profileLoadState: "ready"
+            },
+            game: {
+                view: "game",
+                currentGameId: "game-101",
+                session: createSession({ id: "game-101" })
+            }
+        });
+        fetchGameViewMock.mockResolvedValue(
+            createGameView({ id: "game-101" }, {}, {
+                currentUser: {
+                    id: "player-dragons",
+                    displayName: "Renamed Player",
+                    authType: "local"
+                }
+            })
+        );
+
+        await store.dispatch(updateLocalProfile({ displayName: "Renamed Player" }));
+
+        expect(store.getState().auth.session.user?.displayName).toBe("Renamed Player");
+        expect(store.getState().auth.profile?.displayName).toBe("Renamed Player");
+        expect(fetchGameViewMock).toHaveBeenCalledWith("game-101");
+    });
+
+    test("deleteLocalAccount signs the browser out", async () => {
+        deleteLocalAccountRequestMock.mockResolvedValue(undefined);
+        const store = createAppStore({
+            auth: {
+                session: createAuthSession({
+                    oauthProviders: ["google"]
+                }),
+                profile: {
+                    id: "player-dragons",
+                    username: "player-dragons",
+                    displayName: "Dragon Player"
+                },
+                profileLoadState: "ready"
+            }
+        });
+
+        await store.dispatch(deleteLocalAccount({ password: "password123" }));
+
+        expect(store.getState().auth.session.authenticated).toBe(false);
+        expect(store.getState().auth.session.oauthProviders).toEqual(["google"]);
+        expect(store.getState().auth.profile).toBeNull();
     });
 });

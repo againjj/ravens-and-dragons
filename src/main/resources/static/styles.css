@@ -468,6 +468,13 @@ h3 {
     gap: 12px;
 }
 
+.profile-inline-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+}
+
 .control-label {
     font-size: 0.95rem;
     font-weight: 700;

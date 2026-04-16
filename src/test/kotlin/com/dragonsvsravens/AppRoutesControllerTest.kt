@@ -62,9 +62,29 @@ class AppRoutesControllerTest : AbstractGameControllerTestSupport() {
     }
 
     @Test
+    fun `signed out profile route redirects to login with next parameter`() {
+        mockMvc.get("/profile") {
+            secure = false
+        }.andExpect {
+            status { is3xxRedirection() }
+            redirectedUrl("/login?next=%2Fprofile")
+        }
+    }
+
+    @Test
     fun `authenticated game route loads the frontend app shell directly`() {
         mockMvc.get("/g/CFGHJMP") {
             with(authenticated("CFGHJMP"))
+        }.andExpect {
+            status { isOk() }
+            forwardedUrl("/index.html")
+        }
+    }
+
+    @Test
+    fun `authenticated profile route loads the frontend app shell directly`() {
+        mockMvc.get("/profile") {
+            with(authenticated("profile"))
         }.andExpect {
             status { isOk() }
             forwardedUrl("/index.html")

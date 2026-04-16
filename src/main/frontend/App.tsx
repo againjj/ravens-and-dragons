@@ -6,6 +6,7 @@ import { Board } from "./components/Board.js";
 import { ControlsPanel } from "./components/ControlsPanel.js";
 import { LobbyScreen } from "./components/LobbyScreen.js";
 import { MoveList } from "./components/MoveList.js";
+import { ProfileScreen } from "./components/ProfileScreen.js";
 import { SeatPanel } from "./components/SeatPanel.js";
 import { StatusBanner } from "./components/StatusBanner.js";
 import {
@@ -54,7 +55,10 @@ export const App = () => {
     const boardShellRef = useRef<HTMLDivElement | null>(null);
     const { toggleFullscreen } = useFullscreen(pageRef);
 
-    const { page, navigateToGame, navigateToLobby } = useGameRoute();
+    const { page, navigateToGame, navigateToLobby, navigateToProfile } = useGameRoute();
+    const showProfileButton = isAuthenticated && currentUser?.authType === "local" && page !== "profile";
+    const showLobbyButton = isAuthenticated && page !== "lobby";
+    const showLogoutButton = isAuthenticated && currentUser != null;
     useGameSession();
     useBoardSizing(boardShellRef, page === "game");
 
@@ -70,6 +74,18 @@ export const App = () => {
         });
     };
 
+    const handleLogout = () => {
+        void dispatch(logout());
+    };
+
+    const handleCreateGame = () => {
+        void dispatch(createGame()).then((createdGameId) => {
+            if (createdGameId) {
+                navigateToGame(createdGameId, { loadGame: false });
+            }
+        });
+    };
+
     return (
         <main className="page" ref={pageRef}>
             <section className="hero">
@@ -78,20 +94,18 @@ export const App = () => {
                         <h1>Dragons vs Ravens</h1>
                     </div>
                     <div className="hero-actions">
-                        {isAuthenticated && currentUser ? (
-                            <>
-                                <span>{currentUser.displayName}</span>
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        void dispatch(logout());
-                                    }}
-                                >
-                                    Log Out
-                                </button>
-                            </>
+                        {isAuthenticated && currentUser ? <span>{currentUser.displayName}</span> : null}
+                        {showProfileButton ? (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    navigateToProfile();
+                                }}
+                            >
+                                Profile
+                            </button>
                         ) : null}
-                        {page === "game" ? (
+                        {showLobbyButton ? (
                             <button
                                 id="back-to-lobby-button"
                                 type="button"
@@ -99,7 +113,15 @@ export const App = () => {
                                     navigateToLobby();
                                 }}
                             >
-                                Back to Lobby
+                                Lobby
+                            </button>
+                        ) : null}
+                        {showLogoutButton ? (
+                            <button
+                                type="button"
+                                onClick={handleLogout}
+                            >
+                                Log Out
                             </button>
                         ) : null}
                         <button
@@ -133,25 +155,21 @@ export const App = () => {
                     onSignup={(request) => {
                         void dispatch(signup(request));
                     }}
-                    onLogout={() => {
-                        void dispatch(logout());
-                    }}
+                    onLogout={handleLogout}
                 />
             ) : page === "lobby" ? (
                 <LobbyScreen
                     feedbackMessage={feedbackMessage}
                     isLoading={isLoadingGame}
-                    onCreateGame={() => {
-                        void dispatch(createGame()).then((createdGameId) => {
-                            if (createdGameId) {
-                                navigateToGame(createdGameId, { loadGame: false });
-                            }
-                        });
-                    }}
+                    onCreateGame={handleCreateGame}
                     onOpenGame={(gameId) => {
                         navigateToGame(gameId);
                     }}
                 />
+            ) : page === "profile" ? (
+                <section className="auth-layout">
+                    <ProfileScreen />
+                </section>
             ) : (
                 <section className="game-page">
                     <section className="panel page-header-panel game-header-panel">

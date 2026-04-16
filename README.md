@@ -30,6 +30,7 @@ Open the app in two browser tabs to see the shared game stay in sync through ser
 The browser now opens on a lobby screen at `/`, where you can create a new game or open an existing one by ID.
 The page now also includes auth controls for guest play, local signup/login/logout, and a Google OAuth entry link for deployments that configure that provider.
 Users must authenticate before opening the lobby or viewing a game.
+Local password accounts now also get a `Profile` button in the upper-right app chrome that opens `/profile`.
 The lobby now presents separate `Start Fresh` and `Rejoin Game` cards, normalizes typed game IDs to uppercase, and disables `Open Game` until an ID is entered.
 Each game has its own URL at `/g/{gameId}`.
 Loading a game URL directly opens that game, and after you create or open a game from the lobby the browser updates the address bar to that game's `/g/{gameId}` URL.
@@ -58,6 +59,8 @@ The backend now also exposes session-cookie auth APIs for guest and local login,
 Opening a game, subscribing to its SSE stream, claiming a side, and submitting commands now all require an authenticated session.
 Games may track claimed `dragons` and `ravens` seats, and the auth-aware game view endpoint lives at `GET /api/games/{gameId}/view`.
 Guest accounts are session-only: logging out or losing the session deletes the guest user and releases any seats they held without ending the game.
+The `/profile` page is available only to local password accounts. It lets a user update their display name using the same validation as signup, and delete their own account only after confirming their password again.
+Deleting a local account signs that session out, releases any claimed seats, clears nullable ownership references such as the game creator id, and leaves the game itself intact and readable.
 On the game screen, the browser now shows claimed seats, hides pre-game setup controls until a side is claimed, hides the claim buttons after a seat is claimed, and only shows actionable board and control affordances to the player who can act. Undo is reserved for the player who made the last undoable move.
 
 ## Google OAuth Setup
@@ -187,6 +190,7 @@ Read docs/code-summary.md and docs/codex-rules.md before making changes. Follow 
 - Frontend tests use Node's built-in test runner for shared helper modules and Vitest with jsdom for React/Redux tests.
 - Spring Boot serves the generated frontend assets as static resources and exposes the per-game backend routes under `/api/games`.
 - Session auth endpoints are exposed under `/api/auth`.
+- Local profile management also lives under `/api/auth/profile` and `/api/auth/delete-account`.
 - Undo is server-backed, shared across clients, and exposed as `canUndo` in the session payload so the UI can disable the button exactly, including after a manual game over when a rollback is still available.
 - Turn history now includes both completed moves and a terminal `Game Over` entry when a game is ended.
 - Original-style automatic draws now report whether they happened by repetition or by no legal move.
