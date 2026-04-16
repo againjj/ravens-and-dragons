@@ -1,4 +1,4 @@
-# Codex Rules
+# Agents
 
 This file contains repository-specific instructions for AI-assisted work in this project.
 
@@ -137,5 +137,5 @@ If a requested change would alter one of those rules, implement it only when tha
 Use this in future requests:
 
 ```text
-Read docs/code-summary.md and docs/codex-rules.md before making changes. Follow those project rules unless I say otherwise.
+Read docs/code-summary.md and AGENTS.md before making changes. Follow those project rules unless I say otherwise.
 ```

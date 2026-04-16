@@ -173,7 +173,7 @@ The current Railway production URL is [https://dragons-vs-ravens-production.up.r
   - layout and styling
 - `docs/code-summary.md`
   - architecture and codebase summary for future changes
-- `docs/codex-rules.md`
+- `AGENTS.md`
   - project-specific rules for AI-assisted work
 
 ## AI Session Prompt
@@ -181,7 +181,7 @@ The current Railway production URL is [https://dragons-vs-ravens-production.up.r
 Use this at the start of a new AI coding session:
 
 ```text
-Read docs/code-summary.md and docs/codex-rules.md before making changes. Follow those instructions unless I say otherwise.
+Read docs/code-summary.md and AGENTS.md before making changes. Follow those instructions unless I say otherwise.
 ```
 
 ## Notes
@@ -208,5 +208,5 @@ Read docs/code-summary.md and docs/codex-rules.md before making changes. Follow 
 - The database now also stores local users, optional OAuth identity links, and claimed game-seat ownership.
 - Persisted games are evicted automatically after they exceed the configured stale threshold without a load, command, or active SSE viewer. The default threshold is six weeks.
 - If `./gradlew bootRun` cannot bind its default port, treat that as a local environment issue to fix instead of silently switching ports.
-- `docs/codex-rules.md` now explicitly says not to modify the codebase until the user asks for implementation work.
+- `AGENTS.md` now explicitly says not to modify the codebase until the user asks for implementation work.
 - If you change architecture, workflow, or gameplay in a meaningful way, update `docs/code-summary.md`.
