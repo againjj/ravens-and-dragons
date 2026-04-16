@@ -170,7 +170,7 @@ The current Railway production URL is [https://dragons-vs-ravens-production.up.r
 - `src/main/frontend/app`
   - Redux store setup and typed hooks
 - `src/main/frontend/features`
-  - Redux slices, selectors, thunks, and stream lifecycle helpers
+  - Redux slices, selectors, thunks, stream lifecycle helpers, and shared game-view/auth-refresh orchestration
 - `src/main/frontend/components`
   - React UI components for board, controls, status, and move list
 - `src/main/kotlin/com/dragonsvsravens/game`
@@ -205,6 +205,7 @@ Read docs/code-summary.md and AGENTS.md before making changes. Follow those inst
 - Original-style automatic draws now report whether they happened by repetition or by no legal move.
 - Original-style terminal win checks now take precedence over the post-turn no-legal-move draw check when the gold is captured.
 - Backend rule metadata and execution are now split into focused Kotlin files so future rules changes do not all land in one oversized `GameRules.kt`.
+- Frontend game thunks now centralize fetched game-view application and `401`/`403` auth-refresh recovery so open, refresh, command, and side-claim flows stay aligned.
 - The shared session now exposes available rule configurations plus the currently selected configuration so all clients stay in sync on the next play style.
 - `Original Game` follows the published Ravens and Dragons setup and movement/capture rules, including automatic wins and draws.
 - `Sherwood Rules` reuses the `Original Game` setup, capture, and win/draw conditions, but limits the gold to one-square orthogonal movement.

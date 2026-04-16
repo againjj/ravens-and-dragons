@@ -22,7 +22,7 @@ vi.mock("../../main/frontend/game-client.js", () => ({
     sendGameCommandRequest: sendGameCommandRequestMock
 }));
 
-import { claimSide, createGame, openGame, returnToLobby } from "../../main/frontend/features/game/gameThunks.js";
+import { claimSide, createGame, openGame, returnToLobby, sendCommand } from "../../main/frontend/features/game/gameThunks.js";
 
 describe("gameThunks", () => {
     beforeEach(() => {
@@ -106,6 +106,79 @@ describe("gameThunks", () => {
 
         expect(claimGameSideMock).toHaveBeenCalledWith("game-404", { side: "ravens" });
         expect(fetchGameViewMock).toHaveBeenCalledWith("game-404");
+    });
+
+    test("sendCommand signs the viewer out and refreshes the game view after a 401 response", async () => {
+        sendGameCommandRequestMock.mockResolvedValue({
+            status: 401,
+            errorMessage: "Sign in required."
+        });
+        fetchGameViewMock.mockResolvedValue(
+            createGameView(
+                { id: "game-505" },
+                {},
+                {
+                    currentUser: null,
+                    viewerRole: null
+                }
+            )
+        );
+        const store = createAppStore({
+            auth: {
+                session: createAuthSession({ oauthProviders: ["google"] })
+            },
+            game: {
+                view: "game",
+                currentGameId: "game-505",
+                session: createSession({ id: "game-505" }),
+                viewerRole: "dragons",
+                dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
+                ravensPlayer: { id: "player-ravens", displayName: "Raven Player" }
+            }
+        });
+
+        await store.dispatch(sendCommand({ type: "skip-capture" }));
+
+        expect(fetchGameViewMock).toHaveBeenCalledWith("game-505");
+        expect(store.getState().auth.session.authenticated).toBe(false);
+        expect(store.getState().auth.session.oauthProviders).toEqual(["google"]);
+        expect(store.getState().game.viewerRole).toBeNull();
+        expect(store.getState().game.feedbackMessage).toBeNull();
+    });
+
+    test("claimSide refreshes the game view after a 403 response without clearing OAuth providers", async () => {
+        claimGameSideMock.mockResolvedValue({
+            status: 403,
+            errorMessage: "Seat already taken."
+        });
+        fetchGameViewMock.mockResolvedValue(
+            createGameView(
+                { id: "game-606" },
+                {},
+                {
+                    viewerRole: null
+                }
+            )
+        );
+        const store = createAppStore({
+            auth: {
+                session: createAuthSession({ oauthProviders: ["google"] })
+            },
+            game: {
+                view: "game",
+                currentGameId: "game-606",
+                session: createSession({ id: "game-606" }),
+                viewerRole: "dragons",
+                dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
+                ravensPlayer: { id: "player-ravens", displayName: "Raven Player" }
+            }
+        });
+
+        await store.dispatch(claimSide("ravens"));
+
+        expect(fetchGameViewMock).toHaveBeenCalledWith("game-606");
+        expect(store.getState().auth.session.oauthProviders).toEqual(["google"]);
+        expect(store.getState().game.feedbackMessage).toBeNull();
     });
 
     test("returnToLobby clears the active game session and local selection", async () => {

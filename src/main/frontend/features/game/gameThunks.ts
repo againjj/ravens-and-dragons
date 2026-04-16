@@ -1,13 +1,48 @@
 import { claimGameSide, createGameSession, fetchGameView, sendGameCommandRequest } from "../../game-client.js";
-import type { AppThunk } from "../../app/store.js";
+import type { AppThunk, RootState } from "../../app/store.js";
 import { normalizeSelectedSquare } from "../../game-rules-client.js";
-import type { GameCommandRequest, ServerGameSession, Side } from "../../game-types.js";
+import type { GameCommandRequest, GameViewResponse, ServerGameSession, Side } from "../../game-types.js";
 import { gameActions } from "./gameSlice.js";
 import { uiActions } from "../ui/uiSlice.js";
 import { authActions } from "../auth/authSlice.js";
 
 const resetSessionScopedUiState = (): AppThunk => (dispatch) => {
     dispatch(uiActions.selectedSquareSet(null));
+};
+
+const getOauthProviders = (getState: () => RootState): string[] => getState().auth.session.oauthProviders;
+
+const applyFetchedGameView = (view: GameViewResponse): AppThunk => (dispatch, getState) => {
+    dispatch(gameActions.gameViewUpdated(view));
+    dispatch(
+        authActions.authSessionSet({
+            authenticated: view.currentUser != null,
+            user: view.currentUser,
+            oauthProviders: getOauthProviders(getState)
+        })
+    );
+    dispatch(syncSelectedSquare());
+};
+
+const loadAndApplyGameView = (gameId: string): AppThunk<Promise<void>> => async (dispatch) => {
+    const view = await fetchGameView(gameId);
+    dispatch(applyFetchedGameView(view));
+};
+
+const handleCommandAuthFailure = (status?: number): AppThunk<Promise<void>> => async (dispatch, getState) => {
+    if (status === 401) {
+        dispatch(
+            authActions.authSessionSet({
+                authenticated: false,
+                user: null,
+                oauthProviders: getOauthProviders(getState)
+            })
+        );
+    }
+
+    if (status === 401 || status === 403) {
+        await dispatch(refreshCurrentGameView());
+    }
 };
 
 const syncSelectedSquare = (): AppThunk => (dispatch, getState) => {
@@ -42,18 +77,9 @@ export const createGame = (): AppThunk<Promise<string | null>> => async (dispatc
     }
 };
 
-export const loadGameView = (gameId: string): AppThunk<Promise<boolean>> => async (dispatch, getState) => {
+export const loadGameView = (gameId: string): AppThunk<Promise<boolean>> => async (dispatch) => {
     try {
-        const view = await fetchGameView(gameId);
-        dispatch(gameActions.gameViewUpdated(view));
-        dispatch(
-            authActions.authSessionSet({
-                authenticated: view.currentUser != null,
-                user: view.currentUser,
-                oauthProviders: getState().auth.session.oauthProviders
-            })
-        );
-        dispatch(syncSelectedSquare());
+        await dispatch(loadAndApplyGameView(gameId));
         return true;
     } catch {
         dispatch(gameActions.loadFailed());
@@ -95,16 +121,7 @@ export const refreshCurrentGameView = (): AppThunk<Promise<void>> => async (disp
     }
 
     try {
-        const view = await fetchGameView(currentGameId);
-        dispatch(gameActions.gameViewUpdated(view));
-        dispatch(
-            authActions.authSessionSet({
-                authenticated: view.currentUser != null,
-                user: view.currentUser,
-                oauthProviders: getState().auth.session.oauthProviders
-            })
-        );
-        dispatch(syncSelectedSquare());
+        await dispatch(loadAndApplyGameView(currentGameId));
     } catch {
         // Keep the current board visible if metadata refresh fails.
     }
@@ -128,19 +145,7 @@ export const sendCommand = (
         }
 
         dispatch(gameActions.feedbackMessageSet(result.errorMessage ?? "Unable to apply that action right now."));
-        if (result.status === 401) {
-            dispatch(
-                authActions.authSessionSet({
-                    authenticated: false,
-                    user: null,
-                    oauthProviders: getState().auth.session.oauthProviders
-                })
-            );
-            await dispatch(refreshCurrentGameView());
-        }
-        if (result.status === 403) {
-            await dispatch(refreshCurrentGameView());
-        }
+        await dispatch(handleCommandAuthFailure(result.status));
     } finally {
         dispatch(gameActions.commandFinished());
     }
@@ -162,18 +167,7 @@ export const claimSide = (side: Side): AppThunk<Promise<void>> => async (dispatc
         }
 
         dispatch(gameActions.feedbackMessageSet(result.errorMessage ?? "Unable to claim that side right now."));
-        if (result.status === 401) {
-            dispatch(
-                authActions.authSessionSet({
-                    authenticated: false,
-                    user: null,
-                    oauthProviders: getState().auth.session.oauthProviders
-                })
-            );
-        }
-        if (result.status === 401 || result.status === 403) {
-            await dispatch(refreshCurrentGameView());
-        }
+        await dispatch(handleCommandAuthFailure(result.status));
     } finally {
         dispatch(gameActions.commandFinished());
     }

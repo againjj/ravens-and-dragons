@@ -6,7 +6,7 @@ This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a brows
 
 The backend now also includes session-cookie authentication for guest and local users, optional OAuth login wiring, persisted seat ownership on games, request-scoped game-view metadata, and self-service local-account profile management. The frontend now consumes that auth-aware view data, surfaces guest/local auth controls, requires authentication before entering the lobby or a game, gates gameplay actions by claimed side and active turn, and exposes a local-only profile page for display-name updates plus account deletion. Google OAuth availability is now configuration-aware, and successful Google login returns to the original `/login?next=...` destination.
 
-The repository now also includes `docs/refactor-plan.md`, which captures a phased plan for the next round of code-organization improvements without changing gameplay behavior. Phase 1 of that plan is now complete on the frontend: the old `game.ts` helper module has been split into focused files for shared types, board geometry, client-side rules helpers, and move-history formatting. Phase 2 is now complete on the backend: the oversized `GameRules.kt` module has been split into a rule catalog, snapshot factory, shared rule-engine contract, and dedicated free-play, trivial, and original-style rule-engine files while preserving the existing `GameRules` facade for callers.
+The repository now also includes `docs/refactor-plan.md`, which captures a phased plan for the next round of code-organization improvements without changing gameplay behavior. Phase 1 of that plan is now complete on the frontend: the old `game.ts` helper module has been split into focused files for shared types, board geometry, client-side rules helpers, and move-history formatting. Phase 2 is now complete on the backend: the oversized `GameRules.kt` module has been split into a rule catalog, snapshot factory, shared rule-engine contract, and dedicated free-play, trivial, and original-style rule-engine files while preserving the existing `GameRules` facade for callers. Phase 3 is now complete on the frontend: repeated game-view fetch, auth-session patching, selection normalization, and `401`/`403` recovery logic in `gameThunks.ts` has been consolidated into shared thunk helpers so open, refresh, command, and seat-claim flows stay aligned.
 
 ## Current Architecture
 
@@ -41,7 +41,7 @@ The repository now also includes `docs/refactor-plan.md`, which captures a phase
   - Redux store setup and typed hooks.
 - `src/main/frontend/features/game/*.ts`
   - Game slice, selectors, thunks, and stream lifecycle wiring.
-  - Includes current-game and current-view state, auth-aware game metadata, exact undo availability and ownership, and command/claim-side thunks.
+  - Includes current-game and current-view state, auth-aware game metadata, exact undo availability and ownership, command/claim-side thunks, and shared helpers for applying fetched game views plus auth-failure refresh recovery.
 - `src/main/frontend/features/auth/*.ts`
   - Auth session slice, selectors, profile state, and guest/local auth thunks.
 - `src/main/frontend/features/ui/*.ts`
@@ -53,6 +53,8 @@ The repository now also includes `docs/refactor-plan.md`, which captures a phase
   - `useBoardSizing.ts` now measures the padded board panel so the board can shrink and grow without overflowing the panel.
 - `src/test/frontend/game.test.js`
   - Frontend helper tests for server-backed snapshots and local-only selection behavior.
+- `src/test/frontend/game-thunks.test.ts`
+  - Verifies create/open/claim flows plus shared auth-refresh behavior in the game thunks.
 - `src/test/kotlin/com/dragonsvsravens/game/GameRulesTest.kt`
   - Verifies backend rule transitions match the current game rules.
 - `src/test/kotlin/com/dragonsvsravens/game/GameControllerTest.kt`
