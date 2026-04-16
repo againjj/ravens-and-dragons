@@ -6,17 +6,12 @@ import {
     columnLetters,
     getBoardDimension,
     getColumnLetters,
-    getCapturableSquares,
-    getGroupedMoveHistoryRows,
-    getPieceAtSquare,
     getRowNumbers,
-    getTargetableSquares,
     getSquareName,
-    getTurnHistoryRows,
-    normalizeSelectedSquare,
-    rowNumbers,
-    turnToNotation
-} from "../../../build/generated/frontend/game.js";
+    rowNumbers
+} from "../../../build/generated/frontend/board-geometry.js";
+import { getCapturableSquares, getPieceAtSquare, getTargetableSquares, normalizeSelectedSquare } from "../../../build/generated/frontend/game-rules-client.js";
+import { getGroupedMoveHistoryRows, getTurnHistoryRows, turnToNotation } from "../../../build/generated/frontend/move-history.js";
 
 const snapshot = {
     board: {

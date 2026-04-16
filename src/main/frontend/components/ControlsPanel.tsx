@@ -12,7 +12,7 @@ import {
     selectShowOwnedPreGameControls,
     selectSnapshot
 } from "../features/game/gameSelectors.js";
-import type { Side } from "../game.js";
+import type { Side } from "../game-types.js";
 
 interface ControlsPanelProps {
     onStartGame: () => void;

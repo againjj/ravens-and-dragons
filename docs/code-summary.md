@@ -6,7 +6,7 @@ This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a brows
 
 The backend now also includes session-cookie authentication for guest and local users, optional OAuth login wiring, persisted seat ownership on games, request-scoped game-view metadata, and self-service local-account profile management. The frontend now consumes that auth-aware view data, surfaces guest/local auth controls, requires authentication before entering the lobby or a game, gates gameplay actions by claimed side and active turn, and exposes a local-only profile page for display-name updates plus account deletion. Google OAuth availability is now configuration-aware, and successful Google login returns to the original `/login?next=...` destination.
 
-The repository now also includes `docs/refactor-plan.md`, which captures a phased plan for the next round of code-organization improvements without changing gameplay behavior.
+The repository now also includes `docs/refactor-plan.md`, which captures a phased plan for the next round of code-organization improvements without changing gameplay behavior. Phase 1 of that plan is now complete on the frontend: the old `game.ts` helper module has been split into focused files for shared types, board geometry, client-side rules helpers, and move-history formatting.
 
 ## Current Architecture
 
@@ -23,9 +23,14 @@ The repository now also includes `docs/refactor-plan.md`, which captures a phase
   - Loads `/styles.css` and mounts the React app.
 - `src/main/resources/static/styles.css`
   - Owns layout, board sizing variables, responsive behavior, and fullscreen styling.
-- `src/main/frontend/game.ts`
-  - Frontend wire types and render-side helpers.
-  - Exports board helpers, ownership/capture helpers, move formatting, and local selection normalization.
+- `src/main/frontend/game-types.ts`
+  - Frontend wire types and auth/game DTOs.
+- `src/main/frontend/board-geometry.ts`
+  - Board coordinate helpers, dimension helpers, and highlighted-square helpers.
+- `src/main/frontend/game-rules-client.ts`
+  - Client-side ownership, capture, targeting, and local-selection helpers used by selectors and board rendering.
+- `src/main/frontend/move-history.ts`
+  - Turn notation and grouped move-history row helpers.
 - `src/main/frontend/game-client.ts`
   - Transport helpers for REST commands and SSE subscription setup.
 - `src/main/frontend/App.tsx`
@@ -186,6 +191,10 @@ The auth module now owns identity and session concerns without moving canonical 
 The React frontend is now split by responsibility.
 
 - `App.tsx` composes the page shell and top-level sections.
+- `game-types.ts` is the dependency-light home for shared frontend wire types.
+- `board-geometry.ts` owns board coordinate helpers without depending on browser or Redux code.
+- `game-rules-client.ts` layers client-side targeting and local-selection rules on top of shared types and board geometry.
+- `move-history.ts` owns turn-label and grouped-history formatting helpers.
 - Redux owns shared client state such as the latest server session, auth session, loading/submission state, connection state, feedback messages, and local selection.
 - Redux also owns the current browser view (`lobby` or `game`) plus the current game id.
 - `gameThunks.ts` coordinates lobby create/open actions, game-view refreshes, seat claiming, and command submission against the backend API.

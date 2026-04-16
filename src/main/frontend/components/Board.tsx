@@ -1,10 +1,12 @@
 import type { CSSProperties } from "react";
 
 import { useAppDispatch, useAppSelector } from "../app/hooks.js";
-import { getBoardDimension, getPieceAtSquare, getRowNumbers, getSquareName, isHighlightedBoardSquare, normalizeSelectedSquare, sideOwnsPiece, type Piece } from "../game.js";
+import { getBoardDimension, getRowNumbers, getSquareName, isHighlightedBoardSquare } from "../board-geometry.js";
 import { selectCanViewerAct, selectCapturableSquares, selectSelectedSquare, selectSnapshot, selectTargetableSquares } from "../features/game/gameSelectors.js";
 import { capturePiece, cycleSetup, movePiece } from "../features/game/gameThunks.js";
 import { uiActions } from "../features/ui/uiSlice.js";
+import { getPieceAtSquare, normalizeSelectedSquare, sideOwnsPiece } from "../game-rules-client.js";
+import type { Piece } from "../game-types.js";
 
 type BoardClickAction =
     | { type: "none" }

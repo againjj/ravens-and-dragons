@@ -1,6 +1,6 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
-import type { GamePlayerSummary, GameViewResponse, ServerGameSession, ViewerRole } from "../../game.js";
+import type { GamePlayerSummary, GameViewResponse, ServerGameSession, ViewerRole } from "../../game-types.js";
 
 export type GameView = "lobby" | "game";
 

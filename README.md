@@ -6,7 +6,7 @@ A Spring Boot + Kotlin web app that serves a browser-based board game prototype 
 
 - A Spring Boot backend that stores game sessions in a database and serves live updates
 - A React + Redux browser frontend for the game UI
-- Frontend helpers for transport, board derivation, and local-only selection behavior
+- Frontend helper modules split by transport, shared types, board geometry, client-side rule derivation, and move-history formatting
 
 ## Requirements
 
@@ -155,8 +155,14 @@ The current Railway production URL is [https://dragons-vs-ravens-production.up.r
 
 ## Project Structure
 
-- `src/main/frontend/game.ts`
-  - shared frontend types, board helper logic, and local-selection helpers
+- `src/main/frontend/game-types.ts`
+  - shared frontend types and request/response DTOs
+- `src/main/frontend/board-geometry.ts`
+  - board dimensions, square naming, and highlighted-square helpers
+- `src/main/frontend/game-rules-client.ts`
+  - client-side ownership, capture, targeting, and local-selection helpers
+- `src/main/frontend/move-history.ts`
+  - move notation and grouped move-history helpers
 - `src/main/frontend/game-client.ts`
   - REST/SSE transport helpers
 - `src/main/frontend/App.tsx`

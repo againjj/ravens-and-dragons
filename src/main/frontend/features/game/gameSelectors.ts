@@ -1,8 +1,8 @@
 import { createSelector } from "@reduxjs/toolkit";
 
-import { getCapturableSquares, getTargetableSquares, normalizeSelectedSquare } from "../../game.js";
 import type { RootState } from "../../app/store.js";
-import type { RuleConfigurationSummary } from "../../game.js";
+import { getCapturableSquares, getTargetableSquares, normalizeSelectedSquare } from "../../game-rules-client.js";
+import type { RuleConfigurationSummary } from "../../game-types.js";
 import { selectCurrentUser, selectIsAuthenticated } from "../auth/authSelectors.js";
 
 const emptyRuleConfigurations: RuleConfigurationSummary[] = [];

@@ -1,6 +1,6 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
-import type { AuthSessionResponse, LocalProfileResponse } from "../../game.js";
+import type { AuthSessionResponse, LocalProfileResponse } from "../../game-types.js";
 
 export interface AuthState {
     session: AuthSessionResponse;

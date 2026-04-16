@@ -1,7 +1,7 @@
-import type { GameCommandRequest } from "../../game.js";
 import { claimGameSide, createGameSession, fetchGameView, sendGameCommandRequest } from "../../game-client.js";
-import { normalizeSelectedSquare } from "../../game.js";
 import type { AppThunk } from "../../app/store.js";
+import { normalizeSelectedSquare } from "../../game-rules-client.js";
+import type { GameCommandRequest, ServerGameSession, Side } from "../../game-types.js";
 import { gameActions } from "./gameSlice.js";
 import { uiActions } from "../ui/uiSlice.js";
 import { authActions } from "../auth/authSlice.js";
@@ -83,7 +83,7 @@ export const returnToLobby = (): AppThunk => (dispatch) => {
     dispatch(gameActions.returnedToLobby());
 };
 
-export const applyServerSession = (session: import("../../game.js").ServerGameSession): AppThunk => (dispatch) => {
+export const applyServerSession = (session: ServerGameSession): AppThunk => (dispatch) => {
     dispatch(gameActions.sessionUpdated(session));
     dispatch(syncSelectedSquare());
 };
@@ -146,7 +146,7 @@ export const sendCommand = (
     }
 };
 
-export const claimSide = (side: import("../../game.js").Side): AppThunk<Promise<void>> => async (dispatch, getState) => {
+export const claimSide = (side: Side): AppThunk<Promise<void>> => async (dispatch, getState) => {
     const gameId = getState().game.currentGameId;
     if (!gameId || getState().game.isSubmitting) {
         return;
@@ -197,7 +197,7 @@ export const startGame = (): AppThunk<Promise<void>> =>
 export const selectRuleConfiguration = (ruleConfigurationId: string): AppThunk<Promise<void>> =>
     createCommandThunk({ type: "select-rule-configuration", ruleConfigurationId }, { clearSelection: true });
 
-export const selectStartingSide = (side: import("../../game.js").Side): AppThunk<Promise<void>> =>
+export const selectStartingSide = (side: Side): AppThunk<Promise<void>> =>
     createCommandThunk({ type: "select-starting-side", side }, { clearSelection: true });
 
 export const selectBoardSize = (boardSize: number): AppThunk<Promise<void>> =>

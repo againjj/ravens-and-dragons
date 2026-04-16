@@ -4,7 +4,7 @@ import { useAppDispatch, useAppSelector } from "../app/hooks.js";
 import { selectAuthLoadState, selectCurrentUser, selectIsAuthenticated } from "../features/auth/authSelectors.js";
 import { selectGameView } from "../features/game/gameSelectors.js";
 import { openGame, returnToLobby } from "../features/game/gameThunks.js";
-import { generatedGameIdPattern } from "../game.js";
+import { generatedGameIdPattern } from "../game-types.js";
 
 const gameRoutePattern = /^\/g\/([23456789CFGHJMPQRVWX]{7})$/;
 

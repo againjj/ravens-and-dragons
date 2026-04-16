@@ -11,7 +11,7 @@ import type {
     ServerGameSession,
     SignupRequest,
     UpdateProfileRequest
-} from "./game.js";
+} from "./game-types.js";
 
 export interface ErrorMessage {
     message?: string;

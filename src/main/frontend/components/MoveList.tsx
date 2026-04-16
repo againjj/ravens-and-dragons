@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 
 import { useAppSelector } from "../app/hooks.js";
-import { getGroupedMoveHistoryRows, getTurnHistoryRows } from "../game.js";
 import { selectSnapshot } from "../features/game/gameSelectors.js";
+import { getGroupedMoveHistoryRows, getTurnHistoryRows } from "../move-history.js";
 
 export const MoveList = () => {
     const snapshot = useAppSelector(selectSnapshot);

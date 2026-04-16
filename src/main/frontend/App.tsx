@@ -31,7 +31,7 @@ import {
     undoMove
 } from "./features/game/gameThunks.js";
 import { continueAsGuest, loadAuthSession, login, logout, signup } from "./features/auth/authThunks.js";
-import { getBoardDimension, getColumnLetters } from "./game.js";
+import { getBoardDimension, getColumnLetters } from "./board-geometry.js";
 import { useGameSession } from "./features/game/useGameSession.js";
 import { useBoardSizing } from "./hooks/useBoardSizing.js";
 import { useFullscreen } from "./hooks/useFullscreen.js";

@@ -1,4 +1,4 @@
-import type { AuthSessionResponse, GameViewResponse, ServerGameSession } from "../../main/frontend/game.js";
+import type { AuthSessionResponse, GameViewResponse, ServerGameSession } from "../../main/frontend/game-types.js";
 
 export const createSession = (
     overrides: Partial<ServerGameSession> = {},

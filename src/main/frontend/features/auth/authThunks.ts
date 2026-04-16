@@ -8,8 +8,8 @@ import {
     signupRequest,
     updateLocalProfileRequest
 } from "../../game-client.js";
-import type { AuthSessionResponse, DeleteAccountRequest, LoginRequest, SignupRequest, UpdateProfileRequest } from "../../game.js";
 import type { AppThunk } from "../../app/store.js";
+import type { AuthSessionResponse, DeleteAccountRequest, LoginRequest, SignupRequest, UpdateProfileRequest } from "../../game-types.js";
 import { authActions } from "./authSlice.js";
 import { refreshCurrentGameView } from "../game/gameThunks.js";
 

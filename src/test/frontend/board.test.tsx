@@ -5,7 +5,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 
 import { Board } from "../../main/frontend/components/Board.js";
-import { getColumnLetters } from "../../main/frontend/game.js";
+import { getColumnLetters } from "../../main/frontend/board-geometry.js";
 import { createAuthSession } from "./fixtures.js";
 import { createSession } from "./fixtures.js";
 import { renderWithStore } from "./test-utils.js";
