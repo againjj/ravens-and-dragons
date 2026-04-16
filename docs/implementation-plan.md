@@ -295,22 +295,32 @@ This order fits the current codebase because the app is still modeled as a share
     - Goal: make the multiplayer model clear.
     - Update `README.md` and `docs/code-summary.md`.
 
-### Epic 5: Local Account Deletion
+### Epic 5: Local Account Management
 
-35. Add a self-service local account deletion flow.
-    - Goal: let a password-based user remove their own account intentionally.
+35. Add a self-service local account management page.
+    - Goal: let a password-based user manage their own account intentionally.
     - Keep this separate from guest-session cleanup so Milestone E stays focused on login and seat assignment.
-    - Add an authenticated account-deletion endpoint for the current user.
-    - Scope the first pass to local password accounts only; do not require guest or OAuth deletion flows in the same milestone.
+    - Add an authenticated profile page for the current user.
+    - Add a `Profile` button in the upper-right app chrome that navigates to that page.
+    - Show the `Profile` button and page only for local password accounts; do not show or support them for guest or OAuth accounts in this milestone.
+    - On the profile page:
+      - show the current display name as page text
+      - show a display-name text box prefilled with the current value
+      - show an `Update` button to the right of the text box
+      - show a `Delete Account` button that starts the account-deletion flow
+    - Reuse the same display-name restrictions already enforced when creating a new local account.
+    - Add an authenticated profile-update endpoint for the current local user.
 
 36. Require explicit identity confirmation before deleting a local account.
-    - Goal: prevent accidental or unauthorized deletion.
+    - Goal: prevent accidental or unauthorized deletion while keeping profile edits straightforward.
+    - Require the profile page and profile-update endpoint to reject guest and OAuth accounts rather than partially supporting them.
+    - Require display-name updates to pass the same server-side validation used during local signup.
     - Require the logged-in local user to confirm their password again before deletion succeeds.
     - Treat account deletion as an explicit user action, not something tied to session expiry.
     - Admin-triggered deletion may be added later, but it is out of scope for this milestone unless product requirements change.
 
 37. Release seats and preserve games when a local user is deleted.
-    - Goal: remove the user without damaging active games.
+    - Goal: support local profile management without damaging active games.
     - On deletion:
       - release any claimed seats held by that user
       - clear nullable ownership references such as `created_by_user_id` if present
@@ -318,10 +328,18 @@ This order fits the current codebase because the app is still modeled as a share
       - end the deleted user's authenticated session
     - Perform the cleanup in one transaction so seat release and user deletion cannot drift apart.
     - Add backend tests covering:
+      - successful profile load for a local account
+      - successful display-name update for a local account
+      - rejected display-name update when the value violates signup-era validation
+      - rejected profile access or update for guest and OAuth accounts
       - successful deletion with password confirmation
       - deletion releasing claimed seats
       - games remaining active after user deletion
       - rejected deletion when the password confirmation is wrong
+    - Add frontend tests covering:
+      - the upper-right `Profile` button appearing only for local accounts
+      - the profile page prefilling and submitting the display name
+      - the profile page surfacing the `Delete Account` action for local accounts only
 
 ## Milestone Cuts
 
@@ -356,7 +374,9 @@ This order fits the current codebase because the app is still modeled as a share
   - Hide OAuth provider buttons unless that provider is actually configured on the backend.
   - Preserve the `next` redirect target through OAuth login so provider sign-in returns the user to the requested lobby or game route.
 - Milestone G: tickets 35-37
-  - Self-service deletion for local password accounts.
+  - Local account management for local password accounts.
+  - Adds an upper-right `Profile` button and a profile page with display-name editing plus self-service account deletion.
+  - Guests and OAuth accounts do not get profile-page access or the `Profile` button.
   - Deleting a local user releases their seats and clears nullable ownership references without deleting or ending games.
 
 ## Milestone B Implementation Summary
