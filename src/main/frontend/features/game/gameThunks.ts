@@ -6,9 +6,21 @@ import { gameActions } from "./gameSlice.js";
 import { uiActions } from "../ui/uiSlice.js";
 import { authActions } from "../auth/authSlice.js";
 
+const serverUnavailableMessage = "The server is down. Please wait and try again later.";
+
 const resetSessionScopedUiState = (): AppThunk => (dispatch) => {
     dispatch(uiActions.selectedSquareSet(null));
 };
+
+const isServerUnavailableError = (error: unknown): boolean =>
+    error instanceof TypeError ||
+    (
+        error instanceof Error &&
+        /failed to fetch|networkerror|network request failed|load failed/i.test(error.message)
+    );
+
+const getUserActionErrorMessage = (error: unknown, fallbackMessage: string): string =>
+    isServerUnavailableError(error) ? serverUnavailableMessage : fallbackMessage;
 
 const getOauthProviders = (getState: () => RootState): string[] => getState().auth.session.oauthProviders;
 
@@ -27,6 +39,20 @@ const applyFetchedGameView = (view: GameViewResponse): AppThunk => (dispatch, ge
 const loadAndApplyGameView = (gameId: string): AppThunk<Promise<void>> => async (dispatch) => {
     const view = await fetchGameView(gameId);
     dispatch(applyFetchedGameView(view));
+};
+
+const loadGameViewForUserAction = (
+    gameId: string,
+    fallbackMessage: string
+): AppThunk<Promise<boolean>> => async (dispatch) => {
+    try {
+        await dispatch(loadAndApplyGameView(gameId));
+        return true;
+    } catch (error) {
+        dispatch(gameActions.loadFailed());
+        dispatch(gameActions.feedbackMessageSet(getUserActionErrorMessage(error, fallbackMessage)));
+        return false;
+    }
 };
 
 const handleCommandAuthFailure = (status?: number): AppThunk<Promise<void>> => async (dispatch, getState) => {
@@ -68,22 +94,12 @@ export const createGame = (): AppThunk<Promise<string | null>> => async (dispatc
     try {
         const session = await createGameSession();
         dispatch(gameActions.gameOpened(session.id));
-        await dispatch(loadGameView(session.id));
-        return session.id;
-    } catch {
+        const loaded = await dispatch(loadGameViewForUserAction(session.id, "Unable to create a new game right now."));
+        return loaded ? session.id : null;
+    } catch (error) {
         dispatch(gameActions.loadFailed());
-        dispatch(gameActions.feedbackMessageSet("Unable to create a new game right now."));
+        dispatch(gameActions.feedbackMessageSet(getUserActionErrorMessage(error, "Unable to create a new game right now.")));
         return null;
-    }
-};
-
-export const loadGameView = (gameId: string): AppThunk<Promise<boolean>> => async (dispatch) => {
-    try {
-        await dispatch(loadAndApplyGameView(gameId));
-        return true;
-    } catch {
-        dispatch(gameActions.loadFailed());
-        return false;
     }
 };
 
@@ -97,11 +113,7 @@ export const openGame = (gameId: string): AppThunk<Promise<boolean>> => async (d
     dispatch(resetSessionScopedUiState());
     dispatch(gameActions.gameLoadRequested(trimmedGameId));
 
-    const loaded = await dispatch(loadGameView(trimmedGameId));
-    if (!loaded) {
-        dispatch(gameActions.feedbackMessageSet(`Unable to open game "${trimmedGameId}".`));
-    }
-    return loaded;
+    return dispatch(loadGameViewForUserAction(trimmedGameId, `Unable to open game "${trimmedGameId}".`));
 };
 
 export const returnToLobby = (): AppThunk => (dispatch) => {
@@ -146,6 +158,8 @@ export const sendCommand = (
 
         dispatch(gameActions.feedbackMessageSet(result.errorMessage ?? "Unable to apply that action right now."));
         await dispatch(handleCommandAuthFailure(result.status));
+    } catch (error) {
+        dispatch(gameActions.feedbackMessageSet(getUserActionErrorMessage(error, "Unable to apply that action right now.")));
     } finally {
         dispatch(gameActions.commandFinished());
     }
@@ -168,6 +182,8 @@ export const claimSide = (side: Side): AppThunk<Promise<void>> => async (dispatc
 
         dispatch(gameActions.feedbackMessageSet(result.errorMessage ?? "Unable to claim that side right now."));
         await dispatch(handleCommandAuthFailure(result.status));
+    } catch (error) {
+        dispatch(gameActions.feedbackMessageSet(getUserActionErrorMessage(error, "Unable to claim that side right now.")));
     } finally {
         dispatch(gameActions.commandFinished());
     }

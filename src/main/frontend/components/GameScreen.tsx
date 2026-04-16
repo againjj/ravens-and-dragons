@@ -5,9 +5,11 @@ import { useAppDispatch, useAppSelector } from "../app/hooks.js";
 import {
     selectCurrentGameId,
     selectCurrentRuleConfiguration,
+    selectFeedbackMessage,
     selectSnapshot,
     selectStatusText
 } from "../features/game/gameSelectors.js";
+import { gameActions } from "../features/game/gameSlice.js";
 import {
     claimSide,
     endGame,
@@ -30,6 +32,7 @@ export const GameScreen = () => {
     const dispatch = useAppDispatch();
     const currentGameId = useAppSelector(selectCurrentGameId);
     const currentRuleConfiguration = useAppSelector(selectCurrentRuleConfiguration);
+    const feedbackMessage = useAppSelector(selectFeedbackMessage);
     const snapshot = useAppSelector(selectSnapshot);
     const statusText = useAppSelector(selectStatusText);
     const boardShellRef = useRef<HTMLDivElement | null>(null);
@@ -119,6 +122,37 @@ export const GameScreen = () => {
                     <MoveList />
                 </section>
             </section>
+
+            {feedbackMessage ? (
+                <div
+                    className="modal-backdrop"
+                    role="presentation"
+                    onClick={() => {
+                        dispatch(gameActions.feedbackMessageSet(null));
+                    }}
+                >
+                    <section
+                        className="panel modal-dialog"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="game-feedback-title"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                        }}
+                    >
+                        <h2 id="game-feedback-title">Action Error</h2>
+                        <p>{feedbackMessage}</p>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                dispatch(gameActions.feedbackMessageSet(null));
+                            }}
+                        >
+                            OK
+                        </button>
+                    </section>
+                </div>
+            ) : null}
         </section>
     );
 };

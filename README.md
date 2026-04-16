@@ -62,6 +62,7 @@ Guest accounts are session-only: logging out or losing the session deletes the g
 The `/profile` page is available only to local password accounts. It lets a user update their display name using the same validation as signup, and delete their own account only after confirming their password again.
 Deleting a local account signs that session out, releases any claimed seats, clears nullable ownership references such as the game creator id, and leaves the game itself intact and readable.
 On the game screen, the browser now shows claimed seats, hides pre-game setup controls until a side is claimed, hides the claim buttons after a seat is claimed, and only shows actionable board and control affordances to the player who can act, except that both claimed players may participate during `Free Play` setup. Undo is reserved for the player who made the last undoable move.
+User-triggered game errors now appear in the same modal-style error box used elsewhere in the frontend, and when the browser cannot reach the server the message explicitly says the server is down and the user should wait and try again later.
 
 ## Google OAuth Setup
 
@@ -208,6 +209,7 @@ Read docs/code-summary.md and AGENTS.md before making changes. Follow those inst
 - Backend rule metadata and execution are now split into focused Kotlin files so future rules changes do not all land in one oversized `GameRules.kt`.
 - Backend command authorization, validation, undo transitions, and side-claim logic now live in `GameCommandService.kt`, while `GameSessionService.kt` focuses on persistence orchestration and SSE/stale-game infrastructure.
 - Frontend game thunks now centralize fetched game-view application and `401`/`403` auth-refresh recovery so open, refresh, command, and side-claim flows stay aligned.
+- User-triggered game actions now also normalize network failures into a shared “server is down” message and show those failures in the game screen’s modal error box.
 - `App.tsx` now stays focused on shared shell and route selection, while `GameScreen.tsx` owns the active board screen layout and wiring.
 - The shared session now exposes available rule configurations plus the currently selected configuration so all clients stay in sync on the next play style.
 - `Original Game` follows the published Ravens and Dragons setup and movement/capture rules, including automatic wins and draws.

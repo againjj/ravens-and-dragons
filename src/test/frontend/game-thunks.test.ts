@@ -48,6 +48,16 @@ describe("gameThunks", () => {
         expect(store.getState().game.viewerRole).toBe("dragons");
     });
 
+    test("createGame shows a server-down message when the create request does not respond", async () => {
+        createGameSessionMock.mockRejectedValue(new TypeError("Failed to fetch"));
+        const store = createAppStore();
+
+        const createdGameId = await store.dispatch(createGame());
+
+        expect(createdGameId).toBeNull();
+        expect(store.getState().game.feedbackMessage).toBe("The server is down. Please wait and try again later.");
+    });
+
     test("openGame enters the game view for a valid game id", async () => {
         const gameView = createGameView({ id: "game-202" });
         fetchGameViewMock.mockResolvedValue(gameView);
@@ -73,6 +83,16 @@ describe("gameThunks", () => {
         expect(store.getState().game.view).toBe("game");
         expect(store.getState().game.currentGameId).toBe("missing-game");
         expect(store.getState().game.feedbackMessage).toBe('Unable to open game "missing-game".');
+    });
+
+    test("openGame shows a server-down message when the game view request does not respond", async () => {
+        fetchGameViewMock.mockRejectedValue(new TypeError("Failed to fetch"));
+        const store = createAppStore();
+
+        const loaded = await store.dispatch(openGame("game-303"));
+
+        expect(loaded).toBe(false);
+        expect(store.getState().game.feedbackMessage).toBe("The server is down. Please wait and try again later.");
     });
 
     test("claimSide refreshes the current game view after a successful claim", async () => {
@@ -179,6 +199,44 @@ describe("gameThunks", () => {
         expect(fetchGameViewMock).toHaveBeenCalledWith("game-606");
         expect(store.getState().auth.session.oauthProviders).toEqual(["google"]);
         expect(store.getState().game.feedbackMessage).toBeNull();
+    });
+
+    test("sendCommand shows a server-down message when the command request fails to reach the server", async () => {
+        sendGameCommandRequestMock.mockRejectedValue(new TypeError("Failed to fetch"));
+        const store = createAppStore({
+            game: {
+                view: "game",
+                currentGameId: "game-707",
+                session: createSession({ id: "game-707" }),
+                viewerRole: "dragons",
+                dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
+                ravensPlayer: { id: "player-ravens", displayName: "Raven Player" }
+            }
+        });
+
+        await store.dispatch(sendCommand({ type: "skip-capture" }));
+
+        expect(store.getState().game.feedbackMessage).toBe("The server is down. Please wait and try again later.");
+        expect(store.getState().game.isSubmitting).toBe(false);
+    });
+
+    test("claimSide shows a server-down message when the claim request fails to reach the server", async () => {
+        claimGameSideMock.mockRejectedValue(new TypeError("Failed to fetch"));
+        const store = createAppStore({
+            game: {
+                view: "game",
+                currentGameId: "game-808",
+                session: createSession({ id: "game-808" }),
+                viewerRole: "spectator",
+                dragonsPlayer: null,
+                ravensPlayer: null
+            }
+        });
+
+        await store.dispatch(claimSide("dragons"));
+
+        expect(store.getState().game.feedbackMessage).toBe("The server is down. Please wait and try again later.");
+        expect(store.getState().game.isSubmitting).toBe(false);
     });
 
     test("returnToLobby clears the active game session and local selection", async () => {

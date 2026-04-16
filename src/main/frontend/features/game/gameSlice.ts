@@ -105,7 +105,7 @@ const gameSlice = createSlice({
             state.dragonsPlayer = action.payload.dragonsPlayer;
             state.ravensPlayer = action.payload.ravensPlayer;
         },
-        feedbackMessageSet(state, action: PayloadAction<string>) {
+        feedbackMessageSet(state, action: PayloadAction<string | null>) {
             state.feedbackMessage = action.payload;
         },
         streamConnected(state) {
