@@ -183,8 +183,6 @@ The current Railway production URL is [https://dragons-vs-ravens-production.up.r
   - layout and styling
 - `docs/code-summary.md`
   - architecture and codebase summary for future changes
-- `docs/refactor-plan.md`
-  - phased refactor roadmap for the current organization improvements
 - `AGENTS.md`
   - project-specific rules for AI-assisted work
 
