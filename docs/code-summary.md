@@ -4,7 +4,7 @@
 
 This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a browser-based board game prototype. The backend supports multiple persisted game sessions, addressed by game id, and broadcasts updates over server-sent events per game. The frontend now opens on a lobby screen, creates or opens games by id, and then talks to the per-game backend API for the active session.
 
-The `docs` folder now also includes a Sherwood-only bot planning document at `docs/bot-implementation-plan.md`, which outlines a backend-first bot design, API shape, session model changes, and phased rollout steps before implementation starts.
+The `docs` folder now also includes a Sherwood-focused bot planning document at `docs/bot-implementation-plan.md`, which now locks in first-release decisions, adopts release-two-ready bot-id persistence from the start, and sketches a second release with named `Simple`, `Random`, and `Minimax` bots plus grouped undo and expanded ruleset support.
 
 The backend now also includes session-cookie authentication for guest and local users, optional OAuth login wiring, persisted seat ownership on games, request-scoped game-view metadata, and self-service local-account profile management. The frontend now consumes that auth-aware view data, surfaces guest/local auth controls, requires authentication before entering the lobby or a game, gates gameplay actions by claimed side and active turn while still allowing both claimed players to participate during free-play setup, and exposes a local-only profile page for display-name updates plus account deletion. Google OAuth availability is now configuration-aware, and successful Google login returns to the original `/login?next=...` destination.
 
