@@ -184,6 +184,8 @@ The current Railway production URL is [https://dragons-vs-ravens-production.up.r
   - layout and styling
 - `docs/code-summary.md`
   - architecture and codebase summary for future changes
+- `docs/bot-implementation-plan.md`
+  - detailed Sherwood-only bot implementation plan
 - `AGENTS.md`
   - project-specific rules for AI-assisted work
 
@@ -226,3 +228,4 @@ Read docs/code-summary.md and AGENTS.md before making changes. Follow those inst
 - If `./gradlew bootRun` cannot bind its default port, treat that as a local environment issue to fix instead of silently switching ports.
 - `AGENTS.md` now explicitly says not to modify the codebase until the user asks for implementation work.
 - If you change architecture, workflow, or gameplay in a meaningful way, update `docs/code-summary.md`.
+- A detailed Sherwood-only bot rollout plan now lives in `docs/bot-implementation-plan.md`.
