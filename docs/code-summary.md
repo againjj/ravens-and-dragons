@@ -26,7 +26,7 @@ Recent organization work is now reflected directly in the codebase: the old `gam
   - Frontend HTML entry for the Vite build.
   - Loads `/styles.css` and mounts the React app.
 - `src/main/resources/static/styles.css`
-  - Owns layout, board sizing variables, responsive behavior, and fullscreen styling.
+  - Owns layout, board sizing variables, responsive behavior, fullscreen styling, and the `#c274c8` highlight color used for the board's corner and center squares.
 - `src/main/frontend/game-types.ts`
   - Frontend wire types and auth/game DTOs.
 - `src/main/frontend/board-geometry.ts`

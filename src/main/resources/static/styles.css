@@ -345,7 +345,7 @@ h3 {
 }
 
 .square.special-square {
-    background: rgba(228, 228, 228, 0.9);
+    background: #c274c8;
 }
 
 .square::before {
