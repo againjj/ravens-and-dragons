@@ -123,6 +123,10 @@ internal class OriginalStyleRuleEngine(
             return "Dragons win"
         }
 
+        if (snapshot.board.values.none { it == Piece.raven }) {
+            return "Dragons win"
+        }
+
         return if (snapshot.board.values.none { it == Piece.gold }) {
             "Ravens win"
         } else {

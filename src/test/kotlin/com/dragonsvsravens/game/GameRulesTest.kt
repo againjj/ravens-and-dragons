@@ -569,15 +569,17 @@ class GameRulesTest {
             createSnapshot(
                 board = linkedMapOf(
                     "g7" to Piece.gold,
-                    "c1" to Piece.dragon,
                     "b2" to Piece.dragon,
+                    "c2" to Piece.dragon,
+                    "d1" to Piece.dragon,
                     "f3" to Piece.dragon,
-                    "b1" to Piece.raven
+                    "b1" to Piece.raven,
+                    "c1" to Piece.raven
                 ),
                 activeSide = Side.dragons,
                 ruleConfigurationId = "original-game",
                 positionKeys = listOf(
-                    "original-game|dragons|b1:raven,b2:dragon,c1:dragon,f3:dragon,g7:gold"
+                    "original-game|dragons|b1:raven,b2:dragon,c1:raven,c2:dragon,d1:dragon,f3:dragon,g7:gold"
                 )
             ),
             "f3",
@@ -616,6 +618,33 @@ class GameRulesTest {
         assertFalse(moved.board.containsKey("c5"))
         assertEquals(listOf("c5"), moved.turns.first().capturedSquares)
         assertEquals("Ravens win", moved.turns.last().outcome)
+    }
+
+    @Test
+    fun `original game awards dragons win when last raven is captured even if next side would otherwise draw`() {
+        val moved = GameRules.movePiece(
+            createSnapshot(
+                board = linkedMapOf(
+                    "c1" to Piece.dragon,
+                    "b2" to Piece.dragon,
+                    "f3" to Piece.dragon,
+                    "b1" to Piece.raven,
+                    "g7" to Piece.gold
+                ),
+                activeSide = Side.dragons,
+                ruleConfigurationId = "original-game",
+                positionKeys = listOf(
+                    "original-game|dragons|b1:raven,b2:dragon,c1:dragon,f3:dragon,g7:gold"
+                )
+            ),
+            "f3",
+            "f4"
+        )
+
+        assertEquals(Phase.none, moved.phase)
+        assertFalse(moved.board.containsKey("b1"))
+        assertEquals(listOf("b1"), moved.turns.first().capturedSquares)
+        assertEquals("Dragons win", moved.turns.last().outcome)
     }
 
     private fun createFreePlayCaptureSnapshot(): GameSnapshot = createSnapshot(

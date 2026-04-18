@@ -42,7 +42,7 @@ Once a game is open, the controls include the play-style dropdown plus the usual
 `Free Play` preserves the original behavior: before starting, you can choose whether dragons or ravens move first; starting a game then enters setup with an empty board, setup clicks cycle `empty -> dragon -> raven -> gold -> empty`, capture is manual, and the game is ended manually.
 `Trivial Configuration`, `Original Game`, `Sherwood Rules`, `Square One`, `Sherwood x 9`, and `Square One x 9` start from preset boards with no setup phase, resolve captures automatically, and end automatically based on their own rules.
 `Sherwood Rules`, `Square One`, `Sherwood x 9`, and `Square One x 9` match the original-style capture and win/draw rules, but the gold is moved by the dragons and may move only one orthogonal square at a time.
-Original-style games now award `Ravens win` immediately when the gold is captured, even if the dragons would otherwise have no legal reply.
+Original-style games now resolve terminal wins before post-turn draws: they award `Ravens win` immediately when the gold is captured and `Dragons win` immediately when the last raven is captured, even if the opposing side would otherwise have no legal reply.
 Game over returns the session to a finished no-game state while preserving the final board position and full completed history, including a terminal `Game Over: ...` entry.
 `Original Game`, `Sherwood Rules`, `Square One`, `Sherwood x 9`, and `Square One x 9` now label draws by cause in turn history, such as `Game Over: Draw by repetition` and `Game Over: Draw by no legal move`.
 When `Free Play` is ended manually, the terminal history entry is rendered as `Game Over`.

@@ -332,7 +332,7 @@ Most UI-only changes should start in the relevant component, selector, or browse
 - Games that have not been loaded, mutated, or watched longer than the configured stale threshold are evicted from the persistent store.
 - An active SSE subscription keeps a game alive even if no commands are sent during that threshold window.
 - Board sizing now subtracts board-panel padding when computing `--board-size`, which keeps the board inside its panel and lets it re-expand after the window grows.
-- Original-style terminal win checks now resolve a captured gold as `Ravens win` before evaluating post-turn draw conditions such as no legal move.
+- Original-style terminal win checks now resolve a captured gold as `Ravens win` and a last captured raven as `Dragons win` before evaluating post-turn draw conditions such as no legal move.
 
 ## Rendering Strategy
 
