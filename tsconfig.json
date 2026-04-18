@@ -6,7 +6,7 @@
     "jsx": "react-jsx",
     "lib": ["DOM", "ES2020"],
     "strict": true,
-    "outDir": "build/generated/frontend",
+    "outDir": "build/generated/frontend-test",
     "rootDir": "src/main/frontend",
     "allowSyntheticDefaultImports": true,
     "skipLibCheck": true

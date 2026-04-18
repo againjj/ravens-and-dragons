@@ -9,9 +9,9 @@ import {
     getRowNumbers,
     getSquareName,
     rowNumbers
-} from "../../../build/generated/frontend/board-geometry.js";
-import { getCapturableSquares, getPieceAtSquare, getTargetableSquares, normalizeSelectedSquare } from "../../../build/generated/frontend/game-rules-client.js";
-import { getGroupedMoveHistoryRows, getTurnHistoryRows, turnToNotation } from "../../../build/generated/frontend/move-history.js";
+} from "../../../build/generated/frontend-test/board-geometry.js";
+import { getCapturableSquares, getPieceAtSquare, getTargetableSquares, normalizeSelectedSquare } from "../../../build/generated/frontend-test/game-rules-client.js";
+import { getGroupedMoveHistoryRows, getTurnHistoryRows, turnToNotation } from "../../../build/generated/frontend-test/move-history.js";
 
 const snapshot = {
     board: {

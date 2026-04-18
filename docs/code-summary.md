@@ -82,8 +82,8 @@ The web layer now also includes a dedicated controller advice that recognizes ex
   - `com.github.node-gradle.node` to download Node and npm automatically.
 - Frontend build flow:
   - `npm run build` runs `tsc && vite build`.
-  - `tsconfig.json` typechecks the frontend TypeScript and TSX source.
-  - `vite.config.ts` builds the frontend entry and bundle into `build/generated/frontend`.
+  - `tsconfig.json` typechecks the frontend TypeScript and TSX source and emits test-facing JS modules into `build/generated/frontend-test`.
+  - `vite.config.ts` builds the frontend entry and bundle into `build/generated/frontend` and clears that generated directory before each build so stale hashed assets do not accumulate.
   - `processResources` depends on the frontend build and copies the generated assets into the app's `static` resources.
 - Frontend test flow:
   - `npm run test` runs Node's built-in test runner against the shared helper tests and Vitest against the React/Redux frontend tests.
@@ -366,6 +366,12 @@ Future UI changes should preserve the split of transport logic, Redux state, ren
 - The resize hook is re-enabled when the app switches from the lobby into an active game so the board resumes responsive sizing after conditional mount.
 - The page supports fullscreen via `requestFullscreen()` on the `.page` element.
 - Mobile/narrow layouts collapse the three-column layout into stacked sections.
+
+## Build Output Notes
+
+- `build/generated/frontend-test` now holds the stable transpiled frontend modules used by the Node-based frontend tests.
+- Frontend builds now leave `build/generated/frontend` with only the current Vite `index.html` plus the hashed assets it references.
+- After `processResources`, `build/resources/main/static` likewise keeps only the current generated frontend files alongside authored static files such as `styles.css`.
 
 ## Testing Status
 

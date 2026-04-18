@@ -205,6 +205,8 @@ Read docs/code-summary.md and AGENTS.md before making changes. Follow those inst
 ## Notes
 
 - The frontend is built with TypeScript plus Vite into `build/generated/frontend`.
+- Test-facing transpiled frontend modules are emitted into `build/generated/frontend-test` for the Node-based frontend tests.
+- Each frontend build now clears stale generated assets first, so the generated output and packaged static output keep only the current hashed bundle plus authored files like `styles.css`.
 - Frontend tests use Node's built-in test runner for shared helper modules and Vitest with jsdom for React/Redux tests.
 - Spring Boot serves the generated frontend assets as static resources and exposes the per-game backend routes under `/api/games`.
 - Session auth endpoints are exposed under `/api/auth`.

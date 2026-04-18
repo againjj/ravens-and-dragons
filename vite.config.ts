@@ -4,7 +4,7 @@ export default defineConfig({
     root: "src/main/frontend",
     build: {
         outDir: "../../../build/generated/frontend",
-        emptyOutDir: false
+        emptyOutDir: true
     },
     test: {
         environment: "jsdom",

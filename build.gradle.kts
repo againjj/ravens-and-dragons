@@ -77,6 +77,7 @@ tasks.withType<Test>().configureEach {
 }
 
 val generatedFrontendDir = layout.buildDirectory.dir("generated/frontend")
+val generatedFrontendTestDir = layout.buildDirectory.dir("generated/frontend-test")
 
 val buildFrontend by tasks.registering(NpmTask::class) {
     dependsOn(tasks.npmInstall)
@@ -89,6 +90,7 @@ val buildFrontend by tasks.registering(NpmTask::class) {
         file("vite.config.ts")
     )
     outputs.dir(generatedFrontendDir)
+    outputs.dir(generatedFrontendTestDir)
 }
 
 val testFrontend by tasks.registering(NpmTask::class) {

@@ -12,7 +12,7 @@ import {
     loginAsGuest,
     openGameStream,
     sendGameCommandRequest
-} from "../../../build/generated/frontend/game-client.js";
+} from "../../../build/generated/frontend-test/game-client.js";
 
 const createGame = (version = 1) => ({
     id: "default",
