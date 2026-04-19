@@ -28,12 +28,9 @@ describe("SeatPanel", () => {
             }
         );
 
-        expect(
-            screen.getByText((_, element) => element?.textContent === "Dragons: Open seat")
-        ).toBeInTheDocument();
-        expect(
-            screen.getByText((_, element) => element?.textContent === "Ravens: Raven Player")
-        ).toBeInTheDocument();
+        expect(screen.getByText("Viewing as Spectator (spectator)")).toBeInTheDocument();
+        expect(screen.getByText((_, element) => element?.textContent === "Dragons: Open seat")).toBeInTheDocument();
+        expect(screen.getByText((_, element) => element?.textContent === "Ravens: Raven Player")).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Claim Dragons" })).toBeEnabled();
         expect(screen.getByRole("button", { name: "Claim Ravens" })).toBeDisabled();
 

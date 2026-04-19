@@ -50,6 +50,14 @@ export const GameScreen = () => {
                     <h2>{currentGameId ? `Game ${currentGameId}` : "Current Game"}</h2>
                     <StatusBanner text={statusText} />
                 </div>
+                <SeatPanel
+                    onClaimDragons={() => {
+                        void dispatch(claimSide("dragons"));
+                    }}
+                    onClaimRavens={() => {
+                        void dispatch(claimSide("ravens"));
+                    }}
+                />
             </section>
 
             <section className="game-layout">
@@ -67,8 +75,9 @@ export const GameScreen = () => {
                     </div>
                 </section>
 
-                <section className="panel side-panel top-panel">
-                    <section className="controls-panel">
+                <section className="panel side-panel turns-panel">
+                    <div className="turns-panel-header">
+                        <h2>Move List</h2>
                         <ControlsPanel
                             onStartGame={() => {
                                 void dispatch(startGame());
@@ -95,22 +104,13 @@ export const GameScreen = () => {
                                 void dispatch(skipCapture());
                             }}
                         />
-                    </section>
+                    </div>
 
-                    <SeatPanel
-                        onClaimDragons={() => {
-                            void dispatch(claimSide("dragons"));
-                        }}
-                        onClaimRavens={() => {
-                            void dispatch(claimSide("ravens"));
-                        }}
-                    />
-
-                    <RulesPanel sections={currentRuleConfiguration?.descriptionSections ?? []} />
+                    <MoveList />
                 </section>
 
-                <section className="panel side-panel bottom-panel">
-                    <MoveList />
+                <section className="panel side-panel top-panel">
+                    <RulesPanel sections={currentRuleConfiguration?.descriptionSections ?? []} />
                 </section>
             </section>
 

@@ -26,25 +26,22 @@ export const MoveList = () => {
     }, [hasHistory, turnHistoryRows]);
 
     return (
-        <section className="turns">
-            <h2>Move List</h2>
-            <div ref={historyContainerRef} className="turn-history">
-                {moveRows.length > 0 ? (
-                    <ol id="move-list" className="move-list">
-                        {moveRows.map((row) => (
-                            <li key={row.key} className="move-list-row" value={row.moveNumber}>
-                                <span className="move-list-number">{row.moveNumber}.</span>
-                                <span className="move-list-cell">{row.leftLabel}</span>
-                                <span className="move-list-cell">{row.rightLabel ?? ""}</span>
-                            </li>
-                        ))}
-                    </ol>
-                ) : (
-                    <p className="turns-empty">Moves will appear here once play begins.</p>
-                )}
-                {gameOverRow ? <div id="game-over-entry">{gameOverRow.label}</div> : null}
-                <div className={`turns-spacer${hasHistory ? "" : " is-empty"}`} aria-hidden="true"></div>
-            </div>
-        </section>
+        <div ref={historyContainerRef} className="turn-history">
+            {moveRows.length > 0 ? (
+                <ol id="move-list" className="move-list">
+                    {moveRows.map((row) => (
+                        <li key={row.key} className="move-list-row" value={row.moveNumber}>
+                            <span className="move-list-number">{row.moveNumber}.</span>
+                            <span className="move-list-cell">{row.leftLabel}</span>
+                            <span className="move-list-cell">{row.rightLabel ?? ""}</span>
+                        </li>
+                    ))}
+                </ol>
+            ) : (
+                <p className="turns-empty">Moves will appear here once play begins.</p>
+            )}
+            {gameOverRow ? <div id="game-over-entry">{gameOverRow.label}</div> : null}
+            <div className={`turns-spacer${hasHistory ? "" : " is-empty"}`} aria-hidden="true"></div>
+        </div>
     );
 };

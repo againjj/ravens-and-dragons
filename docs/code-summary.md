@@ -2,7 +2,7 @@
 
 ## Overview
 
-This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a browser-based board game prototype. The backend supports multiple persisted game sessions, addressed by game id, and broadcasts updates over server-sent events per game. The frontend now opens on a lobby screen, can route into a client-only `/create` draft flow backed by local Redux draft state or open games by id, and then talks to the per-game backend API for the active session. The `/create` page now has a dedicated three-panel draft layout with the board on the left, configuration controls in the middle, and the rules panel on the right, and its Start Game action submits the draft payload to `POST /api/games` so the backend can seed the stored session from the drafted setup before opening `/g/{gameId}`.
+This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a browser-based board game prototype. The backend supports multiple persisted game sessions, addressed by game id, and broadcasts updates over server-sent events per game. The frontend now opens on a lobby screen, can route into a client-only `/create` draft flow backed by local Redux draft state or open games by id, and then talks to the per-game backend API for the active session. The `/create` page now has a dedicated three-panel draft layout with the board on the left, configuration controls in the middle, and the rules panel on the right, and its Start Game action submits the draft payload to `POST /api/games` so the backend can seed the stored session from the drafted setup before opening `/g/{gameId}`. The live `/g/{gameId}` screen now uses a three-column layout with the board on the left, the move list and its controls in the center, and the rules panel on the right, while seat ownership now lives in the page header beneath the game title and status.
 
 The `docs` folder now also includes a Sherwood-focused bot planning document at `docs/bot-implementation-plan.md`, which now locks in first-release decisions, adopts release-two-ready bot-id persistence from the start, and sketches a second release with named `Simple`, `Random`, and `Minimax` bots plus grouped undo and expanded ruleset support. It also includes `docs/create-and-play-redesign.md`, a detailed implementation plan for moving game creation into a client-only `/create` draft flow and reshaping the live `/g/{gameId}` play screen.
 
@@ -46,9 +46,13 @@ The web layer now also includes a dedicated controller advice that recognizes ex
   - Top-level React layout and shell composition.
   - Handles auth bootstrap plus switching between the login, lobby, create, profile, and active game screens.
 - `src/main/frontend/components/GameScreen.tsx`
-  - Owns the active game screen layout, board sizing hookup, controls wiring, seat panel, rules legend, move list composition, and game-specific feedback dialog.
+  - Owns the active game screen layout, board sizing hookup, header seat summary, move-list header controls, rules legend, and game-specific feedback dialog.
 - `src/main/frontend/components/CreateGameScreen.tsx`
   - Owns the local `/create` draft layout and composes the draft board, configuration controls, and rules panel.
+- `src/main/frontend/components/MoveList.tsx`
+  - Owns the scrollable move-history area for the live game screen.
+- `src/main/frontend/components/SeatPanel.tsx`
+  - Compact live-game seat ownership summary and claim buttons for the page header.
 - `src/main/frontend/components/Board.tsx`
   - Shared board rendering plus connected and controlled click handling.
 - `src/main/frontend/components/ControlsPanel.tsx`
@@ -65,7 +69,7 @@ The web layer now also includes a dedicated controller advice that recognizes ex
 - `src/main/frontend/features/ui/*.ts`
   - Local-only UI state such as selected square.
 - `src/main/frontend/components/*.tsx`
-  - React components for the lobby screen, auth panel, local profile screen, live game screen, create screen, seat display, board rendering, setup controls, rules panels, move list, and status text.
+  - React components for the lobby screen, auth panel, local profile screen, live game screen, create screen, seat summary, board rendering, setup controls, rules panels, move list, and status text.
 - `src/main/frontend/hooks/*.ts`
   - Browser hooks for responsive sizing, fullscreen behavior, and URL-to-page routing.
   - `useBoardSizing.ts` now measures the padded board panel so the board can shrink and grow without overflowing the panel.
@@ -231,7 +235,7 @@ The React frontend is now split by responsibility.
 - `authThunks.ts` coordinates current-session loading plus guest/local login and logout flows.
 - `gameStream.ts` plus `useGameSession.ts` open and maintain the SSE subscription only for the active game screen.
 - `useGameRoute.ts` maps browser URLs to lobby, create, or game state and keeps the address bar in sync with the active game id.
-- `Board.tsx`, `ControlsPanel.tsx`, `MoveList.tsx`, and `StatusBanner.tsx` render the current UI from Redux state, including shared free-play setup affordances for both claimed players.
+- `Board.tsx`, `ControlsPanel.tsx`, `MoveList.tsx`, `SeatPanel.tsx`, and `StatusBanner.tsx` render the current UI from Redux state, including shared free-play setup affordances for both claimed players.
 - `LobbyScreen.tsx` renders the create-or-open entry flow before a game is active.
 - `useBoardSizing.ts` and `useFullscreen.ts` wrap browser-specific layout and fullscreen behavior.
 
@@ -248,7 +252,7 @@ Most UI-only changes should start in the relevant component, selector, or browse
 - The lobby presents separate create and rejoin cards, uppercases typed game ids locally, and keeps `Open Game` disabled until an id is present. Clicking `Start Fresh` now opens `/create` instead of immediately creating a persisted game.
 - Loading `/create` shows the local three-panel draft screen, and loading `/g/{gameId}` directly enters that game's board screen.
 - Once a game is opened, the browser enters that game's board screen and updates the URL to `/g/{gameId}`.
-- The game screen shows the current game id and includes a `Back to Lobby` button.
+- The game screen shows the current game id and includes a `Back to Lobby` button, a compact seat ownership line in the header, and a center-column move list whose action buttons stay above the scrollable history.
 - The `/profile` page is available only to local password accounts, prefills the current display name, allows display-name updates, and requires password confirmation before deleting the account.
 - Returning to the lobby closes the active SSE stream, clears browser-local selection and the local draft, and returns the URL to `/`.
 - If the browser entered the app directly on `/g/{gameId}`, returning to the lobby replaces that direct-entry history slot so browser Back still leaves the app instead of reopening the same game route.
@@ -360,7 +364,7 @@ The frontend now uses React components backed by Redux state.
 - `App.tsx` is the top-level shell and route switcher.
 - Selectors derive render-ready values from the latest server snapshot plus local UI state.
 - Components rerender declaratively when Redux state changes after REST responses or SSE events.
-- `App.tsx` now switches between route-level screens while `GameScreen.tsx` renders the main three-column game layout.
+- `App.tsx` now switches between route-level screens while `GameScreen.tsx` renders the main three-column game layout with the seat summary in the header and the move-list controls above the scrollable history.
 - Visual highlights remain class-based:
   - `selected`
   - `targetable`

@@ -148,6 +148,11 @@ h3 {
         var(--panel-strong);
 }
 
+.game-header-panel {
+    display: grid;
+    gap: 14px;
+}
+
 .page-header-copy {
     display: grid;
     gap: 10px;
@@ -583,12 +588,13 @@ button:disabled {
 }
 
 .legend h2,
-.turns h2 {
+.turns-panel h2 {
     margin: 0 0 8px;
 }
 
 .legend,
-.turns {
+.turns-panel,
+.seat-summary {
     min-width: 0;
 }
 
@@ -604,6 +610,35 @@ button:disabled {
     margin: 0;
     color: var(--muted);
     line-height: 1.4;
+}
+
+.seat-summary {
+    color: var(--muted);
+    line-height: 1.4;
+}
+
+.seat-summary-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 14px;
+}
+
+.seat-summary-viewer,
+.seat-summary-item {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 4px;
+}
+
+.seat-summary-item strong {
+    color: var(--line);
+}
+
+.seat-summary-actions {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 10px;
 }
 
 .create-draft-note,
@@ -629,11 +664,34 @@ button:disabled {
     margin-top: 8px;
 }
 
-.turns {
+.turns-panel {
     min-height: 0;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 12px;
+    padding: 18px;
+    overflow: hidden;
+}
+
+.turns-panel-header {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.turns-panel-header .controls {
+    justify-content: flex-end;
+}
+
+.turns-panel-header .controls-sidebar {
+    flex-direction: row;
+    align-items: center;
+}
+
+.turns-panel-header h2 {
+    margin-bottom: 0;
 }
 
 .turn-history {
@@ -644,7 +702,7 @@ button:disabled {
     overscroll-behavior: contain;
 }
 
-.turns ol {
+.turn-history ol {
     margin: 0;
     padding-left: 0;
     color: var(--muted);
@@ -652,6 +710,7 @@ button:disabled {
 }
 
 .move-list {
+    margin: 0;
     display: grid;
     gap: 8px;
     padding-left: 0;
@@ -688,7 +747,7 @@ button:disabled {
     line-height: 1.5;
 }
 
-.turns li + li {
+.turn-history li + li {
     margin-top: 0;
 }
 
@@ -781,6 +840,20 @@ button:disabled {
     }
 
     .controls-sidebar {
+        flex-direction: row;
+    }
+
+    .turns-panel {
+        width: 100%;
+        height: auto;
+        overflow: visible;
+    }
+
+    .turns-panel-header {
+        align-items: center;
+    }
+
+    .turns-panel-header .controls-sidebar {
         flex-direction: row;
     }
 

@@ -25,25 +25,30 @@ export const SeatPanel = ({ onClaimDragons, onClaimRavens }: SeatPanelProps) => 
     const viewerOwnsASeat = useAppSelector(selectViewerOwnsASeat);
 
     return (
-        <section className="legend">
-            <h2>Seats</h2>
-            <p>{isAuthenticated && currentUser ? `Viewing as ${currentUser.displayName} (${viewerRole})` : "Viewing as anonymous spectator"}</p>
-            <p>
-                <strong>Dragons:</strong> {dragonsPlayer?.displayName ?? "Open seat"}
-            </p>
-            <p>
-                <strong>Ravens:</strong> {ravensPlayer?.displayName ?? "Open seat"}
-            </p>
-            {!viewerOwnsASeat ? (
-                <div className="controls">
-                    <button type="button" disabled={!canClaimDragons} onClick={onClaimDragons}>
-                        Claim Dragons
-                    </button>
-                    <button type="button" disabled={!canClaimRavens} onClick={onClaimRavens}>
-                        Claim Ravens
-                    </button>
-                </div>
-            ) : null}
-        </section>
+        <div className="seat-summary" aria-label="Seat ownership">
+            <div className="seat-summary-line">
+                <span className="seat-summary-viewer">
+                    {isAuthenticated && currentUser
+                        ? `Viewing as ${currentUser.displayName} (${viewerRole})`
+                        : "Viewing as anonymous spectator"}
+                </span>
+                <span className="seat-summary-item">
+                    <strong>Dragons:</strong> {dragonsPlayer?.displayName ?? "Open seat"}
+                </span>
+                <span className="seat-summary-item">
+                    <strong>Ravens:</strong> {ravensPlayer?.displayName ?? "Open seat"}
+                </span>
+                {!viewerOwnsASeat ? (
+                    <span className="controls seat-summary-actions">
+                        <button type="button" disabled={!canClaimDragons} onClick={onClaimDragons}>
+                            Claim Dragons
+                        </button>
+                        <button type="button" disabled={!canClaimRavens} onClick={onClaimRavens}>
+                            Claim Ravens
+                        </button>
+                    </span>
+                ) : null}
+            </div>
+        </div>
     );
 };
