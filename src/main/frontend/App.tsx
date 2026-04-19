@@ -136,7 +136,7 @@ export const App = () => {
                 <section className="panel page-header-panel">
                     <div className="page-header-copy">
                         <h2>Create Game</h2>
-                        <p>The dedicated create flow will live here before a game exists.</p>
+                        <p>The local create flow will live here before a game exists.</p>
                     </div>
                 </section>
             ) : page === "profile" ? (

@@ -5,17 +5,21 @@ import type { AuthState } from "../features/auth/authSlice.js";
 import { authReducer, initialAuthState } from "../features/auth/authSlice.js";
 import type { GameState } from "../features/game/gameSlice.js";
 import { gameReducer, initialGameState } from "../features/game/gameSlice.js";
+import type { CreateGameDraftState } from "../game-types.js";
+import { createGameDraftReducer, initialCreateGameDraftState } from "../features/game/createGameSlice.js";
 import type { UiState } from "../features/ui/uiSlice.js";
 import { initialUiState, uiReducer } from "../features/ui/uiSlice.js";
 
 const rootReducer = combineReducers({
     auth: authReducer,
+    createGame: createGameDraftReducer,
     game: gameReducer,
     ui: uiReducer
 });
 
 export interface PreloadedAppState {
     auth?: AuthState;
+    createGame?: CreateGameDraftState;
     game?: GameState;
     ui?: UiState;
 }
@@ -37,6 +41,11 @@ const buildPreloadedGameState = (gameState?: GameState): GameState => {
     return mergedGameState;
 };
 
+const buildPreloadedCreateGameState = (createGameState?: CreateGameDraftState): CreateGameDraftState => ({
+    ...initialCreateGameDraftState,
+    ...createGameState
+});
+
 export const createAppStore = (preloadedState?: PreloadedAppState) =>
     configureStore({
         reducer: rootReducer,
@@ -49,6 +58,7 @@ export const createAppStore = (preloadedState?: PreloadedAppState) =>
                     ...preloadedState?.auth?.session
                 }
             },
+            createGame: buildPreloadedCreateGameState(preloadedState?.createGame),
             game: buildPreloadedGameState(preloadedState?.game),
             ui: {
                 ...initialUiState,

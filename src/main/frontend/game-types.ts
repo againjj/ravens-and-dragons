@@ -126,6 +126,14 @@ export interface CreateGameRequest {
     boardSize?: number;
 }
 
+export interface CreateGameDraftState {
+    isActive: boolean;
+    selectedRuleConfigurationId: string;
+    selectedStartingSide: Side;
+    selectedBoardSize: number;
+    draftBoard: Record<string, Piece>;
+}
+
 export interface CreateGameResponse {
     game: ServerGameSession;
 }

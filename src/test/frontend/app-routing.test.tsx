@@ -148,7 +148,7 @@ describe("App routing", () => {
         expect(screen.getByRole("button", { name: "Log Out" })).toBeInTheDocument();
     });
 
-    test("logged in users loading /create are shown the create page scaffold", async () => {
+    test("logged in users loading /create are shown the create page shell", async () => {
         fetchAuthSessionMock.mockResolvedValue({
             authenticated: true,
             user: {
@@ -163,7 +163,31 @@ describe("App routing", () => {
 
         expect(await screen.findByRole("heading", { name: "Create Game" })).toBeInTheDocument();
         expect(window.location.pathname).toBe("/create");
-        expect(screen.getByText("The dedicated create flow will live here before a game exists.")).toBeInTheDocument();
+        expect(screen.getByText("The local create flow will live here before a game exists.")).toBeInTheDocument();
+    });
+
+    test("loading /create initializes the draft and leaving the route clears it", async () => {
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "player-dragons",
+                displayName: "Dragon Player",
+                authType: "local"
+            }
+        });
+        window.history.pushState({}, "", "/create");
+
+        const { store } = renderWithStore(<App />);
+
+        await screen.findByRole("heading", { name: "Create Game" });
+        expect(store.getState().createGame.isActive).toBe(true);
+
+        window.history.pushState({}, "", "/lobby");
+        window.dispatchEvent(new PopStateEvent("popstate"));
+
+        await waitFor(() => {
+            expect(store.getState().createGame.isActive).toBe(false);
+        });
     });
 
     test("signed out users loading / are redirected to /login with a return target", async () => {

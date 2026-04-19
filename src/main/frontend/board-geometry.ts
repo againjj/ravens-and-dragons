@@ -16,6 +16,16 @@ export const getBoardDimension = (snapshot: Pick<ServerGameSnapshot, "boardSize"
 export const getSquareName = (rowIndex: number, colIndex: number, boardSize: number = boardDimension): string =>
     `${getColumnLetters(boardSize)[colIndex]}${getRowNumbers(boardSize)[rowIndex]}`;
 
+export const getCenterSquare = (boardSize: number): string => {
+    const columns = getColumnLetters(boardSize);
+    const rows = getRowNumbers(boardSize);
+    const columnIndex = Math.floor(boardSize / 2);
+    const rowIndex = boardSize - columnIndex - 1;
+    return `${columns[columnIndex]}${rows[rowIndex]}`;
+};
+
+export const isValidBoardSize = (boardSize: number): boolean => boardSize >= 3 && boardSize <= 26;
+
 const isCornerSquare = (square: string, boardSize: number): boolean => {
     const columns = getColumnLetters(boardSize);
     return [

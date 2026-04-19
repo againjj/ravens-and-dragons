@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useAppDispatch, useAppSelector } from "../app/hooks.js";
 import { selectAuthLoadState, selectCurrentUser, selectIsAuthenticated } from "../features/auth/authSelectors.js";
+import { createGameDraftActions } from "../features/game/createGameSlice.js";
 import { selectGameView } from "../features/game/gameSelectors.js";
 import { openGame, returnToLobby } from "../features/game/gameThunks.js";
 import { generatedGameIdPattern } from "../game-types.js";
@@ -57,19 +58,31 @@ export const useGameRoute = (): {
         dispatch(returnToLobby());
     };
 
+    const clearCreateDraft = () => {
+        dispatch(createGameDraftActions.createModeCleared());
+    };
+
+    const enterCreateDraft = () => {
+        dispatch(createGameDraftActions.createModeEntered());
+    };
+
     const navigateToLobby = (mode: NavigationMode = "push") => {
+        clearCreateDraft();
         writeHistory("/lobby", mode);
         setLocationPath("/lobby");
         clearActiveGameView();
     };
 
     const navigateToCreate = (mode: NavigationMode = "push") => {
+        clearCreateDraft();
         writeHistory("/create", mode);
         setLocationPath("/create");
         clearActiveGameView();
+        enterCreateDraft();
     };
 
     const navigateToProfile = (mode: NavigationMode = "push") => {
+        clearCreateDraft();
         writeHistory("/profile", mode);
         setLocationPath("/profile");
         clearActiveGameView();
@@ -81,6 +94,7 @@ export const useGameRoute = (): {
     ) => {
         const trimmedGameId = gameId.trim();
         const targetPath = `/g/${encodeURIComponent(trimmedGameId)}`;
+        clearCreateDraft();
         writeHistory(targetPath, options.mode ?? "push");
         setLocationPath(targetPath);
         if (options.loadGame ?? true) {
@@ -105,11 +119,13 @@ export const useGameRoute = (): {
                     replaceToLogin(nextPath === "" ? "/" : nextPath);
                     setLocationPath(`${window.location.pathname}${window.location.search}`);
                 }
+                clearCreateDraft();
                 clearActiveGameView();
                 return;
             }
 
             if (pathname === "/") {
+                clearCreateDraft();
                 navigateToLobby("replace");
                 return;
             }
@@ -131,15 +147,18 @@ export const useGameRoute = (): {
 
             if (pathname === "/create") {
                 clearActiveGameView();
+                enterCreateDraft();
                 return;
             }
 
             if (routeGameId) {
+                clearCreateDraft();
                 void dispatch(openGame(routeGameId));
                 return;
             }
 
             if (pathname === "/lobby") {
+                clearCreateDraft();
                 clearActiveGameView();
                 return;
             }
@@ -149,10 +168,12 @@ export const useGameRoute = (): {
                     navigateToLobby("replace");
                     return;
                 }
+                clearCreateDraft();
                 clearActiveGameView();
                 return;
             }
 
+            clearCreateDraft();
             navigateToLobby("replace");
         };
 

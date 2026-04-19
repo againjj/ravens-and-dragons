@@ -2,13 +2,13 @@
 
 ## Overview
 
-This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a browser-based board game prototype. The backend supports multiple persisted game sessions, addressed by game id, and broadcasts updates over server-sent events per game. The frontend now opens on a lobby screen, can route into a client-only `/create` draft page scaffold or open games by id, and then talks to the per-game backend API for the active session.
+This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a browser-based board game prototype. The backend supports multiple persisted game sessions, addressed by game id, and broadcasts updates over server-sent events per game. The frontend now opens on a lobby screen, can route into a client-only `/create` draft flow backed by local Redux draft state or open games by id, and then talks to the per-game backend API for the active session.
 
 The `docs` folder now also includes a Sherwood-focused bot planning document at `docs/bot-implementation-plan.md`, which now locks in first-release decisions, adopts release-two-ready bot-id persistence from the start, and sketches a second release with named `Simple`, `Random`, and `Minimax` bots plus grouped undo and expanded ruleset support. It also includes `docs/create-and-play-redesign.md`, a detailed implementation plan for moving game creation into a client-only `/create` draft flow and reshaping the live `/g/{gameId}` play screen.
 
 The backend now also includes session-cookie authentication for guest and local users, optional OAuth login wiring, persisted seat ownership on games, request-scoped game-view metadata, and self-service local-account profile management. The frontend now consumes that auth-aware view data, surfaces guest/local auth controls, requires authentication before entering the lobby or a game, gates gameplay actions by claimed side and active turn while still allowing both claimed players to participate during free-play setup, and exposes a local-only profile page for display-name updates plus account deletion. Google OAuth availability is now configuration-aware, and successful Google login returns to the original `/login?next=...` destination.
 
-Recent organization work is now reflected directly in the codebase: the old `game.ts` helper module has been split into focused files for shared types, board geometry, client-side rules helpers, and move-history formatting. The backend `GameRules.kt` module has been split into a rule catalog, snapshot factory, shared rule-engine contract, and dedicated free-play, trivial, and original-style rule-engine files while preserving the existing `GameRules` facade for callers. Repeated game-view fetch, auth-session patching, selection normalization, and `401`/`403` recovery logic in `gameThunks.ts` has been consolidated into shared thunk helpers so open, refresh, command, and seat-claim flows stay aligned. The game-only layout and wiring have been extracted from `App.tsx` into a dedicated `GameScreen.tsx` container so the app shell stays focused on auth bootstrap, shared chrome, and route selection. On the backend, command authorization, validation, undo transitions, and side-claim logic have been extracted into `GameCommandService.kt`, leaving `GameSessionService.kt` focused on store orchestration, SSE lifecycle, and stale-game cleanup. User-triggered game actions now also funnel frontend request failures into the same dismissible error-box pattern used by auth/profile flows, with a specific server-down message for network failures where the backend does not respond.
+Recent organization work is now reflected directly in the codebase: the old `game.ts` helper module has been split into focused files for shared types, board geometry, client-side rules helpers, and move-history formatting. The backend `GameRules.kt` module has been split into a rule catalog, snapshot factory, shared rule-engine contract, and dedicated free-play, trivial, and original-style rule-engine files while preserving the existing `GameRules` facade for callers. Repeated game-view fetch, auth-session patching, selection normalization, and `401`/`403` recovery logic in `gameThunks.ts` has been consolidated into shared thunk helpers so open, refresh, command, and seat-claim flows stay aligned. The game-only layout and wiring have been extracted from `App.tsx` into a dedicated `GameScreen.tsx` container so the app shell stays focused on auth bootstrap, shared chrome, and route selection. The create flow now has its own frontend-only Redux slice, selectors, and helper module so `/create` can hold a local draft board, rule selection, board size, and starting-side state without touching the persisted game session. On the backend, command authorization, validation, undo transitions, and side-claim logic have been extracted into `GameCommandService.kt`, leaving `GameSessionService.kt` focused on store orchestration, SSE lifecycle, and stale-game cleanup. User-triggered game actions now also funnel frontend request failures into the same dismissible error-box pattern used by auth/profile flows, with a specific server-down message for network failures where the backend does not respond.
 The web layer now also includes a dedicated controller advice that recognizes expected disconnected-client I/O during SSE teardown, such as logout-time `Broken pipe` writes, and lets Spring log them as normal client disconnects instead of noisy application errors.
 
 ## Current Architecture
@@ -31,9 +31,11 @@ The web layer now also includes a dedicated controller advice that recognizes ex
 - `src/main/resources/static/styles.css`
   - Owns layout, board sizing variables, responsive behavior, fullscreen styling, and the `#c274c8` highlight color used for the board's corner and center squares.
 - `src/main/frontend/game-types.ts`
-  - Frontend wire types and auth/game DTOs.
+  - Frontend wire types, auth/game DTOs, and the local create-draft state shape.
 - `src/main/frontend/board-geometry.ts`
-  - Board coordinate helpers, dimension helpers, and highlighted-square helpers.
+  - Board coordinate helpers, dimension helpers, center-square helpers, and highlighted-square helpers.
+- `src/main/frontend/features/game/createGameState.ts`
+  - Local `/create` draft configuration data plus pure snapshot helpers.
 - `src/main/frontend/game-rules-client.ts`
   - Client-side ownership, capture, targeting, and local-selection helpers used by selectors and board rendering.
 - `src/main/frontend/move-history.ts`
@@ -49,7 +51,7 @@ The web layer now also includes a dedicated controller advice that recognizes ex
   - Redux store setup and typed hooks.
 - `src/main/frontend/features/game/*.ts`
   - Game slice, selectors, thunks, and stream lifecycle wiring.
-  - Includes current-game and current-view state, auth-aware game metadata, exact undo availability and ownership, command/claim-side thunks, and shared helpers for applying fetched game views plus auth-failure refresh recovery.
+  - Includes current-game and current-view state, auth-aware game metadata, the local draft-create slice/selectors/helpers, exact undo availability and ownership, command/claim-side thunks, and shared helpers for applying fetched game views plus auth-failure refresh recovery.
 - `src/main/frontend/features/auth/*.ts`
   - Auth session slice, selectors, profile state, and guest/local auth thunks.
 - `src/main/frontend/features/ui/*.ts`
@@ -59,12 +61,15 @@ The web layer now also includes a dedicated controller advice that recognizes ex
 - `src/main/frontend/hooks/*.ts`
   - Browser hooks for responsive sizing, fullscreen behavior, and URL-to-page routing.
   - `useBoardSizing.ts` now measures the padded board panel so the board can shrink and grow without overflowing the panel.
+  - `useGameRoute.ts` now initializes and clears the local `/create` draft state as the browser enters or leaves that route.
 - `src/test/frontend/game.test.js`
   - Frontend helper tests for server-backed snapshots and local-only selection behavior.
 - `src/test/frontend/game-thunks.test.ts`
   - Verifies create/open/claim flows, shared auth-refresh behavior, and server-down feedback handling in the game thunks.
 - `src/test/frontend/game-screen.test.tsx`
   - Verifies the game-screen feedback dialog renders and dismisses correctly.
+- `src/test/frontend/create-game-draft.test.ts`
+  - Verifies the local `/create` draft defaults, board cycling, rule switching, and reset behavior.
 - `src/test/kotlin/com/dragonsvsravens/game/GameRulesTest.kt`
   - Verifies backend rule transitions match the current game rules.
 - `src/test/kotlin/com/dragonsvsravens/game/GameControllerTest.kt`
@@ -91,7 +96,7 @@ The web layer now also includes a dedicated controller advice that recognizes ex
   - `./gradlew test` runs both the frontend tests and the Kotlin/Spring test task.
 - Runtime flow:
   - The browser lobby lives at `/`.
-  - The browser treats `/create` as a draft-entry route scaffold and `/g/{gameId}` as the canonical active-game URL.
+  - The browser treats `/create` as a local-only draft-entry route and `/g/{gameId}` as the canonical active-game URL.
   - Loading `/create` or `/g/{gameId}` directly opens that page in the browser.
   - Session inspection uses `GET /api/auth/session`.
   - Guest login uses `POST /api/auth/guest`.
@@ -211,7 +216,7 @@ The React frontend is now split by responsibility.
 - `move-history.ts` owns turn-label and grouped-history formatting helpers.
 - `GameScreen.tsx` owns the active game view container and connects that layout to Redux thunks and selectors.
 - Redux owns shared client state such as the latest server session, auth session, loading/submission state, connection state, feedback messages, and local selection.
-- Redux also owns the persisted game/session view state plus the current game id, while the route hook derives the separate `/create` page state from the browser URL.
+- Redux also owns the persisted game/session view state plus the current game id, while the route hook initializes or clears the separate `/create` draft state from the browser URL.
 - `gameThunks.ts` coordinates lobby create/open actions, game-view refreshes, seat claiming, and command submission against the backend API.
 - `gameThunks.ts` also translates network failures from user-triggered game requests into friendly feedback messages for the shared game UI.
 - `authThunks.ts` coordinates current-session loading plus guest/local login and logout flows.
@@ -228,15 +233,15 @@ Most UI-only changes should start in the relevant component, selector, or browse
 ### Lobby and game entry
 
 - The browser initially loads into a lobby screen.
-- The lobby can open an existing game by id or route to the client-only `/create` draft scaffold.
+- The lobby can open an existing game by id or route to the client-only `/create` draft flow.
 - The page shell now also shows auth controls for guest access, local signup/login, logout, and an OAuth sign-in link for supported deployments.
 - Local password accounts now also see a `Profile` button in the upper-right app chrome that opens `/profile`.
 - The lobby presents separate create and rejoin cards, uppercases typed game ids locally, and keeps `Open Game` disabled until an id is present. Clicking `Start Fresh` now opens `/create` instead of immediately creating a persisted game.
-- Loading `/create` shows the draft scaffold, and loading `/g/{gameId}` directly enters that game's board screen.
+- Loading `/create` shows the local draft flow, and loading `/g/{gameId}` directly enters that game's board screen.
 - Once a game is opened, the browser enters that game's board screen and updates the URL to `/g/{gameId}`.
 - The game screen shows the current game id and includes a `Back to Lobby` button.
 - The `/profile` page is available only to local password accounts, prefills the current display name, allows display-name updates, and requires password confirmation before deleting the account.
-- Returning to the lobby closes the active SSE stream, clears browser-local selection, and returns the URL to `/`.
+- Returning to the lobby closes the active SSE stream, clears browser-local selection and the local draft, and returns the URL to `/`.
 - If the browser entered the app directly on `/g/{gameId}`, returning to the lobby replaces that direct-entry history slot so browser Back still leaves the app instead of reopening the same game route.
 
 ### Free Play
