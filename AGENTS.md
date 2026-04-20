@@ -128,6 +128,7 @@ If a requested change would alter one of those rules, implement it only when tha
 
 - If the user asks to start the app and no app terminal session is attached to the current thread, create one first.
 - If the user asks to start the server, first try the default app configuration.
+- When starting the server locally, always load environment variables from `.env.local`.
 - If the server was started in an active terminal session, try stopping it with `Ctrl-C` before using other process-killing commands.
 - If the default port is already in use, do not start the server on a different port unless the user explicitly asks for that fallback.
 - When the default port is busy, report the port conflict to the user and stop there.

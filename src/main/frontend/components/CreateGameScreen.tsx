@@ -3,11 +3,10 @@ import { useRef, type CSSProperties } from "react";
 import { getBoardDimension, getColumnLetters } from "../board-geometry.js";
 import { useAppDispatch, useAppSelector } from "../app/hooks.js";
 import { BoardView } from "./Board.js";
-import { GameSetupControls } from "./ControlsPanel.js";
+import { GameSetupControls } from "./GameSetupControls.js";
 import { RulesPanel } from "./RulesPanel.js";
 import {
     selectCreateGameAvailableRuleConfigurations,
-    selectCreateGameBoard,
     selectCreateGameCanEditBoard,
     selectCreateGameCurrentRuleConfiguration,
     selectCreateGameSelectedBoardSize,
@@ -34,7 +33,6 @@ export const CreateGameScreen = ({ onStartGame }: CreateGameScreenProps = {}) =>
     const selectedBoardSize = useAppSelector(selectCreateGameSelectedBoardSize);
     const snapshot = useAppSelector(selectCreateGameSnapshot);
     const canEditBoard = useAppSelector(selectCreateGameCanEditBoard);
-    const draftBoard = useAppSelector(selectCreateGameBoard);
     const boardShellRef = useRef<HTMLDivElement | null>(null);
     const boardDimension = getBoardDimension(snapshot);
     const columnLetters = getColumnLetters(boardDimension);
@@ -47,7 +45,7 @@ export const CreateGameScreen = ({ onStartGame }: CreateGameScreenProps = {}) =>
             <section className="panel page-header-panel game-header-panel create-header-panel">
                 <div className="page-header-copy">
                     <h2>Create Game</h2>
-                    <p>Build a local draft, choose a ruleset, and start the shared game from this screen.</p>
+                    <p>Configure and start your game.</p>
                 </div>
             </section>
 
@@ -78,7 +76,6 @@ export const CreateGameScreen = ({ onStartGame }: CreateGameScreenProps = {}) =>
                 <section className="panel side-panel top-panel create-config-panel">
                     <div className="page-header-copy">
                         <h2>Configuration</h2>
-                        <p>Adjust the draft settings before you start the game.</p>
                     </div>
                     <GameSetupControls
                         availableRuleConfigurations={availableRuleConfigurations}
@@ -95,28 +92,21 @@ export const CreateGameScreen = ({ onStartGame }: CreateGameScreenProps = {}) =>
                         onSelectBoardSize={(boardSize) => {
                             dispatch(createGameDraftActions.boardSizeSelected(boardSize));
                         }}
+                        startGameHint={
+                            selectedRuleConfigurationId === "free-play" ? (
+                                <p className="create-draft-note">Place the pieces before starting the game.</p>
+                            ) : null
+                        }
                         onStartGame={onStartGame}
                     />
-                    <p className="create-draft-note">
-                        {selectedRuleConfigurationId === "free-play"
-                            ? "Free Play keeps the board editable."
-                            : "Preset rules use their built-in starting position."}
-                    </p>
-                    <p className="create-draft-summary">
-                        {draftBoard && selectedRuleConfigurationId === "free-play"
-                            ? `${Object.keys(draftBoard).length} pieces placed in the draft.`
-                            : " "}
-                    </p>
                     <p className="create-feedback" aria-live="polite">
                         {feedbackMessage ?? " "}
                     </p>
                 </section>
 
-                <RulesPanel
-                    title="Rules"
-                    sections={currentRuleConfiguration?.descriptionSections ?? []}
-                    className="side-panel top-panel create-rules-panel"
-                />
+                <section className="panel side-panel top-panel create-rules-panel">
+                    <RulesPanel title="Rules" sections={currentRuleConfiguration?.descriptionSections ?? []} />
+                </section>
             </section>
         </section>
     );

@@ -34,6 +34,15 @@ describe("create game draft", () => {
             ruleConfigurationId: "free-play"
         });
         expect(selectCreateGameAvailableRuleConfigurations(store.getState())).toHaveLength(7);
+        expect(selectCreateGameAvailableRuleConfigurations(store.getState()).map((ruleConfiguration) => ruleConfiguration.id)).toEqual([
+            "free-play",
+            "trivial",
+            "original-game",
+            "sherwood-rules",
+            "square-one",
+            "sherwood-x-9",
+            "square-one-x-9"
+        ]);
     });
 
     test("cycling setup squares follows the setup cycle and preserves pieces inside the board", () => {
@@ -79,6 +88,21 @@ describe("create game draft", () => {
             phase: "none",
             activeSide: "dragons",
             ruleConfigurationId: "trivial"
+        });
+    });
+
+    test("selecting a preset ruleset uses its built-in board size and starting side", () => {
+        const store = createAppStore();
+
+        store.dispatch(createGameDraftActions.createModeEntered());
+        store.dispatch(createGameDraftActions.ruleConfigurationSelected("sherwood-x-9"));
+
+        expect(selectCreateGameSnapshot(store.getState())).toMatchObject({
+            boardSize: 9,
+            specialSquare: "e5",
+            phase: "none",
+            activeSide: "ravens",
+            ruleConfigurationId: "sherwood-x-9"
         });
     });
 

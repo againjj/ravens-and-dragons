@@ -29,7 +29,7 @@ export const LobbyScreen = ({
                 <section className="lobby-card">
                     <div className="lobby-card-copy">
                         <h3>Start Fresh</h3>
-                        <p>Open the draft create flow before starting a new game.</p>
+                        <p>Create a game to start playing a new game.</p>
                     </div>
                     <button
                         id="create-game-button"

@@ -12,6 +12,13 @@ const gameRoutePattern = /^\/g\/([23456789CFGHJMPQRVWX]{7})$/;
 export type AppPage = "login" | "lobby" | "create" | "game" | "profile" | "loading";
 
 type NavigationMode = "push" | "replace";
+type RouteKind = "root" | "login" | "lobby" | "create" | "profile" | "game" | "unknown";
+
+interface ParsedRoute {
+    kind: RouteKind;
+    fullPath: string;
+    gameId: string | null;
+}
 
 const getRouteGameId = (pathname: string): string | null => {
     const match = pathname.match(gameRoutePattern);
@@ -40,6 +47,33 @@ const writeHistory = (path: string, mode: NavigationMode) => {
     window.history.pushState({}, "", path);
 };
 
+const getCurrentLocationPath = (): string => `${window.location.pathname}${window.location.search}`;
+
+const parseRoute = (fullPath: string): ParsedRoute => {
+    const pathname = fullPath.split("?")[0] ?? fullPath;
+    const gameId = getRouteGameId(pathname);
+
+    if (pathname === "/") {
+        return { kind: "root", fullPath, gameId: null };
+    }
+    if (pathname === "/login") {
+        return { kind: "login", fullPath, gameId: null };
+    }
+    if (pathname === "/lobby") {
+        return { kind: "lobby", fullPath, gameId: null };
+    }
+    if (pathname === "/create") {
+        return { kind: "create", fullPath, gameId: null };
+    }
+    if (pathname === "/profile") {
+        return { kind: "profile", fullPath, gameId: null };
+    }
+    if (gameId) {
+        return { kind: "game", fullPath, gameId };
+    }
+    return { kind: "unknown", fullPath, gameId: null };
+};
+
 export const useGameRoute = (): {
     page: AppPage;
     navigateToLobby: (mode?: NavigationMode) => void;
@@ -52,7 +86,7 @@ export const useGameRoute = (): {
     const isAuthenticated = useAppSelector(selectIsAuthenticated);
     const currentUser = useAppSelector(selectCurrentUser);
     const view = useAppSelector(selectGameView);
-    const [locationPath, setLocationPath] = useState(() => `${window.location.pathname}${window.location.search}`);
+    const [locationPath, setLocationPath] = useState(getCurrentLocationPath);
 
     const clearActiveGameView = () => {
         dispatch(returnToLobby());
@@ -66,26 +100,28 @@ export const useGameRoute = (): {
         dispatch(createGameDraftActions.createModeEntered());
     };
 
+    const updateRoutePath = (path: string, mode: NavigationMode) => {
+        writeHistory(path, mode);
+        setLocationPath(path);
+    };
+
     const navigateToLobby = (mode: NavigationMode = "push") => {
         clearCreateDraft();
-        writeHistory("/lobby", mode);
-        setLocationPath("/lobby");
         clearActiveGameView();
+        updateRoutePath("/lobby", mode);
     };
 
     const navigateToCreate = (mode: NavigationMode = "push") => {
-        clearCreateDraft();
-        writeHistory("/create", mode);
-        setLocationPath("/create");
         clearActiveGameView();
+        clearCreateDraft();
         enterCreateDraft();
+        updateRoutePath("/create", mode);
     };
 
     const navigateToProfile = (mode: NavigationMode = "push") => {
         clearCreateDraft();
-        writeHistory("/profile", mode);
-        setLocationPath("/profile");
         clearActiveGameView();
+        updateRoutePath("/profile", mode);
     };
 
     const navigateToGame = (
@@ -95,8 +131,7 @@ export const useGameRoute = (): {
         const trimmedGameId = gameId.trim();
         const targetPath = `/g/${encodeURIComponent(trimmedGameId)}`;
         clearCreateDraft();
-        writeHistory(targetPath, options.mode ?? "push");
-        setLocationPath(targetPath);
+        updateRoutePath(targetPath, options.mode ?? "push");
         if (options.loadGame ?? true) {
             void dispatch(openGame(trimmedGameId));
         }
@@ -108,36 +143,28 @@ export const useGameRoute = (): {
         }
 
         const syncFromLocation = () => {
-            const pathname = window.location.pathname;
-            const nextLocationPath = `${window.location.pathname}${window.location.search}`;
-            setLocationPath(nextLocationPath);
-            const routeGameId = getRouteGameId(pathname);
+            const currentLocationPath = getCurrentLocationPath();
+            const route = parseRoute(currentLocationPath);
+            setLocationPath(currentLocationPath);
 
             if (!isAuthenticated) {
-                if (pathname !== "/login") {
-                    const nextPath = nextLocationPath;
-                    replaceToLogin(nextPath === "" ? "/" : nextPath);
-                    setLocationPath(`${window.location.pathname}${window.location.search}`);
+                if (route.kind !== "login") {
+                    replaceToLogin(route.fullPath === "" ? "/" : route.fullPath);
+                    setLocationPath(getCurrentLocationPath());
                 }
                 clearCreateDraft();
                 clearActiveGameView();
                 return;
             }
 
-            if (pathname === "/") {
-                clearCreateDraft();
-                navigateToLobby("replace");
-                return;
-            }
-
-            if (pathname === "/login") {
+            if (route.kind === "login") {
                 const targetPath = getLoginRedirectPath();
-                const targetGameId = getRouteGameId(targetPath);
-                if (targetGameId) {
-                    navigateToGame(targetGameId, { mode: "push" });
-                } else if (targetPath === "/create") {
+                const targetRoute = parseRoute(targetPath);
+                if (targetRoute.kind === "game" && targetRoute.gameId) {
+                    navigateToGame(targetRoute.gameId, { mode: "push" });
+                } else if (targetRoute.kind === "create") {
                     navigateToCreate("push");
-                } else if (targetPath === "/profile") {
+                } else if (targetRoute.kind === "profile") {
                     navigateToProfile("push");
                 } else {
                     navigateToLobby("push");
@@ -145,36 +172,36 @@ export const useGameRoute = (): {
                 return;
             }
 
-            if (pathname === "/create") {
-                clearActiveGameView();
-                enterCreateDraft();
-                return;
-            }
-
-            if (routeGameId) {
-                clearCreateDraft();
-                void dispatch(openGame(routeGameId));
-                return;
-            }
-
-            if (pathname === "/lobby") {
-                clearCreateDraft();
-                clearActiveGameView();
-                return;
-            }
-
-            if (pathname === "/profile") {
-                if (currentUser?.authType !== "local") {
+            switch (route.kind) {
+                case "root":
                     navigateToLobby("replace");
                     return;
-                }
-                clearCreateDraft();
-                clearActiveGameView();
-                return;
+                case "create":
+                    clearActiveGameView();
+                    enterCreateDraft();
+                    return;
+                case "game":
+                    clearCreateDraft();
+                    if (route.gameId) {
+                        void dispatch(openGame(route.gameId));
+                    }
+                    return;
+                case "lobby":
+                    clearCreateDraft();
+                    clearActiveGameView();
+                    return;
+                case "profile":
+                    if (currentUser?.authType !== "local") {
+                        navigateToLobby("replace");
+                        return;
+                    }
+                    clearCreateDraft();
+                    clearActiveGameView();
+                    return;
+                case "unknown":
+                    navigateToLobby("replace");
+                    return;
             }
-
-            clearCreateDraft();
-            navigateToLobby("replace");
         };
 
         syncFromLocation();

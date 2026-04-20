@@ -64,13 +64,17 @@ describe("GameScreen", () => {
         const turnsPanel = container.querySelector(".turns-panel");
         const turnsPanelHeader = container.querySelector(".turns-panel-header");
         const gameLayout = container.querySelector(".game-layout");
+        const seatPanel = screen.getByTestId("seat-panel");
+        const statusLine = screen.getByText("Dragons to move.");
 
         expect(headerPanel).not.toBeNull();
         expect(turnsPanel).not.toBeNull();
         expect(turnsPanelHeader).not.toBeNull();
         expect(gameLayout).not.toBeNull();
 
-        expect(headerPanel).toContainElement(screen.getByTestId("seat-panel"));
+        expect(headerPanel).toContainElement(seatPanel);
+        expect(headerPanel).toContainElement(statusLine);
+        expect(seatPanel.compareDocumentPosition(statusLine) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
         expect(turnsPanel).toContainElement(screen.getByRole("heading", { name: "Move List" }));
         expect(turnsPanelHeader).toContainElement(screen.getByTestId("controls-panel"));
         expect(turnsPanel).toContainElement(screen.getByTestId("move-list"));

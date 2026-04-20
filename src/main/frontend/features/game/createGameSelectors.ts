@@ -20,7 +20,6 @@ export const selectCreateGameSelectedRuleConfigurationId = (state: RootState) =>
 export const selectCreateGameSelectedStartingSide = (state: RootState): Side =>
     state.createGame.selectedStartingSide;
 export const selectCreateGameSelectedBoardSize = (state: RootState) => state.createGame.selectedBoardSize;
-export const selectCreateGameBoard = (state: RootState) => state.createGame.draftBoard;
 export const selectCreateGameCanEditBoard = createSelector(
     selectCreateGameState,
     (createGameState) => isDraftBoardEditable(createGameState)

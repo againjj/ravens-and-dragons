@@ -28,7 +28,7 @@ By default, the backend uses an H2 file database at `build/db/dragons-vs-ravens`
 
 Open the app in two browser tabs to see the shared game stay in sync through server-sent events.
 The browser now opens on a lobby screen at `/`, where you can open an existing game by ID or jump into the local-only `/create` draft flow.
-The page now also includes auth controls for guest play, local signup/login/logout, and a Google OAuth entry link for deployments that configure that provider.
+The page now also includes auth controls for guest play, local signup/login/logout, and a Google OAuth entry link for deployments that configure that provider. The sign-in copy only mentions Google when that provider is actually available.
 Users must authenticate before opening the lobby or viewing a game.
 Local password accounts now also get a `Profile` button in the upper-right app chrome that opens `/profile`.
 The lobby now presents separate `Start Fresh` and `Rejoin Game` cards, normalizes typed game IDs to uppercase, and disables `Open Game` until an ID is entered. Clicking `Start Fresh` now opens `/create` instead of immediately creating a persisted game.
@@ -37,9 +37,10 @@ Each game has its own URL at `/g/{gameId}`.
 Loading a game URL directly opens that game, and after you open a game from the lobby the browser updates the address bar to that game's `/g/{gameId}` URL.
 If you load a game URL directly and then return to the lobby, the app now replaces that direct-entry history slot instead of trapping the browser Back button inside the app.
 The browser stays subscribed to that game's SSE stream until you go back to the lobby.
-The active game screen shows the current game ID plus a `Back to Lobby` button, a compact seat ownership line in the header, and a center-column move list whose controls stay above the scrollable history.
+The active game screen shows the current game ID plus a `Back to Lobby` button, a compact seat ownership line above the status line in the header, and a center-column move list whose controls stay above the scrollable history.
 The game board now resumes responsive resizing correctly after entering a game from the lobby.
 Once a game is open, the controls show only live gameplay actions.
+The create screen now uses a dedicated setup-controls component, keeps its free-play guidance immediately above `Start Game`, and reuses the same outer rules-panel shell styling as the live game screen.
 `Free Play` now finishes all board drafting on `/create`: before starting, you can choose whether dragons or ravens move first, and draft squares still cycle `empty -> dragon -> raven -> gold -> empty`. After creation, the persisted game opens directly in move phase, capture remains manual, and the game is ended manually.
 `Trivial Configuration`, `Original Game`, `Sherwood Rules`, `Square One`, `Sherwood x 9`, and `Square One x 9` also open directly in move phase from their preset boards, resolve captures automatically, and end automatically based on their own rules.
 `Sherwood Rules`, `Square One`, `Sherwood x 9`, and `Square One x 9` match the original-style capture and win/draw rules, but the gold is moved by the dragons and may move only one orthogonal square at a time.
@@ -179,7 +180,9 @@ The current Railway production URL is [https://dragons-vs-ravens-production.up.r
 - `src/main/frontend/components/Board.tsx`
   - shared board rendering plus connected and controlled click handling
 - `src/main/frontend/components/ControlsPanel.tsx`
-  - live-game controls while `GameSetupControls` handles the create-screen configuration UI
+  - live-game controls only
+- `src/main/frontend/components/GameSetupControls.tsx`
+  - create-screen configuration UI and `Start Game` controls
 - `src/main/frontend/components/RulesPanel.tsx`
   - shared rules-description renderer
 - `src/main/frontend/app`

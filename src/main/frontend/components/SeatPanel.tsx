@@ -1,11 +1,9 @@
 import { useAppSelector } from "../app/hooks.js";
-import { selectCurrentUser, selectIsAuthenticated } from "../features/auth/authSelectors.js";
 import {
     selectCanClaimDragons,
     selectCanClaimRavens,
     selectDragonsPlayer,
-    selectRavensPlayer,
-    selectViewerRole
+    selectRavensPlayer
 } from "../features/game/gameSelectors.js";
 
 interface SeatPanelProps {
@@ -14,9 +12,6 @@ interface SeatPanelProps {
 }
 
 export const SeatPanel = ({ onClaimDragons, onClaimRavens }: SeatPanelProps) => {
-    const isAuthenticated = useAppSelector(selectIsAuthenticated);
-    const currentUser = useAppSelector(selectCurrentUser);
-    const viewerRole = useAppSelector(selectViewerRole);
     const dragonsPlayer = useAppSelector(selectDragonsPlayer);
     const ravensPlayer = useAppSelector(selectRavensPlayer);
     const canClaimDragons = useAppSelector(selectCanClaimDragons);
@@ -25,11 +20,6 @@ export const SeatPanel = ({ onClaimDragons, onClaimRavens }: SeatPanelProps) => 
     return (
         <div className="seat-summary" aria-label="Seat ownership">
             <div className="seat-summary-line">
-                <span className="seat-summary-viewer">
-                    {isAuthenticated && currentUser
-                        ? `Viewing as ${currentUser.displayName} (${viewerRole})`
-                        : "Viewing as anonymous spectator"}
-                </span>
                 <span className="seat-summary-item">
                     <strong>Dragons:</strong> {dragonsPlayer?.displayName ?? "Open seat"}
                 </span>

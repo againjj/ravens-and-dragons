@@ -21,6 +21,8 @@ describe("CreateGameScreen", () => {
         expect(screen.getByRole("heading", { name: "Create Game", level: 2 })).toBeInTheDocument();
         expect(screen.getByRole("heading", { name: "Configuration" })).toBeInTheDocument();
         expect(screen.getByRole("heading", { name: "Rules" })).toBeInTheDocument();
+        expect(screen.getByText("Configure and start your game.")).toBeInTheDocument();
+        expect(screen.getByText("Place the pieces before starting the game.")).toBeInTheDocument();
         expect(screen.getByLabelText("Play Style")).toHaveValue("free-play");
         expect(screen.getByLabelText("Board Size")).toHaveValue("7");
         expect(screen.getByLabelText("Starting Side")).toHaveValue("dragons");
@@ -45,6 +47,7 @@ describe("CreateGameScreen", () => {
         expect(screen.queryByLabelText("Board Size")).toBeNull();
         expect(screen.queryByLabelText("Starting Side")).toBeNull();
         expect(screen.getByText("The dragons need to move the gold to the center.")).toBeInTheDocument();
+        expect(screen.queryByText("Place the pieces before starting the game.")).toBeNull();
         expect(screen.getByRole("button", { name: "Square a1" })).toHaveTextContent("D");
     });
 });

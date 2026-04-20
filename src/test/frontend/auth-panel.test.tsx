@@ -36,6 +36,7 @@ describe("AuthPanel", () => {
         expect(screen.getByRole("region", { name: "Sign in options" })).toBeInTheDocument();
         expect(screen.getByRole("heading", { name: "Sign In" })).toBeInTheDocument();
         expect(screen.getByRole("heading", { name: "Create Account" })).toBeInTheDocument();
+        expect(screen.getByText("Sign in with your account, as a guest, or with Google.")).toBeInTheDocument();
         expect(screen.getAllByText("Username")).toHaveLength(2);
         expect(screen.getByRole("button", { name: "Sign In" })).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Sign in with Google" })).toBeInTheDocument();
@@ -76,6 +77,7 @@ describe("AuthPanel", () => {
             />
         );
 
+        expect(screen.getByText("Sign in with your account or as a guest.")).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "Sign in with Google" })).not.toBeInTheDocument();
     });
 

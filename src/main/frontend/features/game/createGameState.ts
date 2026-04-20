@@ -19,6 +19,35 @@ export interface CreateRuleConfiguration {
 const defaultBoardSize = 7;
 const defaultRuleConfigurationId = "free-play";
 const setupCycle: Piece[] = ["dragon", "raven", "gold"];
+const defaultStartingSide: Side = "dragons";
+const ravensStartSide: Side = "ravens";
+const originalSetupParagraph =
+    "The game starts in a cross formation: gold in the center with dragons surrounding it, and two ravens behind each dragon.";
+const squareOneSetupParagraph =
+    "The game starts in a cross formation: gold in the center with dragons surrounding it, and eight ravens around the dragons.";
+const originalStyleMoveParagraphs = [
+    "Ravens move first.",
+    "Pieces move any distance orthogonally without jumping. The gold is moved by the dragons. No piece may land on the center square after the gold leaves it, and only the gold may land on the corner squares.",
+    "You may not make a move that causes any of your own pieces to be captured."
+];
+const sherwoodStyleMoveParagraphs = [
+    "Ravens move first.",
+    "Dragons and ravens move any distance orthogonally without jumping. The gold is moved by the dragons and may move only one square orthogonally at a time.",
+    "No piece may land on the center square after the gold leaves it, and only the gold may land on the corner squares.",
+    "You may not make a move that causes any of your own pieces to be captured."
+];
+
+interface PresetRuleConfigurationDefinition {
+    id: string;
+    name: string;
+    boardSize: number;
+    specialSquare: string;
+    presetBoard: Record<string, Piece>;
+    startingSide: Side;
+    descriptionSections: RuleConfigurationSummary["descriptionSections"];
+    hasManualCapture?: boolean;
+    hasManualEndGame?: boolean;
+}
 
 const createOriginalStyleSummary = (
     id: string,
@@ -70,68 +99,81 @@ const shiftPresetBoard = (
         return shiftedBoard;
     }, {});
 
-const freePlay: CreateRuleConfiguration = {
+const createPresetRuleConfiguration = ({
+    id,
+    name,
+    boardSize,
+    specialSquare,
+    presetBoard,
+    startingSide,
+    descriptionSections,
+    hasManualCapture = false,
+    hasManualEndGame = false
+}: PresetRuleConfigurationDefinition): CreateRuleConfiguration => ({
     summary: {
-        id: defaultRuleConfigurationId,
-        name: "Free Play",
-        descriptionSections: [
-            {
-                heading: "Overview",
-                paragraphs: [
-                    "Ravens are trying to steal the dragons' gold! Build the opening position on this page, then dragons and ravens alternate turns once the game starts."
-                ]
-            },
-            {
-                heading: "Create Game",
-                paragraphs: [
-                    "Click any square to cycle through dragon, raven, gold, then empty. Starting the game locks in that drafted board as the live opening position."
-                ]
-            },
-            {
-                heading: "Turns",
-                paragraphs: [
-                    "The selected starting side moves first. Dragons may move the gold on their turns. To move, click on a piece, and then click on the destination square. After moving, you may optionally capture an opposing piece. End the game to finish this game, then create a new game in the lobby to play again."
-                ]
-            }
-        ],
-        hasManualCapture: true,
-        hasManualEndGame: true
+        id,
+        name,
+        descriptionSections,
+        hasManualCapture,
+        hasManualEndGame
     },
+    boardSize,
+    specialSquare,
+    presetBoard,
+    startingSide
+});
+
+const createOriginalStylePresetRuleConfiguration = (
+    definition: Omit<PresetRuleConfigurationDefinition, "descriptionSections" | "startingSide"> & {
+        moveParagraphs: string[];
+        setupParagraph: string;
+    }
+): CreateRuleConfiguration =>
+    createPresetRuleConfiguration({
+        ...definition,
+        startingSide: ravensStartSide,
+        descriptionSections: createOriginalStyleSummary(
+            definition.id,
+            definition.name,
+            definition.moveParagraphs,
+            definition.setupParagraph
+        ).descriptionSections
+    });
+
+const freePlay = createPresetRuleConfiguration({
+    id: defaultRuleConfigurationId,
+    name: "Free Play",
     boardSize: defaultBoardSize,
     specialSquare: getCenterSquare(defaultBoardSize),
     presetBoard: {},
-    startingSide: "dragons"
-};
+    startingSide: defaultStartingSide,
+    hasManualCapture: true,
+    hasManualEndGame: true,
+    descriptionSections: [
+        {
+            heading: "Overview",
+            paragraphs: [
+                "Ravens are trying to steal the dragons' gold! Build the opening position on the create page, then dragons and ravens alternate turns once the game starts."
+            ]
+        },
+        {
+            heading: "Create Game",
+            paragraphs: [
+                "On the create page, click any square to cycle through dragon, raven, gold, then empty. Starting the game locks in that drafted board as the live opening position."
+            ]
+        },
+        {
+            heading: "Turns",
+            paragraphs: [
+                "The selected starting side moves first. Dragons may move the gold on their turns. To move, click on a piece, and then click on the destination square. After moving, you may optionally capture an opposing piece. End the game to finish this game, then create a new game in the lobby to play again."
+            ]
+        }
+    ]
+});
 
-const trivial: CreateRuleConfiguration = {
-    summary: {
-        id: "trivial",
-        name: "Trivial Configuration",
-        descriptionSections: [
-            {
-                heading: "Overview",
-                paragraphs: ["The dragons need to move the gold to the center."]
-            },
-            {
-                heading: "Setup",
-                paragraphs: ["The game starts from a preset board with dragons at a1 and g7, gold at a2 and g6, and ravens at a7 and g1."]
-            },
-            {
-                heading: "Turns",
-                paragraphs: [
-                    "Dragons move first. Pieces can move from any square to any other empty square. Pieces are captured whenever the moved piece ends orthogonally adjacent to opposing pieces."
-                ]
-            },
-            {
-                heading: "Winner",
-                paragraphs: [
-                    "Dragons win if any gold reaches d4 or all ravens are captured. Ravens win if all gold is captured."
-                ]
-            }
-        ],
-        hasManualCapture: false,
-        hasManualEndGame: false
-    },
+const trivial = createPresetRuleConfiguration({
+    id: "trivial",
+    name: "Trivial Configuration",
     boardSize: defaultBoardSize,
     specialSquare: "d4",
     presetBoard: {
@@ -142,8 +184,30 @@ const trivial: CreateRuleConfiguration = {
         a7: "raven",
         g1: "raven"
     },
-    startingSide: "dragons"
-};
+    startingSide: defaultStartingSide,
+    descriptionSections: [
+        {
+            heading: "Overview",
+            paragraphs: ["The dragons need to move the gold to the center."]
+        },
+        {
+            heading: "Setup",
+            paragraphs: ["The game starts from a preset board with dragons at a1 and g7, gold at a2 and g6, and ravens at a7 and g1."]
+        },
+        {
+            heading: "Turns",
+            paragraphs: [
+                "Dragons move first. Pieces can move from any square to any other empty square. Pieces are captured whenever the moved piece ends orthogonally adjacent to opposing pieces."
+            ]
+        },
+        {
+            heading: "Winner",
+            paragraphs: [
+                "Dragons win if any gold reaches d4 or all ravens are captured. Ravens win if all gold is captured."
+            ]
+        }
+    ]
+});
 
 const originalStylePresetBoard = {
     d4: "gold",
@@ -177,104 +241,55 @@ const squareOnePresetBoard = {
     f2: "raven"
 } satisfies Record<string, Piece>;
 
-const originalGame: CreateRuleConfiguration = {
-    summary: createOriginalStyleSummary(
-        "original-game",
-        "Original Game",
-        [
-            "Ravens move first.",
-            "Pieces move any distance orthogonally without jumping. The gold is moved by the dragons. No piece may land on the center square after the gold leaves it, and only the gold may land on the corner squares.",
-            "You may not make a move that causes any of your own pieces to be captured."
-        ],
-        "The game starts in a cross formation: gold in the center with dragons surrounding it, and two ravens behind each dragon."
-    ),
-    boardSize: defaultBoardSize,
-    specialSquare: "d4",
-    presetBoard: originalStylePresetBoard,
-    startingSide: "ravens"
-};
+const originalStylePresetConfigurations = [
+    {
+        id: "original-game",
+        name: "Original Game",
+        boardSize: defaultBoardSize,
+        specialSquare: "d4",
+        presetBoard: originalStylePresetBoard,
+        moveParagraphs: originalStyleMoveParagraphs,
+        setupParagraph: originalSetupParagraph
+    },
+    {
+        id: "sherwood-rules",
+        name: "Sherwood Rules",
+        boardSize: defaultBoardSize,
+        specialSquare: "d4",
+        presetBoard: originalStylePresetBoard,
+        moveParagraphs: sherwoodStyleMoveParagraphs,
+        setupParagraph: originalSetupParagraph
+    },
+    {
+        id: "square-one",
+        name: "Square One",
+        boardSize: defaultBoardSize,
+        specialSquare: "d4",
+        presetBoard: squareOnePresetBoard,
+        moveParagraphs: sherwoodStyleMoveParagraphs,
+        setupParagraph: squareOneSetupParagraph
+    },
+    {
+        id: "sherwood-x-9",
+        name: "Sherwood x 9",
+        boardSize: 9,
+        specialSquare: "e5",
+        presetBoard: shiftPresetBoard(originalStylePresetBoard, 1, 1),
+        moveParagraphs: sherwoodStyleMoveParagraphs,
+        setupParagraph: originalSetupParagraph
+    },
+    {
+        id: "square-one-x-9",
+        name: "Square One x 9",
+        boardSize: 9,
+        specialSquare: "e5",
+        presetBoard: shiftPresetBoard(squareOnePresetBoard, 1, 1),
+        moveParagraphs: sherwoodStyleMoveParagraphs,
+        setupParagraph: squareOneSetupParagraph
+    }
+].map(createOriginalStylePresetRuleConfiguration);
 
-const sherwoodRules: CreateRuleConfiguration = {
-    summary: createOriginalStyleSummary(
-        "sherwood-rules",
-        "Sherwood Rules",
-        [
-            "Ravens move first.",
-            "Dragons and ravens move any distance orthogonally without jumping. The gold is moved by the dragons and may move only one square orthogonally at a time.",
-            "No piece may land on the center square after the gold leaves it, and only the gold may land on the corner squares.",
-            "You may not make a move that causes any of your own pieces to be captured."
-        ],
-        "The game starts in a cross formation: gold in the center with dragons surrounding it, and two ravens behind each dragon."
-    ),
-    boardSize: defaultBoardSize,
-    specialSquare: "d4",
-    presetBoard: originalStylePresetBoard,
-    startingSide: "ravens"
-};
-
-const squareOne: CreateRuleConfiguration = {
-    summary: createOriginalStyleSummary(
-        "square-one",
-        "Square One",
-        [
-            "Ravens move first.",
-            "Dragons and ravens move any distance orthogonally without jumping. The gold is moved by the dragons and may move only one square orthogonally at a time.",
-            "No piece may land on the center square after the gold leaves it, and only the gold may land on the corner squares.",
-            "You may not make a move that causes any of your own pieces to be captured."
-        ],
-        "The game starts in a cross formation: gold in the center with dragons surrounding it, and eight ravens around the dragons."
-    ),
-    boardSize: defaultBoardSize,
-    specialSquare: "d4",
-    presetBoard: squareOnePresetBoard,
-    startingSide: "ravens"
-};
-
-const sherwoodX9: CreateRuleConfiguration = {
-    summary: createOriginalStyleSummary(
-        "sherwood-x-9",
-        "Sherwood x 9",
-        [
-            "Ravens move first.",
-            "Dragons and ravens move any distance orthogonally without jumping. The gold is moved by the dragons and may move only one square orthogonally at a time.",
-            "No piece may land on the center square after the gold leaves it, and only the gold may land on the corner squares.",
-            "You may not make a move that causes any of your own pieces to be captured."
-        ],
-        "The game starts in a cross formation: gold in the center with dragons surrounding it, and two ravens behind each dragon."
-    ),
-    boardSize: 9,
-    specialSquare: "e5",
-    presetBoard: shiftPresetBoard(originalStylePresetBoard, 1, 1),
-    startingSide: "ravens"
-};
-
-const squareOneX9: CreateRuleConfiguration = {
-    summary: createOriginalStyleSummary(
-        "square-one-x-9",
-        "Square One x 9",
-        [
-            "Ravens move first.",
-            "Dragons and ravens move any distance orthogonally without jumping. The gold is moved by the dragons and may move only one square orthogonally at a time.",
-            "No piece may land on the center square after the gold leaves it, and only the gold may land on the corner squares.",
-            "You may not make a move that causes any of your own pieces to be captured."
-        ],
-        "The game starts in a cross formation: gold in the center with dragons surrounding it, and eight ravens around the dragons."
-    ),
-    boardSize: 9,
-    specialSquare: "e5",
-    presetBoard: shiftPresetBoard(squareOnePresetBoard, 1, 1),
-    startingSide: "ravens"
-};
-
-export const createRuleConfigurations: CreateRuleConfiguration[] = [
-    freePlay,
-    trivial,
-    originalGame,
-    sherwoodRules,
-    squareOne,
-    sherwoodX9,
-    squareOneX9
-];
+export const createRuleConfigurations: CreateRuleConfiguration[] = [freePlay, trivial, ...originalStylePresetConfigurations];
 
 const createRuleConfigurationById = new Map(createRuleConfigurations.map((ruleConfiguration) => [ruleConfiguration.summary.id, ruleConfiguration]));
 

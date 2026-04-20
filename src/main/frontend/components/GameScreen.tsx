@@ -43,16 +43,16 @@ export const GameScreen = () => {
             <section className="panel page-header-panel game-header-panel">
                 <div className="page-header-copy">
                     <h2>{currentGameId ? `Game ${currentGameId}` : "Current Game"}</h2>
+                    <SeatPanel
+                        onClaimDragons={() => {
+                            void dispatch(claimSide("dragons"));
+                        }}
+                        onClaimRavens={() => {
+                            void dispatch(claimSide("ravens"));
+                        }}
+                    />
                     <StatusBanner text={statusText} />
                 </div>
-                <SeatPanel
-                    onClaimDragons={() => {
-                        void dispatch(claimSide("dragons"));
-                    }}
-                    onClaimRavens={() => {
-                        void dispatch(claimSide("ravens"));
-                    }}
-                />
             </section>
 
             <section className="game-layout">
