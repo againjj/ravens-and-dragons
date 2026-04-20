@@ -2,32 +2,53 @@
 
 ## Goal
 
-Add an optional server-driven bot opponent for `Sherwood Rules` only.
+Add optional server-driven bot opponents while keeping canonical game rules in Kotlin, preserving existing human-seat auth behavior, and shipping the user-visible bot features in the lowest-risk order.
 
-The first release should let one authenticated human claim either `dragons` or `ravens`, then assign a bot to the opposite seat from the game screen. The bot should use the canonical Kotlin rules, take its turns automatically, and be unavailable for every other rule configuration.
+The bot roadmap should now be:
 
-## Product Rules
+1. `Random` is the first bot implementation shipped to users.
+2. `Simple` is the second bot implementation shipped to users.
+3. `Minimax` is the third bot implementation shipped to users.
 
-- Bot assignment is supported only when `selectedRuleConfigurationId == "sherwood-rules"`.
-- `Free Play` must never offer or accept bot assignment.
-- `Original Game`, `Trivial Configuration`, and `Sherwood x 9` should also reject bot assignment in the first release.
-- The UI should offer bot assignment only after exactly one human seat is claimed and the opposite seat is still open.
-- The assignment action should always target the open opposite seat. The user does not choose which side the bot gets.
-- Bot-controlled seats should be visible in the seat panel and game view metadata.
-- Once the bot is assigned, the server should immediately take over that side for all future turns until the game ends or the bot is explicitly removed in a future change.
+Each user-visible bot feature should ship in its own release.
 
-## Non-Goals For This First Slice
+## Release Roadmap
 
-- No bot support for `free-play`.
-- No bot support for non-Sherwood rulesets.
-- No configurable difficulty levels.
-- No background worker, queue, or async retry system.
-- No attempt to make the bot especially strong before the basic loop is stable.
-- No “remove bot” or “replace bot with human” flow unless that becomes necessary during implementation.
+The lowest-risk release order is:
+
+1. `Release 1`: Ability to use bot `Random` for `Sherwood Rules`.
+2. `Release 2`: Ability to use a bot for all rule sets other than `Free Play` and `Trivial Configuration`.
+3. `Release 3`: Ability to use `Undo` with a bot.
+4. `Release 4`: Implementation of the bot `Simple`.
+5. `Release 5`: Implementation of the bot `Minimax`.
+
+Why this order:
+
+- `Release 1` proves the end-to-end server bot loop on one ruleset with the lowest-complexity policy.
+- `Release 2` reuses that bot loop and expands ruleset coverage before introducing grouped history semantics.
+- `Release 3` adds the first materially tricky UX and backend-history behavior without also changing bot strategy.
+- `Release 4` adds a second bot on top of already-stable assignment, orchestration, and undo behavior.
+- `Release 5` adds search-based behavior last, after the supporting simulation and evaluation infrastructure is already justified by proven product value.
+
+## Behaviors That Must Remain True
+
+These behaviors from the current plan should still hold unless a later release below explicitly expands them:
+
+- Bot assignment uses the canonical Kotlin rules and server-owned turn execution.
+- Bot-controlled seats are represented separately from human seat ownership.
+- `viewerRole` remains human-viewer-only and must not gain a `bot` value.
+- The UI exposes bot assignment only when exactly one human seat is claimed and the opposite seat is open.
+- The assignment action always targets the opposite open seat. The user does not choose the side.
+- `Free Play` must always reject bot assignment.
+- Assigned bot seats should be visible in the seat panel and game view metadata.
+- Bot turns should run synchronously inside the request/response path in `GameSessionService`.
+- Connected browsers should receive intermediate broadcasts as bot turns are applied.
+- Bot move generation and simulation should stay in the Kotlin game module and must not duplicate client-only rules code.
+- Deterministic ordering should be preserved for legal action generation and bot tie-breaking so tests remain stable.
 
 ## Current Architecture Touchpoints
 
-The bot should fit the existing separation of responsibilities instead of introducing parallel rule logic:
+The bot work should fit the existing layer split instead of introducing parallel rule logic:
 
 - Backend rule authority:
   - [src/main/kotlin/com/dragonsvsravens/game/GameRules.kt](/Users/jrayazian/code/dragons-vs-ravens/src/main/kotlin/com/dragonsvsravens/game/GameRules.kt)
@@ -45,233 +66,166 @@ The bot should fit the existing separation of responsibilities instead of introd
   - [src/main/frontend/features/game/gameThunks.ts](/Users/jrayazian/code/dragons-vs-ravens/src/main/frontend/features/game/gameThunks.ts)
   - [src/main/frontend/game-types.ts](/Users/jrayazian/code/dragons-vs-ravens/src/main/frontend/game-types.ts)
 
-## Proposed Technical Design
+## Cross-Release Technical Foundations
 
-### 1. Represent bot-controlled seats in the shared game session
+These foundations should be introduced early and then reused across all five releases.
 
-Add explicit bot identity fields to `GameSession` rather than overloading existing user ownership:
+### 1. Represent bot-controlled seats in the shared session
+
+Add explicit bot identity fields to `GameSession` rather than overloading human ownership:
 
 - `dragonsBotId: String?`
 - `ravensBotId: String?`
 
-Even though the first release ships only one bot, starting with bot ids avoids a model rewrite in release two and keeps auth logic distinct from AI control.
+Update these layers together:
 
-Update these layers consistently:
+- Kotlin session model in [src/main/kotlin/com/dragonsvsravens/game/GameModels.kt](/Users/jrayazian/code/dragons-vs-ravens/src/main/kotlin/com/dragonsvsravens/game/GameModels.kt)
+- JSON codec in [src/main/kotlin/com/dragonsvsravens/game/GameJsonCodec.kt](/Users/jrayazian/code/dragons-vs-ravens/src/main/kotlin/com/dragonsvsravens/game/GameJsonCodec.kt)
+- JDBC persistence in [src/main/kotlin/com/dragonsvsravens/game/JdbcGameStore.kt](/Users/jrayazian/code/dragons-vs-ravens/src/main/kotlin/com/dragonsvsravens/game/JdbcGameStore.kt)
+- TS wire types in [src/main/frontend/game-types.ts](/Users/jrayazian/code/dragons-vs-ravens/src/main/frontend/game-types.ts)
 
-- Kotlin session model in [GameModels.kt](/Users/jrayazian/code/dragons-vs-ravens/src/main/kotlin/com/dragonsvsravens/game/GameModels.kt)
-- JSON codec in [GameJsonCodec.kt](/Users/jrayazian/code/dragons-vs-ravens/src/main/kotlin/com/dragonsvsravens/game/GameJsonCodec.kt)
-- JDBC persistence in [JdbcGameStore.kt](/Users/jrayazian/code/dragons-vs-ravens/src/main/kotlin/com/dragonsvsravens/game/JdbcGameStore.kt)
-- TS wire types in [game-types.ts](/Users/jrayazian/code/dragons-vs-ravens/src/main/frontend/game-types.ts)
+Database migration requirements:
 
-Database migration:
+- add nullable bot-id columns to the `games` table for both sides
+- default existing rows to `null`
+- keep the migration backward-safe for already persisted games
+- use stable bot ids from the beginning so later releases do not need another schema change
 
-- Add nullable bot-id columns to the `games` table for each side.
-- Default existing rows to `null`.
-- Plan persistence now for the release-two bot catalog shape, even if the first release only stores one bot id.
-- Keep the migration backward-safe for already persisted games.
+### 2. Keep bot assignment as seat-management API
 
-### 2. Add a dedicated bot-assignment action
+Use a dedicated endpoint instead of overloading turn commands:
 
-Add a server action dedicated to “assign the bot to the other side”.
+- `POST /api/games/{gameId}/assign-bot-opponent`
 
-Recommended API shape:
+Request body should include a bot id from the start:
 
-- New endpoint: `POST /api/games/{gameId}/assign-bot-opponent`
-- Request body should already include a bot id, even in the first release, so the API shape does not need to change later.
-- First-release request body example: `{ "botId": "simple" }`
+- example: `{ "botId": "random" }`
 
-Reason to prefer a dedicated endpoint over a generic command:
+Why this shape should stay:
 
-- It is seat-management behavior, closer to `claim-side` than to board mutation.
-- It avoids overloading `GameCommandRequest` with non-turn actions that do not depend on `expectedVersion`.
-- The request semantics stay simple while also future-proofing the endpoint for multiple bots.
+- bot assignment is seat-management behavior, closer to `claim-side` than to board mutation
+- it avoids bloating `GameCommandRequest` with non-turn actions
+- later releases can add more bot ids without reshaping the endpoint
 
-Validation rules on the backend:
+### 3. Keep bot state separate from viewer auth state
 
-- Caller must be authenticated.
-- Caller must currently own exactly one claimed human seat.
-- The opposite seat must be open.
-- Neither side may already be bot-controlled.
-- The selected rule configuration must be exactly `sherwood-rules`.
-- The game must not be finished.
-- The game should still be in a pre-start state for the first release.
-
-That last rule is recommended even though the user did not require it explicitly. It keeps the first implementation simple and avoids edge cases such as assigning a bot into a live game with an already-developed position and immediate forced moves.
-
-### 3. Extend seat and viewer derivation without changing viewer auth semantics
-
-Keep `viewerRole` exactly as it works today:
+`viewerRole` should remain:
 
 - `anonymous`
 - `spectator`
 - `dragons`
 - `ravens`
 
-Do not introduce a `bot` viewer role. A bot is not a browser viewer or authenticated actor.
+The frontend should derive bot UI from session and catalog metadata, not from a bot viewer role.
 
-Instead, expose bot state through the session and optionally through view metadata if needed by the frontend. The seat panel can then render:
+### 4. Keep legal action generation canonical and deterministic
 
-- human user display name if a human owns the seat
-- `Bot: Simple` if the seat is bot-controlled
-- `Open seat` otherwise
-
-Selectors should derive:
-
-- whether Sherwood bot assignment is supported for the current game
-- whether the viewer can assign a bot opponent
-- which side would receive the bot if the button is pressed
-
-### 4. Add canonical Sherwood legal-move enumeration on the backend
-
-The bot needs legal action generation from canonical rules. Right now the backend can validate a proposed move, but it does not expose a reusable “enumerate all legal moves” helper.
-
-Add a backend helper layer for Sherwood move generation:
-
-- enumerate all movable pieces for the active side
-- enumerate all reachable orthogonal destinations for each piece
-- filter candidates through the existing Sherwood legality rules
-- produce a stable ordered list of legal moves
-
-Recommended location:
-
-- introduce focused helpers in the Kotlin game module, near the original-style rules
-- keep the public entry point in `GameRules` so callers do not need to know rule-engine internals
-
-Suggested types:
-
-- `data class LegalMove(val origin: String, val destination: String)`
-- `data class BotAction(...)` if the bot action layer needs to distinguish seat actions from turn actions later
-
-Suggested APIs:
+Recommended shared APIs:
 
 - `GameRules.getLegalMoves(snapshot: GameSnapshot): List<LegalMove>`
-- optional `GameRules.isBotAssignable(session: GameSession): Boolean`
+- optional `GameRules.getLegalActions(snapshot: GameSnapshot): List<BotAction>` once capture-phase or ruleset branching makes a move-only abstraction too narrow
 
-Implementation notes for Sherwood:
+Implementation notes:
 
-- Reuse `BoardCoordinates.allSquares`, `BoardCoordinates.pathBetween`, and the existing `validateMove` logic in `OriginalStyleRuleEngine`.
-- Preserve deterministic ordering, for example lexicographic by `origin`, then `destination`.
-- Avoid duplicating the client-only logic from `game-rules-client.ts`.
+- enumerate candidates broadly, then filter through existing validation where practical
+- reuse `BoardCoordinates` helpers and existing rule-engine validation
+- keep action ordering stable, for example lexicographic by origin and destination
+- do not duplicate logic from `src/main/frontend/game-rules-client.ts`
 
-### 5. Add a first-pass Sherwood bot policy
+### 5. Keep bot turn orchestration inside `GameSessionService`
 
-Create a backend service dedicated to selecting the next Sherwood move, for example:
-
-- `SimpleBotService.kt`
-
-Inputs:
-
-- current `GameSnapshot`
-
-Output:
-
-- selected legal move
-
-First-pass deterministic heuristic:
-
-1. If any legal move wins immediately for dragons by moving the gold to a corner, choose the earliest such move.
-2. If any legal move wins immediately for ravens by capturing the gold, choose the earliest such move.
-3. Otherwise score candidate moves by simple features and pick the highest-scoring move.
-
-Suggested initial scoring features:
-
-- prefer moves that capture enemy pieces immediately
-- for dragons, prefer moves that reduce the gold’s Manhattan distance to a corner
-- for ravens, prefer moves that reduce distance to the gold or increase pressure on the gold’s neighbors
-- prefer moves that increase mobility for the moving side
-- penalize moves that leave the moved piece exposed if not already rejected by validation
-
-Keep the first heuristic intentionally small and easy to test. The goal is correctness and stable behavior, not deep search.
-
-### 6. Orchestrate automatic bot turns inside `GameSessionService`
-
-After a state transition that may hand control to the bot, the server should keep applying bot turns while the active side remains bot-controlled.
-
-Likely trigger points:
-
-- after successful bot assignment
-- after `start-game`
-- after any human move that ends with the bot to act
-- after undo, if undo can restore a bot-to-move position
-
-Recommended orchestration pattern:
+After a state transition that may hand control to a bot:
 
 1. Load current stored game under the existing per-game lock.
-2. Apply the initiating human action.
+2. Apply the initiating action.
 3. Persist and broadcast the result.
-4. While the game is active and the side to move is bot-controlled:
-   - compute the bot move from the persisted snapshot
+4. While the game is active and the side to act is bot-controlled:
+   - compute the bot action from the persisted snapshot
    - apply it through the same canonical rule path
    - persist and broadcast the new session
-5. Return the final post-bot session to the caller.
+5. Return the final post-bot session.
 
-Why this belongs in `GameSessionService`:
+Guardrails:
 
-- it already owns locking, persistence retries, and broadcast timing
-- bot chaining should stay close to session orchestration rather than inside pure rule code
-
-Important guardrails:
-
-- keep the bot loop deterministic and bounded
+- keep the loop deterministic and bounded
 - do not recurse through controller endpoints
-- do not bypass `GameCommandService` for move application unless a smaller internal helper is extracted cleanly
-- make sure each stored intermediate bot turn still broadcasts so connected browsers stay in sync
+- do not bypass canonical command validation unless a smaller internal helper is extracted cleanly
+- keep each intermediate broadcast so connected browsers stay in sync
 
-### 7. Decide first-release undo behavior before implementation
+### 6. Formalize a bot catalog early
 
-Undo semantics become tricky once the bot replies immediately.
+Even though only `Random` is user-visible in `Release 1`, the server should use a catalog-style design from the start:
 
-Recommended first-release rule:
+- `random`
+- `simple`
+- `minimax`
 
-- Disable undo for games with an assigned bot.
+Recommended supporting types:
 
-Reason:
+- `data class BotDefinition(...)`
+- `interface GameBotStrategy { ... }`
+- `BotRegistry`
 
-- current undo ownership is user-based
-- a bot response would otherwise immediately change `undoOwnerSide`
-- supporting “undo human move and bot reply together” is a separate product decision
+The registry should become the single source of truth for:
 
-Implementation path:
+- bot ids
+- display names
+- supported rulesets
+- strategy implementations
+- frontend-visible bot metadata
 
-- when either bot id is non-null, set `canUndo` false and reject `undo`
-- update selectors so the UI hides or disables undo accordingly
+## Release 1: Random For Sherwood Rules
 
-This is stricter than the current behavior, but it is the safest first slice.
+### User-visible feature
 
-### 8. Add frontend support for assigning the opposing bot
+Ability to use bot `Random` for `Sherwood Rules`.
 
-UI behavior in the seat panel:
+### Product Rules
 
-- If the current game is `sherwood-rules`
-- and exactly one human seat is claimed by the current viewer
-- and the opposite seat is open
-- and neither seat is bot-controlled
-- then show one button:
-  - `Assign Bot To Ravens` if the viewer claimed dragons
-  - `Assign Bot To Dragons` if the viewer claimed ravens
+- Bot assignment is supported only when `selectedRuleConfigurationId == "sherwood-rules"`.
+- `Free Play` must never offer or accept bot assignment.
+- `Original Game`, `Trivial Configuration`, and `Sherwood x 9` must still reject bot assignment in this release.
+- The caller must be authenticated.
+- The caller must own exactly one claimed human seat.
+- The opposite seat must be open.
+- Neither side may already be bot-controlled.
+- The game must not be finished.
+- Bot assignment should remain setup-only in this release.
+- The assignment action should always target the opposite open seat.
+- The seat panel should render `Bot: Random` for the assigned side.
+- Once assigned, the server should immediately take over that side for all future turns until the game ends.
+- Undo should be disabled for bot games in this release.
 
-Do not show the button when:
+### Backend Scope
 
-- the game uses any other ruleset
-- the viewer is not authenticated
-- the viewer has not claimed a seat
-- both seats are already occupied
-- the opposite side is already a bot
-- the game is already active or finished, if we keep the pre-start-only restriction
+1. Add bot seat fields to `GameSession`, the JSON codec, JDBC persistence, and the TypeScript wire model.
+2. Add the Flyway migration for bot ids.
+3. Add the dedicated `assign-bot-opponent` endpoint and Sherwood-only validation.
+4. Add canonical Sherwood legal-move enumeration in the Kotlin game module.
+5. Implement `Random` as the first bot strategy.
+6. Orchestrate synchronous bot turns inside `GameSessionService`.
+7. Reject `undo` when either bot seat is populated.
 
-Frontend work:
+### Frontend Scope
 
-- add client transport helper in [game-client.ts](/Users/jrayazian/code/dragons-vs-ravens/src/main/frontend/game-client.ts)
-- add thunk in [gameThunks.ts](/Users/jrayazian/code/dragons-vs-ravens/src/main/frontend/features/game/gameThunks.ts)
-- add selectors in [gameSelectors.ts](/Users/jrayazian/code/dragons-vs-ravens/src/main/frontend/features/game/gameSelectors.ts)
-- update [SeatPanel.tsx](/Users/jrayazian/code/dragons-vs-ravens/src/main/frontend/components/SeatPanel.tsx) to render seat labels and the new action button
-- wire the callback from [GameScreen.tsx](/Users/jrayazian/code/dragons-vs-ravens/src/main/frontend/components/GameScreen.tsx)
+1. Extend `GameViewResponse` consumption so the client receives bot ids and bot display metadata.
+2. Add transport and thunk support for bot assignment in [src/main/frontend/game-client.ts](/Users/jrayazian/code/dragons-vs-ravens/src/main/frontend/game-client.ts) and [src/main/frontend/features/game/gameThunks.ts](/Users/jrayazian/code/dragons-vs-ravens/src/main/frontend/features/game/gameThunks.ts).
+3. Add selectors for:
+   - whether Sherwood bot assignment is supported
+   - whether the viewer can assign a bot opponent
+   - which side would receive the bot
+4. Update [src/main/frontend/components/SeatPanel.tsx](/Users/jrayazian/code/dragons-vs-ravens/src/main/frontend/components/SeatPanel.tsx) and [src/main/frontend/components/GameScreen.tsx](/Users/jrayazian/code/dragons-vs-ravens/src/main/frontend/components/GameScreen.tsx) so the UI shows one assignment button only in the allowed Sherwood state.
+5. Hide or disable undo when the backend reports a bot-controlled seat and `canUndo == false`.
 
-### 9. Testing strategy
+### Random Bot Requirements
 
-#### Backend tests
+- `Random` must choose only from the canonical legal action set.
+- Tie-breaking should still be deterministic for tests, for example by seeding or by choosing from a stable ordered candidate list with a testable random source.
+- `Random` should not introduce special heuristics beyond legality and reproducibility.
 
-Add or extend tests to cover:
+### Testing
+
+Backend tests should cover:
 
 - bot assignment is rejected for `free-play`
 - bot assignment is rejected for `original-game`, `trivial`, and `sherwood-x-9`
@@ -280,340 +234,340 @@ Add or extend tests to cover:
 - bot assignment targets the opposite open side only
 - bot assignment is rejected when the target seat is already human-claimed
 - bot assignment is rejected when a bot is already present
-- legal move generation for Sherwood respects:
-  - orthogonal movement only
-  - path blocking
-  - gold one-square movement
-  - center/corner restrictions
-  - illegal enemy sandwich moves
-  - “do not expose your own piece to capture” restriction
+- Sherwood legal move generation respects orthogonal movement, path blocking, gold one-square movement, center and corner restrictions, enemy sandwich restrictions, and “do not expose your own piece to capture”
 - bot turn orchestration applies a move automatically when the bot is to act
 - game-over positions stop the bot loop
-- undo is rejected once a bot is assigned, if we adopt that rule
+- undo is rejected once a bot is assigned
 
-Primary backend test files:
-
-- [src/test/kotlin/com/dragonsvsravens/game/GameRulesTest.kt](/Users/jrayazian/code/dragons-vs-ravens/src/test/kotlin/com/dragonsvsravens/game/GameRulesTest.kt)
-- [src/test/kotlin/com/dragonsvsravens/game/GameControllerTest.kt](/Users/jrayazian/code/dragons-vs-ravens/src/test/kotlin/com/dragonsvsravens/game/GameControllerTest.kt)
-
-Add a dedicated backend bot test file if the coverage becomes too broad, for example:
-
-- `src/test/kotlin/com/dragonsvsravens/game/SherwoodBotTest.kt`
-
-#### Frontend tests
-
-Add or extend tests to cover:
+Frontend tests should cover:
 
 - seat panel shows `Assign Bot To ...` only in the allowed Sherwood state
-- the button is hidden for `free-play` and other non-Sherwood rulesets
-- seat labels render `Bot: Simple` for bot-controlled seats
+- the button is hidden for `free-play` and the other non-Sherwood rulesets
+- seat labels render `Bot: Random` for bot-controlled seats
 - clicking the button dispatches the bot-assignment thunk
 - undo is hidden or disabled when the session reports a bot-controlled seat and undo is unavailable
 
-Primary frontend test files:
+### Deliverable
 
-- [src/test/frontend/game-thunks.test.ts](/Users/jrayazian/code/dragons-vs-ravens/src/test/frontend/game-thunks.test.ts)
-- [src/test/frontend/game-screen.test.tsx](/Users/jrayazian/code/dragons-vs-ravens/src/test/frontend/game-screen.test.tsx)
+One authenticated player can assign `Random` to the opposite seat in a setup-phase `Sherwood Rules` game, and the server will play that side automatically.
 
-## Step-By-Step Implementation Sequence
+## Release 2: Bot Support For All Supported Rulesets
 
-### Phase 1: Session and API plumbing
+### User-visible feature
 
-1. Add bot seat fields to `GameSession` and the TS session type.
-2. Add a Flyway migration and store/codec support.
-3. Extend `GameViewResponse` consumption so the frontend receives bot ids plus display metadata for the first-release bot.
-4. Add the `assign-bot-opponent` backend endpoint and validation.
+Ability to use a bot for all rule sets other than `Free Play` and `Trivial Configuration`.
 
-Deliverable:
+### Product Rules
 
-- Sherwood games can persist release-two-ready bot seat state, but the bot does not move yet.
+- `Sherwood Rules`, `Original Game`, and `Sherwood x 9` must support bot assignment.
+- `Free Play` and `Trivial Configuration` must still reject bot assignment.
+- The user should still assign a bot only when exactly one human seat is claimed and the opposite seat is open.
+- The assignment action should still target the opposite open seat automatically.
+- The game may still remain setup-only for bot assignment in this release.
+- The available bot list may still expose only `Random` in this release.
+- Undo should remain disabled for bot games until `Release 3`.
 
-### Phase 2: Sherwood move enumeration
+### Backend Scope
 
-1. Add legal move generation helpers for Sherwood in the Kotlin game module.
-2. Add focused tests proving the generated move set matches Sherwood constraints.
+1. Generalize canonical legal action generation beyond Sherwood so the existing bot loop can operate on all supported non-free-play rulesets.
+2. Expand the bot registry metadata so supported-ruleset filtering comes from one backend source.
+3. Update assignment validation to allow `original-game` and `sherwood-x-9`.
+4. Keep `Free Play` and `Trivial Configuration` explicitly rejected.
+5. Ensure game-over detection and bot orchestration behave correctly on all supported rulesets.
 
-Deliverable:
+### Frontend Scope
 
-- backend can deterministically enumerate legal Sherwood moves for the side to act.
+1. Update selectors so bot assignment visibility follows backend-supported rulesets rather than a Sherwood-only hardcode.
+2. Continue rendering assigned seats as `Bot: Random`.
+3. Keep the single assign-bot action simple if `Random` is still the only available bot.
+4. Keep undo hidden or disabled for bot games.
 
-### Phase 3: Bot policy and server orchestration
+### Testing
 
-1. Add `SherwoodBotService`.
-2. Add automatic bot-turn orchestration in `GameSessionService`.
-3. Decide and enforce first-release undo behavior.
-4. Add backend integration tests for assignment plus auto-response.
+Backend tests should add:
 
-Deliverable:
+- bot availability for `original-game`, `sherwood-rules`, and `sherwood-x-9`
+- rejection for `free-play` and `trivial`
+- ruleset-aware legal action generation for the newly supported rulesets
+- automatic bot responses across each supported ruleset
 
-- assigned Sherwood bot plays automatically from the server after human actions.
+Frontend tests should add:
 
-### Phase 4: Frontend controls and feedback
+- assignment button appears for supported non-free-play rulesets
+- assignment remains hidden for `Free Play` and `Trivial Configuration`
+- seat labels still render the assigned bot name correctly across supported rulesets
 
-1. Add client API helper and thunk for bot assignment.
-2. Add selectors for bot eligibility and assignment target.
-3. Update `SeatPanel` and `GameScreen` wiring.
-4. Add frontend tests.
+### Deliverable
 
-Deliverable:
+Players can use `Random` as a bot opponent in every supported ruleset except `Free Play` and `Trivial Configuration`.
 
-- users can assign the opposite Sherwood seat to a bot from the game UI.
+## Release 3: Undo With A Bot
 
-### Phase 5: Verification and docs
+### User-visible feature
 
-1. Run `./gradlew test`.
-2. Manually sanity-check a Sherwood game in the browser.
-3. Update [docs/code-summary.md](/Users/jrayazian/code/dragons-vs-ravens/docs/code-summary.md) and [README.md](/Users/jrayazian/code/dragons-vs-ravens/README.md) to describe the finished behavior.
+Ability to use `Undo` with a bot.
 
-## Confirmed First-Release Decisions
+### Product Rules
 
-The following recommended approaches are confirmed for the first release:
+- Undo in bot games should reverse one full exchange: the last human move plus the bot reply that immediately followed it.
+- Undo should remain a backend concern; the frontend should only reflect the resulting `canUndo` and explanatory UI.
+- If a bot was assigned and the game history does not contain a reversible human-plus-bot exchange, `undo` should stay unavailable.
+- Bot-triggered undo should restore the snapshot from before the last human move in that exchange.
+- After undo restores the prior position, the server should not immediately replay the reverted bot turn.
 
-1. Bot assignment is allowed only before `start-game`, not during a live Sherwood game.
-2. Undo is disabled for bot games in the first release.
-3. The bot moves synchronously inside `GameSessionService` during the request/response cycle.
+### Backend Scope
 
-## Risks And Mitigations
+1. Redefine undo bookkeeping around exchange history rather than single-command history.
+2. Store enough internal metadata to distinguish human-only moves, bot-only moves, and human-plus-bot exchanges.
+3. Update undo validation and session derivation so bot games can advertise grouped undo availability.
+4. Ensure the restored session is persisted and broadcast correctly.
 
-- Risk: duplicated rules between frontend and backend.
-  Mitigation: keep all bot move generation in Kotlin and treat the frontend as display plus action wiring only.
-- Risk: session persistence drift after adding bot fields.
-  Mitigation: update model, codec, migration, and JDBC reads/writes together, then add persistence coverage in controller/service tests.
-- Risk: bot loop complexity around locking and broadcast order.
-  Mitigation: keep orchestration inside `GameSessionService` and reuse the existing per-game lock.
-- Risk: legal move enumeration may accidentally diverge from Sherwood validation.
-  Mitigation: generate candidates broadly, then filter by existing `validateMove` instead of rewriting legality rules from scratch.
-- Risk: immediate bot replies make undo confusing.
-  Mitigation: disable undo for bot games in the first release.
+### Frontend Scope
 
-## Recommended First Commit Breakdown
+1. Re-enable undo in bot games when the backend reports grouped undo is available.
+2. Update explanatory copy so users understand that undo reverses the last human-plus-bot exchange.
+3. Preserve the existing seat-panel assignment UX.
 
-To keep the implementation reviewable, split the eventual code work into small commits:
-
-1. session model, migration, and API plumbing for bot-controlled seats
-2. Sherwood-only bot assignment endpoint plus validation
-3. Sherwood legal move enumeration helpers and tests
-4. `SimpleBotService` plus server-side bot orchestration
-5. frontend seat-panel wiring and tests
-6. docs polish after the feature is complete
-
-## Second Release Plan
-
-The second release should build directly on the release-one bot-id persistence model and introduce a small bot platform rather than another one-off implementation. The original first-release bot should stay available and be named `Simple`.
-
-### Scope
-
-This second release should add:
-
-1. bot assignment whenever a seat is empty, even if the game is already started
-2. undo support that rolls back the last human move and the immediately following bot reply together
-3. bot support for `original-game` and `sherwood-x-9` in addition to `sherwood-rules`
-4. multiple selectable bot implementations with distinct names and strategies
-5. a `Random` bot that chooses a legal move from the canonical legal-action set
-6. a minimax bot that searches future positions and chooses moves by evaluation score
-7. preservation of the original release-one bot under the new display name `Simple`
-
-### Product Rules For Release Two
-
-- A human may assign a bot whenever exactly one seat is open and bot assignment is supported for the current ruleset, regardless of whether the game is still in setup or already in progress.
-- The assign-bot action should let the user choose which available bot to assign to the open seat.
-- `Free Play` should still reject bot assignment.
-- `Sherwood Rules`, `Original Game`, and `Sherwood x 9` should support bots.
-- The available bot list should include `Simple`, `Random`, and `Minimax` when supported for the current ruleset.
-- Assigned bot seats should render as `Bot: <botname>`.
-- Undo should remain available in bot games, but invoking it should roll back one complete exchange: the last human move plus the bot move that immediately followed it.
-- If the assigned bot side is to move after assignment in a live game, the server should act immediately using that bot's policy.
-
-### Core Design
-
-#### 1. Reuse the release-one bot-id model
-
-Release one should already persist:
-
-- `dragonsBotId: String?`
-- `ravensBotId: String?`
-
-Release two should keep that model and build a bot catalog on top of it instead of changing the schema again.
-
-Recommended supporting types:
-
-- `data class BotDefinition(val id: String, val displayName: String, ... )`
-- `interface GameBotStrategy { fun chooseAction(session: GameSession): BotDecision }`
-- `BotRegistry` or similar catalog to map ids to implementations and supported rulesets
-
-This keeps persistence compact while letting the server expose stable bot ids and friendly names to the frontend.
-
-#### 2. Formalize the bot lineup
-
-The first-release bot should remain available and be renamed:
-
-- id: `simple`
-- display name: `Simple`
-
-Release two should add:
-
-- id: `random`
-- display name: `Random`
-- id: `minimax`
-- display name: `Minimax`
-
-The registry should be the single source of truth for:
-
-- bot ids
-- display names
-- supported rulesets
-- strategy implementations
-
-#### 3. Generalize canonical legal action generation
-
-The first release adds Sherwood move generation. Release two should broaden that into ruleset-aware legal action generation so `Simple`, `Random`, and `Minimax` can all operate on `sherwood-rules`, `original-game`, and `sherwood-x-9`.
-
-Recommended API direction:
-
-- `GameRules.getLegalMoves(snapshot: GameSnapshot): List<LegalMove>`
-- `GameRules.getLegalActions(snapshot: GameSnapshot): List<BotAction>` if move-phase and capture-phase branching need a shared action abstraction
-
-Important note:
-
-- callers should still go through a single `GameRules` facade even if different rulesets need different internal enumeration helpers
-
-#### 4. Add pure simulation support for search-based bots
-
-The minimax bot needs a way to evaluate hypothetical positions in memory without persistence or controller round-trips.
-
-Recommended direction:
-
-- simulate from `GameSnapshot`
-- reuse canonical rule transitions for hypothetical actions
-- keep search and evaluation entirely in the Kotlin game module
-- use deterministic action ordering for reproducible choices and stable tests
-
-#### 5. Redefine undo around exchange history
-
-Undo in bot games should reverse a full exchange instead of a single command. That means the server needs enough history metadata to know whether the last transition was:
-
-- a human move only
-- a bot move only
-- a human-plus-bot exchange
-- a setup or seat-management action that should not be grouped with turn undo
-
-Recommended direction:
-
-- keep canonical undo bookkeeping on the backend
-- store richer internal undo records or exchange-boundary metadata
-- when a human triggers undo in a bot game, restore the snapshot from before their last move if the bot answered immediately after it
-
-This should remain a backend concern so Redux selectors only reflect the resulting `canUndo` and any explanatory messaging.
-
-#### 6. Support live-game bot assignment safely
-
-Assigning a bot after the game has started adds edge cases that the first release intentionally avoids.
-
-Validation should now allow:
-
-- setup positions before `start-game`
-- active in-progress games where exactly one seat is open
-
-Validation should still reject:
-
-- finished games
-- games where both seats are occupied
-- unsupported rulesets
-- `free-play`
-- invalid bot ids for the current ruleset
-
-If the newly assigned bot is also the active side, the assignment endpoint should persist the assignment and then immediately run the bot loop before returning.
-
-### Backend Workstreams
-
-#### Catalog and API work
-
-- keep the existing bot-id persistence fields in `GameSession`, JSON codec, JDBC store, and TS wire types
-- add backend-exposed bot catalog metadata so the frontend can render available choices and assigned bot names
-- update the bot-assignment endpoint to require a bot id in the request body
-
-Recommended request shape:
-
-- `POST /api/games/{gameId}/assign-bot-opponent`
-- request body example: `{ "botId": "random" }`
-
-That preserves the seat-management endpoint while supporting multiple bots.
-
-#### Bot strategy services
-
-- rename or formalize the original release-one bot as `Simple`
-- create a backend registry of supported bots
-- implement `Random` bot on top of canonical legal action enumeration
-- implement `Minimax` bot with deterministic tie-breaking and bounded search depth
-- expose only rule-compatible bots for the current session
-
-#### Rule evaluation support for minimax
-
-The minimax bot needs:
-
-- ruleset-aware legal action generation
-- a fast way to apply hypothetical actions to snapshots without mutating persisted state
-- evaluation heuristics per supported ruleset
-- deterministic ordering for reproducible choices and stable tests
-
-Recommended approach:
-
-- keep search purely in memory over snapshots
-- reuse canonical rule transitions for simulation
-- add a small evaluation layer per ruleset rather than encoding all scoring in one generic heuristic
-
-#### Undo and orchestration work
-
-- update undo history internals so the server can revert a human move and bot reply together
-- ensure bot-triggered follow-up still broadcasts each intermediate state as needed
-- ensure `undo` returns the final restored session after the grouped rollback
-- allow bot assignment during live supported games and trigger an immediate bot move when appropriate
-
-### Frontend Workstreams
-
-- replace the single assign-bot button state with selectable bot options
-- render assigned bot seats as `Bot: <botname>`
-- keep the assignment affordance available when a supported in-progress game has an empty seat
-- leave undo enabled when the backend reports grouped undo is available
-- update explanatory copy so users understand that undo reverses the last human-plus-bot exchange
-
-Likely touchpoints:
-
-- [src/main/frontend/components/SeatPanel.tsx](/Users/jrayazian/code/dragons-vs-ravens/src/main/frontend/components/SeatPanel.tsx)
-- [src/main/frontend/components/GameScreen.tsx](/Users/jrayazian/code/dragons-vs-ravens/src/main/frontend/components/GameScreen.tsx)
-- [src/main/frontend/features/game/gameSelectors.ts](/Users/jrayazian/code/dragons-vs-ravens/src/main/frontend/features/game/gameSelectors.ts)
-- [src/main/frontend/features/game/gameThunks.ts](/Users/jrayazian/code/dragons-vs-ravens/src/main/frontend/features/game/gameThunks.ts)
-- [src/main/frontend/game-client.ts](/Users/jrayazian/code/dragons-vs-ravens/src/main/frontend/game-client.ts)
-- [src/main/frontend/game-types.ts](/Users/jrayazian/code/dragons-vs-ravens/src/main/frontend/game-types.ts)
-
-### Testing Strategy For Release Two
+### Testing
 
 Backend tests should cover:
 
-- live-game bot assignment into an already-started supported game
-- rejection for `free-play` and unsupported rulesets
-- bot availability for `original-game`, `sherwood-rules`, and `sherwood-x-9`
-- bot catalog filtering by ruleset
-- `Simple` remains available and behaviorally equivalent to the original first-release bot
-- `Random` chooses only legal actions
-- `Minimax` chooses expected actions in controlled positions
 - grouped undo restoring the pre-human-turn snapshot in bot games
-- immediate bot response after live-game assignment when the bot side is to move
+- non-bot undo behavior remains correct
+- undo returns the final restored session instead of replaying the reverted bot turn
+
+Frontend tests should cover:
+
+- undo stays enabled for bot games when the backend says it is available
+- any explanatory messaging matches the grouped-undo behavior
+
+### Deliverable
+
+Bot games support undo that reverses the last human move and immediate bot reply together.
+
+## Release 4: Simple Bot
+
+### User-visible feature
+
+Implementation of the bot `Simple`.
+
+### Product Rules
+
+- `Simple` becomes a selectable bot alongside `Random`.
+- `Random` remains available and behaviorally unchanged.
+- Supported rulesets should match the coverage established in `Release 2`.
+- Undo behavior from `Release 3` should continue to work for both `Random` and `Simple`.
+- Assigned bot seats should render as `Bot: Simple` or `Bot: Random`.
+
+### Backend Scope
+
+1. Implement `Simple` as the second bot strategy on top of the shared registry and legal-action infrastructure.
+2. Add backend-exposed bot catalog metadata so the frontend can render selectable bot options and assigned bot names.
+3. Keep the original heuristic-focused design small and deterministic rather than search-heavy.
+
+Suggested `Simple` policy:
+
+1. If a legal move wins immediately, choose the earliest winning move.
+2. Otherwise score candidates with a small deterministic heuristic.
+
+Suggested heuristic features:
+
+- prefer immediate captures
+- for dragons, prefer moves that reduce the gold’s distance to a corner
+- for ravens, prefer moves that increase pressure on the gold
+- prefer moves that improve mobility
+- penalize moves that obviously worsen exposure when the rules do not already forbid them
+
+### Frontend Scope
+
+1. Replace the single assign-bot action with selectable bot options.
+2. Render assigned bot seats as `Bot: <botname>`.
+3. Send the selected bot id through the existing `assign-bot-opponent` endpoint.
+
+### Testing
+
+Backend tests should cover:
+
+- `Simple` remains deterministic under stable action ordering
+- `Simple` chooses expected actions in controlled positions
+- `Random` still chooses only legal actions
+- bot catalog filtering by ruleset and id
 
 Frontend tests should cover:
 
 - bot selection UI renders available named bots
-- assignment remains available when one seat is empty in an active supported game
-- assigned seats render as `Bot: <botname>`
-- undo stays enabled for bot games when the backend says it is available
-- bot assignment requests send the selected bot id
+- assignment requests send the selected bot id
+- assigned seats render as `Bot: Simple` or `Bot: Random`
 
-### Suggested Release-Two Implementation Sequence
+### Deliverable
 
-1. generalize legal action enumeration across the supported rulesets
-2. formalize the original first-release bot as `Simple` and expose a backend bot catalog
-3. update live-game bot assignment to accept selectable bot ids
-4. implement the `Random` bot and wire selectable bot assignment through the UI
-5. add grouped undo semantics for bot exchanges
-6. implement the `Minimax` bot on the shared action and evaluation layer
-7. expand frontend bot-selection UI and complete cross-ruleset coverage and tests
+Players can choose either `Random` or `Simple`, with `Simple` using a deterministic heuristic policy on the shared bot infrastructure.
+
+## Release 5: Minimax Bot
+
+### User-visible feature
+
+Implementation of the bot `Minimax`.
+
+### Product Rules
+
+- `Minimax` becomes a selectable bot alongside `Random` and `Simple`.
+- Supported rulesets should match the coverage already established for selectable bots.
+- Undo and assignment behavior should remain unchanged from the earlier releases.
+
+### Backend Scope
+
+1. Add pure simulation support for search-based bots using canonical in-memory rule transitions.
+2. Implement `Minimax` with bounded depth, deterministic tie-breaking, and ruleset-aware evaluation.
+3. Keep search and evaluation fully inside the Kotlin game module.
+
+Recommended design:
+
+- simulate from `GameSnapshot`
+- reuse canonical rule transitions for hypothetical actions
+- keep deterministic action ordering for reproducible choices and stable tests
+- use a small evaluation layer per ruleset rather than one generic score function
+
+### Frontend Scope
+
+1. Expose `Minimax` in the selectable bot UI where supported.
+2. Render assigned seats as `Bot: Minimax`.
+3. Reuse the same transport, selector, and seat-panel path already built for `Random` and `Simple`.
+
+### Testing
+
+Backend tests should cover:
+
+- `Minimax` chooses expected actions in controlled positions
+- deterministic tie-breaking
+- search operates on hypothetical snapshots without mutating persisted state
+
+Frontend tests should cover:
+
+- bot selection UI includes `Minimax`
+- assignment requests send `minimax` correctly
+- assigned seats render as `Bot: Minimax`
+
+### Deliverable
+
+Players can choose `Minimax` as a stronger search-based bot on the already-stable multi-bot platform.
+
+## Detailed Implementation Sequence
+
+This sequence keeps the code reviewable while still matching the five-release roadmap.
+
+### Phase 1: Shared session and persistence plumbing
+
+1. Add `dragonsBotId` and `ravensBotId` to the Kotlin model, JSON codec, JDBC store, and TS wire types.
+2. Add the Flyway migration.
+3. Extend backend and frontend view payloads with bot metadata needed for seat rendering.
+
+Deliverable:
+
+- persisted sessions can represent bot-controlled seats safely across reloads.
+
+### Phase 2: Dedicated assignment API and Release 1 validation
+
+1. Add `POST /api/games/{gameId}/assign-bot-opponent`.
+2. Enforce authenticated, one-human-seat, opposite-open-seat, setup-only, Sherwood-only validation.
+3. Add frontend transport, thunk, and selector plumbing for assignment.
+
+Deliverable:
+
+- the app can assign a future bot opponent safely, but no bot policy runs yet.
+
+### Phase 3: Canonical legal action generation
+
+1. Add Sherwood legal move generation first.
+2. Add deterministic ordering and focused tests.
+3. Broaden the action layer later to support the Release 2 rulesets.
+
+Deliverable:
+
+- the backend can enumerate stable legal actions for bot use.
+
+### Phase 4: Release 1 Random bot orchestration
+
+1. Implement `Random`.
+2. Add synchronous bot-turn orchestration in `GameSessionService`.
+3. Disable undo for bot games.
+4. Complete Release 1 seat-panel UI and tests.
+
+Deliverable:
+
+- `Random` works for `Sherwood Rules`.
+
+### Phase 5: Release 2 ruleset expansion
+
+1. Generalize legal action generation to `original-game` and `sherwood-x-9`.
+2. Expand bot registry ruleset support.
+3. Update backend and frontend gating.
+
+Deliverable:
+
+- the existing bot loop works for all supported non-free-play, non-trivial rulesets.
+
+### Phase 6: Release 3 grouped undo
+
+1. Add exchange-aware undo bookkeeping.
+2. Re-enable undo when a reversible human-plus-bot exchange exists.
+3. Update UI copy and tests.
+
+Deliverable:
+
+- bot games support grouped undo.
+
+### Phase 7: Release 4 Simple bot
+
+1. Add the `Simple` heuristic strategy.
+2. Expose a backend bot catalog to the frontend.
+3. Update the UI to show selectable named bots.
+
+Deliverable:
+
+- players can choose `Simple` or `Random`.
+
+### Phase 8: Release 5 Minimax bot
+
+1. Add pure simulation support.
+2. Implement `Minimax`.
+3. Expose it through the existing bot-selection UI.
+
+Deliverable:
+
+- players can choose `Minimax` in addition to the earlier bots.
+
+### Phase 9: Verification and docs
+
+1. Run `./gradlew test`.
+2. Manually sanity-check supported bot flows in the browser.
+3. Update [docs/code-summary.md](/Users/jrayazian/code/dragons-vs-ravens/docs/code-summary.md) and [README.md](/Users/jrayazian/code/dragons-vs-ravens/README.md) when implementation work lands.
+
+## Risks And Mitigations
+
+- Risk: duplicated rules between frontend and backend.
+  Mitigation: keep all legal action generation, simulation, and bot policy in Kotlin and treat the frontend as display plus action wiring only.
+- Risk: session persistence drift after adding bot fields.
+  Mitigation: update model, codec, migration, JDBC reads, and tests together.
+- Risk: bot loop complexity around locking and broadcast order.
+  Mitigation: keep orchestration inside `GameSessionService` and reuse the existing per-game lock.
+- Risk: ruleset expansion may diverge from canonical validation.
+  Mitigation: generate candidates broadly, then filter by existing rule validation wherever practical.
+- Risk: grouped undo introduces confusing history behavior.
+  Mitigation: keep undo semantics entirely backend-owned and add frontend copy that matches the grouped exchange model.
+- Risk: `Minimax` may pressure performance or determinism.
+  Mitigation: add bounded search depth, pure snapshot simulation, and deterministic tie-breaking before exposing it.
+
+## Recommended Commit Breakdown
+
+To keep the eventual implementation reviewable, the code work should still land in small commits:
+
+1. session model, migration, and API plumbing for bot-controlled seats
+2. dedicated bot-assignment endpoint plus Release 1 validation
+3. Sherwood legal action generation and tests
+4. `Random` bot plus server-side orchestration
+5. Release 2 ruleset-expansion work
+6. grouped undo for bot exchanges
+7. `Simple` bot plus selectable bot catalog UI
+8. `Minimax` bot plus simulation support
+9. docs polish after each shipped release
