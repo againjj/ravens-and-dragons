@@ -1,21 +1,25 @@
 # Dragons vs Ravens
 
-A Spring Boot + Kotlin web app that serves a browser-based board game prototype with database-backed game persistence and a React + Redux frontend.
+Dragons vs Ravens is a Spring Boot and Kotlin web app for playing a browser-based board game with a React and Redux frontend. Games are stored in the app database, each game has its own URL, and connected players stay in sync through server-sent events.
 
-## What This Repo Contains
+## Highlights
 
-- A Spring Boot backend that stores game sessions in a database and serves live updates
-- A React + Redux browser frontend for the game UI
-- Frontend helper modules split by transport, shared types, board geometry, client-side rule derivation, and move-history formatting
+- Create a new game from a draft setup or open an existing game by ID
+- Play in the browser with live updates shared across tabs and clients
+- Persist games in the configured database so they survive app restarts
+- Sign in as a guest or local user, with optional Google OAuth support
+- Claim the dragons or ravens side in a live game
 
 ## Requirements
 
-- Java 21 installed and available to the Gradle build
-- No separate Gradle installation is required because the Gradle wrapper is included
-- No separate Node installation is required because Gradle downloads the frontend toolchain
-- Internet access the first time you run the app so Gradle can download its distribution, frontend toolchain, and project dependencies
+- Java 21
+- Internet access the first time Gradle runs so dependencies can be downloaded
 
-## Run The App
+You do not need a separate Gradle or Node installation. The Gradle wrapper is included, and the frontend toolchain is managed through Gradle.
+
+## Run Locally
+
+Start the app:
 
 ```bash
 ./gradlew bootRun
@@ -23,86 +27,7 @@ A Spring Boot + Kotlin web app that serves a browser-based board game prototype 
 
 Then open [http://localhost:8080](http://localhost:8080).
 
-The server also respects the `PORT` environment variable, so the same app can run on Railway and other managed platforms that inject a runtime port.
-By default, the backend uses an H2 file database at `build/db/dragons-vs-ravens`, so created games survive local app restarts.
-
-Open the app in two browser tabs to see the shared game stay in sync through server-sent events.
-The browser now opens on a lobby screen at `/`, where you can open an existing game by ID or jump into the local-only `/create` draft flow.
-The page now also includes auth controls for guest play, local signup/login/logout, and a Google OAuth entry link for deployments that configure that provider. The sign-in copy only mentions Google when that provider is actually available.
-Users must authenticate before opening the lobby or viewing a game.
-Local password accounts now also get a `Profile` button in the upper-right app chrome that opens `/profile`.
-The lobby now presents separate `Start Fresh` and `Rejoin Game` cards, normalizes typed game IDs to uppercase, and disables `Open Game` until an ID is entered. Clicking `Start Fresh` now opens `/create` instead of immediately creating a persisted game.
-The create screen now uses a three-panel layout with the draft board on the left, configuration controls in the middle, and rules on the right. The create draft keeps its board and configuration state local while you stay on `/create`, and leaving that route clears the draft before you return to the lobby or open a game. Clicking `Start Game` sends that draft configuration to the backend, which creates the persisted session from the submitted payload and opens the live game directly in move phase at `/g/{gameId}`.
-Each game has its own URL at `/g/{gameId}`.
-Loading a game URL directly opens that game, and after you open a game from the lobby the browser updates the address bar to that game's `/g/{gameId}` URL.
-If you load a game URL directly and then return to the lobby, the app now replaces that direct-entry history slot instead of trapping the browser Back button inside the app.
-The browser stays subscribed to that game's SSE stream until you go back to the lobby.
-The active game screen shows the current game ID plus a `Back to Lobby` button, a compact seat ownership line above the status line in the header, and a center-column move list whose controls stay above the scrollable history.
-The game board now resumes responsive resizing correctly after entering a game from the lobby.
-Once a game is open, the controls show only live gameplay actions.
-The create screen now uses a dedicated setup-controls component, keeps its free-play guidance immediately above `Start Game`, and reuses the same outer rules-panel shell styling as the live game screen.
-`Free Play` now finishes all board drafting on `/create`: before starting, you can choose whether dragons or ravens move first, and draft squares still cycle `empty -> dragon -> raven -> gold -> empty`. After creation, the persisted game opens directly in move phase, capture remains manual, and the game is ended manually.
-`Trivial Configuration`, `Original Game`, `Sherwood Rules`, `Square One`, `Sherwood x 9`, and `Square One x 9` also open directly in move phase from their preset boards, resolve captures automatically, and end automatically based on their own rules.
-`Sherwood Rules`, `Square One`, `Sherwood x 9`, and `Square One x 9` match the original-style capture and win/draw rules, but the gold is moved by the dragons and may move only one orthogonal square at a time.
-Original-style games now resolve terminal wins before post-turn draws: they award `Ravens win` immediately when the gold is captured and `Dragons win` immediately when the last raven is captured, even if the opposing side would otherwise have no legal reply.
-Game over returns the session to a finished no-game state while preserving the final board position and full completed history, including a terminal `Game Over: ...` entry. The header status line now mirrors the final outcome too, showing the winning side, an explicit draw cause, or manual-end wording when a game is stopped on purpose.
-`Original Game`, `Sherwood Rules`, `Square One`, `Sherwood x 9`, and `Square One x 9` now label draws by cause in turn history, such as `Game Over: Draw by repetition` and `Game Over: Draw by no legal move`.
-When `Free Play` is ended manually, the terminal history entry is rendered as `Game Over`.
-Finished games stay viewable on their existing game IDs, and if the session still has undo history the player who made the last undoable move can undo the terminal game-over state to resume play from the previous snapshot.
-You still cannot restart or reconfigure a finished game on that same ID while it remains finished; creating another game gives you a fresh ID.
-The board now displays numbered rows from top to bottom and lettered columns from left to right on a 7x7 grid, while square names still use `letter + number` notation such as `a1` and `d4`.
-The board now highlights the center and corner squares in `#c274c8`, and on even-sized boards it highlights all four middle squares.
-Only actionable board squares now show pointer/hover affordances, and the move list shows an empty-state message before play begins, auto-scrolls to the latest history entry during play, and groups moves into numbered two-column rows.
-The move-list empty state now matches the panel background instead of rendering as a separate white tile.
-Move-list autoscroll now stays inside the move-list panel instead of scrolling the page, and the desktop layout now gives the move-list panel a wider column.
-Board sizing now measures the padded board panel so the board stays inside its panel and can grow again after the window expands.
-Games remain subject to stale cleanup and are removed after they exceed the configured stale threshold without a load, command, or active SSE viewer. The default threshold is six weeks.
-The backend now also exposes session-cookie auth APIs for guest and local login, plus optional OAuth login wiring when a provider is configured.
-Opening a game, subscribing to its SSE stream, claiming a side, and submitting commands now all require an authenticated session.
-Games may track claimed `dragons` and `ravens` seats, and the auth-aware game view endpoint lives at `GET /api/games/{gameId}/view`.
-Guest accounts are session-only: logging out or losing the session deletes the guest user and releases any seats they held without ending the game.
-Expected SSE disconnects during logout are now treated as normal disconnected-client events, so the server no longer logs noisy `Broken pipe` errors when a browser closes its game stream during sign-out.
-The `/profile` page is available only to local password accounts. It lets a user update their display name using the same validation as signup, and delete their own account only after confirming their password again.
-Deleting a local account signs that session out, releases any claimed seats, clears nullable ownership references such as the game creator id, and leaves the game itself intact and readable.
-On the game screen, the browser now shows claimed seats, keeps the remaining open claim button visible when a player already owns the other seat, and only shows actionable board and control affordances to the player who can act. If one user owns both seats, the active-game controls and undo button stay available whenever the current state allows them. Undo is reserved for the player who made the last undoable move unless the same user owns both seats.
-User-triggered game errors now appear in the same modal-style error box used elsewhere in the frontend, and when the browser cannot reach the server the message explicitly says the server is down and the user should wait and try again later.
-
-## Google OAuth Setup
-
-Google sign-in appears automatically when the app sees a configured `google` OAuth client registration at startup. If those settings are missing, the login screen hides the Google button.
-When the app runs behind a proxy such as Railway, it now honors forwarded host and scheme headers so Google OAuth callback URLs stay on the public `https` domain instead of the internal app address.
-
-This repo does not check in a real or placeholder Google OAuth registration. Enable Google sign-in by setting:
-
-```text
-SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID
-SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET
-SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_SCOPE=openid,profile,email
-```
-
-For local development with a real secret, copy [.env.local.example](/Users/jrayazian/code/dragons-vs-ravens/.env.local.example) to `.env.local`, replace the secret value, and load it before starting the app:
-
-```bash
-source .env.local
-./gradlew bootRun
-```
-
-`.env.local` is ignored by git so your real secret stays local to your machine.
-
-Create a Google OAuth 2.0 web application in Google Cloud Console and add these authorized redirect URIs:
-
-- Local: `http://localhost:8080/login/oauth2/code/google`
-- Production: `https://<your-domain>/login/oauth2/code/google`
-
-Example local run:
-
-```bash
-./gradlew bootRun
-```
-
-Then open [http://localhost:8080](http://localhost:8080). If the Google OAuth client is valid for your current hostname and redirect URI, the login screen will show `Sign in with Google`.
-
-This app does not link Google accounts to existing local accounts by email. A Google login creates or reuses a user only by the OAuth provider id plus the provider subject returned by Google.
+By default, the app uses a local H2 database stored under `build/db/dragons-vs-ravens`.
 
 ## Run Tests
 
@@ -110,147 +35,53 @@ This app does not link Google accounts to existing local accounts by email. A Go
 ./gradlew test
 ```
 
-This runs:
+## Local Authentication Setup
 
-- the frontend helper tests
-- the React/Redux component and selector tests
-- the Spring Boot test suite
+Guest and local-account sign-in work without extra setup.
 
-## Deploy On Railway
+Google sign-in appears only when a Google OAuth client registration is configured. To enable it locally:
 
-Railway can deploy this app directly from the repository or from the Railway CLI. The app is a single Spring Boot service, and Railway should build it with Gradle automatically.
-
-This repo includes [`railway.json`](/Users/jrayazian/code/dragons-vs-ravens/railway.json), which sets the Railway start command to the Spring Boot jar produced by Gradle and points Railway health checks at the public `/health` endpoint instead of the auth-gated root route.
-
-If you want to launch or update the app from your local machine with the Railway CLI:
+1. Copy `.env.local.example` to `.env.local`.
+2. Fill in your Google OAuth client values.
+3. Load the environment before starting the app.
 
 ```bash
-railway login --browserless
-railway init
-railway up
+source .env.local
+./gradlew bootRun
 ```
 
-Use `railway up` when you want Railway to build and run your current local workspace. `railway service redeploy` only restarts the latest already-uploaded deployment and will not include newer unuploaded local changes.
-
-Railway injects `PORT` at runtime, and the app binds to that port automatically.
-For persistent production storage, set the Spring datasource variables on the app service to the linked Railway Postgres values:
+Expected environment variables:
 
 ```text
-SPRING_DATASOURCE_URL=jdbc:postgresql://<PGHOST>:<PGPORT>/<PGDATABASE>
-SPRING_DATASOURCE_USERNAME=<PGUSER>
-SPRING_DATASOURCE_PASSWORD=<PGPASSWORD>
+SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID
+SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET
+SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_SCOPE=openid,profile,email
+```
+
+Use these redirect URIs in Google Cloud:
+
+- `http://localhost:8080/login/oauth2/code/google` for local development
+- `https://<your-domain>/login/oauth2/code/google` for deployment
+
+## Deployment Notes
+
+The app is set up to run on Railway and other platforms that provide the runtime port through `PORT`.
+
+For PostgreSQL deployments, configure these datasource settings:
+
+```text
+SPRING_DATASOURCE_URL=jdbc:postgresql://<host>:<port>/<database>
+SPRING_DATASOURCE_USERNAME=<username>
+SPRING_DATASOURCE_PASSWORD=<password>
 SPRING_DATASOURCE_DRIVER_CLASS_NAME=org.postgresql.Driver
 ```
 
-Do not embed `username:password@` inside `SPRING_DATASOURCE_URL`. This app expects a JDBC URL plus separate username and password variables.
+Flyway migrations run automatically on startup.
 
-If you want Google sign-in on Railway, make sure the Google Cloud OAuth client includes this exact callback URL:
+## Project Layout
 
-```text
-https://dragons-vs-ravens-production.up.railway.app/login/oauth2/code/google
-```
-
-If Railway uses a different public domain, update the Google OAuth redirect URI to match that exact deployed domain.
-The app now also honors Railway's forwarded proxy headers when it builds the OAuth callback URL, so the browser-to-Google redirect should keep the deployed `https` host automatically.
-
-Flyway runs the schema migration automatically on startup for both local H2 and deployed PostgreSQL databases. The build also pins Flyway to a Railway-compatible version and includes the PostgreSQL Flyway database module so Railway's managed Postgres startup can migrate successfully.
-
-The current Railway production URL is [https://dragons-vs-ravens-production.up.railway.app](https://dragons-vs-ravens-production.up.railway.app).
-
-## Project Structure
-
-- `src/main/frontend/game-types.ts`
-  - shared frontend types and request/response DTOs
-- `src/main/frontend/board-geometry.ts`
-  - board dimensions, square naming, and highlighted-square helpers
-- `src/main/frontend/features/game/createGameSlice.ts`
-  - local `/create` draft state for rule selection, board size, starting side, and draft-board cycling
-- `src/main/frontend/game-rules-client.ts`
-  - client-side ownership, capture, targeting, and local-selection helpers
-- `src/main/frontend/move-history.ts`
-  - move notation and grouped move-history helpers
-- `src/main/frontend/game-client.ts`
-  - REST/SSE transport helpers
-- `src/main/frontend/App.tsx`
-  - top-level React layout
-- `src/main/frontend/components/GameScreen.tsx`
-  - active game-screen container and layout wiring, including the header seat summary and move-list controls
-- `src/main/frontend/components/CreateGameScreen.tsx`
-  - local `/create` draft screen with the board, configuration controls, and rules panel
-- `src/main/frontend/components/Board.tsx`
-  - shared board rendering plus connected and controlled click handling
-- `src/main/frontend/components/ControlsPanel.tsx`
-  - live-game controls only
-- `src/main/frontend/components/GameSetupControls.tsx`
-  - create-screen configuration UI and `Start Game` controls
-- `src/main/frontend/components/RulesPanel.tsx`
-  - shared rules-description renderer
-- `src/main/frontend/app`
-  - Redux store setup and typed hooks
-- `src/main/frontend/features`
-  - Redux slices, selectors, thunks, draft-state helpers, stream lifecycle helpers, and shared game-view/auth-refresh orchestration
-- `src/main/frontend/components`
-  - React UI components for the live game screen, the `/create` draft screen, board rendering, controls, rules, status, seat summary, and move list
-- `src/main/kotlin/com/dragonsvsravens/game`
-  - backend game state, rules, and API endpoints
-  - includes a thin `GameRules.kt` facade plus focused rule catalog, snapshot factory, and per-ruleset engine files
-  - splits command and side-claim transitions into `GameCommandService.kt`, while `GameSessionService.kt` handles store orchestration, SSE management, and stale cleanup
-- `src/main/kotlin/com/dragonsvsravens/web`
-  - shared web-layer exception handling, including suppression of expected disconnected-client SSE write failures
-- `src/main/resources/static/styles.css`
-  - layout and styling
-- `docs/code-summary.md`
-  - architecture and codebase summary for future changes
-- `docs/todo.md`
-  - current follow-up work and notable next steps
-- `docs/bot-implementation-plan.md`
-  - detailed Sherwood bot implementation plan covering a first release plus a follow-up release with multiple named bots
-- `AGENTS.md`
-  - project-specific rules for AI-assisted work
-
-## AI Session Prompt
-
-Use this at the start of a new AI coding session:
-
-```text
-Read docs/code-summary.md and AGENTS.md before making changes. Follow those instructions unless I say otherwise.
-```
-
-## Notes
-
-- The frontend is built with TypeScript plus Vite into `build/generated/frontend`.
-- Test-facing transpiled frontend modules are emitted into `build/generated/frontend-test` for the Node-based frontend tests.
-- Each frontend build now clears stale generated assets first, so the generated output and packaged static output keep only the current hashed bundle plus authored files like `styles.css`.
-- Frontend tests use Node's built-in test runner for shared helper modules and Vitest with jsdom for React/Redux tests.
-- Spring Boot serves the generated frontend assets as static resources and exposes the per-game backend routes under `/api/games`.
-- Session auth endpoints are exposed under `/api/auth`.
-- Local profile management also lives under `/api/auth/profile` and `/api/auth/delete-account`.
-- Undo is server-backed, shared across clients, and exposed as `canUndo` in the session payload so the UI can disable the button exactly, including after a manual game over when a rollback is still available.
-- Turn history now includes both completed moves and a terminal `Game Over` entry when a game is ended.
-- Original-style automatic draws now report whether they happened by repetition or by no legal move.
-- Original-style terminal win checks now take precedence over the post-turn no-legal-move draw check when the gold is captured.
-- Backend rule metadata and execution are now split into focused Kotlin files so future rules changes do not all land in one oversized `GameRules.kt`.
-- Backend command authorization, validation, undo transitions, and side-claim logic now live in `GameCommandService.kt`, while `GameSessionService.kt` focuses on persistence orchestration and SSE/stale-game infrastructure.
-- Frontend game thunks now centralize fetched game-view application and `401`/`403` auth-refresh recovery so open, refresh, command, and side-claim flows stay aligned.
-- User-triggered game actions now also normalize network failures into a shared “server is down” message and show those failures in the game screen’s modal error box.
-- `App.tsx` now stays focused on shared shell and route selection, while `GameScreen.tsx` owns the active board screen layout and wiring.
-- The shared session now exposes available rule configurations plus the currently selected configuration so all clients stay in sync on the next play style.
-- `Original Game` follows the published Ravens and Dragons setup and movement/capture rules, including automatic wins and draws.
-- `Sherwood Rules` reuses the `Original Game` setup, capture, and win/draw conditions, but the gold is moved by the dragons and may move only one square orthogonally at a time.
-- `Square One` reuses the Sherwood-style movement, capture, and win/draw conditions on a `7x7` board, but starts with eight ravens surrounding the dragons at `b6`, `d6`, `f6`, `b4`, `f4`, `b2`, `d2`, and `f2`.
-- `Sherwood x 9` uses the Sherwood Rules movement, capture, win, and draw behavior on a `9x9` board.
-- `Square One x 9` uses the Square One setup on a `9x9` board, shifting the ravens to `c7`, `e7`, `g7`, `c5`, `g5`, `c3`, `e3`, and `g3`.
-- The browser client now uses the per-game routes under `/api/games` for create, load, command, and stream behavior.
-- Move-list autoscroll now updates the move-list container without nudging the page scroll position.
-- Board sizing now measures the padded board panel correctly and can expand again after the window grows.
-- Missing SSE subscriptions for unknown game IDs now return a plain `404` response instead of logging a media-type exception on the server.
-- Browser navigation now uses `/` for the lobby, `/create` for the local draft flow, and `/g/{gameId}` for an active game view.
-- Newly created games now use 7-character IDs drawn from the Open Location Code ("PLUS code") alphabet: `23456789CFGHJMPQRVWX`.
-- Game sessions are stored durably in the configured database, while SSE emitter tracking remains in memory per app instance.
-- The database now also stores local users, optional OAuth identity links, and claimed game-seat ownership.
-- Persisted games are evicted automatically after they exceed the configured stale threshold without a load, command, or active SSE viewer. The default threshold is six weeks.
-- If `./gradlew bootRun` cannot bind its default port, treat that as a local environment issue to fix instead of silently switching ports.
-- `AGENTS.md` now explicitly says not to modify the codebase until the user asks for implementation work.
-- If you change architecture, workflow, or gameplay in a meaningful way, update `docs/code-summary.md`.
-- Ongoing follow-up items are tracked in `docs/todo.md`.
-- A detailed Sherwood bot rollout plan now lives in `docs/bot-implementation-plan.md`, including first-release `botId` persistence and a follow-up release with `Simple`, `Random`, and `Minimax` bots.
+- `src/main/kotlin/com/dragonsvsravens/game`: backend game rules, session handling, and game APIs
+- `src/main/kotlin/com/dragonsvsravens/auth`: authentication and account management
+- `src/main/frontend`: React frontend, Redux state, and browser-side helpers
+- `src/test`: backend and frontend tests
+- `docs/code-summary.md`: architecture and implementation summary
