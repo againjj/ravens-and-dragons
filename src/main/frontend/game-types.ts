@@ -65,6 +65,8 @@ export interface ServerGameSession {
     selectedBoardSize: number;
     dragonsPlayerUserId?: string | null;
     ravensPlayerUserId?: string | null;
+    dragonsBotId?: string | null;
+    ravensBotId?: string | null;
     createdByUserId?: string | null;
 }
 
@@ -111,11 +113,19 @@ export interface GamePlayerSummary {
     displayName: string;
 }
 
+export interface BotSummary {
+    id: string;
+    displayName: string;
+}
+
 export interface GameViewResponse {
     game: ServerGameSession;
     currentUser: AuthUserSummary | null;
     dragonsPlayer: GamePlayerSummary | null;
     ravensPlayer: GamePlayerSummary | null;
+    dragonsBot: BotSummary | null;
+    ravensBot: BotSummary | null;
+    availableBots: BotSummary[];
     viewerRole: ViewerRole;
 }
 
@@ -158,4 +168,8 @@ export interface GameCommandRequest {
 
 export interface ClaimSideRequest {
     side: Side;
+}
+
+export interface AssignBotOpponentRequest {
+    botId: string;
 }

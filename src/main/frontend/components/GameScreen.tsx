@@ -11,6 +11,7 @@ import {
 } from "../features/game/gameSelectors.js";
 import { gameActions } from "../features/game/gameSlice.js";
 import {
+    assignBotOpponent,
     claimSide,
     endGame,
     skipCapture,
@@ -44,6 +45,9 @@ export const GameScreen = () => {
                 <div className="page-header-copy">
                     <h2>{currentGameId ? `Game ${currentGameId}` : "Current Game"}</h2>
                     <SeatPanel
+                        onAssignBotOpponent={() => {
+                            void dispatch(assignBotOpponent("random"));
+                        }}
                         onClaimDragons={() => {
                             void dispatch(claimSide("dragons"));
                         }}

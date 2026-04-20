@@ -1,6 +1,6 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
-import type { GamePlayerSummary, GameViewResponse, ServerGameSession, ViewerRole } from "../../game-types.js";
+import type { BotSummary, GamePlayerSummary, GameViewResponse, ServerGameSession, ViewerRole } from "../../game-types.js";
 
 export type GameView = "lobby" | "game";
 
@@ -11,6 +11,9 @@ export interface GameState {
     viewerRole: ViewerRole | null;
     dragonsPlayer: GamePlayerSummary | null;
     ravensPlayer: GamePlayerSummary | null;
+    dragonsBot: BotSummary | null;
+    ravensBot: BotSummary | null;
+    availableBots: BotSummary[];
     isSubmitting: boolean;
     loadState: "idle" | "loading" | "ready" | "error";
     connectionState: "idle" | "connecting" | "open" | "reconnecting";
@@ -24,6 +27,9 @@ export const initialGameState: GameState = {
     viewerRole: null,
     dragonsPlayer: null,
     ravensPlayer: null,
+    dragonsBot: null,
+    ravensBot: null,
+    availableBots: [],
     isSubmitting: false,
     loadState: "idle",
     connectionState: "idle",
@@ -41,6 +47,9 @@ const gameSlice = createSlice({
             state.viewerRole = null;
             state.dragonsPlayer = null;
             state.ravensPlayer = null;
+            state.dragonsBot = null;
+            state.ravensBot = null;
+            state.availableBots = [];
             state.isSubmitting = false;
             state.loadState = "loading";
             state.connectionState = "connecting";
@@ -58,6 +67,9 @@ const gameSlice = createSlice({
             state.viewerRole = null;
             state.dragonsPlayer = null;
             state.ravensPlayer = null;
+            state.dragonsBot = null;
+            state.ravensBot = null;
+            state.availableBots = [];
             state.isSubmitting = false;
             state.loadState = "idle";
             state.connectionState = "idle";
@@ -74,6 +86,9 @@ const gameSlice = createSlice({
             state.viewerRole = null;
             state.dragonsPlayer = null;
             state.ravensPlayer = null;
+            state.dragonsBot = null;
+            state.ravensBot = null;
+            state.availableBots = [];
         },
         commandStarted(state) {
             state.isSubmitting = true;
@@ -94,16 +109,24 @@ const gameSlice = createSlice({
             state.viewerRole = action.payload.viewerRole;
             state.dragonsPlayer = action.payload.dragonsPlayer;
             state.ravensPlayer = action.payload.ravensPlayer;
+            state.dragonsBot = action.payload.dragonsBot;
+            state.ravensBot = action.payload.ravensBot;
+            state.availableBots = action.payload.availableBots;
             state.loadState = "ready";
             state.feedbackMessage = null;
         },
         viewerMetadataUpdated(
             state,
-            action: PayloadAction<Pick<GameViewResponse, "viewerRole" | "dragonsPlayer" | "ravensPlayer">>
+            action: PayloadAction<
+                Pick<GameViewResponse, "viewerRole" | "dragonsPlayer" | "ravensPlayer" | "dragonsBot" | "ravensBot" | "availableBots">
+            >
         ) {
             state.viewerRole = action.payload.viewerRole;
             state.dragonsPlayer = action.payload.dragonsPlayer;
             state.ravensPlayer = action.payload.ravensPlayer;
+            state.dragonsBot = action.payload.dragonsBot;
+            state.ravensBot = action.payload.ravensBot;
+            state.availableBots = action.payload.availableBots;
         },
         feedbackMessageSet(state, action: PayloadAction<string | null>) {
             state.feedbackMessage = action.payload;

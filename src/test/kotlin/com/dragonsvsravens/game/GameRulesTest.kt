@@ -616,6 +616,73 @@ class GameRulesTest {
         assertEquals("Dragons win", moved.turns.last().outcome)
     }
 
+    @Test
+    fun `sherwood legal moves enumerate only orthogonal unobstructed moves in deterministic order`() {
+        val legalMoves = GameRules.getLegalMoves(
+            createSnapshot(
+                board = linkedMapOf(
+                    "d4" to Piece.gold,
+                    "d5" to Piece.dragon,
+                    "d7" to Piece.raven
+                ),
+                activeSide = Side.ravens,
+                ruleConfigurationId = "sherwood-rules",
+                positionKeys = listOf("sherwood-rules|ravens|d4:gold,d5:dragon,d7:raven")
+            )
+        )
+
+        assertEquals(
+            listOf(
+                LegalMove("d7", "b7"),
+                LegalMove("d7", "c7"),
+                LegalMove("d7", "d6"),
+                LegalMove("d7", "e7"),
+                LegalMove("d7", "f7")
+            ),
+            legalMoves
+        )
+    }
+
+    @Test
+    fun `sherwood legal moves keep the gold to one orthogonal step`() {
+        val legalMoves = GameRules.getLegalMoves(
+            createSnapshot(
+                board = linkedMapOf(
+                    "d4" to Piece.gold,
+                    "a7" to Piece.raven
+                ),
+                activeSide = Side.dragons,
+                ruleConfigurationId = "sherwood-rules",
+                positionKeys = listOf("sherwood-rules|dragons|a7:raven,d4:gold")
+            )
+        )
+
+        assertTrue(legalMoves.contains(LegalMove("d4", "c4")))
+        assertTrue(legalMoves.contains(LegalMove("d4", "d3")))
+        assertTrue(legalMoves.contains(LegalMove("d4", "d5")))
+        assertTrue(legalMoves.contains(LegalMove("d4", "e4")))
+        assertFalse(legalMoves.contains(LegalMove("d4", "d6")))
+        assertFalse(legalMoves.contains(LegalMove("d4", "a4")))
+    }
+
+    @Test
+    fun `sherwood legal moves exclude self exposing moves`() {
+        val legalMoves = GameRules.getLegalMoves(
+            createSnapshot(
+                board = linkedMapOf(
+                    "b4" to Piece.raven,
+                    "c1" to Piece.dragon,
+                    "g7" to Piece.gold
+                ),
+                activeSide = Side.ravens,
+                ruleConfigurationId = "sherwood-rules",
+                positionKeys = listOf("sherwood-rules|ravens|b4:raven,c1:dragon,g7:gold")
+            )
+        )
+
+        assertFalse(legalMoves.contains(LegalMove("b4", "b1")))
+    }
+
     private fun createFreePlayCaptureSnapshot(): GameSnapshot = createSnapshot(
         board = linkedMapOf(
             "d4" to Piece.gold,

@@ -29,7 +29,47 @@ class GameCommandService(
         )
     }
 
+    fun assignBotOpponent(current: StoredGame, userId: String, botDefinition: BotDefinition): StoredGame {
+        val session = current.session
+        val viewerOwnsDragons = session.dragonsPlayerUserId == userId
+        val viewerOwnsRavens = session.ravensPlayerUserId == userId
+        if (viewerOwnsDragons == viewerOwnsRavens) {
+            throw ForbiddenActionException("You must claim exactly one human seat before assigning a bot opponent.")
+        }
+        if (session.dragonsBotId != null || session.ravensBotId != null) {
+            throw ForbiddenActionException("A bot opponent is already assigned.")
+        }
+        if (session.lifecycle == GameLifecycle.finished) {
+            throw InvalidCommandException("Bot assignment is unavailable after the game has finished.")
+        }
+        if (session.selectedRuleConfigurationId != "sherwood-rules") {
+            throw InvalidCommandException("Bot assignment is currently available only for Sherwood Rules.")
+        }
+        if (session.snapshot.turns.isNotEmpty()) {
+            throw InvalidCommandException("Bot assignment is available only before the first move.")
+        }
+
+        val targetSide = if (viewerOwnsDragons) Side.ravens else Side.dragons
+        val targetHumanPlayer = when (targetSide) {
+            Side.dragons -> session.dragonsPlayerUserId
+            Side.ravens -> session.ravensPlayerUserId
+        }
+        if (targetHumanPlayer != null) {
+            throw ForbiddenActionException("${targetSide.name.replaceFirstChar(Char::titlecase)} is already claimed.")
+        }
+
+        return current.next(
+            snapshot = session.snapshot,
+            undoSnapshots = current.undoSnapshots,
+            dragonsBotId = if (targetSide == Side.dragons) botDefinition.id else session.dragonsBotId,
+            ravensBotId = if (targetSide == Side.ravens) botDefinition.id else session.ravensBotId
+        )
+    }
+
     fun applyCommand(current: StoredGame, command: GameCommandRequest, actingUserId: String?): StoredGame {
+        if (command.type == "undo" && (current.session.dragonsBotId != null || current.session.ravensBotId != null)) {
+            throw InvalidCommandException("Undo is unavailable in games with a bot opponent.")
+        }
         actingUserId?.let { requireAuthorizedPlayer(current, it, command.type) }
         if (command.expectedVersion != current.session.version) {
             throw VersionConflictException(current.session)
@@ -220,6 +260,8 @@ class GameCommandService(
         selectedBoardSize: Int = this.session.selectedBoardSize,
         dragonsPlayerUserId: String? = this.session.dragonsPlayerUserId,
         ravensPlayerUserId: String? = this.session.ravensPlayerUserId,
+        dragonsBotId: String? = this.session.dragonsBotId,
+        ravensBotId: String? = this.session.ravensBotId,
         createdByUserId: String? = this.session.createdByUserId
     ): StoredGame = GameSessionFactory.createStoredGame(
         gameId = session.id,
@@ -234,6 +276,8 @@ class GameCommandService(
         selectedBoardSize = selectedBoardSize,
         dragonsPlayerUserId = dragonsPlayerUserId,
         ravensPlayerUserId = ravensPlayerUserId,
+        dragonsBotId = dragonsBotId,
+        ravensBotId = ravensBotId,
         createdByUserId = createdByUserId
     )
 

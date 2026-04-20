@@ -5,11 +5,13 @@ import { createGameDraftActions } from "../../main/frontend/features/game/create
 import { createAuthSession, createGameView, createSession } from "./fixtures.js";
 
 const {
+    assignBotOpponentMock,
     claimGameSideMock,
     createGameSessionMock,
     fetchGameViewMock,
     sendGameCommandRequestMock
 } = vi.hoisted(() => ({
+    assignBotOpponentMock: vi.fn(),
     claimGameSideMock: vi.fn(),
     createGameSessionMock: vi.fn(),
     fetchGameViewMock: vi.fn(),
@@ -17,16 +19,18 @@ const {
 }));
 
 vi.mock("../../main/frontend/game-client.js", () => ({
+    assignBotOpponent: assignBotOpponentMock,
     claimGameSide: claimGameSideMock,
     createGameSession: createGameSessionMock,
     fetchGameView: fetchGameViewMock,
     sendGameCommandRequest: sendGameCommandRequestMock
 }));
 
-import { claimSide, createGame, openGame, returnToLobby, sendCommand } from "../../main/frontend/features/game/gameThunks.js";
+import { assignBotOpponent, claimSide, createGame, openGame, returnToLobby, sendCommand } from "../../main/frontend/features/game/gameThunks.js";
 
 describe("gameThunks", () => {
     beforeEach(() => {
+        assignBotOpponentMock.mockReset();
         claimGameSideMock.mockReset();
         createGameSessionMock.mockReset();
         fetchGameViewMock.mockReset();
@@ -175,6 +179,42 @@ describe("gameThunks", () => {
         expect(store.getState().auth.session.oauthProviders).toEqual(["google"]);
         expect(store.getState().game.viewerRole).toBeNull();
         expect(store.getState().game.feedbackMessage).toBeNull();
+    });
+
+    test("assignBotOpponent refreshes the current game view after a successful assignment", async () => {
+        assignBotOpponentMock.mockResolvedValue({
+            data: createSession({ id: "game-515", ravensBotId: "random", canUndo: false })
+        });
+        fetchGameViewMock.mockResolvedValue(
+            createGameView(
+                { id: "game-515", ravensBotId: "random", canUndo: false },
+                {},
+                {
+                    ravensPlayer: null,
+                    ravensBot: { id: "random", displayName: "Random" },
+                    availableBots: [{ id: "random", displayName: "Random" }]
+                }
+            )
+        );
+        const store = createAppStore({
+            auth: {
+                session: createAuthSession()
+            },
+            game: {
+                view: "game",
+                currentGameId: "game-515",
+                session: createSession({ id: "game-515", ravensPlayerUserId: null, ravensBotId: null }),
+                viewerRole: "dragons",
+                dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
+                ravensPlayer: null,
+                availableBots: [{ id: "random", displayName: "Random" }]
+            }
+        });
+
+        await store.dispatch(assignBotOpponent("random"));
+
+        expect(assignBotOpponentMock).toHaveBeenCalledWith("game-515", { botId: "random" });
+        expect(fetchGameViewMock).toHaveBeenCalledWith("game-515");
     });
 
     test("claimSide refreshes the game view after a 403 response without clearing OAuth providers", async () => {

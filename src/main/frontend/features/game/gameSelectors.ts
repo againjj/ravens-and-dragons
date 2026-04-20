@@ -2,11 +2,12 @@ import { createSelector } from "@reduxjs/toolkit";
 
 import type { RootState } from "../../app/store.js";
 import { getCapturableSquares, getTargetableSquares, normalizeSelectedSquare } from "../../game-rules-client.js";
-import type { RuleConfigurationSummary } from "../../game-types.js";
+import type { BotSummary, RuleConfigurationSummary, Side } from "../../game-types.js";
 import { getGameOverStatusText, getLatestGameOverTurn } from "../../move-history.js";
 import { selectCurrentUser, selectIsAuthenticated } from "../auth/authSelectors.js";
 
 const emptyRuleConfigurations: RuleConfigurationSummary[] = [];
+const emptyBots: BotSummary[] = [];
 const emptySquares: string[] = [];
 
 export const selectGameState = (state: RootState) => state.game;
@@ -17,6 +18,9 @@ export const selectLifecycle = (state: RootState) => state.game.session?.lifecyc
 export const selectViewerRole = (state: RootState) => state.game.viewerRole ?? "anonymous";
 export const selectDragonsPlayer = (state: RootState) => state.game.dragonsPlayer;
 export const selectRavensPlayer = (state: RootState) => state.game.ravensPlayer;
+export const selectDragonsBot = (state: RootState) => state.game.dragonsBot;
+export const selectRavensBot = (state: RootState) => state.game.ravensBot;
+export const selectAvailableBots = (state: RootState) => state.game.availableBots ?? emptyBots;
 export const selectCanUndo = (state: RootState) => state.game.session?.canUndo ?? false;
 export const selectUndoOwnerSide = (state: RootState) => state.game.session?.undoOwnerSide ?? null;
 export const selectSelectedSquare = (state: RootState) => state.ui.selectedSquare;
@@ -47,6 +51,13 @@ const selectCurrentUserOwnsBothSeats = createSelector(
         !!currentUser &&
         dragonsPlayer?.id === currentUser.id &&
         ravensPlayer?.id === currentUser.id
+);
+
+export const selectHasBotSeat = createSelector(
+    selectSnapshot,
+    (state: RootState) => state.game.session?.dragonsBotId ?? null,
+    (state: RootState) => state.game.session?.ravensBotId ?? null,
+    (snapshot, dragonsBotId, ravensBotId) => !!snapshot && (dragonsBotId != null || ravensBotId != null)
 );
 
 export const selectCanViewerAct = createSelector(
@@ -101,14 +112,69 @@ export const selectCanClaimRavens = createSelector(
         ravensPlayer == null
 );
 
-export const selectCapturableSquares = createSelector(selectSnapshot, (snapshot) =>
-    snapshot && snapshot.phase === "capture" ? getCapturableSquares(snapshot) : emptySquares
+export const selectIsSherwoodBotAssignmentSupported = createSelector(
+    selectSelectedRuleConfigurationId,
+    selectAvailableBots,
+    (selectedRuleConfigurationId, availableBots) =>
+        selectedRuleConfigurationId === "sherwood-rules" && availableBots.length > 0
+);
+
+export const selectBotAssignmentTargetSide = createSelector(
+    selectCurrentUser,
+    selectDragonsPlayer,
+    selectRavensPlayer,
+    (currentUser, dragonsPlayer, ravensPlayer): Side | null => {
+        if (!currentUser) {
+            return null;
+        }
+        if (dragonsPlayer?.id === currentUser.id && ravensPlayer == null) {
+            return "ravens";
+        }
+        if (ravensPlayer?.id === currentUser.id && dragonsPlayer == null) {
+            return "dragons";
+        }
+        return null;
+    }
 );
 
 export const selectIsFinishedGame = createSelector(
     selectSnapshot,
     selectLifecycle,
     (snapshot, lifecycle) => snapshot?.phase === "none" && lifecycle === "finished"
+);
+
+export const selectCanAssignBotOpponent = createSelector(
+    selectIsAuthenticated,
+    selectCurrentUserOwnsBothSeats,
+    selectIsFinishedGame,
+    selectSnapshot,
+    selectDragonsBot,
+    selectRavensBot,
+    selectIsSherwoodBotAssignmentSupported,
+    selectBotAssignmentTargetSide,
+    (
+        isAuthenticated,
+        currentUserOwnsBothSeats,
+        isFinishedGame,
+        snapshot,
+        dragonsBot,
+        ravensBot,
+        isSherwoodBotAssignmentSupported,
+        botAssignmentTargetSide
+    ) =>
+        isAuthenticated &&
+        !currentUserOwnsBothSeats &&
+        !isFinishedGame &&
+        snapshot != null &&
+        snapshot.turns.length === 0 &&
+        dragonsBot == null &&
+        ravensBot == null &&
+        isSherwoodBotAssignmentSupported &&
+        botAssignmentTargetSide != null
+);
+
+export const selectCapturableSquares = createSelector(selectSnapshot, (snapshot) =>
+    snapshot && snapshot.phase === "capture" ? getCapturableSquares(snapshot) : emptySquares
 );
 
 export const selectTargetableSquares = createSelector(

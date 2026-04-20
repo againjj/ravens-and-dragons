@@ -96,6 +96,8 @@ export const createSession = (
     selectedBoardSize: 7,
     dragonsPlayerUserId: "player-dragons",
     ravensPlayerUserId: "player-ravens",
+    dragonsBotId: null,
+    ravensBotId: null,
     createdByUserId: "player-dragons",
     snapshot: {
         board: {},
@@ -138,6 +140,9 @@ export const createGameView = (
         id: "player-ravens",
         displayName: "Raven Player"
     },
+    dragonsBot: null,
+    ravensBot: null,
+    availableBots: [],
     viewerRole: "dragons",
     ...viewOverrides
 });

@@ -85,6 +85,28 @@ class GameAuthorizationControllerTest : AbstractGameControllerTestSupport() {
     }
 
     @Test
+    fun `authenticated player can assign a random bot to the opposite sherwood seat`() {
+        val game = createGame(CreateGameRequest(ruleConfigurationId = "sherwood-rules"))
+        assignSides(game.id, defaultTestUserId, null)
+
+        assignBotOpponent(game.id, BotRegistry.randomBotId, defaultTestUserId).andExpect {
+            status { isOk() }
+            jsonPath("$.ravensBotId", equalTo(BotRegistry.randomBotId))
+        }
+    }
+
+    @Test
+    fun `bot assignment requires exactly one claimed human seat`() {
+        val game = createGame(CreateGameRequest(ruleConfigurationId = "sherwood-rules"))
+        assignSides(game.id, null, null)
+
+        assignBotOpponent(game.id, BotRegistry.randomBotId, defaultTestUserId).andExpect {
+            status { isForbidden() }
+            jsonPath("$.message", equalTo("You must claim exactly one human seat before assigning a bot opponent."))
+        }
+    }
+
+    @Test
     fun `spectator cannot submit commands`() {
         val game = createGame(CreateGameRequest(board = mapOf("a1" to Piece.dragon)))
         assignSides(game.id, defaultTestUserId, alternateTestUserId)

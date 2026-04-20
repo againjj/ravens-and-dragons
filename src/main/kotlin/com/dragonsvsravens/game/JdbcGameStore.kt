@@ -17,7 +17,7 @@ class JdbcGameStore(
         private val selectStoredGameColumns = """
             select id, version, created_at, updated_at, last_accessed_at, lifecycle,
                    selected_rule_configuration_id, selected_starting_side, selected_board_size,
-                   dragons_player_user_id, ravens_player_user_id, created_by_user_id,
+                   dragons_player_user_id, ravens_player_user_id, dragons_bot_id, ravens_bot_id, created_by_user_id,
                    snapshot_json, undo_snapshots_json
             from games
         """.trimIndent()
@@ -46,6 +46,8 @@ class JdbcGameStore(
                 selected_board_size = ?,
                 dragons_player_user_id = ?,
                 ravens_player_user_id = ?,
+                dragons_bot_id = ?,
+                ravens_bot_id = ?,
                 created_by_user_id = ?,
                 snapshot_json = ?,
                 undo_snapshots_json = ?
@@ -75,10 +77,12 @@ class JdbcGameStore(
                     selected_board_size,
                     dragons_player_user_id,
                     ravens_player_user_id,
+                    dragons_bot_id,
+                    ravens_bot_id,
                     created_by_user_id,
                     snapshot_json,
                     undo_snapshots_json
-                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent(),
                 *insertArguments(game)
             )
@@ -170,6 +174,8 @@ class JdbcGameStore(
             selectedBoardSize = resultSet.getInt("selected_board_size"),
             dragonsPlayerUserId = resultSet.getString("dragons_player_user_id"),
             ravensPlayerUserId = resultSet.getString("ravens_player_user_id"),
+            dragonsBotId = resultSet.getString("dragons_bot_id"),
+            ravensBotId = resultSet.getString("ravens_bot_id"),
             createdByUserId = resultSet.getString("created_by_user_id")
         )
     }
@@ -186,6 +192,8 @@ class JdbcGameStore(
         game.session.selectedBoardSize,
         game.session.dragonsPlayerUserId,
         game.session.ravensPlayerUserId,
+        game.session.dragonsBotId,
+        game.session.ravensBotId,
         game.session.createdByUserId,
         gameJsonCodec.writeSnapshot(game.session.snapshot),
         gameJsonCodec.writeUndoSnapshots(game.undoSnapshots)
@@ -201,6 +209,8 @@ class JdbcGameStore(
         game.session.selectedBoardSize,
         game.session.dragonsPlayerUserId,
         game.session.ravensPlayerUserId,
+        game.session.dragonsBotId,
+        game.session.ravensBotId,
         game.session.createdByUserId,
         gameJsonCodec.writeSnapshot(game.session.snapshot),
         gameJsonCodec.writeUndoSnapshots(game.undoSnapshots),

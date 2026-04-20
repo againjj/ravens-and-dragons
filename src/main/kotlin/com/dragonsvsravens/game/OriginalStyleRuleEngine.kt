@@ -51,7 +51,7 @@ internal class OriginalStyleRuleEngine(
             return GameRules.endGame(snapshotWithHistory, "Draw by repetition")
         }
 
-        return if (!hasAnyLegalMove(snapshotWithHistory)) {
+        return if (GameRules.getLegalMoves(snapshotWithHistory).isEmpty()) {
             GameRules.endGame(snapshotWithHistory, "Draw by no legal move")
         } else {
             snapshotWithHistory
@@ -64,24 +64,6 @@ internal class OriginalStyleRuleEngine(
             .joinToString(",") { "${it.key}:${it.value.name}" }
         return "${snapshot.ruleConfigurationId}|${snapshot.activeSide.name}|$boardKey"
     }
-
-    private fun hasAnyLegalMove(snapshot: GameSnapshot): Boolean =
-        snapshot.board.entries
-            .filter { (_, piece) -> GameRules.sideOwnsPiece(snapshot.activeSide, piece) }
-            .any { (origin, piece) ->
-                BoardCoordinates.allSquares(snapshot.boardSize)
-                    .filter { it != origin && !snapshot.board.containsKey(it) }
-                    .any { destination ->
-                        try {
-                            validateMove(snapshot, origin, destination, piece)
-                            true
-                        } catch (_: IllegalArgumentException) {
-                            false
-                        } catch (_: IllegalStateException) {
-                            false
-                        }
-                    }
-            }
 
     private fun isSingleOrthogonalStep(origin: String, destination: String, boardSize: Int): Boolean =
         BoardCoordinates.isOrthogonallyAdjacent(origin, destination, boardSize)

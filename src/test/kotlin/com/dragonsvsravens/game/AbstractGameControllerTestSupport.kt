@@ -62,6 +62,8 @@ abstract class AbstractGameControllerTestSupport {
         lastAccessedAt: Instant = updatedAt,
         dragonsPlayerUserId: String? = defaultTestUserId,
         ravensPlayerUserId: String? = defaultTestUserId,
+        dragonsBotId: String? = null,
+        ravensBotId: String? = null,
         createdByUserId: String? = defaultTestUserId
     ): GameSession {
         val storedGame = GameSessionFactory.createStoredGame(
@@ -78,6 +80,8 @@ abstract class AbstractGameControllerTestSupport {
             selectedBoardSize = selectedBoardSize,
             dragonsPlayerUserId = dragonsPlayerUserId,
             ravensPlayerUserId = ravensPlayerUserId,
+            dragonsBotId = dragonsBotId,
+            ravensBotId = ravensBotId,
             createdByUserId = createdByUserId
         )
         assertTrue(gameStore.putIfAbsent(storedGame))
@@ -208,6 +212,13 @@ abstract class AbstractGameControllerTestSupport {
             with(authenticated(gameId, userId))
             contentType = MediaType.APPLICATION_JSON
             content = objectMapper.writeValueAsString(ClaimSideRequest(side))
+        }
+
+    protected fun assignBotOpponent(gameId: String, botId: String, userId: String = defaultTestUserId) =
+        mockMvc.post("/api/games/$gameId/assign-bot-opponent") {
+            with(authenticated(gameId, userId))
+            contentType = MediaType.APPLICATION_JSON
+            content = objectMapper.writeValueAsString(AssignBotOpponentRequest(botId))
         }
 
     protected fun assignSides(gameId: String, dragonsUserId: String?, ravensUserId: String?) {

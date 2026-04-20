@@ -15,7 +15,8 @@ class GameSessionService(
     private val clock: Clock,
     @Value("\${dragons-vs-ravens.games.stale-threshold:1008h}")
     private val staleGameThreshold: Duration,
-    private val gameCommandService: GameCommandService
+    private val gameCommandService: GameCommandService,
+    private val botRegistry: BotRegistry
 ) {
     companion object {
         val defaultStaleGameThreshold: Duration = Duration.ofDays(42)
@@ -64,9 +65,15 @@ class GameSessionService(
     fun claimSide(gameId: String, side: Side, userId: String): GameSession = withGameLock(gameId) {
         val current = getStoredGame(gameId)
         val nextState = gameCommandService.claimSide(current, side, userId)
-        gameStore.put(nextState)
-        broadcast(gameId, nextState.session)
-        nextState.session
+        persistAndBroadcast(gameId, nextState).session
+    }
+
+    fun assignBotOpponent(gameId: String, botId: String, userId: String): GameSession = withGameLock(gameId) {
+        val current = getStoredGame(gameId)
+        val botDefinition = botRegistry.requireSupportedDefinition(botId, current.session.selectedRuleConfigurationId)
+        val assigned = gameCommandService.assignBotOpponent(current, userId, botDefinition)
+        val persisted = persistAndBroadcast(gameId, assigned)
+        runBotTurns(gameId, persisted).session
     }
 
     fun applyCommand(gameId: String, command: GameCommandRequest): GameSession =
@@ -75,15 +82,8 @@ class GameSessionService(
     fun applyCommand(gameId: String, command: GameCommandRequest, actingUserId: String?): GameSession = withGameLock(gameId) {
         val current = getStoredGame(gameId)
         val nextState = gameCommandService.applyCommand(current, command, actingUserId)
-
-        try {
-            gameStore.put(nextState)
-        } catch (_: ConcurrentGameUpdateException) {
-            val latest = gameStore.get(gameId) ?: throw GameNotFoundException(gameId)
-            throw VersionConflictException(latest.session)
-        }
-        broadcast(gameId, nextState.session)
-        nextState.session
+        val persisted = persistAndBroadcast(gameId, nextState)
+        runBotTurns(gameId, persisted).session
     }
 
     fun clearUserReferences(userId: String) {
@@ -137,6 +137,55 @@ class GameSessionService(
         emittersByGame[gameId]?.let { emitters ->
             pruneUndeliveredEmitters(gameId, emitters, session)
         }
+    }
+
+    private fun persistAndBroadcast(gameId: String, game: StoredGame): StoredGame {
+        try {
+            gameStore.put(game)
+        } catch (_: ConcurrentGameUpdateException) {
+            val latest = gameStore.get(gameId) ?: throw GameNotFoundException(gameId)
+            throw VersionConflictException(latest.session)
+        }
+        broadcast(gameId, game.session)
+        return game
+    }
+
+    private fun runBotTurns(gameId: String, initial: StoredGame): StoredGame {
+        var current = initial
+
+        while (true) {
+            val botDefinition = currentBotDefinition(current.session) ?: return current
+            val legalMoves = GameRules.getLegalMoves(current.session.snapshot)
+            if (legalMoves.isEmpty()) {
+                return current
+            }
+
+            val selectedMove = botDefinition.strategy.chooseMove(current.session.snapshot, legalMoves)
+            val nextState = gameCommandService.applyCommand(
+                current,
+                GameCommandRequest(
+                    expectedVersion = current.session.version,
+                    type = "move-piece",
+                    origin = selectedMove.origin,
+                    destination = selectedMove.destination
+                ),
+                actingUserId = null
+            )
+            current = persistAndBroadcast(gameId, nextState)
+        }
+    }
+
+    private fun currentBotDefinition(session: GameSession): BotDefinition? {
+        if (session.lifecycle != GameLifecycle.active || session.snapshot.phase != Phase.move) {
+            return null
+        }
+
+        val activeBotId = when (session.snapshot.activeSide) {
+            Side.dragons -> session.dragonsBotId
+            Side.ravens -> session.ravensBotId
+        } ?: return null
+
+        return botRegistry.requireSupportedDefinition(activeBotId, session.selectedRuleConfigurationId)
     }
 
     private fun sendSnapshot(emitter: SseEmitter, session: GameSession): Boolean {

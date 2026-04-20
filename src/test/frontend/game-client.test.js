@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+    assignBotOpponent,
     claimGameSide,
     createGameSession,
     fetchAuthSession,
@@ -41,6 +42,8 @@ const createGame = (version = 1) => ({
     selectedBoardSize: 7,
     dragonsPlayerUserId: "player-dragons",
     ravensPlayerUserId: "player-ravens",
+    dragonsBotId: null,
+    ravensBotId: null,
     snapshot: {
         board: {},
         boardSize: 7,
@@ -69,6 +72,9 @@ const createGameView = (version = 1) => ({
         id: "player-ravens",
         displayName: "Raven Player"
     },
+    dragonsBot: null,
+    ravensBot: null,
+    availableBots: [],
     viewerRole: "dragons"
 });
 
@@ -122,6 +128,24 @@ test("fetchGameView returns auth-aware game metadata for a game id", async () =>
 
     assert.deepEqual(result, gameView);
     assert.equal(calls[0], "/api/games/game-123/view");
+});
+
+test("assignBotOpponent posts to the dedicated bot-assignment endpoint", async () => {
+    let requestUrl = null;
+    let requestBody = null;
+
+    const result = await assignBotOpponent("game-123", { botId: "random" }, async (url, init) => {
+        requestUrl = url;
+        requestBody = JSON.parse(init.body);
+        return {
+            ok: true,
+            json: async () => createGame(2)
+        };
+    });
+
+    assert.equal(requestUrl, "/api/games/game-123/assign-bot-opponent");
+    assert.deepEqual(requestBody, { botId: "random" });
+    assert.equal(result.data.version, 2);
 });
 
 test("fetchAuthSession returns the current auth session", async () => {

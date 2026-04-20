@@ -79,6 +79,8 @@ data class GameSession(
     val selectedBoardSize: Int,
     val dragonsPlayerUserId: String? = null,
     val ravensPlayerUserId: String? = null,
+    val dragonsBotId: String? = null,
+    val ravensBotId: String? = null,
     val createdByUserId: String? = null
 )
 
@@ -120,8 +122,17 @@ data class GamePlayerSummary(
     val displayName: String
 )
 
+data class BotSummary(
+    val id: String,
+    val displayName: String
+)
+
 data class ClaimSideRequest(
     val side: Side
+)
+
+data class AssignBotOpponentRequest(
+    val botId: String
 )
 
 data class GameViewResponse(
@@ -129,6 +140,9 @@ data class GameViewResponse(
     val currentUser: AuthUserSummary?,
     val dragonsPlayer: GamePlayerSummary?,
     val ravensPlayer: GamePlayerSummary?,
+    val dragonsBot: BotSummary?,
+    val ravensBot: BotSummary?,
+    val availableBots: List<BotSummary>,
     val viewerRole: ViewerRole
 )
 

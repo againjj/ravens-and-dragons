@@ -9,6 +9,8 @@ object GameSessionFactory {
         selectedRuleConfigurationId: String,
         selectedStartingSide: Side,
         selectedBoardSize: Int,
+        dragonsBotId: String? = null,
+        ravensBotId: String? = null,
         createdByUserId: String? = null,
         now: Instant = Instant.now()
     ): StoredGame = createStoredGame(
@@ -26,6 +28,8 @@ object GameSessionFactory {
         selectedRuleConfigurationId = selectedRuleConfigurationId,
         selectedStartingSide = selectedStartingSide,
         selectedBoardSize = selectedBoardSize,
+        dragonsBotId = dragonsBotId,
+        ravensBotId = ravensBotId,
         createdByUserId = createdByUserId
     )
 
@@ -43,6 +47,8 @@ object GameSessionFactory {
         selectedBoardSize: Int,
         dragonsPlayerUserId: String? = null,
         ravensPlayerUserId: String? = null,
+        dragonsBotId: String? = null,
+        ravensBotId: String? = null,
         createdByUserId: String? = null
     ): StoredGame = StoredGame(
         session = GameSession(
@@ -52,7 +58,7 @@ object GameSessionFactory {
             updatedAt = updatedAt,
             lifecycle = lifecycle,
             snapshot = snapshot,
-            canUndo = undoSnapshots.isNotEmpty(),
+            canUndo = undoSnapshots.isNotEmpty() && dragonsBotId == null && ravensBotId == null,
             undoOwnerSide = undoSnapshots.lastOrNull()?.activeSide,
             availableRuleConfigurations = GameRules.availableRuleConfigurations(),
             selectedRuleConfigurationId = selectedRuleConfigurationId,
@@ -60,6 +66,8 @@ object GameSessionFactory {
             selectedBoardSize = selectedBoardSize,
             dragonsPlayerUserId = dragonsPlayerUserId,
             ravensPlayerUserId = ravensPlayerUserId,
+            dragonsBotId = dragonsBotId,
+            ravensBotId = ravensBotId,
             createdByUserId = createdByUserId
         ),
         undoSnapshots = undoSnapshots,

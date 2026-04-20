@@ -147,6 +147,38 @@ class GameSessionServiceTest {
     }
 
     @Test
+    fun `assigning a random bot to sherwood immediately plays the bot turn when that side is active`() {
+        val service = createService()
+        val game = service.createGame(CreateGameRequest(ruleConfigurationId = "sherwood-rules"))
+
+        val claimed = service.claimSide(game.id, Side.dragons, "player-one")
+        val updated = service.assignBotOpponent(claimed.id, BotRegistry.randomBotId, "player-one")
+
+        assertEquals(BotRegistry.randomBotId, updated.ravensBotId)
+        assertEquals(3, updated.version)
+        assertEquals(Side.dragons, updated.snapshot.activeSide)
+        assertEquals(listOf(TurnRecord(type = TurnType.move, from = "a4", to = "a2")), updated.snapshot.turns)
+        assertEquals(Piece.raven, updated.snapshot.board["a2"])
+        assertNull(updated.snapshot.board["a4"])
+        assertFalse(updated.canUndo)
+    }
+
+    @Test
+    fun `undo is rejected after a bot opponent is assigned`() {
+        val service = createService()
+        val game = service.createGame(CreateGameRequest(ruleConfigurationId = "sherwood-rules"))
+
+        service.claimSide(game.id, Side.dragons, "player-one")
+        val botGame = service.assignBotOpponent(game.id, BotRegistry.randomBotId, "player-one")
+
+        val exception = assertThrows<InvalidCommandException> {
+            service.applyCommand(botGame.id, GameCommandRequest(expectedVersion = botGame.version, type = "undo"), "player-one")
+        }
+
+        assertEquals("Undo is unavailable in games with a bot opponent.", exception.message)
+    }
+
+    @Test
     fun `loading a game touches its last accessed time`() {
         val store = InMemoryGameStore()
         val service = createService(store)
@@ -194,7 +226,8 @@ class GameSessionServiceTest {
         store,
         clock,
         staleGameThreshold,
-        GameCommandService(clock)
+        GameCommandService(clock),
+        BotRegistry(FixedRandomIndexSource())
     )
 
     private fun createIdleGameId(store: InMemoryGameStore): String {
@@ -229,4 +262,8 @@ class GameSessionServiceTest {
 
     private fun fixedClock(now: Instant = Instant.parse("2026-04-08T12:00:00Z")): Clock =
         Clock.fixed(now, ZoneOffset.UTC)
+
+    private class FixedRandomIndexSource : RandomIndexSource {
+        override fun nextInt(bound: Int): Int = 0
+    }
 }

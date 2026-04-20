@@ -8,6 +8,8 @@ The `docs` folder now also includes a Sherwood-focused bot planning document at 
 
 The backend now also includes session-cookie authentication for guest and local users, optional OAuth login wiring, persisted seat ownership on games, request-scoped game-view metadata, and self-service local-account profile management. The frontend now consumes that auth-aware view data, surfaces guest/local auth controls, requires authentication before entering the lobby or a game, gates gameplay actions by claimed side and active turn, and exposes a local-only profile page for display-name updates plus account deletion. Dual-seat ownership is now supported on live games, so the same user can claim both sides, keep the remaining open claim action visible, and retain undo/active-play access when the current state allows it. Google OAuth availability is now configuration-aware, and successful Google login returns to the original `/login?next=...` destination.
 
+Phase 1 of the Sherwood bot plan is now implemented. A new `Sherwood Rules` game with exactly one authenticated claimed human seat can assign the opposite open seat to the server-driven `Random` bot, bot seat ids persist separately from human ownership, the seat panel renders assigned bot seats as `Bot: Random`, server-side bot turns run synchronously from canonical Kotlin move generation, and undo is disabled once a bot is present.
+
 Recent organization work is now reflected directly in the codebase: the old `game.ts` helper module has been split into focused files for shared types, board geometry, client-side rules helpers, and move-history formatting. The backend `GameRules.kt` module has been split into a rule catalog, snapshot factory, shared rule-engine contract, and dedicated free-play, trivial, and original-style rule-engine files while preserving the existing `GameRules` facade for callers. Repeated game-view fetch, auth-session patching, selection normalization, and `401`/`403` recovery logic in `gameThunks.ts` has been consolidated into shared thunk helpers so open, refresh, command, and seat-claim flows stay aligned. The game-only layout and wiring have been extracted from `App.tsx` into a dedicated `GameScreen.tsx` container so the app shell stays focused on auth bootstrap, shared chrome, and route selection. The create flow now has its own frontend-only Redux slice, selectors, and helper module so `/create` can hold a local draft board, rule selection, board size, and starting-side state without touching the persisted game session. The create-rule catalog in `createGameState.ts` is now driven from shared frontend preset definitions instead of repeated handwritten config objects, and `useGameRoute.ts` now centralizes route parsing plus the “clear draft / clear active game / navigate” side effects used across lobby, create, profile, and game transitions. On the backend, command authorization, validation, undo transitions, and side-claim logic have been extracted into `GameCommandService.kt`, leaving `GameSessionService.kt` focused on store orchestration, SSE lifecycle, and stale-game cleanup. User-triggered game actions now also funnel frontend request failures into the same dismissible error-box pattern used by auth/profile flows, with a specific server-down message for network failures where the backend does not respond.
 The web layer now also includes a dedicated controller advice that recognizes expected disconnected-client I/O during SSE teardown, such as logout-time `Broken pipe` writes, and lets Spring log them as normal client disconnects instead of noisy application errors.
 
@@ -18,6 +20,7 @@ The web layer now also includes a dedicated controller advice that recognizes ex
 - `src/main/kotlin/com/dragonsvsravens/game/*.kt`
   - Server-side game state models, pure-ish rules, the JDBC-backed game store, the session service, and REST/SSE endpoints.
   - Rule metadata and execution are now separated across `RuleCatalog.kt`, `GameSnapshotFactory.kt`, `RuleEngine.kt`, and per-ruleset engine files, with `GameRules.kt` kept as a thin facade.
+  - `GameBots.kt` now owns the phase-1 bot catalog, random strategy wiring, and canonical legal-move value types used by server-side bot turns.
   - `GameCommandService.kt` now owns command authorization, validation, undo handling, and seat-claim transitions, while `GameSessionService.kt` keeps persisted-game loading, create-payload seeding, broadcasting, emitter lifecycle, and stale cleanup.
 - `src/main/kotlin/com/dragonsvsravens/auth/*.kt`
   - Session auth models, JDBC-backed user persistence, guest and local login flows, optional OAuth login integration, local-account profile management, and session cleanup hooks for temporary guest users.
@@ -41,7 +44,7 @@ The web layer now also includes a dedicated controller advice that recognizes ex
 - `src/main/frontend/move-history.ts`
   - Turn notation and grouped move-history row helpers.
 - `src/main/frontend/game-client.ts`
-  - Transport helpers for REST commands, create-game submission, and SSE subscription setup.
+  - Transport helpers for REST commands, create-game submission, bot assignment, and SSE subscription setup.
 - `src/main/frontend/App.tsx`
   - Top-level React layout and shell composition.
   - Handles auth bootstrap plus switching between the login, lobby, create, profile, and active game screens.
@@ -65,7 +68,7 @@ The web layer now also includes a dedicated controller advice that recognizes ex
   - Redux store setup and typed hooks.
 - `src/main/frontend/features/game/*.ts`
   - Game slice, selectors, thunks, and stream lifecycle wiring.
-  - Includes current-game and current-view state, auth-aware game metadata, the local draft-create slice/selectors/helpers, exact undo availability and ownership, create-game submission from the draft payload, command/claim-side thunks, and shared helpers for applying fetched game views plus auth-failure refresh recovery.
+  - Includes current-game and current-view state, auth-aware game metadata, the local draft-create slice/selectors/helpers, exact undo availability and ownership, Sherwood bot-assignment availability and target-side derivation, create-game submission from the draft payload, command/claim-side/bot thunks, and shared helpers for applying fetched game views plus auth-failure refresh recovery.
 - `src/main/frontend/features/auth/*.ts`
   - Auth session slice, selectors, profile state, and guest/local auth thunks.
 - `src/main/frontend/features/ui/*.ts`
@@ -79,13 +82,13 @@ The web layer now also includes a dedicated controller advice that recognizes ex
 - `src/test/frontend/game.test.js`
   - Frontend helper tests for server-backed snapshots and local-only selection behavior.
 - `src/test/frontend/game-thunks.test.ts`
-  - Verifies create/open/claim flows, shared auth-refresh behavior, and server-down feedback handling in the game thunks.
+  - Verifies create/open/claim/bot flows, shared auth-refresh behavior, and server-down feedback handling in the game thunks.
 - `src/test/frontend/game-screen.test.tsx`
   - Verifies the game-screen feedback dialog renders and dismisses correctly.
 - `src/test/frontend/create-game-draft.test.ts`
   - Verifies the local `/create` draft defaults, board cycling, rule switching, and reset behavior.
 - `src/test/kotlin/com/dragonsvsravens/game/GameRulesTest.kt`
-  - Verifies backend rule transitions match the current game rules.
+  - Verifies backend rule transitions plus deterministic Sherwood legal-move generation.
 - `src/test/kotlin/com/dragonsvsravens/game/GameControllerTest.kt`
   - Verifies the shared game API, version conflicts, and validation errors.
 - `src/test/kotlin/com/dragonsvsravens/DragonsVsRavensApplicationTests.kt`
@@ -122,6 +125,7 @@ The web layer now also includes a dedicated controller advice that recognizes ex
   - Creating a game uses `POST /api/games`.
   - Opening a game by id uses `GET /api/games/{gameId}`.
   - Seat claiming uses `POST /api/games/{gameId}/claim-side`.
+  - Bot assignment uses `POST /api/games/{gameId}/assign-bot-opponent`.
   - A request-scoped auth-aware game view is available at `GET /api/games/{gameId}/view`.
 - The active game screen sends mutations to `POST /api/games/{gameId}/commands`.
 - The create screen sends its drafted setup to `POST /api/games`, which creates the persisted session directly in move phase before the browser opens `/g/{gameId}`.
@@ -174,6 +178,8 @@ The canonical board is represented on the server as `Map<String, Piece>` and on 
 - `selectedBoardSize`
 - `dragonsPlayerUserId`
 - `ravensPlayerUserId`
+- `dragonsBotId`
+- `ravensBotId`
 - `createdByUserId`
 
 The backend also now exposes auth-oriented DTOs outside the canonical session payload:
@@ -183,6 +189,7 @@ The backend also now exposes auth-oriented DTOs outside the canonical session pa
 - `GameViewResponse`
 - `viewerRole`
 - player summaries for the claimed dragons and ravens seats
+- bot summaries for assigned bot seats plus the frontend-visible bot catalog for the current ruleset
 - configured OAuth provider ids for the login UI
 
 Important implication: game state is now persisted in the configured database, so clients can reopen the same game after server restart. SSE subscriptions and live fanout remain in memory per app instance, so persistence does not by itself add cross-instance push delivery.
@@ -202,7 +209,9 @@ The Kotlin game module is now the source of truth for game rules and state trans
 - Broadcasts updated snapshots to SSE clients scoped by game id.
 - Tracks last access time server-side for stale-game eviction.
 - Persists which local user, if any, currently owns each side.
+- Persists bot-controlled seats separately from human seat ownership.
 - Enforces that only authenticated claimed players may submit commands, with active-side enforcement once turn-based play begins.
+- Runs any active bot side synchronously in `GameSessionService` by choosing from the canonical Kotlin legal move list and broadcasting each intermediate session.
 - Splits command-transition logic into `GameCommandService.kt` and session/store orchestration into `GameSessionService.kt`.
 
 Most gameplay changes should start on the backend here.
@@ -331,11 +340,13 @@ Most UI-only changes should start in the relevant component, selector, or browse
 - Command submission and seat claiming also require an authenticated session.
 - Authenticated users may claim one open side on a game; unclaimed viewers remain spectators.
 - The game screen now shows current seat ownership, keeps the remaining open claim button visible when one seat is already claimed, and suppresses gameplay affordances when the viewer is spectating or on the wrong side once turn-based play begins unless the same user owns both seats.
+- In a fresh `Sherwood Rules` game, a single claimed human player may also assign `Random` to the opposite open seat, and assigned seats render as `Bot: Random`.
 - If a guest session ends, that guest user is deleted and any seats they held become unclaimed while the game itself stays active and viewable.
 - Generated game ids now use 7 characters from the Open Location Code ("PLUS code") alphabet `23456789CFGHJMPQRVWX`, which is the shortest fixed width that still covers more than 1,000,000,000 possible games.
 - Mutation requests include an expected version.
 - On a version conflict, the server returns `409` with the latest snapshot for that game only.
 - Freshly loaded clients receive an exact `canUndo` flag plus the side that currently owns undo, including after a finished game if undo can still roll back the terminal game-over state.
+- Bot games now report `canUndo = false` for phase 1, and undo requests are rejected server-side while a bot seat is present.
 - Freshly loaded clients also receive whether the shared session is `new`, `active`, or `finished`.
 - Freshly loaded clients also receive the shared selected play style and the full list of available rule configurations.
 - Freshly loaded clients also receive the shared selected starting side for `Free Play`.

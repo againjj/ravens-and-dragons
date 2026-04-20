@@ -93,6 +93,38 @@ class GameControllerTest : AbstractGameControllerTestSupport() {
     }
 
     @Test
+    fun `bot assignment is rejected outside sherwood rules`() {
+        val game = createGame(CreateGameRequest(ruleConfigurationId = "original-game"))
+        assignSides(game.id, defaultTestUserId, null)
+
+        assignBotOpponent(game.id, BotRegistry.randomBotId).andExpect {
+            status { isBadRequest() }
+            jsonPath("$.message", equalTo("Random is not available for this rule configuration."))
+        }
+    }
+
+    @Test
+    fun `game view includes bot metadata for assigned seats`() {
+        val game = seedGame(
+            gameId = "bot-view-game",
+            snapshot = GameRules.startGame("sherwood-rules"),
+            selectedRuleConfigurationId = "sherwood-rules",
+            dragonsPlayerUserId = defaultTestUserId,
+            ravensPlayerUserId = null,
+            ravensBotId = BotRegistry.randomBotId
+        )
+
+        mockMvc.get("/api/games/${game.id}/view") {
+            with(authenticated(game.id))
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.ravensBot.id", equalTo(BotRegistry.randomBotId))
+            jsonPath("$.ravensBot.displayName", equalTo("Random"))
+            jsonPath("$.availableBots[0].id", equalTo(BotRegistry.randomBotId))
+        }
+    }
+
+    @Test
     fun `missing game returns not found on multi game routes`() {
         mockMvc.get("/api/games/missing-game") {
             with(authenticated("missing-game"))

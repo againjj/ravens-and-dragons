@@ -3,10 +3,13 @@ import { describe, expect, test } from "vitest";
 import { createAppStore } from "../../main/frontend/app/store.js";
 import { gameActions } from "../../main/frontend/features/game/gameSlice.js";
 import {
+    selectBotAssignmentTargetSide,
     selectCanClaimDragons,
+    selectCanAssignBotOpponent,
     selectCanClaimRavens,
     selectCanViewerAct,
     selectCanViewerUndo,
+    selectIsSherwoodBotAssignmentSupported,
     selectStatusText,
     selectTargetableSquares
 } from "../../main/frontend/features/game/gameSelectors.js";
@@ -107,6 +110,77 @@ describe("game selectors", () => {
         expect(selectCanViewerUndo(store.getState())).toBe(true);
         expect(selectCanClaimDragons(store.getState())).toBe(false);
         expect(selectCanClaimRavens(store.getState())).toBe(false);
+    });
+
+    test("sherwood bot assignment is available only for the opposite open seat of a single claimed human player", () => {
+        const store = createAppStore({
+            auth: {
+                session: createAuthSession()
+            },
+            game: {
+                session: createSession(
+                    {
+                        selectedRuleConfigurationId: "sherwood-rules"
+                    },
+                    {
+                        turns: []
+                    }
+                ),
+                viewerRole: "dragons",
+                dragonsPlayer: {
+                    id: "player-dragons",
+                    displayName: "Dragon Player"
+                },
+                ravensPlayer: null,
+                availableBots: [{ id: "random", displayName: "Random" }],
+                isSubmitting: false,
+                loadState: "ready",
+                connectionState: "open",
+                feedbackMessage: null
+            },
+            ui: {
+                selectedSquare: null
+            }
+        });
+
+        expect(selectIsSherwoodBotAssignmentSupported(store.getState())).toBe(true);
+        expect(selectBotAssignmentTargetSide(store.getState())).toBe("ravens");
+        expect(selectCanAssignBotOpponent(store.getState())).toBe(true);
+    });
+
+    test("bot assignment is hidden for non-sherwood games and after the first move", () => {
+        const store = createAppStore({
+            auth: {
+                session: createAuthSession()
+            },
+            game: {
+                session: createSession(
+                    {
+                        selectedRuleConfigurationId: "original-game"
+                    },
+                    {
+                        turns: [{ type: "move", from: "a1", to: "a2" }]
+                    }
+                ),
+                viewerRole: "dragons",
+                dragonsPlayer: {
+                    id: "player-dragons",
+                    displayName: "Dragon Player"
+                },
+                ravensPlayer: null,
+                availableBots: [],
+                isSubmitting: false,
+                loadState: "ready",
+                connectionState: "open",
+                feedbackMessage: null
+            },
+            ui: {
+                selectedSquare: null
+            }
+        });
+
+        expect(selectIsSherwoodBotAssignmentSupported(store.getState())).toBe(false);
+        expect(selectCanAssignBotOpponent(store.getState())).toBe(false);
     });
 
     test("status text uses the no game copy when the session is idle", () => {

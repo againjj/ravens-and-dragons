@@ -1,4 +1,5 @@
 import type {
+    AssignBotOpponentRequest,
     AuthSessionResponse,
     ClaimSideRequest,
     CreateGameRequest,
@@ -218,6 +219,30 @@ export const claimGameSide = async (
     fetchImpl: FetchLike = fetch
 ): Promise<ApiResult<ServerGameSession>> => {
     const response = await fetchImpl(`${getGameUrl(gameId)}/claim-side`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(request)
+    });
+    if (response.ok) {
+        return {
+            data: await parseJson<ServerGameSession>(response)
+        };
+    }
+
+    return {
+        errorMessage: await parseErrorMessage(response),
+        status: response.status
+    };
+};
+
+export const assignBotOpponent = async (
+    gameId: string,
+    request: AssignBotOpponentRequest,
+    fetchImpl: FetchLike = fetch
+): Promise<ApiResult<ServerGameSession>> => {
+    const response = await fetchImpl(`${getGameUrl(gameId)}/assign-bot-opponent`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json"

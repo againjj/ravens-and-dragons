@@ -19,7 +19,8 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 class GameController(
     private val gameSessionService: GameSessionService,
     private val userAccountService: UserAccountService,
-    private val authSessionSupport: AuthSessionSupport
+    private val authSessionSupport: AuthSessionSupport,
+    private val botRegistry: BotRegistry
 ) {
     @PostMapping("/api/games")
     fun createGame(
@@ -49,6 +50,9 @@ class GameController(
             currentUser = currentUser,
             dragonsPlayer = game.dragonsPlayerUserId?.let { userAccountService.findUser(it) }?.let { GamePlayerSummary(it.id, it.displayName) },
             ravensPlayer = game.ravensPlayerUserId?.let { userAccountService.findUser(it) }?.let { GamePlayerSummary(it.id, it.displayName) },
+            dragonsBot = botRegistry.summaryFor(game.dragonsBotId),
+            ravensBot = botRegistry.summaryFor(game.ravensBotId),
+            availableBots = botRegistry.availableBotsFor(game.selectedRuleConfigurationId),
             viewerRole = when (currentUserId) {
                 null -> ViewerRole.anonymous
                 game.dragonsPlayerUserId -> ViewerRole.dragons
@@ -80,6 +84,18 @@ class GameController(
         request.side,
         authSessionSupport.currentUserId(servletRequest.getSession(false))
             ?: throw ForbiddenActionException("You must sign in before claiming a side.")
+    )
+
+    @PostMapping("/api/games/{gameId}/assign-bot-opponent")
+    fun assignBotOpponent(
+        @PathVariable gameId: String,
+        @RequestBody request: AssignBotOpponentRequest,
+        servletRequest: HttpServletRequest
+    ): GameSession = gameSessionService.assignBotOpponent(
+        gameId,
+        request.botId,
+        authSessionSupport.currentUserId(servletRequest.getSession(false))
+            ?: throw ForbiddenActionException("You must sign in before assigning a bot opponent.")
     )
 
     @GetMapping("/api/games/{gameId}/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
