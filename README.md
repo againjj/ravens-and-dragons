@@ -205,8 +205,6 @@ The current Railway production URL is [https://dragons-vs-ravens-production.up.r
   - current follow-up work and notable next steps
 - `docs/bot-implementation-plan.md`
   - detailed Sherwood bot implementation plan covering a first release plus a follow-up release with multiple named bots
-- `docs/create-and-play-redesign.md`
-  - detailed implementation plan for the proposed `/create` draft flow and live play layout redesign
 - `AGENTS.md`
   - project-specific rules for AI-assisted work
 
@@ -256,4 +254,3 @@ Read docs/code-summary.md and AGENTS.md before making changes. Follow those inst
 - If you change architecture, workflow, or gameplay in a meaningful way, update `docs/code-summary.md`.
 - Ongoing follow-up items are tracked in `docs/todo.md`.
 - A detailed Sherwood bot rollout plan now lives in `docs/bot-implementation-plan.md`, including first-release `botId` persistence and a follow-up release with `Simple`, `Random`, and `Minimax` bots.
-- A detailed create/play UX redesign plan now lives in `docs/create-and-play-redesign.md`, and `docs/todo.md` tracks that redesign as a follow-up item.
