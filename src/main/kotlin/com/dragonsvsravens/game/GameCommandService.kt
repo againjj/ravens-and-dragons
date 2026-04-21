@@ -41,8 +41,8 @@ class GameCommandService(
         if (session.lifecycle == GameLifecycle.finished) {
             throw InvalidCommandException("Bot assignment is unavailable after the game has finished.")
         }
-        if (session.selectedRuleConfigurationId != "sherwood-rules") {
-            throw InvalidCommandException("Bot assignment is currently available only for Sherwood Rules.")
+        if (session.selectedRuleConfigurationId !in botDefinition.supportedRuleConfigurationIds) {
+            throw InvalidCommandException("${botDefinition.displayName} is not available for this rule configuration.")
         }
         if (session.snapshot.turns.isNotEmpty()) {
             throw InvalidCommandException("Bot assignment is available only before the first move.")

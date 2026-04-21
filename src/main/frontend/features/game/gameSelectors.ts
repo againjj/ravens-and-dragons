@@ -120,11 +120,11 @@ export const selectCanClaimRavens = createSelector(
         ravensBotId == null
 );
 
-export const selectIsSherwoodBotAssignmentSupported = createSelector(
+export const selectIsBotAssignmentSupported = createSelector(
     selectSelectedRuleConfigurationId,
     selectAvailableBots,
     (selectedRuleConfigurationId, availableBots) =>
-        selectedRuleConfigurationId === "sherwood-rules" && availableBots.length > 0
+        selectedRuleConfigurationId != null && availableBots.length > 0
 );
 
 export const selectBotAssignmentTargetSide = createSelector(
@@ -158,7 +158,7 @@ export const selectCanAssignBotOpponent = createSelector(
     selectSnapshot,
     selectDragonsBot,
     selectRavensBot,
-    selectIsSherwoodBotAssignmentSupported,
+    selectIsBotAssignmentSupported,
     selectBotAssignmentTargetSide,
     (
         isAuthenticated,
@@ -167,7 +167,7 @@ export const selectCanAssignBotOpponent = createSelector(
         snapshot,
         dragonsBot,
         ravensBot,
-        isSherwoodBotAssignmentSupported,
+        isBotAssignmentSupported,
         botAssignmentTargetSide
     ) =>
         isAuthenticated &&
@@ -177,7 +177,7 @@ export const selectCanAssignBotOpponent = createSelector(
         snapshot.turns.length === 0 &&
         dragonsBot == null &&
         ravensBot == null &&
-        isSherwoodBotAssignmentSupported &&
+        isBotAssignmentSupported &&
         botAssignmentTargetSide != null
 );
 

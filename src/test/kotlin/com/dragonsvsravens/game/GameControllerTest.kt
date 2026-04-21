@@ -93,8 +93,8 @@ class GameControllerTest : AbstractGameControllerTestSupport() {
     }
 
     @Test
-    fun `bot assignment is rejected outside sherwood rules`() {
-        val game = createGame(CreateGameRequest(ruleConfigurationId = "original-game"))
+    fun `bot assignment is rejected for unsupported rule configurations`() {
+        val game = createGame(CreateGameRequest(ruleConfigurationId = "free-play"))
         assignSides(game.id, null, null)
 
         assignBotOpponent(game.id, BotRegistry.randomBotId).andExpect {
@@ -121,6 +121,26 @@ class GameControllerTest : AbstractGameControllerTestSupport() {
             jsonPath("$.ravensBot.id", equalTo(BotRegistry.randomBotId))
             jsonPath("$.ravensBot.displayName", equalTo("Random"))
             jsonPath("$.availableBots[0].id", equalTo(BotRegistry.randomBotId))
+        }
+    }
+
+    @Test
+    fun `game view exposes bot availability for every release two supported ruleset`() {
+        BotRegistry.releaseTwoSupportedRuleConfigurationIds.forEach { ruleConfigurationId ->
+            val game = seedGame(
+                gameId = "view-$ruleConfigurationId",
+                snapshot = GameRules.startGame(ruleConfigurationId),
+                selectedRuleConfigurationId = ruleConfigurationId,
+                dragonsPlayerUserId = defaultTestUserId,
+                ravensPlayerUserId = null
+            )
+
+            mockMvc.get("/api/games/${game.id}/view") {
+                with(authenticated(game.id))
+            }.andExpect {
+                status { isOk() }
+                jsonPath("$.availableBots[0].id", equalTo(BotRegistry.randomBotId))
+            }
         }
     }
 

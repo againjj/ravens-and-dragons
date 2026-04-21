@@ -45,13 +45,20 @@ class BotRegistry(
 ) {
     companion object {
         const val randomBotId = "random"
+        val releaseTwoSupportedRuleConfigurationIds = setOf(
+            "original-game",
+            "sherwood-rules",
+            "square-one",
+            "sherwood-x-9",
+            "square-one-x-9"
+        )
     }
 
     private val definitions = linkedMapOf(
         randomBotId to BotDefinition(
             id = randomBotId,
             displayName = "Random",
-            supportedRuleConfigurationIds = setOf("sherwood-rules"),
+            supportedRuleConfigurationIds = releaseTwoSupportedRuleConfigurationIds,
             strategy = RandomGameBotStrategy(randomIndexSource)
         )
     )

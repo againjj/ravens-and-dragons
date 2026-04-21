@@ -9,7 +9,7 @@ import {
     selectCanClaimRavens,
     selectCanViewerAct,
     selectCanViewerUndo,
-    selectIsSherwoodBotAssignmentSupported,
+    selectIsBotAssignmentSupported,
     selectStatusText,
     selectTargetableSquares
 } from "../../main/frontend/features/game/gameSelectors.js";
@@ -144,12 +144,12 @@ describe("game selectors", () => {
             }
         });
 
-        expect(selectIsSherwoodBotAssignmentSupported(store.getState())).toBe(true);
+        expect(selectIsBotAssignmentSupported(store.getState())).toBe(true);
         expect(selectBotAssignmentTargetSide(store.getState())).toBe("ravens");
         expect(selectCanAssignBotOpponent(store.getState())).toBe(true);
     });
 
-    test("bot assignment is hidden for non-sherwood games and after the first move", () => {
+    test("bot assignment is available for supported non-free-play rulesets before the first move", () => {
         const store = createAppStore({
             auth: {
                 session: createAuthSession()
@@ -157,10 +157,82 @@ describe("game selectors", () => {
             game: {
                 session: createSession(
                     {
-                        selectedRuleConfigurationId: "original-game"
+                        selectedRuleConfigurationId: "original-game",
+                        ravensPlayerUserId: null
+                    },
+                    {
+                        turns: []
+                    }
+                ),
+                viewerRole: "dragons",
+                dragonsPlayer: {
+                    id: "player-dragons",
+                    displayName: "Dragon Player"
+                },
+                ravensPlayer: null,
+                availableBots: [{ id: "random", displayName: "Random" }],
+                isSubmitting: false,
+                loadState: "ready",
+                connectionState: "open",
+                feedbackMessage: null
+            },
+            ui: {
+                selectedSquare: null
+            }
+        });
+
+        expect(selectIsBotAssignmentSupported(store.getState())).toBe(true);
+        expect(selectCanAssignBotOpponent(store.getState())).toBe(true);
+    });
+
+    test("bot assignment is hidden after the first move even on a supported ruleset", () => {
+        const store = createAppStore({
+            auth: {
+                session: createAuthSession()
+            },
+            game: {
+                session: createSession(
+                    {
+                        selectedRuleConfigurationId: "square-one-x-9",
+                        ravensPlayerUserId: null
                     },
                     {
                         turns: [{ type: "move", from: "a1", to: "a2" }]
+                    }
+                ),
+                viewerRole: "dragons",
+                dragonsPlayer: {
+                    id: "player-dragons",
+                    displayName: "Dragon Player"
+                },
+                ravensPlayer: null,
+                availableBots: [{ id: "random", displayName: "Random" }],
+                isSubmitting: false,
+                loadState: "ready",
+                connectionState: "open",
+                feedbackMessage: null
+            },
+            ui: {
+                selectedSquare: null
+            }
+        });
+
+        expect(selectIsBotAssignmentSupported(store.getState())).toBe(true);
+        expect(selectCanAssignBotOpponent(store.getState())).toBe(false);
+    });
+
+    test("bot assignment stays hidden for unsupported rulesets", () => {
+        const store = createAppStore({
+            auth: {
+                session: createAuthSession()
+            },
+            game: {
+                session: createSession(
+                    {
+                        selectedRuleConfigurationId: "trivial"
+                    },
+                    {
+                        turns: []
                     }
                 ),
                 viewerRole: "dragons",
@@ -180,7 +252,7 @@ describe("game selectors", () => {
             }
         });
 
-        expect(selectIsSherwoodBotAssignmentSupported(store.getState())).toBe(false);
+        expect(selectIsBotAssignmentSupported(store.getState())).toBe(false);
         expect(selectCanAssignBotOpponent(store.getState())).toBe(false);
     });
 

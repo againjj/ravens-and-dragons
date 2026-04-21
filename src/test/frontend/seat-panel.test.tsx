@@ -97,7 +97,7 @@ describe("SeatPanel", () => {
         expect(screen.queryByRole("button", { name: "Assign Bot To Ravens" })).toBeNull();
     });
 
-    test("shows the sherwood bot assignment button when the opposite seat is open", () => {
+    test("shows the bot assignment button for supported rulesets when the opposite seat is open", () => {
         renderWithStore(
             <SeatPanel onAssignBotOpponent={vi.fn()} onClaimDragons={vi.fn()} onClaimRavens={vi.fn()} />,
             {
@@ -107,7 +107,7 @@ describe("SeatPanel", () => {
                     },
                     game: {
                         session: createSession({
-                            selectedRuleConfigurationId: "sherwood-rules",
+                            selectedRuleConfigurationId: "square-one",
                             dragonsBotId: null,
                             ravensBotId: null,
                             ravensPlayerUserId: null
@@ -174,6 +174,33 @@ describe("SeatPanel", () => {
                         dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
                         ravensPlayer: { id: "player-dragons", displayName: "Dragon Player" },
                         availableBots: [{ id: "random", displayName: "Random" }]
+                    }
+                }
+            }
+        );
+
+        expect(screen.queryByRole("button", { name: "Assign Bot To Ravens" })).toBeNull();
+    });
+
+    test("hides bot assignment for unsupported rulesets", () => {
+        renderWithStore(
+            <SeatPanel onAssignBotOpponent={vi.fn()} onClaimDragons={vi.fn()} onClaimRavens={vi.fn()} />,
+            {
+                preloadedState: {
+                    auth: {
+                        session: createAuthSession()
+                    },
+                    game: {
+                        session: createSession({
+                            selectedRuleConfigurationId: "free-play",
+                            ravensPlayerUserId: null
+                        }, {
+                            turns: []
+                        }),
+                        viewerRole: "dragons",
+                        dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
+                        ravensPlayer: null,
+                        availableBots: []
                     }
                 }
             }

@@ -9,7 +9,7 @@ Dragons vs Ravens is a Spring Boot and Kotlin web app for playing a browser-base
 - Persist games in the configured database so they survive app restarts
 - Sign in as a guest or local user, with optional Google OAuth support
 - Claim the dragons or ravens side in a live game
-- In a fresh `Sherwood Rules` game, assign the opposite open seat to a server-driven `Random` bot, and keep bot-controlled seats unavailable for later human claims
+- In a fresh supported preset game, assign the opposite open seat to a server-driven `Random` bot for `Original Game`, `Sherwood Rules`, `Square One`, `Sherwood x 9`, or `Square One x 9`, and keep bot-controlled seats unavailable for later human claims
 
 ## Requirements
 

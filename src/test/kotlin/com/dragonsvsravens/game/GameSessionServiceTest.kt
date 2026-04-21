@@ -163,6 +163,39 @@ class GameSessionServiceTest {
     }
 
     @Test
+    fun `supported release two rulesets allow assigning a bot and trigger an immediate bot move`() {
+        val service = createService()
+
+        BotRegistry.releaseTwoSupportedRuleConfigurationIds.forEach { ruleConfigurationId ->
+            val game = service.createGame(CreateGameRequest(ruleConfigurationId = ruleConfigurationId))
+            service.claimSide(game.id, Side.dragons, "player-one")
+
+            val updated = service.assignBotOpponent(game.id, BotRegistry.randomBotId, "player-one")
+
+            assertEquals(ruleConfigurationId, updated.selectedRuleConfigurationId)
+            assertEquals(BotRegistry.randomBotId, updated.ravensBotId)
+            assertEquals(Side.dragons, updated.snapshot.activeSide)
+            assertEquals(1, updated.snapshot.turns.size)
+        }
+    }
+
+    @Test
+    fun `unsupported rulesets reject bot assignment`() {
+        val service = createService()
+
+        listOf(GameRules.freePlayRuleConfigurationId, "trivial").forEach { ruleConfigurationId ->
+            val game = service.createGame(CreateGameRequest(ruleConfigurationId = ruleConfigurationId))
+            service.claimSide(game.id, Side.dragons, "player-one")
+
+            val exception = assertThrows<InvalidCommandException> {
+                service.assignBotOpponent(game.id, BotRegistry.randomBotId, "player-one")
+            }
+
+            assertEquals("Random is not available for this rule configuration.", exception.message)
+        }
+    }
+
+    @Test
     fun `with both seats claimed any bot assignment is rejected`() {
         val service = createService()
         val game = service.createGame(CreateGameRequest(ruleConfigurationId = "sherwood-rules"))
