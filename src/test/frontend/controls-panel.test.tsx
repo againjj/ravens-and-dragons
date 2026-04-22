@@ -97,7 +97,7 @@ describe("ControlsPanel", () => {
             ),
             {
                 viewerRole: "dragons",
-                ravensBot: { id: "random", displayName: "Random" }
+                ravensBot: { id: "random", displayName: "Randall" }
             }
         );
 

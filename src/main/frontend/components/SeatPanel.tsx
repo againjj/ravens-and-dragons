@@ -7,9 +7,9 @@ import {
     selectCanAssignBotOpponent,
     selectCanClaimDragons,
     selectCanClaimRavens,
-    selectDragonsBot,
+    selectResolvedDragonsBot,
     selectDragonsPlayer,
-    selectRavensBot,
+    selectResolvedRavensBot,
     selectRavensPlayer
 } from "../features/game/gameSelectors.js";
 
@@ -22,8 +22,8 @@ interface SeatPanelProps {
 export const SeatPanel = ({ onAssignBotOpponent, onClaimDragons, onClaimRavens }: SeatPanelProps) => {
     const dragonsPlayer = useAppSelector(selectDragonsPlayer);
     const ravensPlayer = useAppSelector(selectRavensPlayer);
-    const dragonsBot = useAppSelector(selectDragonsBot);
-    const ravensBot = useAppSelector(selectRavensBot);
+    const dragonsBot = useAppSelector(selectResolvedDragonsBot);
+    const ravensBot = useAppSelector(selectResolvedRavensBot);
     const availableBots = useAppSelector(selectAvailableBots);
     const canClaimDragons = useAppSelector(selectCanClaimDragons);
     const canClaimRavens = useAppSelector(selectCanClaimRavens);

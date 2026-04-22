@@ -85,14 +85,14 @@ describe("SeatPanel", () => {
                         viewerRole: "dragons",
                         dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
                         ravensPlayer: null,
-                        ravensBot: { id: "random", displayName: "Random" },
-                        availableBots: [{ id: "random", displayName: "Random" }]
+                        ravensBot: { id: "random", displayName: "Randall" },
+                        availableBots: [{ id: "random", displayName: "Randall" }]
                     }
                 }
             }
         );
 
-        expect(screen.getByText((_, element) => element?.textContent === "Ravens: Bot: Random")).toBeInTheDocument();
+        expect(screen.getByText((_, element) => element?.textContent === "Ravens: Bot: Randall")).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "Claim Ravens" })).toBeNull();
         expect(screen.queryByRole("button", { name: "Assign Bot To Ravens" })).toBeNull();
         expect(screen.queryByRole("combobox", { name: "Choose bot opponent" })).toBeNull();
@@ -123,9 +123,9 @@ describe("SeatPanel", () => {
                         ravensPlayer: null,
                         ravensBot: null,
                         availableBots: [
-                            { id: "random", displayName: "Random" },
-                            { id: "simple", displayName: "Simple" },
-                            { id: "minimax", displayName: "Minimax" }
+                            { id: "random", displayName: "Randall" },
+                            { id: "simple", displayName: "Simon" },
+                            { id: "minimax", displayName: "Maxine" }
                         ]
                     }
                 }
@@ -163,14 +163,49 @@ describe("SeatPanel", () => {
                         viewerRole: "ravens",
                         dragonsPlayer: null,
                         ravensPlayer: { id: "player-ravens", displayName: "Raven Player" },
-                        dragonsBot: { id: "minimax", displayName: "Minimax" },
-                        availableBots: [{ id: "minimax", displayName: "Minimax" }]
+                        dragonsBot: { id: "minimax", displayName: "Maxine" },
+                        availableBots: [{ id: "minimax", displayName: "Maxine" }]
                     }
                 }
             }
         );
 
-        expect(screen.getByText((_, element) => element?.textContent === "Dragons: Bot: Minimax")).toBeInTheDocument();
+        expect(screen.getByText((_, element) => element?.textContent === "Dragons: Bot: Maxine")).toBeInTheDocument();
+    });
+
+    test("renders a pending bot assignment before refreshed bot metadata arrives", () => {
+        renderWithStore(
+            <SeatPanel onAssignBotOpponent={vi.fn()} onClaimDragons={vi.fn()} onClaimRavens={vi.fn()} />,
+            {
+                preloadedState: {
+                    auth: {
+                        session: createAuthSession()
+                    },
+                    game: {
+                        session: createSession({
+                            selectedRuleConfigurationId: "sherwood-rules",
+                            ravensBotId: null,
+                            ravensPlayerUserId: null
+                        }, {
+                            turns: []
+                        }),
+                        viewerRole: "dragons",
+                        dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
+                        ravensPlayer: null,
+                        availableBots: [
+                            { id: "random", displayName: "Randall" },
+                            { id: "simple", displayName: "Simon" }
+                        ],
+                        pendingBotAssignment: {
+                            side: "ravens",
+                            botId: "simple"
+                        }
+                    }
+                }
+            }
+        );
+
+        expect(screen.getByText((_, element) => element?.textContent === "Ravens: Bot: Simon")).toBeInTheDocument();
     });
 
     test("renders claim actions before the bot assignment controls", () => {
@@ -192,8 +227,8 @@ describe("SeatPanel", () => {
                         dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
                         ravensPlayer: null,
                         availableBots: [
-                            { id: "random", displayName: "Random" },
-                            { id: "simple", displayName: "Simple" }
+                            { id: "random", displayName: "Randall" },
+                            { id: "simple", displayName: "Simon" }
                         ]
                     }
                 }
@@ -223,7 +258,7 @@ describe("SeatPanel", () => {
                         viewerRole: "dragons",
                         dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
                         ravensPlayer: { id: "player-dragons", displayName: "Dragon Player" },
-                        availableBots: [{ id: "random", displayName: "Random" }]
+                        availableBots: [{ id: "random", displayName: "Randall" }]
                     }
                 }
             }

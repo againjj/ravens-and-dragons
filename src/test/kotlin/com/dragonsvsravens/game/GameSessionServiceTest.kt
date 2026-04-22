@@ -193,7 +193,7 @@ class GameSessionServiceTest {
                 service.assignBotOpponent(game.id, BotRegistry.randomBotId, "player-one")
             }
 
-            assertEquals("Random is not available for this rule configuration.", exception.message)
+            assertEquals("Randall is not available for this rule configuration.", exception.message)
         }
     }
 

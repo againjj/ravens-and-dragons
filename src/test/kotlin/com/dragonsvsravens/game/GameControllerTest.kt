@@ -99,7 +99,7 @@ class GameControllerTest : AbstractGameControllerTestSupport() {
 
         assignBotOpponent(game.id, BotRegistry.randomBotId).andExpect {
             status { isBadRequest() }
-            jsonPath("$.message", equalTo("Random is not available for this rule configuration."))
+            jsonPath("$.message", equalTo("Randall is not available for this rule configuration."))
         }
     }
 
@@ -119,12 +119,12 @@ class GameControllerTest : AbstractGameControllerTestSupport() {
         }.andExpect {
             status { isOk() }
             jsonPath("$.ravensBot.id", equalTo(BotRegistry.randomBotId))
-            jsonPath("$.ravensBot.displayName", equalTo("Random"))
+            jsonPath("$.ravensBot.displayName", equalTo("Randall"))
             jsonPath("$.availableBots[0].id", equalTo(BotRegistry.randomBotId))
             jsonPath("$.availableBots[1].id", equalTo(BotRegistry.simpleBotId))
-            jsonPath("$.availableBots[1].displayName", equalTo("Simple"))
+            jsonPath("$.availableBots[1].displayName", equalTo("Simon"))
             jsonPath("$.availableBots[2].id", equalTo(BotRegistry.minimaxBotId))
-            jsonPath("$.availableBots[2].displayName", equalTo("Minimax"))
+            jsonPath("$.availableBots[2].displayName", equalTo("Maxine"))
         }
     }
 

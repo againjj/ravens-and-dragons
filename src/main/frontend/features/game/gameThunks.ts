@@ -216,8 +216,21 @@ export const claimSide = (side: Side): AppThunk<Promise<void>> => async (dispatc
 
 export const assignBotOpponent = (botId: string): AppThunk<Promise<void>> => async (dispatch, getState) => {
     const gameId = getState().game.currentGameId;
-    if (!gameId) {
+    const currentSession = getState().game.session;
+    if (!gameId || !currentSession) {
         return;
+    }
+
+    const currentUserId = getState().auth.session.user?.id ?? null;
+    let targetSide: Side | null = null;
+    if (currentUserId && currentSession.dragonsPlayerUserId === currentUserId && currentSession.ravensPlayerUserId == null) {
+        targetSide = "ravens";
+    } else if (currentUserId && currentSession.ravensPlayerUserId === currentUserId && currentSession.dragonsPlayerUserId == null) {
+        targetSide = "dragons";
+    }
+
+    if (targetSide) {
+        dispatch(gameActions.pendingBotAssignmentSet({ side: targetSide, botId }));
     }
 
     await dispatch(

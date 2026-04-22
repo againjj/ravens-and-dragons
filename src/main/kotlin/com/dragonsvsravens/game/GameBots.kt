@@ -323,19 +323,19 @@ class BotRegistry(
     private val definitions = linkedMapOf(
         randomBotId to BotDefinition(
             id = randomBotId,
-            displayName = "Random",
+            displayName = "Randall",
             supportedRuleConfigurationIds = releaseTwoSupportedRuleConfigurationIds,
             strategy = RandomGameBotStrategy(randomIndexSource)
         ),
         simpleBotId to BotDefinition(
             id = simpleBotId,
-            displayName = "Simple",
+            displayName = "Simon",
             supportedRuleConfigurationIds = releaseTwoSupportedRuleConfigurationIds,
             strategy = SimpleGameBotStrategy()
         ),
         minimaxBotId to BotDefinition(
             id = minimaxBotId,
-            displayName = "Minimax",
+            displayName = "Maxine",
             supportedRuleConfigurationIds = releaseTwoSupportedRuleConfigurationIds,
             strategy = MinimaxGameBotStrategy()
         )

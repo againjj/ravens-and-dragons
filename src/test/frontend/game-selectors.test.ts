@@ -137,7 +137,7 @@ describe("game selectors", () => {
                 ravensPlayer: null,
                 ravensBot: {
                     id: "random",
-                    displayName: "Random"
+                    displayName: "Randall"
                 },
                 isSubmitting: false,
                 loadState: "ready",
@@ -150,6 +150,38 @@ describe("game selectors", () => {
         });
 
         expect(selectCanViewerUndo(store.getState())).toBe(true);
+    });
+
+    test("status text shows when a bot-controlled side is thinking", () => {
+        const store = createAppStore({
+            auth: {
+                session: createAuthSession()
+            },
+            game: {
+                session: createSession(
+                    {
+                        ravensBotId: "random"
+                    },
+                    {
+                        phase: "move",
+                        activeSide: "ravens"
+                    }
+                ),
+                viewerRole: "dragons",
+                dragonsPlayer: {
+                    id: "player-dragons",
+                    displayName: "Dragon Player"
+                },
+                ravensPlayer: null,
+                availableBots: [{ id: "random", displayName: "Randall" }],
+                isSubmitting: true,
+                loadState: "ready",
+                connectionState: "open",
+                feedbackMessage: null
+            }
+        });
+
+        expect(selectStatusText(store.getState())).toBe("Randall is thinking...");
     });
 
     test("bot assignment is available when exactly one seat is claimed by the current user", () => {
@@ -174,8 +206,8 @@ describe("game selectors", () => {
                 },
                 ravensPlayer: null,
                 availableBots: [
-                    { id: "random", displayName: "Random" },
-                    { id: "simple", displayName: "Simple" }
+                    { id: "random", displayName: "Randall" },
+                    { id: "simple", displayName: "Simon" }
                 ],
                 isSubmitting: false,
                 loadState: "ready",
@@ -213,7 +245,7 @@ describe("game selectors", () => {
                     displayName: "Dragon Player"
                 },
                 ravensPlayer: null,
-                availableBots: [{ id: "random", displayName: "Random" }],
+                availableBots: [{ id: "random", displayName: "Randall" }],
                 isSubmitting: false,
                 loadState: "ready",
                 connectionState: "open",
@@ -249,7 +281,7 @@ describe("game selectors", () => {
                     displayName: "Dragon Player"
                 },
                 ravensPlayer: null,
-                availableBots: [{ id: "random", displayName: "Random" }],
+                availableBots: [{ id: "random", displayName: "Randall" }],
                 isSubmitting: false,
                 loadState: "ready",
                 connectionState: "open",
@@ -323,7 +355,7 @@ describe("game selectors", () => {
                     id: "player-dragons",
                     displayName: "Raven Player"
                 },
-                availableBots: [{ id: "random", displayName: "Random" }],
+                availableBots: [{ id: "random", displayName: "Randall" }],
                 isSubmitting: false,
                 loadState: "ready",
                 connectionState: "open",
@@ -362,9 +394,9 @@ describe("game selectors", () => {
                 ravensPlayer: null,
                 ravensBot: {
                     id: "random",
-                    displayName: "Random"
+                    displayName: "Randall"
                 },
-                availableBots: [{ id: "random", displayName: "Random" }],
+                availableBots: [{ id: "random", displayName: "Randall" }],
                 isSubmitting: false,
                 loadState: "ready",
                 connectionState: "open",

@@ -21,6 +21,7 @@ export const selectRavensPlayer = (state: RootState) => state.game.ravensPlayer;
 export const selectDragonsBot = (state: RootState) => state.game.dragonsBot;
 export const selectRavensBot = (state: RootState) => state.game.ravensBot;
 export const selectAvailableBots = (state: RootState) => state.game.availableBots ?? emptyBots;
+const selectPendingBotAssignment = (state: RootState) => state.game.pendingBotAssignment;
 const selectDragonsPlayerUserId = (state: RootState) => state.game.session?.dragonsPlayerUserId ?? null;
 const selectRavensPlayerUserId = (state: RootState) => state.game.session?.ravensPlayerUserId ?? null;
 const selectDragonsBotId = (state: RootState) => state.game.session?.dragonsBotId ?? null;
@@ -59,9 +60,46 @@ const selectCurrentUserOwnsBothSeats = createSelector(
 
 export const selectHasBotSeat = createSelector(
     selectSnapshot,
-    (state: RootState) => state.game.session?.dragonsBotId ?? null,
-    (state: RootState) => state.game.session?.ravensBotId ?? null,
+    selectDragonsBotId,
+    selectRavensBotId,
     (snapshot, dragonsBotId, ravensBotId) => !!snapshot && (dragonsBotId != null || ravensBotId != null)
+);
+
+const resolveBotSummary = (
+    explicitBot: BotSummary | null,
+    botId: string | null,
+    pendingAssignment: { side: Side; botId: string } | null,
+    side: Side,
+    availableBots: BotSummary[]
+): BotSummary | null => {
+    if (explicitBot) {
+        return explicitBot;
+    }
+
+    const resolvedBotId = pendingAssignment?.side === side ? pendingAssignment.botId : botId;
+    if (!resolvedBotId) {
+        return null;
+    }
+
+    return availableBots.find((bot) => bot.id === resolvedBotId) ?? { id: resolvedBotId, displayName: resolvedBotId };
+};
+
+export const selectResolvedDragonsBot = createSelector(
+    selectDragonsBot,
+    selectDragonsBotId,
+    selectPendingBotAssignment,
+    selectAvailableBots,
+    (dragonsBot, dragonsBotId, pendingBotAssignment, availableBots) =>
+        resolveBotSummary(dragonsBot, dragonsBotId, pendingBotAssignment, "dragons", availableBots)
+);
+
+export const selectResolvedRavensBot = createSelector(
+    selectRavensBot,
+    selectRavensBotId,
+    selectPendingBotAssignment,
+    selectAvailableBots,
+    (ravensBot, ravensBotId, pendingBotAssignment, availableBots) =>
+        resolveBotSummary(ravensBot, ravensBotId, pendingBotAssignment, "ravens", availableBots)
 );
 
 export const selectCanViewerAct = createSelector(
@@ -156,8 +194,8 @@ export const selectCanAssignBotOpponent = createSelector(
     selectCurrentUserOwnsBothSeats,
     selectIsFinishedGame,
     selectSnapshot,
-    selectDragonsBot,
-    selectRavensBot,
+    selectDragonsBotId,
+    selectRavensBotId,
     selectIsBotAssignmentSupported,
     selectBotAssignmentTargetSide,
     (
@@ -165,8 +203,8 @@ export const selectCanAssignBotOpponent = createSelector(
         currentUserOwnsBothSeats,
         isFinishedGame,
         snapshot,
-        dragonsBot,
-        ravensBot,
+        dragonsBotId,
+        ravensBotId,
         isBotAssignmentSupported,
         botAssignmentTargetSide
     ) =>
@@ -175,10 +213,31 @@ export const selectCanAssignBotOpponent = createSelector(
         !isFinishedGame &&
         snapshot != null &&
         snapshot.turns.length === 0 &&
-        dragonsBot == null &&
-        ravensBot == null &&
+        dragonsBotId == null &&
+        ravensBotId == null &&
         isBotAssignmentSupported &&
         botAssignmentTargetSide != null
+);
+
+const selectActiveBotName = createSelector(
+    selectSnapshot,
+    selectResolvedDragonsBot,
+    selectResolvedRavensBot,
+    (snapshot, dragonsBot, ravensBot): string | null => {
+        if (!snapshot) {
+            return null;
+        }
+
+        if (snapshot.activeSide === "dragons" && dragonsBot != null) {
+            return dragonsBot.displayName;
+        }
+
+        if (snapshot.activeSide === "ravens" && ravensBot != null) {
+            return ravensBot.displayName;
+        }
+
+        return null;
+    }
 );
 
 export const selectCapturableSquares = createSelector(selectSnapshot, (snapshot) =>
@@ -202,7 +261,8 @@ export const selectStatusText = createSelector(
     selectSnapshot,
     selectIsFinishedGame,
     selectViewerOwnsASeat,
-    (gameState, snapshot, isFinishedGame, viewerOwnsASeat) => {
+    selectActiveBotName,
+    (gameState, snapshot, isFinishedGame, viewerOwnsASeat, activeBotName) => {
         if (gameState.feedbackMessage) {
             return gameState.feedbackMessage;
         }
@@ -230,6 +290,10 @@ export const selectStatusText = createSelector(
 
         if (snapshot.phase === "capture") {
             return `${snapshot.activeSide === "dragons" ? "Dragons" : "Ravens"} moved. Capture a piece, or skip the capture.`;
+        }
+
+        if (activeBotName) {
+            return `${activeBotName} is thinking...`;
         }
 
         const moverLabel = snapshot.activeSide === "dragons" ? "Dragons" : "Ravens";

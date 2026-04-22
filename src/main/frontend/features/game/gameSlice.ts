@@ -1,6 +1,6 @@
 import { createSlice, type PayloadAction } from "@reduxjs/toolkit";
 
-import type { BotSummary, GamePlayerSummary, GameViewResponse, ServerGameSession, ViewerRole } from "../../game-types.js";
+import type { BotSummary, GamePlayerSummary, GameViewResponse, ServerGameSession, Side, ViewerRole } from "../../game-types.js";
 
 export type GameView = "lobby" | "game";
 
@@ -14,6 +14,7 @@ export interface GameState {
     dragonsBot: BotSummary | null;
     ravensBot: BotSummary | null;
     availableBots: BotSummary[];
+    pendingBotAssignment: { side: Side; botId: string } | null;
     isSubmitting: boolean;
     loadState: "idle" | "loading" | "ready" | "error";
     connectionState: "idle" | "connecting" | "open" | "reconnecting";
@@ -30,6 +31,7 @@ export const initialGameState: GameState = {
     dragonsBot: null,
     ravensBot: null,
     availableBots: [],
+    pendingBotAssignment: null,
     isSubmitting: false,
     loadState: "idle",
     connectionState: "idle",
@@ -50,6 +52,7 @@ const gameSlice = createSlice({
             state.dragonsBot = null;
             state.ravensBot = null;
             state.availableBots = [];
+            state.pendingBotAssignment = null;
             state.isSubmitting = false;
             state.loadState = "loading";
             state.connectionState = "connecting";
@@ -70,6 +73,7 @@ const gameSlice = createSlice({
             state.dragonsBot = null;
             state.ravensBot = null;
             state.availableBots = [];
+            state.pendingBotAssignment = null;
             state.isSubmitting = false;
             state.loadState = "idle";
             state.connectionState = "idle";
@@ -89,6 +93,7 @@ const gameSlice = createSlice({
             state.dragonsBot = null;
             state.ravensBot = null;
             state.availableBots = [];
+            state.pendingBotAssignment = null;
         },
         commandStarted(state) {
             state.isSubmitting = true;
@@ -96,12 +101,23 @@ const gameSlice = createSlice({
         },
         commandFinished(state) {
             state.isSubmitting = false;
+            state.pendingBotAssignment = null;
         },
         sessionUpdated(state, action: PayloadAction<ServerGameSession>) {
             state.currentGameId = action.payload.id;
             state.session = action.payload;
             state.loadState = "ready";
             state.feedbackMessage = null;
+            const pendingAssignment = state.pendingBotAssignment;
+            if (
+                pendingAssignment &&
+                (
+                    (pendingAssignment.side === "dragons" && action.payload.dragonsBotId === pendingAssignment.botId) ||
+                    (pendingAssignment.side === "ravens" && action.payload.ravensBotId === pendingAssignment.botId)
+                )
+            ) {
+                state.pendingBotAssignment = null;
+            }
         },
         gameViewUpdated(state, action: PayloadAction<GameViewResponse>) {
             state.currentGameId = action.payload.game.id;
@@ -114,6 +130,16 @@ const gameSlice = createSlice({
             state.availableBots = action.payload.availableBots;
             state.loadState = "ready";
             state.feedbackMessage = null;
+            const pendingAssignment = state.pendingBotAssignment;
+            if (
+                pendingAssignment &&
+                (
+                    (pendingAssignment.side === "dragons" && action.payload.game.dragonsBotId === pendingAssignment.botId) ||
+                    (pendingAssignment.side === "ravens" && action.payload.game.ravensBotId === pendingAssignment.botId)
+                )
+            ) {
+                state.pendingBotAssignment = null;
+            }
         },
         viewerMetadataUpdated(
             state,
@@ -130,6 +156,9 @@ const gameSlice = createSlice({
         },
         feedbackMessageSet(state, action: PayloadAction<string | null>) {
             state.feedbackMessage = action.payload;
+        },
+        pendingBotAssignmentSet(state, action: PayloadAction<{ side: Side; botId: string } | null>) {
+            state.pendingBotAssignment = action.payload;
         },
         streamConnected(state) {
             state.connectionState = "open";

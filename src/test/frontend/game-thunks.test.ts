@@ -191,11 +191,11 @@ describe("gameThunks", () => {
                 {},
                 {
                     ravensPlayer: null,
-                    ravensBot: { id: "minimax", displayName: "Minimax" },
+                    ravensBot: { id: "minimax", displayName: "Maxine" },
                     availableBots: [
-                        { id: "random", displayName: "Random" },
-                        { id: "simple", displayName: "Simple" },
-                        { id: "minimax", displayName: "Minimax" }
+                        { id: "random", displayName: "Randall" },
+                        { id: "simple", displayName: "Simon" },
+                        { id: "minimax", displayName: "Maxine" }
                     ]
                 }
             )
@@ -212,9 +212,9 @@ describe("gameThunks", () => {
                 dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
                 ravensPlayer: null,
                 availableBots: [
-                    { id: "random", displayName: "Random" },
-                    { id: "simple", displayName: "Simple" },
-                    { id: "minimax", displayName: "Minimax" }
+                    { id: "random", displayName: "Randall" },
+                    { id: "simple", displayName: "Simon" },
+                    { id: "minimax", displayName: "Maxine" }
                 ]
             }
         });
@@ -223,6 +223,58 @@ describe("gameThunks", () => {
 
         expect(assignBotOpponentMock).toHaveBeenCalledWith("game-515", { botId: "minimax" });
         expect(fetchGameViewMock).toHaveBeenCalledWith("game-515");
+    });
+
+    test("assignBotOpponent marks the pending bot seat while the request is in flight", async () => {
+        let resolveRequest: ((value: { data: ReturnType<typeof createSession> }) => void) | null = null;
+        assignBotOpponentMock.mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    resolveRequest = resolve as typeof resolveRequest;
+                })
+        );
+        fetchGameViewMock.mockResolvedValue(
+            createGameView(
+                { id: "game-516", ravensBotId: "simple" },
+                {},
+                {
+                    ravensPlayer: null,
+                    ravensBot: { id: "simple", displayName: "Simon" },
+                    availableBots: [
+                        { id: "random", displayName: "Randall" },
+                        { id: "simple", displayName: "Simon" }
+                    ]
+                }
+            )
+        );
+        const store = createAppStore({
+            auth: {
+                session: createAuthSession()
+            },
+            game: {
+                view: "game",
+                currentGameId: "game-516",
+                session: createSession({ id: "game-516", ravensPlayerUserId: null, ravensBotId: null }),
+                viewerRole: "dragons",
+                dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
+                ravensPlayer: null,
+                availableBots: [
+                    { id: "random", displayName: "Randall" },
+                    { id: "simple", displayName: "Simon" }
+                ]
+            }
+        });
+
+        const pendingDispatch = store.dispatch(assignBotOpponent("simple"));
+
+        expect(store.getState().game.pendingBotAssignment).toEqual({ side: "ravens", botId: "simple" });
+
+        resolveRequest?.({
+            data: createSession({ id: "game-516", ravensBotId: "simple", canUndo: false })
+        });
+        await pendingDispatch;
+
+        expect(store.getState().game.pendingBotAssignment).toBeNull();
     });
 
     test("claimSide refreshes the game view after a 403 response without clearing OAuth providers", async () => {
