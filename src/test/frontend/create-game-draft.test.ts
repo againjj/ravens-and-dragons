@@ -21,7 +21,7 @@ describe("create game draft", () => {
 
         expect(selectCreateGameIsActive(store.getState())).toBe(true);
         expect(selectCreateGameSelectedRuleConfigurationId(store.getState())).toBe("free-play");
-        expect(selectCreateGameSelectedStartingSide(store.getState())).toBe("dragons");
+        expect(selectCreateGameSelectedStartingSide(store.getState())).toBe("ravens");
         expect(selectCreateGameSelectedBoardSize(store.getState())).toBe(7);
         expect(selectCreateGameCanEditBoard(store.getState())).toBe(true);
         expect(selectCreateGameCurrentRuleConfiguration(store.getState())?.id).toBe("free-play");
@@ -30,7 +30,7 @@ describe("create game draft", () => {
             boardSize: 7,
             specialSquare: "d4",
             phase: "move",
-            activeSide: "dragons",
+            activeSide: "ravens",
             ruleConfigurationId: "free-play"
         });
         expect(selectCreateGameAvailableRuleConfigurations(store.getState())).toHaveLength(7);
@@ -45,7 +45,7 @@ describe("create game draft", () => {
         ]);
     });
 
-    test("cycling setup squares follows the setup cycle and preserves pieces inside the board", () => {
+    test("cycling setup squares follows the free-play setup cycle and preserves pieces inside the board", () => {
         const store = createAppStore();
 
         store.dispatch(createGameDraftActions.createModeEntered());
@@ -55,14 +55,32 @@ describe("create game draft", () => {
 
         expect(selectCreateGameSnapshot(store.getState())).toMatchObject({
             board: {
-                a1: "dragon"
+                a1: "raven"
             },
             boardSize: 5,
             specialSquare: "c3",
             phase: "move",
-            activeSide: "dragons",
+            activeSide: "ravens",
             ruleConfigurationId: "free-play"
         });
+    });
+
+    test("free play cycles raven to dragon to gold to empty", () => {
+        const store = createAppStore();
+
+        store.dispatch(createGameDraftActions.createModeEntered());
+
+        store.dispatch(createGameDraftActions.setupSquareCycled("a1"));
+        expect(selectCreateGameSnapshot(store.getState())?.board).toMatchObject({ a1: "raven" });
+
+        store.dispatch(createGameDraftActions.setupSquareCycled("a1"));
+        expect(selectCreateGameSnapshot(store.getState())?.board).toMatchObject({ a1: "dragon" });
+
+        store.dispatch(createGameDraftActions.setupSquareCycled("a1"));
+        expect(selectCreateGameSnapshot(store.getState())?.board).toMatchObject({ a1: "gold" });
+
+        store.dispatch(createGameDraftActions.setupSquareCycled("a1"));
+        expect(selectCreateGameSnapshot(store.getState())?.board).toEqual({});
     });
 
     test("changing away from free play clears the draft board and rebuilds the preset snapshot", () => {

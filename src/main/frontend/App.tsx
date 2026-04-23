@@ -68,7 +68,7 @@ export const App = () => {
             <section className="hero">
                 <div className="hero-header">
                     <div className="hero-copy">
-                        <h1>Dragons vs Ravens</h1>
+                        <h1>Ravens and Dragons</h1>
                     </div>
                     <div className="hero-actions">
                         {isAuthenticated && currentUser ? <span>{currentUser.displayName}</span> : null}

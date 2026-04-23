@@ -18,8 +18,9 @@ export interface CreateRuleConfiguration {
 
 const defaultBoardSize = 7;
 const defaultRuleConfigurationId = "free-play";
-const setupCycle: Piece[] = ["dragon", "raven", "gold"];
-const defaultStartingSide: Side = "dragons";
+const setupCycle: Piece[] = ["raven", "dragon", "gold"];
+const freePlayDefaultStartingSide: Side = "ravens";
+const dragonsStartSide: Side = "dragons";
 const ravensStartSide: Side = "ravens";
 const originalSetupParagraph =
     "The game starts in a cross formation: gold in the center with dragons surrounding it, and two ravens behind each dragon.";
@@ -32,7 +33,7 @@ const originalStyleMoveParagraphs = [
 ];
 const sherwoodStyleMoveParagraphs = [
     "Ravens move first.",
-    "Dragons and ravens move any distance orthogonally without jumping. The gold is moved by the dragons and may move only one square orthogonally at a time.",
+    "Ravens and dragons move any distance orthogonally without jumping. The gold is moved by the dragons and may move only one square orthogonally at a time.",
     "No piece may land on the center square after the gold leaves it, and only the gold may land on the corner squares.",
     "You may not make a move that causes any of your own pieces to be captured."
 ];
@@ -73,7 +74,7 @@ const createOriginalStyleSummary = (
         {
             heading: "Captures",
             paragraphs: [
-                "Dragons and ravens are captured by being sandwiched orthogonally by enemies, by an enemy plus the empty center, or by an enemy plus a corner. The gold is captured by four ravens in the center, by three ravens when beside the center, and otherwise like another piece."
+                "Ravens and dragons are captured by being sandwiched orthogonally by enemies, by an enemy plus the empty center, or by an enemy plus a corner. The gold is captured by four ravens in the center, by three ravens when beside the center, and otherwise like another piece."
             ]
         },
         {
@@ -146,20 +147,20 @@ const freePlay = createPresetRuleConfiguration({
     boardSize: defaultBoardSize,
     specialSquare: getCenterSquare(defaultBoardSize),
     presetBoard: {},
-    startingSide: defaultStartingSide,
+    startingSide: freePlayDefaultStartingSide,
     hasManualCapture: true,
     hasManualEndGame: true,
     descriptionSections: [
         {
             heading: "Overview",
             paragraphs: [
-                "Ravens are trying to steal the dragons' gold! Build the opening position on the create page, then dragons and ravens alternate turns once the game starts."
+                "Ravens are trying to steal the dragons' gold! Build the opening position on the create page, then ravens and dragons alternate turns once the game starts."
             ]
         },
         {
             heading: "Create Game",
             paragraphs: [
-                "On the create page, click any square to cycle through dragon, raven, gold, then empty. Starting the game locks in that drafted board as the live opening position."
+                "On the create page, click any square to cycle through raven, dragon, gold, then empty. Starting the game locks in that drafted board as the live opening position."
             ]
         },
         {
@@ -184,7 +185,7 @@ const trivial = createPresetRuleConfiguration({
         a7: "raven",
         g1: "raven"
     },
-    startingSide: defaultStartingSide,
+    startingSide: dragonsStartSide,
     descriptionSections: [
         {
             heading: "Overview",
@@ -302,7 +303,7 @@ export const getCreateRuleConfigurationSummaries = (): RuleConfigurationSummary[
 export const createDraftState = (): CreateGameDraftState => ({
     isActive: false,
     selectedRuleConfigurationId: defaultRuleConfigurationId,
-    selectedStartingSide: "dragons",
+    selectedStartingSide: freePlayDefaultStartingSide,
     selectedBoardSize: defaultBoardSize,
     draftBoard: {}
 });

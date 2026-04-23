@@ -89,8 +89,8 @@ export const GameSetupControls = ({
                                     onSelectStartingSide(event.target.value as Side);
                                 }}
                             >
-                                <option value="dragons">Dragons</option>
                                 <option value="ravens">Ravens</option>
+                                <option value="dragons">Dragons</option>
                             </select>
                         </div>
                     </div>

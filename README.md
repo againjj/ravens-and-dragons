@@ -1,6 +1,6 @@
-# Dragons vs Ravens
+# Ravens and Dragons
 
-Dragons vs Ravens is a Spring Boot and Kotlin web app for playing a browser-based board game with a React and Redux frontend. Games are stored in the app database, each game has its own URL, and connected players stay in sync through server-sent events.
+Ravens and Dragons is a Spring Boot and Kotlin web app for playing a browser-based board game with a React and Redux frontend. Games are stored in the app database, each game has its own URL, and connected players stay in sync through server-sent events.
 
 ## Highlights
 
@@ -8,7 +8,8 @@ Dragons vs Ravens is a Spring Boot and Kotlin web app for playing a browser-base
 - Play in the browser with live updates shared across tabs and clients
 - Persist games in the configured database so they survive app restarts
 - Sign in as a guest or local user, with optional Google OAuth support
-- Claim the dragons or ravens side in a live game
+- Claim the ravens or dragons side in a live game
+- In `Free Play`, setup clicks now cycle `raven -> dragon -> gold -> empty`, and the starting-side picker lists Ravens first and defaults to Ravens
 - In a fresh supported preset game, choose a server-driven `Randall`, `Simon`, or `Maxine` bot from the live-game seat panel and assign it to the opposite open seat for `Original Game`, `Sherwood Rules`, `Square One`, `Sherwood x 9`, or `Square One x 9`
 - Undo against a bot reverses one full exchange, and still works after a game-ending human move or bot reply when that last exchange is undoable
 
@@ -29,7 +30,7 @@ Start the app:
 
 Then open [http://localhost:8080](http://localhost:8080).
 
-By default, the app uses a local H2 database stored under `build/db/dragons-vs-ravens`.
+By default, the app uses a local H2 database stored under `build/db/ravens-and-dragons`.
 
 ## Run Tests
 
@@ -84,8 +85,8 @@ Flyway migrations run automatically on startup.
 
 ## Project Layout
 
-- `src/main/kotlin/com/dragonsvsravens/game`: backend game rules, bot strategies/orchestration, session handling, and game APIs
-- `src/main/kotlin/com/dragonsvsravens/auth`: authentication and account management
+- `src/main/kotlin/com/ravensanddragons/game`: backend game rules, bot strategies/orchestration, session handling, and game APIs
+- `src/main/kotlin/com/ravensanddragons/auth`: authentication and account management
 - `src/main/frontend`: React frontend, Redux state, and browser-side helpers
 - `src/test`: backend and frontend tests
 - `docs/code-summary.md`: architecture and implementation summary

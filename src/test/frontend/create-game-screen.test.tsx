@@ -25,7 +25,13 @@ describe("CreateGameScreen", () => {
         expect(screen.getByText("Place the pieces before starting the game.")).toBeInTheDocument();
         expect(screen.getByLabelText("Play Style")).toHaveValue("free-play");
         expect(screen.getByLabelText("Board Size")).toHaveValue("7");
-        expect(screen.getByLabelText("Starting Side")).toHaveValue("dragons");
+        expect(screen.getByLabelText("Starting Side")).toHaveValue("ravens");
+        expect(
+            screen
+                .getAllByRole("option")
+                .filter((option) => option.parentElement === screen.getByLabelText("Starting Side"))
+                .map((option) => option.textContent)
+        ).toEqual(["Ravens", "Dragons"]);
         expect(screen.getByRole("button", { name: "Start Game" })).toBeDisabled();
     });
 
@@ -38,7 +44,7 @@ describe("CreateGameScreen", () => {
 
         await user.click(screen.getByRole("button", { name: "Square a1" }));
         expect(store.getState().createGame.draftBoard).toMatchObject({
-            a1: "dragon"
+            a1: "raven"
         });
 
         await user.selectOptions(screen.getByLabelText("Play Style"), "trivial");

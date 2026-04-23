@@ -34,21 +34,21 @@ export const SeatPanel = ({ onAssignBotOpponent, onClaimDragons, onClaimRavens }
         <div className="seat-summary" aria-label="Seat ownership">
             <div className="seat-summary-line">
                 <span className="seat-summary-item">
-                    <strong>Dragons:</strong> {dragonsPlayer?.displayName ?? (dragonsBot ? `Bot: ${dragonsBot.displayName}` : "Open seat")}
+                    <strong>Ravens:</strong> {ravensPlayer?.displayName ?? (ravensBot ? `Bot: ${ravensBot.displayName}` : "Open seat")}
                 </span>
                 <span className="seat-summary-item">
-                    <strong>Ravens:</strong> {ravensPlayer?.displayName ?? (ravensBot ? `Bot: ${ravensBot.displayName}` : "Open seat")}
+                    <strong>Dragons:</strong> {dragonsPlayer?.displayName ?? (dragonsBot ? `Bot: ${dragonsBot.displayName}` : "Open seat")}
                 </span>
                 {canAssign || canClaimDragons || canClaimRavens ? (
                     <span className="controls seat-summary-actions">
-                        {canClaimDragons ? (
-                            <button type="button" onClick={onClaimDragons}>
-                                Claim Dragons
-                            </button>
-                        ) : null}
                         {canClaimRavens ? (
                             <button type="button" onClick={onClaimRavens}>
                                 Claim Ravens
+                            </button>
+                        ) : null}
+                        {canClaimDragons ? (
+                            <button type="button" onClick={onClaimDragons}>
+                                Claim Dragons
                             </button>
                         ) : null}
                         {canAssign && targetSide ? (
@@ -78,7 +78,7 @@ export const SeatPanel = ({ onAssignBotOpponent, onClaimDragons, onClaimRavens }
                                         }
                                     }}
                                 >
-                                    {`Assign Bot To ${targetSide === "dragons" ? "Dragons" : "Ravens"}`}
+                                    {`Assign Bot To ${targetSide === "ravens" ? "Ravens" : "Dragons"}`}
                                 </button>
                             </>
                         ) : null}

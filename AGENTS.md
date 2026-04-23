@@ -24,7 +24,7 @@ This file contains repository-specific instructions for AI-assisted work in this
 
 ## Architecture Rules
 
-- `src/main/kotlin/com/dragonsvsravens/game` is the home for canonical game rules, state transitions, and shared session behavior.
+- `src/main/kotlin/com/ravensanddragons/game` is the home for canonical game rules, state transitions, and shared session behavior.
 - `src/main/frontend/game.ts` should hold wire types, board helpers, move formatting, and local-only selection helpers.
 - `src/main/frontend/App.tsx` should stay focused on shell composition and top-level wiring.
 - `src/main/frontend/components` should own React rendering.
@@ -76,7 +76,7 @@ If a requested change would alter one of those rules, implement it only when tha
 
 ## Testing Rules
 
-- When backend gameplay logic changes, update or add tests in `src/test/kotlin/com/dragonsvsravens/game/GameRulesTest.kt` and related server tests.
+- When backend gameplay logic changes, update or add tests in `src/test/kotlin/com/ravensanddragons/game/GameRulesTest.kt` and related server tests.
 - When frontend helper behavior changes, update or add tests in `src/test/frontend/game.test.js`.
 - When React/Redux UI behavior changes, update or add tests under `src/test/frontend/*.test.ts(x)`.
 - When adding a new browser route, add a test that proves the route can be loaded directly by URL.

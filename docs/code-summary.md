@@ -2,7 +2,7 @@
 
 ## Overview
 
-This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a browser-based board game prototype. The backend supports multiple persisted game sessions, addressed by game id, and broadcasts updates over server-sent events per game. The frontend now opens on a lobby screen, can route into a client-only `/create` draft flow backed by local Redux draft state or open games by id, and then talks to the per-game backend API for the active session. The `/create` page now has a dedicated three-panel draft layout with the board on the left, configuration controls in the middle, and the rules panel on the right, and its Start Game action submits the draft payload to `POST /api/games` so the backend can create the persisted session directly in live play before opening `/g/{gameId}`. The create configuration block now lives in a dedicated `GameSetupControls.tsx` component, keeps its free-play guidance immediately above `Start Game`, and wraps its rules text in the same outer panel shell used on the live game screen. The live `/g/{gameId}` screen now uses a three-column layout with the board on the left, the move list and its controls in the center, and the rules panel on the right, while seat ownership now lives in the page header above the status line. Finished-game status messaging now mirrors the terminal outcome, so the header explains who won, why a game was drawn, or that it ended manually.
+This project is a small Spring Boot 3.3 + Kotlin 2.1 web app that serves a browser-based board game prototype. The backend supports multiple persisted game sessions, addressed by game id, and broadcasts updates over server-sent events per game. The frontend now opens on a lobby screen, can route into a client-only `/create` draft flow backed by local Redux draft state or open games by id, and then talks to the per-game backend API for the active session. The `/create` page now has a dedicated three-panel draft layout with the board on the left, configuration controls in the middle, and the rules panel on the right, and its Start Game action submits the draft payload to `POST /api/games` so the backend can create the persisted session directly in live play before opening `/g/{gameId}`. The create configuration block now lives in a dedicated `GameSetupControls.tsx` component, keeps its free-play guidance immediately above `Start Game`, wraps its rules text in the same outer panel shell used on the live game screen, lists Ravens before Dragons in the free-play starting-side picker, defaults that picker to Ravens, and now cycles free-play setup clicks as raven, dragon, gold, then empty. The live `/g/{gameId}` screen now uses a three-column layout with the board on the left, the move list and its controls in the center, and the rules panel on the right, while seat ownership now lives in the page header above the status line. Finished-game status messaging now mirrors the terminal outcome, so the header explains who won, why a game was drawn, or that it ended manually.
 
 The backend now also includes session-cookie authentication for guest and local users, optional OAuth login wiring, persisted seat ownership on games, request-scoped game-view metadata, and self-service local-account profile management. The frontend now consumes that auth-aware view data, surfaces guest/local auth controls, requires authentication before entering the lobby or a game, gates gameplay actions by claimed side and active turn, and exposes a local-only profile page for display-name updates plus account deletion. Dual-seat ownership is now supported on live games, so the same user can claim both sides, keep the remaining open claim action visible, and retain undo/active-play access when the current state allows it. Google OAuth availability is now configuration-aware, and successful Google login returns to the original `/login?next=...` destination.
 
@@ -14,16 +14,16 @@ The follow-up bot refactor has now split the old single `GameBots.kt` file into 
 
 ## Current Architecture
 
-- `src/main/kotlin/com/dragonsvsravens/DragonsVsRavensApplication.kt`
+- `src/main/kotlin/com/ravensanddragons/RavensAndDragonsApplication.kt`
   - Spring Boot entrypoint.
-- `src/main/kotlin/com/dragonsvsravens/game/*.kt`
+- `src/main/kotlin/com/ravensanddragons/game/*.kt`
   - Server-side game state models, pure-ish rules, the JDBC-backed game store, the session service, and REST/SSE endpoints.
   - Rule metadata and execution are now separated across `RuleCatalog.kt`, `GameSnapshotFactory.kt`, `RuleEngine.kt`, and per-ruleset engine files, with `GameRules.kt` kept as a thin facade.
   - Bot code is now split across focused files: `BotModels.kt` for shared bot value types, `BotRegistry.kt` for bot ids/names/supported rulesets, dedicated strategy files for `Randall`, `Simon`, and `Maxine`, `BotStrategySupport.kt` for shared Kotlin-only evaluation and simulation helpers, and `BotTurnRunner.kt` for synchronous bot-turn execution plus grouped human-plus-bot undo handling.
   - `GameCommandService.kt` now owns command authorization, validation, undo handling, and seat-claim transitions, while `GameSessionService.kt` keeps persisted-game loading, create-payload seeding, broadcasting, emitter lifecycle, stale cleanup, and top-level coordination with `BotTurnRunner.kt`.
-- `src/main/kotlin/com/dragonsvsravens/auth/*.kt`
+- `src/main/kotlin/com/ravensanddragons/auth/*.kt`
   - Session auth models, JDBC-backed user persistence, guest and local login flows, optional OAuth login integration, local-account profile management, and session cleanup hooks for temporary guest users.
-- `src/main/kotlin/com/dragonsvsravens/web/*.kt`
+- `src/main/kotlin/com/ravensanddragons/web/*.kt`
   - Shared web-layer exception handling, including normalization of expected disconnected-client SSE exceptions.
 - `src/main/resources/db/migration/*.sql`
   - Flyway migrations for the persistent game schema.
@@ -86,13 +86,13 @@ The follow-up bot refactor has now split the old single `GameBots.kt` file into 
   - Verifies the game-screen feedback dialog renders and dismisses correctly.
 - `src/test/frontend/create-game-draft.test.ts`
   - Verifies the local `/create` draft defaults, board cycling, rule switching, and reset behavior.
-- `src/test/kotlin/com/dragonsvsravens/game/GameRulesTest.kt`
+- `src/test/kotlin/com/ravensanddragons/game/GameRulesTest.kt`
   - Verifies backend rule transitions plus deterministic Sherwood legal-move generation.
-- `src/test/kotlin/com/dragonsvsravens/game/GameControllerTest.kt`
+- `src/test/kotlin/com/ravensanddragons/game/GameControllerTest.kt`
   - Verifies the shared game API, version conflicts, and validation errors.
-- `src/test/kotlin/com/dragonsvsravens/game/BotTurnRunnerTest.kt`
+- `src/test/kotlin/com/ravensanddragons/game/BotTurnRunnerTest.kt`
   - Verifies synchronous bot replies, grouped undo entries, and no-op exits for finished or no-legal-move bot states.
-- `src/test/kotlin/com/dragonsvsravens/DragonsVsRavensApplicationTests.kt`
+- `src/test/kotlin/com/ravensanddragons/RavensAndDragonsApplicationTests.kt`
   - Verifies the Spring application context loads.
 
 ## Build And Runtime Flow
@@ -135,14 +135,14 @@ The follow-up bot refactor has now split the old single `GameBots.kt` file into 
 - Runtime configuration:
   - `server.port` reads `${PORT:8080}` so the app keeps its local default while also working on Railway-style platforms that inject the listen port at runtime.
   - `spring.datasource.*` defaults to an H2 file database for local persistence and may be overridden for PostgreSQL deploys.
-  - `dragons-vs-ravens.games.stale-threshold` controls how long an inactive game can sit before eviction, and defaults to six weeks (`1008h`).
+  - `ravens-and-dragons.games.stale-threshold` controls how long an inactive game can sit before eviction, and defaults to six weeks (`1008h`).
   - Google OAuth is enabled only when the environment defines a `google` Spring client registration through `SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID`, `SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET`, and typically `SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_SCOPE=openid,profile,email`.
   - Google callback URLs should use `/login/oauth2/code/google`, such as `http://localhost:8080/login/oauth2/code/google` locally or `https://<deploy-host>/login/oauth2/code/google` in production.
   - The app now honors forwarded proxy headers when building Google OAuth authorization requests, so Railway deployments keep the public `https` callback host instead of generating the internal `http` service URL.
   - Railway deploys should set `SPRING_DATASOURCE_URL` to a JDBC host-only URL such as `jdbc:postgresql://<host>:<port>/<db>` and pass username/password separately through `SPRING_DATASOURCE_USERNAME` and `SPRING_DATASOURCE_PASSWORD`.
   - `railway up` uploads the current local workspace, while `railway service redeploy` only restarts the latest already-uploaded deployment.
   - Flyway runs startup migrations from `classpath:db/migration`, and the Gradle build now pins Flyway to `10.22.0` plus `flyway-database-postgresql` so Railway's PostgreSQL 18 startup is accepted.
-  - `railway.json` overrides Railway's deploy start command to `java -jar build/libs/dragons-vs-ravens.jar`, points Railway health checks at `GET /health`, and matches the Spring Boot fat jar produced by the Gradle build.
+  - `railway.json` overrides Railway's deploy start command to `java -jar build/libs/ravens-and-dragons.jar`, points Railway health checks at `GET /health`, and matches the Spring Boot fat jar produced by the Gradle build.
 - Result:
   - Running `./gradlew bootRun` serves the Vite-built frontend bundle plus static CSS through Spring Boot.
 
@@ -189,7 +189,7 @@ The backend also now exposes auth-oriented DTOs outside the canonical session pa
 - `LocalProfileResponse`
 - `GameViewResponse`
 - `viewerRole`
-- player summaries for the claimed dragons and ravens seats
+- player summaries for the claimed ravens and dragons seats
 - bot summaries for assigned bot seats plus the frontend-visible bot catalog for the current ruleset
 - configured OAuth provider ids for the login UI
 
@@ -310,7 +310,7 @@ Most UI-only changes should start in the relevant component, selector, or browse
 ### Sherwood Rules
 
 - `Sherwood Rules` starts from the same published cross-shaped setup as `Original Game`, with ravens moving first.
-- Dragons and ravens move any distance orthogonally without jumping over occupied squares.
+- Ravens and dragons move any distance orthogonally without jumping over occupied squares.
 - The gold is moved by the dragons and may move only one orthogonal square at a time.
 - Landing restrictions, self-capture prevention, automatic capture rules, win conditions, and draw conditions otherwise match `Original Game`.
 
@@ -443,8 +443,8 @@ Future UI changes should preserve the split of transport logic, Redux state, ren
 ## Extension Points For Future Changes
 
 - To add or change gameplay rules:
-  - Start in the Kotlin game module under `src/main/kotlin/com/dragonsvsravens/game`.
-  - Update `src/test/kotlin/com/dragonsvsravens/game/GameRulesTest.kt`.
+  - Start in the Kotlin game module under `src/main/kotlin/com/ravensanddragons/game`.
+  - Update `src/test/kotlin/com/ravensanddragons/game/GameRulesTest.kt`.
 - To change UI behavior or display:
   - Start in the relevant React component, selector, thunk, or hook under `src/main/frontend`.
   - Update `src/main/resources/static/styles.css` if layout or styling is affected.

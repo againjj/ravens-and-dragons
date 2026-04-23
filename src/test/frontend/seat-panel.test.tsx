@@ -33,10 +33,10 @@ describe("SeatPanel", () => {
             }
         );
 
-        expect(screen.getByText((_, element) => element?.textContent === "Dragons: Open seat")).toBeInTheDocument();
         expect(screen.getByText((_, element) => element?.textContent === "Ravens: Raven Player")).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Claim Dragons" })).toBeEnabled();
+        expect(screen.getByText((_, element) => element?.textContent === "Dragons: Open seat")).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "Claim Ravens" })).toBeNull();
+        expect(screen.getByRole("button", { name: "Claim Dragons" })).toBeEnabled();
 
         await user.click(screen.getByRole("button", { name: "Claim Dragons" }));
 

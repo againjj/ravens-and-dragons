@@ -10,7 +10,7 @@ plugins {
     kotlin("plugin.spring") version "2.1.21"
 }
 
-group = "com.dragonsvsravens"
+group = "com.ravensanddragons"
 version = "0.0.1-SNAPSHOT"
 
 extra["flyway.version"] = "10.22.0"
@@ -67,7 +67,7 @@ tasks.withType<JavaExec>().configureEach {
 }
 
 tasks.withType<BootJar>().configureEach {
-    archiveFileName.set("dragons-vs-ravens.jar")
+    archiveFileName.set("ravens-and-dragons.jar")
 }
 
 tasks.withType<Test>().configureEach {

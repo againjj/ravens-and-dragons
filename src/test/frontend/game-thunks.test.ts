@@ -49,10 +49,10 @@ describe("gameThunks", () => {
         expect(createdGameId).toBe("game-101");
         expect(createGameSessionMock).toHaveBeenCalledWith({
             ruleConfigurationId: "free-play",
-            startingSide: "dragons",
+            startingSide: "ravens",
             boardSize: 7,
             board: {
-                a1: "dragon"
+                a1: "raven"
             }
         });
         expect(store.getState().game.session?.id).toBe("game-101");
