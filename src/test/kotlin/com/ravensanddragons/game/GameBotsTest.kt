@@ -3,8 +3,10 @@ package com.ravensanddragons.game
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assertions.fail
+import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.system.measureNanoTime
 
 class GameBotsTest {
 
@@ -170,6 +172,69 @@ class GameBotsTest {
         assertEquals(firstChoice, secondChoice)
     }
 
+    @Disabled("Manual cross-strategy comparison; enable when checking representative depth-2 behavior.")
+    @Test
+    fun `depth two minimax and alpha beta choose the same move across representative positions`() {
+        val minimax = MinimaxGameBotStrategy(searchDepth = 2)
+        val alphaBeta = AlphaBetaGameBotStrategy(searchDepth = 2)
+        val mismatches = representativeComparisonSnapshots().mapNotNull { snapshot ->
+            val legalMoves = GameRules.getLegalMoves(snapshot)
+            val minimaxMove = minimax.chooseMove(snapshot, legalMoves)
+            val alphaBetaMove = alphaBeta.chooseMove(snapshot, legalMoves)
+
+            if (minimaxMove == alphaBetaMove) {
+                null
+            } else {
+                buildString {
+                    append(snapshot.ruleConfigurationId)
+                    append(" active=")
+                    append(snapshot.activeSide)
+                    append(" phase=")
+                    append(snapshot.phase)
+                    append(" board=")
+                    append(snapshot.board)
+                    append(" minimax=")
+                    append(minimaxMove)
+                    append(" alphaBeta=")
+                    append(alphaBetaMove)
+                }
+            }
+        }
+
+        assertTrue(
+            mismatches.isEmpty(),
+            "Expected depth-2 minimax and alpha-beta to agree, but found mismatches:\n${mismatches.joinToString("\n")}"
+        )
+    }
+
+    @Disabled("Manual performance comparison; timing is environment-sensitive and should not run in the regular suite.")
+    @Test
+    fun `depth two alpha beta timing can be compared against minimax across representative positions`() {
+        val minimax = MinimaxGameBotStrategy(searchDepth = 2)
+        val alphaBeta = AlphaBetaGameBotStrategy(searchDepth = 2)
+        val snapshots = representativeComparisonSnapshots()
+        val repetitionsPerPosition = 25
+
+        val minimaxTiming = measureStrategyTiming(minimax, snapshots, repetitionsPerPosition)
+        val alphaBetaTiming = measureStrategyTiming(alphaBeta, snapshots, repetitionsPerPosition)
+        val alphaBetaShare = alphaBetaTiming.totalNanos.toDouble() / minimaxTiming.totalNanos.toDouble()
+
+        println(
+            buildString {
+                appendLine("Depth-2 strategy timing across ${snapshots.size} representative positions")
+                appendLine("repetitionsPerPosition=$repetitionsPerPosition")
+                appendLine("minimaxTotalNanos=${minimaxTiming.totalNanos}")
+                appendLine("alphaBetaTotalNanos=${alphaBetaTiming.totalNanos}")
+                appendLine("alphaBetaShareOfMinimax=$alphaBetaShare")
+                appendLine("minimaxAverageNanos=${minimaxTiming.averageNanosPerSearch}")
+                append("alphaBetaAverageNanos=${alphaBetaTiming.averageNanosPerSearch}")
+            }
+        )
+
+        assertTrue(minimaxTiming.totalNanos > 0L)
+        assertTrue(alphaBetaTiming.totalNanos > 0L)
+    }
+
     @Test
     fun `minimax bot search uses hypothetical snapshots without mutating the input snapshot`() {
         val strategy = MinimaxGameBotStrategy()
@@ -310,4 +375,82 @@ class GameBotsTest {
             .let { GameRules.movePiece(it, "c4", "c5") }
             .let { GameRules.movePiece(it, "d2", "c2") }
             .let { GameRules.movePiece(it, "d3", "c3") }
+
+    private fun representativeComparisonSnapshots(): List<GameSnapshot> = listOf(
+        GameRules.startGame("original-game"),
+        positionFromLegalMoveIndices(GameRules.startGame("original-game"), 0, 3),
+        positionFromLegalMoveIndices(GameRules.startGame("original-game"), 5, 2, 4),
+        GameRules.startGame("sherwood-rules"),
+        positionFromLegalMoveIndices(GameRules.startGame("sherwood-rules"), 1, 4),
+        sherwoodMaxineRegressionPosition(),
+        GameRules.startGame("square-one"),
+        positionFromLegalMoveIndices(GameRules.startGame("square-one"), 2, 7),
+        positionFromLegalMoveIndices(GameRules.startGame("square-one"), 6, 1, 5),
+        GameRules.startGame("square-one-x-9"),
+        positionFromLegalMoveIndices(GameRules.startGame("square-one-x-9"), 3, 8),
+        GameRules.startGame(
+            ruleConfigurationId = GameRules.freePlayRuleConfigurationId,
+            initialBoard = linkedMapOf(
+                "a1" to Piece.dragon,
+                "d4" to Piece.gold,
+                "g7" to Piece.raven,
+                "c6" to Piece.raven
+            )
+        ),
+        positionFromLegalMoveIndices(
+            GameRules.startGame(
+                ruleConfigurationId = GameRules.freePlayRuleConfigurationId,
+                initialBoard = linkedMapOf(
+                    "a1" to Piece.dragon,
+                    "d4" to Piece.gold,
+                    "g7" to Piece.raven,
+                    "c6" to Piece.raven
+                )
+            ),
+            2,
+            1
+        )
+    ).filter { snapshot ->
+        snapshot.phase == Phase.move && GameRules.getLegalMoves(snapshot).isNotEmpty()
+    }
+
+    private fun positionFromLegalMoveIndices(snapshot: GameSnapshot, vararg moveIndices: Int): GameSnapshot =
+        moveIndices.fold(snapshot) { current, requestedIndex ->
+            val legalMoves = GameRules.getLegalMoves(current)
+            if (legalMoves.isEmpty()) {
+                return@fold current
+            }
+            val move = legalMoves[requestedIndex % legalMoves.size]
+            GameRules.movePiece(current, move.origin, move.destination)
+        }
+
+    private fun measureStrategyTiming(
+        strategy: GameBotStrategy,
+        snapshots: List<GameSnapshot>,
+        repetitionsPerPosition: Int
+    ): StrategyTiming {
+        var totalNanos = 0L
+        var searches = 0
+
+        repeat(repetitionsPerPosition) {
+            snapshots.forEach { snapshot ->
+                val legalMoves = GameRules.getLegalMoves(snapshot)
+                totalNanos += measureNanoTime {
+                    val move = strategy.chooseMove(snapshot, legalMoves)
+                    assertTrue(move in legalMoves)
+                }
+                searches += 1
+            }
+        }
+
+        return StrategyTiming(
+            totalNanos = totalNanos,
+            averageNanosPerSearch = totalNanos / searches
+        )
+    }
+
+    private data class StrategyTiming(
+        val totalNanos: Long,
+        val averageNanosPerSearch: Long
+    )
 }

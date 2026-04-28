@@ -51,6 +51,8 @@ The Randall-vs-Maxine soak harness now runs separately:
 
 To run a larger head-to-head batch, pass `botMatchHarnessGamesPerMatchup` to Gradle. For example, `-DbotMatchHarnessGamesPerMatchup=10` runs 100 total games because the harness covers 5 supported rulesets in both seat assignments.
 
+`src/test/kotlin/com/ravensanddragons/game/GameBotsTest.kt` also keeps two disabled manual bot-comparison checks: one for representative depth-2 move agreement between `MinimaxGameBotStrategy` and `AlphaBetaGameBotStrategy`, and one for timing those same representative searches without making the regular suite flaky.
+
 ## Local Authentication Setup
 
 Guest and local-account sign-in work without extra setup.
