@@ -50,6 +50,17 @@ const loadAndApplyGameView = (gameId: string): AppThunk<Promise<void>> => async 
     dispatch(applyFetchedGameView(view));
 };
 
+const requiresMetadataRefresh = (
+    previousSession: ServerGameSession | null,
+    nextSession: ServerGameSession
+): boolean =>
+    previousSession == null ||
+    previousSession.dragonsPlayerUserId !== nextSession.dragonsPlayerUserId ||
+    previousSession.ravensPlayerUserId !== nextSession.ravensPlayerUserId ||
+    previousSession.dragonsBotId !== nextSession.dragonsBotId ||
+    previousSession.ravensBotId !== nextSession.ravensBotId ||
+    previousSession.selectedRuleConfigurationId !== nextSession.selectedRuleConfigurationId;
+
 const loadGameViewForUserAction = (
     gameId: string,
     fallbackMessage: string
@@ -160,6 +171,15 @@ export const returnToLobby = (): AppThunk => (dispatch) => {
 export const applyServerSession = (session: ServerGameSession): AppThunk => (dispatch) => {
     dispatch(gameActions.sessionUpdated(session));
     dispatch(syncSelectedSquare());
+};
+
+export const applyServerSessionFromStream = (session: ServerGameSession): AppThunk<Promise<void>> => async (dispatch, getState) => {
+    const previousSession = getState().game.session;
+    dispatch(applyServerSession(session));
+
+    if (requiresMetadataRefresh(previousSession, session)) {
+        await dispatch(refreshCurrentGameView());
+    }
 };
 
 export const refreshCurrentGameView = (): AppThunk<Promise<void>> => async (dispatch, getState) => {

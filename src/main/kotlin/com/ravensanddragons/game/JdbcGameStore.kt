@@ -113,6 +113,19 @@ class JdbcGameStore(
             storedGameRowMapper
         )
 
+    override fun staleEntries(): List<StoredGameAccess> =
+        jdbcTemplate.query(
+            """
+            select id, last_accessed_at
+            from games
+            """.trimIndent()
+        ) { resultSet, _ ->
+            StoredGameAccess(
+                gameId = resultSet.getString("id"),
+                lastAccessedAt = resultSet.getTimestamp("last_accessed_at").toInstant()
+            )
+        }
+
     override fun remove(gameId: String): Boolean =
         jdbcTemplate.update(
             """

@@ -116,10 +116,13 @@ class GameSessionService(
     fun removeStaleGames(now: Instant = Instant.now(clock)) {
         val staleBefore = now.minus(staleGameThreshold)
 
-        gameStore.entries().forEach { storedGame ->
-            val gameId = storedGame.session.id
+        gameStore.staleEntries().forEach { storedGame ->
+            val gameId = storedGame.gameId
             val lock = lockFor(gameId)
             synchronized(lock) {
+                if (!storedGame.lastAccessedAt.isBefore(staleBefore)) {
+                    return@synchronized
+                }
                 val current = gameStore.get(gameId) ?: return@synchronized
                 if (!current.lastAccessedAt.isBefore(staleBefore)) {
                     return@synchronized

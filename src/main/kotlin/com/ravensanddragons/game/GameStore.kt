@@ -9,6 +9,11 @@ data class StoredGame(
     val lastAccessedAt: Instant
 )
 
+data class StoredGameAccess(
+    val gameId: String,
+    val lastAccessedAt: Instant
+)
+
 interface GameStore {
     fun get(gameId: String): StoredGame?
 
@@ -19,6 +24,8 @@ interface GameStore {
     fun touch(gameId: String, accessedAt: Instant = Instant.now()): StoredGame?
 
     fun entries(): List<StoredGame>
+
+    fun staleEntries(): List<StoredGameAccess>
 
     fun remove(gameId: String): Boolean
 
@@ -45,6 +52,14 @@ class InMemoryGameStore : GameStore {
     }
 
     override fun entries(): List<StoredGame> = games.values.toList()
+
+    override fun staleEntries(): List<StoredGameAccess> =
+        games.values.map { storedGame ->
+            StoredGameAccess(
+                gameId = storedGame.session.id,
+                lastAccessedAt = storedGame.lastAccessedAt
+            )
+        }
 
     override fun remove(gameId: String): Boolean = games.remove(gameId) != null
 

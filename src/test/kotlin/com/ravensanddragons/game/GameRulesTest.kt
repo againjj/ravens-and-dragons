@@ -218,6 +218,16 @@ class GameRulesTest {
     }
 
     @Test
+    fun `board coordinate helpers reuse stable square identities across repeated lookups`() {
+        assertTrue(BoardCoordinates.isValidSquare("g7", 7))
+        assertFalse(BoardCoordinates.isValidSquare("h7", 7))
+        assertEquals(listOf("d2", "d3"), BoardCoordinates.pathBetween("d1", "d4", 7))
+        assertTrue(BoardCoordinates.isOrthogonallyAdjacent("d4", "d5", 7))
+        assertFalse(BoardCoordinates.isOrthogonallyAdjacent("d4", "e5", 7))
+        assertTrue(BoardCoordinates.neighbors("d4", 7).all { square -> square === BoardCoordinates.allSquares(7).first { it == square } })
+    }
+
+    @Test
     fun `sherwood x 9 starts from the shifted setup on a 9x9 board with ravens to move`() {
         val snapshot = GameRules.startGame("sherwood-x-9")
 

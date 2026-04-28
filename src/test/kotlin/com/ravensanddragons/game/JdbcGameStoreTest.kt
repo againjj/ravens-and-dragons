@@ -40,7 +40,7 @@ class JdbcGameStoreTest {
             initialBoard = mapOf("a1" to Piece.dragon)
         )
         val undoEntry = UndoEntry(
-            snapshot = originalSnapshot.copy(board = mapOf("a1" to Piece.dragon)),
+            state = originalSnapshot.copy(board = mapOf("a1" to Piece.dragon)).toUndoSnapshotState(),
             ownerSide = Side.dragons,
             kind = UndoEntryKind.humanPlusBot
         )
@@ -108,6 +108,26 @@ class JdbcGameStoreTest {
         assertTrue(gameStore.remove("touch-game"))
         assertNull(gameStore.get("touch-game"))
         assertFalse(gameStore.remove("touch-game"))
+    }
+
+    @Test
+    fun `stale entries return lightweight access metadata`() {
+        val first = freshStoredGame("stale-entry-one")
+        val second = freshStoredGame("stale-entry-two").copy(
+            lastAccessedAt = createdAt.plusSeconds(45)
+        )
+        assertTrue(gameStore.putIfAbsent(first))
+        assertTrue(gameStore.putIfAbsent(second))
+
+        val staleEntries = gameStore.staleEntries().sortedBy(StoredGameAccess::gameId)
+
+        assertEquals(
+            listOf(
+                StoredGameAccess("stale-entry-one", createdAt),
+                StoredGameAccess("stale-entry-two", createdAt.plusSeconds(45))
+            ),
+            staleEntries
+        )
     }
 
     @Test
@@ -265,6 +285,16 @@ class JdbcGameStoreTest {
         selectedStartingSide = Side.dragons,
         selectedBoardSize = GameRules.defaultBoardSize
     )
+
+    private fun GameSnapshot.toUndoSnapshotState(): UndoSnapshotState =
+        UndoSnapshotState(
+            board = board,
+            phase = phase,
+            activeSide = activeSide,
+            pendingMove = pendingMove,
+            turns = turns,
+            positionKeys = positionKeys
+        )
 
     private class FixedRandomIndexSource : RandomIndexSource {
         override fun nextInt(bound: Int): Int = 0

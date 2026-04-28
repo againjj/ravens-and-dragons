@@ -96,9 +96,7 @@ internal class OriginalStyleMutableSearchState private constructor(
             return emptyList()
         }
 
-        return legalMoveSequence()
-            .sortedWith(compareBy(LegalMove::origin, LegalMove::destination))
-            .toList()
+        return collectLegalMoves().sortedWith(compareBy(LegalMove::origin, LegalMove::destination))
     }
 
     fun countLegalMoves(): Int {
@@ -106,7 +104,35 @@ internal class OriginalStyleMutableSearchState private constructor(
             return 0
         }
 
-        return legalMoveSequence().count()
+        var legalMoveCount = 0
+        val entries = board.entries.toList()
+        for ((origin, piece) in entries) {
+            if (!sideOwnsPiece(activeSide, piece)) {
+                continue
+            }
+
+            if (goldMovesOneSquareAtATime && piece == Piece.gold) {
+                for (destination in BoardCoordinates.neighbors(origin, boardSize)) {
+                    if (!board.containsKey(destination) && isLegalMove(origin, destination, piece)) {
+                        legalMoveCount += 1
+                    }
+                }
+                continue
+            }
+
+            for (ray in BoardCoordinates.orthogonalRays(origin, boardSize)) {
+                for (destination in ray) {
+                    if (board.containsKey(destination)) {
+                        break
+                    }
+                    if (isLegalMove(origin, destination, piece)) {
+                        legalMoveCount += 1
+                    }
+                }
+            }
+        }
+
+        return legalMoveCount
     }
 
     fun evaluateForSide(perspectiveSide: Side, legalMoveCounter: (Side) -> Int): Int {
@@ -218,32 +244,45 @@ internal class OriginalStyleMutableSearchState private constructor(
         invalidateCachedKeys()
     }
 
-    private fun legalMoveSequence(): Sequence<LegalMove> =
-        board.entries
-            .toList()
-            .asSequence()
-            .filter { (_, piece) -> sideOwnsPiece(activeSide, piece) }
-            .flatMap { (origin, piece) ->
-                candidateDestinations(origin, piece)
-                    .mapNotNull { destination ->
-                        if (isLegalMove(origin, destination, piece)) {
-                            LegalMove(origin, destination)
-                        } else {
-                            null
-                        }
-                    }
+    private fun collectLegalMoves(limit: Int? = null): MutableList<LegalMove> {
+        val legalMoves = mutableListOf<LegalMove>()
+        val entries = board.entries.toList()
+        for ((origin, piece) in entries) {
+            if (!sideOwnsPiece(activeSide, piece)) {
+                continue
             }
 
-    private fun candidateDestinations(origin: String, piece: Piece): Sequence<String> =
-        if (goldMovesOneSquareAtATime && piece == Piece.gold) {
-            BoardCoordinates.neighbors(origin, boardSize)
-                .asSequence()
-                .filter { destination -> !board.containsKey(destination) }
-        } else {
-            BoardCoordinates.orthogonalRays(origin, boardSize)
-                .asSequence()
-                .flatMap { ray -> ray.asSequence().takeWhile { square -> !board.containsKey(square) } }
+            if (goldMovesOneSquareAtATime && piece == Piece.gold) {
+                for (destination in BoardCoordinates.neighbors(origin, boardSize)) {
+                    if (board.containsKey(destination)) {
+                        continue
+                    }
+                    if (isLegalMove(origin, destination, piece)) {
+                        legalMoves += LegalMove(origin, destination)
+                        if (limit != null && legalMoves.size >= limit) {
+                            return legalMoves
+                        }
+                    }
+                }
+                continue
+            }
+
+            for (ray in BoardCoordinates.orthogonalRays(origin, boardSize)) {
+                for (destination in ray) {
+                    if (board.containsKey(destination)) {
+                        break
+                    }
+                    if (isLegalMove(origin, destination, piece)) {
+                        legalMoves += LegalMove(origin, destination)
+                        if (limit != null && legalMoves.size >= limit) {
+                            return legalMoves
+                        }
+                    }
+                }
+            }
         }
+        return legalMoves
+    }
 
     private fun isLegalMove(origin: String, destination: String, piece: Piece): Boolean {
         val path = BoardCoordinates.pathBetween(origin, destination, boardSize)
@@ -292,17 +331,24 @@ internal class OriginalStyleMutableSearchState private constructor(
                 square to requireNotNull(board.remove(square))
             }
             try {
-                val changedSquares = buildSet {
-                    add(origin)
-                    add(destination)
-                    addAll(capturedSquares)
+                val exposedSquares = HashSet<String>(2 + capturedSquares.size * 5)
+                addExposedFriendlySquares(exposedSquares, origin, destination)
+                addExposedFriendlySquares(exposedSquares, destination, destination)
+                for (capturedSquare in capturedSquares) {
+                    addExposedFriendlySquares(exposedSquares, capturedSquare, destination)
                 }
-                exposedFriendlySquares(changedSquares, destination).any { square ->
+
+                for (square in exposedSquares) {
                     when (board.getValue(square)) {
-                        Piece.gold -> isGoldCaptured(square)
-                        else -> isRegularPieceCaptured(square, opposingSide)
+                        Piece.gold -> if (isGoldCaptured(square)) {
+                            return true
+                        }
+                        else -> if (isRegularPieceCaptured(square, opposingSide)) {
+                            return true
+                        }
                     }
                 }
+                false
             } finally {
                 capturedPieces.forEach { (square, capturedPiece) ->
                     board[square] = capturedPiece
@@ -314,22 +360,20 @@ internal class OriginalStyleMutableSearchState private constructor(
         }
     }
 
-    private fun exposedFriendlySquares(changedSquares: Set<String>, excludedSquare: String): Set<String> = buildSet {
-        changedSquares.forEach { changedSquare ->
-            addFriendlyCandidate(changedSquare, excludedSquare)
-            BoardCoordinates.neighbors(changedSquare, boardSize).forEach { neighbor ->
-                addFriendlyCandidate(neighbor, excludedSquare)
-            }
+    private fun addExposedFriendlySquares(exposedSquares: MutableSet<String>, changedSquare: String, excludedSquare: String) {
+        addFriendlyCandidate(exposedSquares, changedSquare, excludedSquare)
+        for (neighbor in BoardCoordinates.neighbors(changedSquare, boardSize)) {
+            addFriendlyCandidate(exposedSquares, neighbor, excludedSquare)
         }
     }
 
-    private fun MutableSet<String>.addFriendlyCandidate(square: String, excludedSquare: String) {
+    private fun addFriendlyCandidate(exposedSquares: MutableSet<String>, square: String, excludedSquare: String) {
         if (square == excludedSquare) {
             return
         }
         val piece = board[square] ?: return
         if (sideOwnsPiece(activeSide, piece)) {
-            add(square)
+            exposedSquares.add(square)
         }
     }
 

@@ -58,8 +58,17 @@ data class TurnRecord(
     val outcome: String? = null
 )
 
+data class UndoSnapshotState(
+    val board: Map<String, Piece>,
+    val phase: Phase,
+    val activeSide: Side,
+    val pendingMove: TurnRecord?,
+    val turns: List<TurnRecord>,
+    val positionKeys: List<String> = emptyList()
+)
+
 data class UndoEntry(
-    val snapshot: GameSnapshot,
+    val state: UndoSnapshotState,
     val ownerSide: Side? = null,
     val kind: UndoEntryKind = UndoEntryKind.humanOnly
 )

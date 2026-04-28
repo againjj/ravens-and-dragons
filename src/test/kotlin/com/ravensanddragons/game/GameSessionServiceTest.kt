@@ -147,6 +147,116 @@ class GameSessionServiceTest {
     }
 
     @Test
+    fun `undo restores the latest move after multiple turns and keeps earlier undo history`() {
+        val service = createService()
+        val game = service.createGame(
+            CreateGameRequest(
+                board = mapOf(
+                    "a1" to Piece.dragon,
+                    "g7" to Piece.raven
+                )
+            )
+        )
+
+        val afterFirstMove = service.applyCommand(
+            game.id,
+            GameCommandRequest(
+                expectedVersion = game.version,
+                type = "move-piece",
+                origin = "a1",
+                destination = "a2"
+            )
+        )
+        val afterFirstTurn = service.applyCommand(
+            game.id,
+            GameCommandRequest(
+                expectedVersion = afterFirstMove.version,
+                type = "skip-capture"
+            )
+        )
+        val afterSecondMove = service.applyCommand(
+            game.id,
+            GameCommandRequest(
+                expectedVersion = afterFirstTurn.version,
+                type = "move-piece",
+                origin = "g7",
+                destination = "g6"
+            )
+        )
+
+        assertTrue(afterSecondMove.canUndo)
+        assertEquals(Side.ravens, afterSecondMove.undoOwnerSide)
+
+        val undone = service.applyCommand(
+            afterSecondMove.id,
+            GameCommandRequest(expectedVersion = afterSecondMove.version, type = "undo")
+        )
+
+        assertEquals(afterFirstTurn.snapshot, undone.snapshot)
+        assertTrue(undone.canUndo)
+        assertEquals(Side.dragons, undone.undoOwnerSide)
+    }
+
+    @Test
+    fun `multiple undos in a row step backward through move history until it is exhausted`() {
+        val service = createService()
+        val game = service.createGame(
+            CreateGameRequest(
+                board = mapOf(
+                    "a1" to Piece.dragon,
+                    "g7" to Piece.raven
+                )
+            )
+        )
+
+        val afterFirstMove = service.applyCommand(
+            game.id,
+            GameCommandRequest(
+                expectedVersion = game.version,
+                type = "move-piece",
+                origin = "a1",
+                destination = "a2"
+            )
+        )
+        val afterFirstTurn = service.applyCommand(
+            game.id,
+            GameCommandRequest(
+                expectedVersion = afterFirstMove.version,
+                type = "skip-capture"
+            )
+        )
+        val afterSecondMove = service.applyCommand(
+            game.id,
+            GameCommandRequest(
+                expectedVersion = afterFirstTurn.version,
+                type = "move-piece",
+                origin = "g7",
+                destination = "g6"
+            )
+        )
+        val undone = service.applyCommand(
+            afterSecondMove.id,
+            GameCommandRequest(expectedVersion = afterSecondMove.version, type = "undo")
+        )
+        val undoneAgain = service.applyCommand(
+            undone.id,
+            GameCommandRequest(expectedVersion = undone.version, type = "undo")
+        )
+
+        val exception = assertThrows<InvalidCommandException> {
+            service.applyCommand(
+                undoneAgain.id,
+                GameCommandRequest(expectedVersion = undoneAgain.version, type = "undo")
+            )
+        }
+
+        assertEquals("No move is available to undo.", exception.message)
+        assertEquals(afterFirstTurn.snapshot, undone.snapshot)
+        assertEquals(game.snapshot, undoneAgain.snapshot)
+        assertFalse(undoneAgain.canUndo)
+    }
+
+    @Test
     fun `with one seat claimed assigning a bot to the claimed seat is rejected but assigning to the open seat succeeds`() {
         val service = createService()
         val game = service.createGame(CreateGameRequest(ruleConfigurationId = "sherwood-rules"))
@@ -322,12 +432,12 @@ class GameSessionServiceTest {
             snapshot = finishedSnapshot,
             undoEntries = listOf(
                 UndoEntry(
-                    snapshot = GameRules.startGame(
+                    state = GameRules.startGame(
                         initialBoard = mapOf(
                             "a1" to Piece.dragon,
                             "b1" to Piece.raven
                         )
-                    ),
+                    ).toUndoSnapshotState(),
                     ownerSide = Side.dragons,
                     kind = UndoEntryKind.humanOnly
                 )
@@ -377,7 +487,7 @@ class GameSessionServiceTest {
             snapshot = finishedSnapshot,
             undoEntries = listOf(
                 UndoEntry(
-                    snapshot = preExchangeSnapshot,
+                    state = preExchangeSnapshot.toUndoSnapshotState(),
                     ownerSide = Side.dragons,
                     kind = UndoEntryKind.humanPlusBot
                 )
@@ -490,6 +600,16 @@ class GameSessionServiceTest {
 
     private fun fixedClock(now: Instant = Instant.parse("2026-04-08T12:00:00Z")): Clock =
         Clock.fixed(now, ZoneOffset.UTC)
+
+    private fun GameSnapshot.toUndoSnapshotState(): UndoSnapshotState =
+        UndoSnapshotState(
+            board = board,
+            phase = phase,
+            activeSide = activeSide,
+            pendingMove = pendingMove,
+            turns = turns,
+            positionKeys = positionKeys
+        )
 
     private class FixedRandomIndexSource : RandomIndexSource {
         override fun nextInt(bound: Int): Int = 0

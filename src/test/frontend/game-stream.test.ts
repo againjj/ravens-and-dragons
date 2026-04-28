@@ -90,4 +90,57 @@ describe("gameStream", () => {
         });
         expect(fetchGameViewMock).toHaveBeenCalledWith("game-404");
     });
+
+    test("does not refresh metadata after a streamed move when seat and bot ownership stay the same", async () => {
+        const store = createAppStore({
+            auth: {
+                session: createAuthSession()
+            },
+            game: {
+                view: "game",
+                currentGameId: "game-505",
+                session: createSession({
+                    id: "game-505",
+                    dragonsPlayerUserId: "player-dragons",
+                    ravensPlayerUserId: "player-ravens"
+                }),
+                viewerRole: "dragons",
+                dragonsPlayer: {
+                    id: "player-dragons",
+                    displayName: "Dragon Player"
+                },
+                ravensPlayer: {
+                    id: "player-ravens",
+                    displayName: "Raven Player"
+                }
+            }
+        });
+
+        connectGameStream(store.dispatch, "game-505");
+
+        const onGame = openGameStreamMock.mock.calls[0][2] as (session: ReturnType<typeof createSession>) => void;
+        onGame(
+            createSession(
+                {
+                    id: "game-505",
+                    dragonsPlayerUserId: "player-dragons",
+                    ravensPlayerUserId: "player-ravens",
+                    version: 2
+                },
+                {
+                    board: {
+                        a2: "dragon"
+                    },
+                    phase: "move",
+                    activeSide: "ravens",
+                    turns: [{ type: "move", from: "a1", to: "a2", capturedSquares: [], outcome: null }]
+                }
+            )
+        );
+
+        await waitFor(() => {
+            expect(store.getState().game.session?.version).toBe(2);
+        });
+        expect(fetchGameViewMock).not.toHaveBeenCalled();
+    });
 });

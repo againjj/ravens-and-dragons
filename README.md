@@ -12,7 +12,8 @@ Ravens and Dragons is a Spring Boot and Kotlin web app for playing a browser-bas
 - In `Free Play`, setup clicks now cycle `raven -> dragon -> gold -> empty`, and the starting-side picker lists Ravens first and defaults to Ravens
 - In a fresh supported preset game, choose a server-driven `Randall`, `Simon`, `Maxine`, or `Alphie` bot from the live-game seat panel and assign it to the opposite open seat for `Original Game`, `Sherwood Rules`, `Square One`, `Sherwood x 9`, or `Square One x 9`
 - `Maxine` stays on the existing minimax search, while `Alphie` uses a deeper optimized alpha-beta search with subtree caching and reused child snapshots
-- Undo against a bot reverses one full exchange, and still works after a game-ending human move or bot reply when that last exchange is undoable
+- Undo against a bot reverses one full exchange, still works after a game-ending human move or bot reply when that last exchange is undoable, and can now be repeated across multiple consecutive undo steps
+- Streamed move updates now avoid an extra full game-view refresh unless seat, bot, or ruleset metadata changed
 
 ## Requirements
 
@@ -54,6 +55,10 @@ The Randall-vs-Maxine soak harness now runs separately:
 To run a larger head-to-head batch, pass `botMatchHarnessGamesPerMatchup` to Gradle. For example, `-DbotMatchHarnessGamesPerMatchup=10` runs 100 total games because the harness covers 5 supported rulesets in both seat assignments.
 
 `src/test/kotlin/com/ravensanddragons/game/GameBotsTest.kt` also keeps two disabled manual bot-comparison checks: one for representative depth-2 move agreement between `MinimaxGameBotStrategy` and `AlphaBetaGameBotStrategy`, and one for timing those same representative searches without making the regular suite flaky.
+
+## Profiling
+
+A repeatable local memory-profiling runbook lives at [docs/profiling-runbook.md](/Users/jrayazian/code/ravens-and-dragons/docs/profiling-runbook.md). It covers idle baselines, human-play retention checks, bot-search allocation churn, and SSE-connected profiling passes.
 
 ## Local Authentication Setup
 

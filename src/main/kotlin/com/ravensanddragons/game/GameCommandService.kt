@@ -141,7 +141,7 @@ class GameCommandService(
                     lifecycle = GameLifecycle.finished,
                     snapshot = GameRules.endGame(snapshot, "Game ended"),
                     undoEntries = current.undoEntries + UndoEntry(
-                        snapshot = snapshot,
+                        state = snapshot.toUndoSnapshotState(),
                         ownerSide = snapshot.activeSide,
                         kind = UndoEntryKind.humanOnly
                     )
@@ -299,7 +299,7 @@ class GameCommandService(
         next(
             snapshot = snapshot,
             undoEntries = undoEntries + UndoEntry(
-                snapshot = session.snapshot,
+                state = session.snapshot.toUndoSnapshotState(),
                 ownerSide = ownerSide,
                 kind = kind
             )
@@ -326,10 +326,11 @@ class GameCommandService(
     private fun StoredGame.undo(): StoredGame {
         val previousEntry = undoEntries.lastOrNull()
             ?: throw InvalidCommandException("No move is available to undo.")
+        val restoredSnapshot = session.snapshot.restore(previousEntry.state)
         return next(
-            snapshot = previousEntry.snapshot,
+            snapshot = restoredSnapshot,
             undoEntries = undoEntries.dropLast(1),
-            lifecycle = if (previousEntry.snapshot.turns.lastOrNull()?.type == TurnType.gameOver) {
+            lifecycle = if (restoredSnapshot.turns.lastOrNull()?.type == TurnType.gameOver) {
                 GameLifecycle.finished
             } else {
                 GameLifecycle.active
@@ -342,4 +343,24 @@ class GameCommandService(
             Side.dragons -> current.session.dragonsBotId != null
             Side.ravens -> current.session.ravensBotId != null
         }
+
+    private fun GameSnapshot.toUndoSnapshotState(): UndoSnapshotState =
+        UndoSnapshotState(
+            board = board,
+            phase = phase,
+            activeSide = activeSide,
+            pendingMove = pendingMove,
+            turns = turns,
+            positionKeys = positionKeys
+        )
+
+    private fun GameSnapshot.restore(state: UndoSnapshotState): GameSnapshot =
+        copy(
+            board = state.board,
+            phase = state.phase,
+            activeSide = state.activeSide,
+            pendingMove = state.pendingMove,
+            turns = state.turns,
+            positionKeys = state.positionKeys
+        )
 }

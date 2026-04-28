@@ -13,11 +13,7 @@ object BoardCoordinates {
             return false
         }
 
-        val geometry = geometry(boardSize)
-        val file = square.firstOrNull() ?: return false
-        val rank = square.drop(1).toIntOrNull() ?: return false
-        return file in geometry.files &&
-            rank in 1..boardSize
+        return geometry(boardSize).squareIndexes.containsKey(square)
     }
 
     fun allSquares(boardSize: Int): List<String> =
@@ -44,8 +40,8 @@ object BoardCoordinates {
     fun isOrthogonallyAdjacent(first: String, second: String, boardSize: Int): Boolean {
         val firstIndexes = indexes(first, boardSize) ?: return false
         val secondIndexes = indexes(second, boardSize) ?: return false
-        val fileDistance = kotlin.math.abs(firstIndexes.first - secondIndexes.first)
-        val rankDistance = kotlin.math.abs(firstIndexes.second - secondIndexes.second)
+        val fileDistance = kotlin.math.abs(firstIndexes.fileIndex - secondIndexes.fileIndex)
+        val rankDistance = kotlin.math.abs(firstIndexes.rankIndex - secondIndexes.rankIndex)
         return fileDistance + rankDistance == 1
     }
 
@@ -60,28 +56,43 @@ object BoardCoordinates {
         return geometries.computeIfAbsent(boardSize, ::BoardGeometry)
     }
 
-    private fun indexes(square: String, boardSize: Int): Pair<Int, Int>? {
-        if (!isValidSquare(square, boardSize)) {
-            return null
-        }
-
-        return geometry(boardSize).fileIndexes.getValue(square[0]) to (square.drop(1).toInt() - 1)
-    }
+    private fun indexes(square: String, boardSize: Int): BoardGeometry.SquareIndexes? =
+        geometry(boardSize).squareIndexes[square]
 
     private data class BoardGeometry(
         val boardSize: Int
     ) {
+        data class SquareIndexes(
+            val fileIndex: Int,
+            val rankIndex: Int
+        )
+
         val files: List<Char> = ('a'..'z').take(boardSize)
-        val fileIndexes: Map<Char, Int> = files.withIndex().associate { (index, file) -> file to index }
-        val centerSquare: String = "${files[boardSize / 2]}${(boardSize / 2) + 1}"
-        val allSquares: List<String> = (1..boardSize).flatMap { rank ->
-            files.map { file -> "$file$rank" }
+        private val squaresByIndex: Array<Array<String>> = Array(boardSize) { fileIndex ->
+            Array(boardSize) { rankIndex ->
+                "${files[fileIndex]}${rankIndex + 1}"
+            }
+        }
+        val squareIndexes: Map<String, SquareIndexes> = buildMap(boardSize * boardSize) {
+            for (fileIndex in 0 until boardSize) {
+                for (rankIndex in 0 until boardSize) {
+                    put(squaresByIndex[fileIndex][rankIndex], SquareIndexes(fileIndex, rankIndex))
+                }
+            }
+        }
+        val centerSquare: String = squaresByIndex[boardSize / 2][boardSize / 2]
+        val allSquares: List<String> = buildList(boardSize * boardSize) {
+            for (rankIndex in 0 until boardSize) {
+                for (fileIndex in 0 until boardSize) {
+                    add(squaresByIndex[fileIndex][rankIndex])
+                }
+            }
         }
         val cornerSquares: Set<String> = setOf(
-            "${files.first()}1",
-            "${files.first()}$boardSize",
-            "${files.last()}1",
-            "${files.last()}$boardSize"
+            squaresByIndex[0][0],
+            squaresByIndex[0][boardSize - 1],
+            squaresByIndex[boardSize - 1][0],
+            squaresByIndex[boardSize - 1][boardSize - 1]
         )
         val neighbors: Map<String, List<String>> = allSquares.associateWith { square ->
             val (fileIndex, rankIndex) = indexes(square)
@@ -132,7 +143,7 @@ object BoardCoordinates {
         }
 
         private fun indexes(square: String): Pair<Int, Int> =
-            fileIndexes.getValue(square[0]) to (square.drop(1).toInt() - 1)
+            squareIndexes.getValue(square).let { indexes -> indexes.fileIndex to indexes.rankIndex }
 
         private fun buildRay(fileIndex: Int, rankIndex: Int, fileStep: Int, rankStep: Int): List<String> {
             val squares = mutableListOf<String>()
@@ -148,11 +159,11 @@ object BoardCoordinates {
         }
 
         private fun squareAt(fileIndex: Int, rankIndex: Int): String? {
-            if (fileIndex !in files.indices || rankIndex !in 0 until boardSize) {
+            if (fileIndex !in 0 until boardSize || rankIndex !in 0 until boardSize) {
                 return null
             }
 
-            return "${files[fileIndex]}${rankIndex + 1}"
+            return squaresByIndex[fileIndex][rankIndex]
         }
 
         private fun pairAt(
