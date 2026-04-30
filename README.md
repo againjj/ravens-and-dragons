@@ -10,7 +10,8 @@ Ravens and Dragons is a Spring Boot and Kotlin web app for playing a browser-bas
 - Sign in as a guest or local user, with optional Google OAuth support
 - Claim the ravens or dragons side in a live game
 - In `Free Play`, setup clicks now cycle `raven -> dragon -> gold -> empty`, and the starting-side picker lists Ravens first and defaults to Ravens
-- In a fresh supported preset game, choose a server-driven `Randall`, `Simon`, `Maxine`, or `Alphie` bot from the live-game seat panel and assign it to the opposite open seat for `Original Game`, `Sherwood Rules`, `Square One`, `Sherwood x 9`, or `Square One x 9`
+- In a fresh supported preset game, choose a server-driven bot from the live-game seat panel and assign it to the opposite open seat for `Original Game`, `Sherwood Rules`, `Square One`, `Sherwood x 9`, or `Square One x 9`
+- Phase 1 of the machine-learned bot rollout is now live: `Michelle` appears for `Sherwood Rules` from a bundled ruleset-scoped artifact and uses cheap server-side move scoring at runtime
 - `Maxine` stays on the existing minimax search, while `Alphie` uses a deeper optimized alpha-beta search with subtree caching and reused child snapshots
 - Undo against a bot reverses one full exchange, still works after a game-ending human move or bot reply when that last exchange is undoable, and can now be repeated across multiple consecutive undo steps
 - Streamed move updates now avoid an extra full game-view refresh unless seat, bot, or ruleset metadata changed
@@ -62,7 +63,7 @@ A repeatable local memory-profiling runbook lives at [docs/profiling-runbook.md]
 
 ## Design Docs
 
-- [docs/machine-learned-bot.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-learned-bot.md): proposed architecture and phased implementation plan for the offline-trained, ruleset-scoped `machine-learned` bot `Michelle`
+- [docs/machine-learned-bot.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-learned-bot.md): architecture and phased implementation plan for the offline-trained, ruleset-scoped `machine-learned` bot `Michelle`
 
 ## Local Authentication Setup
 

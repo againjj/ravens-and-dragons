@@ -88,6 +88,27 @@ internal object BotStrategySupport {
     fun applyMove(snapshot: GameSnapshot, move: LegalMove): GameSnapshot =
         GameRules.movePiece(snapshot, move.origin, move.destination)
 
+    fun goldCornerDistance(snapshot: GameSnapshot): Int {
+        val goldSquare = goldSquare(snapshot) ?: return 0
+        return cornerSquares(snapshot.boardSize).minOf { corner -> manhattanDistance(goldSquare, corner) }
+    }
+
+    fun ravenPressure(snapshot: GameSnapshot): Int {
+        val goldSquare = goldSquare(snapshot) ?: return 100
+        val ravens = snapshot.board.entries
+            .filter { (_, piece) -> piece == Piece.raven }
+            .map { (square) -> square }
+        if (ravens.isEmpty()) {
+            return 0
+        }
+
+        val nearestDistance = ravens.minOf { square -> manhattanDistance(square, goldSquare) }
+        val adjacentRavens = ravens.count { square ->
+            BoardCoordinates.isOrthogonallyAdjacent(square, goldSquare, snapshot.boardSize)
+        }
+        return (adjacentRavens * 4) - nearestDistance
+    }
+
     fun oppositeSide(side: Side): Side =
         when (side) {
             Side.dragons -> Side.ravens
@@ -119,27 +140,6 @@ internal object BotStrategySupport {
             Side.dragons -> terminalTurn.outcome == "Dragons win"
             Side.ravens -> terminalTurn.outcome == "Ravens win"
         }
-    }
-
-    private fun goldCornerDistance(snapshot: GameSnapshot): Int {
-        val goldSquare = goldSquare(snapshot) ?: return 0
-        return cornerSquares(snapshot.boardSize).minOf { corner -> manhattanDistance(goldSquare, corner) }
-    }
-
-    private fun ravenPressure(snapshot: GameSnapshot): Int {
-        val goldSquare = goldSquare(snapshot) ?: return 100
-        val ravens = snapshot.board.entries
-            .filter { (_, piece) -> piece == Piece.raven }
-            .map { (square) -> square }
-        if (ravens.isEmpty()) {
-            return 0
-        }
-
-        val nearestDistance = ravens.minOf { square -> manhattanDistance(square, goldSquare) }
-        val adjacentRavens = ravens.count { square ->
-            BoardCoordinates.isOrthogonallyAdjacent(square, goldSquare, snapshot.boardSize)
-        }
-        return (adjacentRavens * 4) - nearestDistance
     }
 
     private fun goldSquare(snapshot: GameSnapshot): String? =

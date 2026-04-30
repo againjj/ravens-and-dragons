@@ -1,16 +1,27 @@
 package com.ravensanddragons.game
 
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.stereotype.Component
 
 @Component
-class BotRegistry(
-    randomIndexSource: RandomIndexSource
+class BotRegistry internal constructor(
+    randomIndexSource: RandomIndexSource,
+    machineLearnedRegistry: MachineLearnedRegistry
 ) {
+    @Autowired
+    constructor(
+        randomIndexSource: RandomIndexSource,
+        machineLearnedModelLoader: MachineLearnedModelLoader
+    ) : this(randomIndexSource, MachineLearnedRegistry.from(machineLearnedModelLoader))
+
+    constructor(randomIndexSource: RandomIndexSource) : this(randomIndexSource, MachineLearnedRegistry.empty())
+
     companion object {
         const val randomBotId = "random"
         const val simpleBotId = "simple"
         const val minimaxBotId = "minimax"
         const val deepMinimaxBotId = "deep-minimax"
+        const val machineLearnedBotId = "machine-learned"
         val releaseTwoSupportedRuleConfigurationIds = setOf(
             "original-game",
             "sherwood-rules",
@@ -45,7 +56,9 @@ class BotRegistry(
             supportedRuleConfigurationIds = releaseTwoSupportedRuleConfigurationIds,
             strategy = AlphaBetaGameBotStrategy(searchDepth = 4)
         )
-    )
+    ).apply {
+        putAll(machineLearnedRegistry.botDefinitions())
+    }
 
     fun availableBotsFor(ruleConfigurationId: String): List<BotSummary> =
         definitions.values

@@ -1,0 +1,26 @@
+{
+  "botId": "machine-learned",
+  "displayName": "Michelle",
+  "modelFormatVersion": 1,
+  "featureSchemaVersion": 1,
+  "ruleConfigurationId": "sherwood-rules",
+  "trainedAt": "2026-04-30T00:00:00Z",
+  "trainingSummary": {
+    "expertBotId": "deep-minimax",
+    "positions": 16,
+    "selfPlayGames": 0
+  },
+  "modelType": "linear-move-ranker",
+  "bias": 0.0,
+  "weights": [
+    0.05,
+    -0.2,
+    0.1,
+    0.1,
+    1.5,
+    1000.0,
+    -0.4,
+    -0.6,
+    0.002
+  ]
+}

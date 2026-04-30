@@ -352,7 +352,7 @@ class GameBotsTest {
     }
 
     @Test
-    fun `bot registry exposes every supported bot on release two rulesets and none on free play`() {
+    fun `bot registry exposes every supported baseline bot on release two rulesets and none on free play`() {
         val registry = BotRegistry(object : RandomIndexSource {
             override fun nextInt(bound: Int): Int = 0
         })
