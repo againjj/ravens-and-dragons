@@ -1,12 +1,11 @@
 package com.ravensanddragons.training
-
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.ravensanddragons.game.GameRules
 import com.ravensanddragons.game.GameBotStrategy
 import com.ravensanddragons.game.GameSnapshot
 import com.ravensanddragons.game.LegalMove
 import com.ravensanddragons.game.MachineLearnedFeatureEncoder
 import com.ravensanddragons.game.MachineLearnedModelLoader
+import com.ravensanddragons.game.MachineLearnedMoveScorer
 import com.ravensanddragons.game.Phase
 import com.ravensanddragons.game.Piece
 import com.ravensanddragons.game.Side
@@ -22,7 +21,7 @@ import java.time.ZoneOffset
 import kotlin.io.path.readText
 
 class MachineLearnedTrainingPipelineTest {
-    private val objectMapper = jacksonObjectMapper().findAndRegisterModules()
+    private val objectMapper = trainingObjectMapper()
 
     @Test
     fun `feature encoder keeps deterministic feature ordering`() {
@@ -59,7 +58,7 @@ class MachineLearnedTrainingPipelineTest {
         val generator = MachineLearnedDatasetGenerator(
             selfPlayRunner = StubSelfPlayRunner(),
             clock = fixedClock(),
-            expertStrategyFactory = { _ ->
+            expertStrategyFactory = { _, _ ->
                 object : GameBotStrategy {
                     override fun chooseMove(snapshot: GameSnapshot, legalMoves: List<LegalMove>): LegalMove =
                         legalMoves.first()
@@ -99,6 +98,7 @@ class MachineLearnedTrainingPipelineTest {
             selfPlayGames = 2,
             examples = listOf(
                 TrainingExample(
+                    positionKey = "position-1",
                     ruleConfigurationId = "sherwood-rules",
                     featureSchemaVersion = 1,
                     boardSize = 7,
@@ -142,16 +142,18 @@ class MachineLearnedTrainingPipelineTest {
 
         val model = trainer.train(dataset)
         writer.write(path, model)
+        val artifactJson = path.readText()
 
         val loadedByReader = reader.read(path)
         val runtimeLoaded = runtimeLoader.loadModels(
             listOf(
-                object : org.springframework.core.io.ByteArrayResource(path.readText().toByteArray()) {
+                object : org.springframework.core.io.ByteArrayResource(artifactJson.toByteArray()) {
                     override fun getFilename(): String = "sherwood-rules.json"
                 }
             )
         ).single()
 
+        assertTrue(artifactJson.contains("\"trainedAt\" : \"2026-04-30T12:00:00Z\""))
         assertEquals(model, loadedByReader)
         assertEquals(model, runtimeLoaded)
     }
@@ -183,11 +185,59 @@ class MachineLearnedTrainingPipelineTest {
         assertEquals("Machine-learned training dataset mixed rule configurations.", exception.message)
     }
 
+    @Test
+    fun `trainer ranks the labeled move above alternatives for a position`() {
+        val trainer = MachineLearnedTrainer(fixedClock())
+        val dataset = MachineLearnedDataset(
+            ruleConfigurationId = "sherwood-rules",
+            featureSchemaVersion = MachineLearnedFeatureEncoder.schemaVersion,
+            generatedAt = Instant.parse("2026-04-30T00:00:00Z"),
+            expertBotId = "deep-minimax",
+            selfPlayBotIds = listOf("simple"),
+            selfPlayGames = 1,
+            examples = listOf(
+                example(
+                    positionKey = "position-a",
+                    label = 1f,
+                    features = listOf(0f, 0f, 0f, 1f, 1f, 0f, 4f, 2f, 40f)
+                ),
+                example(
+                    positionKey = "position-a",
+                    label = 0f,
+                    features = listOf(0f, 0f, 0f, 1f, 0f, 0f, 6f, -1f, -20f)
+                ),
+                example(
+                    positionKey = "position-b",
+                    label = 1f,
+                    features = listOf(0f, 0f, 1f, 0f, 1f, 0f, 3f, 1f, 25f)
+                ),
+                example(
+                    positionKey = "position-b",
+                    label = 0f,
+                    features = listOf(0f, 0f, 1f, 0f, 0f, 0f, 7f, -2f, -30f)
+                )
+            )
+        )
+
+        val model = trainer.train(dataset)
+
+        assertTrue(
+            MachineLearnedMoveScorer.score(model, dataset.examples[0].features.toFloatArray()) >
+                MachineLearnedMoveScorer.score(model, dataset.examples[1].features.toFloatArray())
+        )
+        assertTrue(
+            MachineLearnedMoveScorer.score(model, dataset.examples[2].features.toFloatArray()) >
+                MachineLearnedMoveScorer.score(model, dataset.examples[3].features.toFloatArray())
+        )
+    }
+
     private fun example(
+        positionKey: String = "position-1",
         label: Float,
         features: List<Float>,
         ruleConfigurationId: String = "sherwood-rules"
     ): TrainingExample = TrainingExample(
+        positionKey = positionKey,
         ruleConfigurationId = ruleConfigurationId,
         featureSchemaVersion = MachineLearnedFeatureEncoder.schemaVersion,
         boardSize = 7,

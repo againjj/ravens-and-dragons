@@ -9,6 +9,7 @@ enum class TrainingExampleSource {
 }
 
 data class TrainingExample(
+    val positionKey: String,
     val ruleConfigurationId: String,
     val featureSchemaVersion: Int,
     val boardSize: Int,

@@ -59,12 +59,12 @@ The training entrypoint is:
 ./gradlew runMachineLearnedTraining
 ```
 
-By default it trains a Sherwood artifact, uses all available CPUs for per-game dataset generation work, and writes outputs under `build/machine-learned`.
+By default it trains a Sherwood artifact, uses all available CPUs for per-game dataset generation work, and writes outputs under `build/machine-learned-candidate`.
 
 Example:
 
 ```bash
-./gradlew runMachineLearnedTraining -PtrainingArgs='--rule-configuration-id sherwood-rules --expert-bot-id deep-minimax --self-play-bot-ids random,simple,minimax,deep-minimax --games-per-matchup 2 --sample-stride 2 --max-sampled-positions-per-game 8 --max-plies-per-game 300 --initial-seed 1 --output-dir build/machine-learned'
+./gradlew runMachineLearnedTraining -PtrainingArgs='--rule-configuration-id sherwood-rules --expert-bot-id deep-minimax --self-play-bot-ids random,simple,minimax,deep-minimax --games-per-matchup 2 --sample-stride 2 --max-sampled-positions-per-game 8 --max-plies-per-game 300 --initial-seed 1 --output-dir build/machine-learned-candidate'
 ```
 
 ## Training Arguments
@@ -84,12 +84,91 @@ The CLI currently supports these arguments:
 - `--dataset-filename`
 - `--artifact-filename`
 
-Notes:
+What each argument means and what it changes:
 
-- `--self-play-bot-ids` is a comma-separated list such as `random,simple,minimax,deep-minimax`.
-- `--rule-configuration-id` should stay `sherwood-rules` unless the runtime and training work have both been extended for another ruleset.
-- larger `games-per-matchup` values produce bigger datasets and longer runs.
-- if `--worker-count` is omitted, the CLI uses `Runtime.getRuntime().availableProcessors()`.
+- `--rule-configuration-id`
+  - Meaning: chooses the single ruleset this run is allowed to train.
+  - Effect: controls the opening positions, legal moves, sampled states, expert labeling, dataset metadata, and artifact metadata.
+  - Current guidance: keep this as `sherwood-rules` unless both runtime and training support have been intentionally extended for another ruleset.
+- `--expert-bot-id`
+  - Meaning: selects the bot that labels sampled positions with the preferred move.
+  - Effect: changes the imitation target that Michelle learns from.
+  - Practical tradeoff: stronger experts can produce better labels, but labeling work can take longer.
+- `--self-play-bot-ids`
+  - Meaning: comma-separated list of bots used to generate training games, such as `random,simple,minimax,deep-minimax`.
+  - Effect: the generator runs every dragons-vs-ravens pairing across this list, so a list of four ids creates sixteen matchup pairs before multiplying by `games-per-matchup`.
+  - Practical tradeoff: a more diverse list broadens the positions Michelle sees, but it also increases total run time.
+- `--games-per-matchup`
+  - Meaning: how many games to generate for each ordered bot pairing.
+  - Effect: scales the number of self-play games linearly.
+  - Practical tradeoff: larger values usually produce bigger, more varied datasets, but they increase training time and disk output.
+- `--sample-stride`
+  - Meaning: how often to sample plies from each self-play game.
+  - Effect: only positions whose `plyIndex % sampleStride == 0` are considered for labeling.
+  - Practical tradeoff: smaller values keep more positions and produce denser datasets; larger values reduce labeling cost and file size.
+- `--max-sampled-positions-per-game`
+  - Meaning: hard cap on how many sampled positions from one game are turned into labeled examples.
+  - Effect: prevents long games from dominating the dataset.
+  - Practical tradeoff: larger values increase per-game influence and artifact generation cost; smaller values spread weight more evenly across games.
+- `--max-plies-per-game`
+  - Meaning: maximum ply count allowed before the training runner forces a draw and stops that self-play game.
+  - Effect: bounds pathological or very long games so runs finish in predictable time.
+  - Practical tradeoff: larger values preserve more long-game behavior; smaller values cap cost more aggressively.
+- `--initial-seed`
+  - Meaning: starting deterministic seed used when assigning per-game seeds.
+  - Effect: controls the reproducible ordering of generated matchups and any seeded random choices inside the training pipeline.
+  - Practical tradeoff: changing it can produce a different dataset even with the same other arguments.
+- `--worker-count`
+  - Meaning: maximum number of concurrent worker threads for per-game self-play and labeling work.
+  - Effect: controls how much CPU parallelism the dataset generator uses.
+  - Practical tradeoff: higher values reduce wall-clock time on multi-core machines but increase simultaneous CPU and memory pressure.
+  - Default: if omitted, the CLI uses `Runtime.getRuntime().availableProcessors()`.
+- `--output-dir`
+  - Meaning: destination directory for generated dataset and artifact files.
+  - Effect: changes where the run writes its outputs.
+  - Practical tradeoff: useful for keeping candidate runs separate, for example `build/machine-learned-candidate`.
+- `--dataset-filename`
+  - Meaning: output filename for the dataset JSON.
+  - Effect: changes only the dataset file name, not the artifact file name or training behavior.
+  - Practical tradeoff: useful if you want to keep multiple datasets in the same output directory.
+- `--artifact-filename`
+  - Meaning: output filename for the generated Michelle artifact JSON.
+  - Effect: changes only the artifact file name, not the dataset contents or training behavior.
+  - Practical tradeoff: useful for keeping multiple candidate artifacts side by side.
+
+Serialization note:
+
+- generated artifacts now write `trainedAt` as an ISO-8601 string such as `"2026-04-30T12:00:00Z"` so the offline output matches the documented runtime artifact shape.
+
+## How Position Sampling Works
+
+Candidate positions come from self-play games, not from a separate curated position set.
+
+The generator:
+
+1. builds every ordered dragons-vs-ravens pairing from `selfPlayBotIds`
+2. runs each ordered pairing `gamesPerMatchup` times
+3. records the snapshot and legal moves at each ply
+4. keeps only sampled plies that:
+   - have more than one legal move
+   - satisfy `plyIndex % sampleStride == 0`
+   - fit within `maxSampledPositionsPerGame`
+
+Each surviving sampled position is then labeled by the expert bot:
+
+- the expert chooses one preferred move
+- every legal move from that position becomes a training example
+- the expert move gets label `1.0`
+- all other legal moves get label `0.0`
+
+## Pairings, Seeds, And Duplicates
+
+- The same ordered seat pairing is reused when `gamesPerMatchup` is greater than `1`.
+- Seat order matters, so `random` as dragons vs `simple` as ravens is a different pairing from `simple` as dragons vs `random` as ravens.
+- Each repeated game gets a different incrementing seed starting from `initialSeed`.
+- Today, the seed mostly matters when a matchup includes `random`, because `Randall` is the bot that consumes the seeded random source.
+- If a matchup contains only deterministic bots, changing the seed may have little or no effect on the resulting game.
+- Repeated positions are not currently discarded. If the same snapshot or `(snapshot, move)` example appears more than once, it stays in the dataset and effectively gets extra weight during training.
 
 ## Recommended First Run
 
@@ -114,8 +193,8 @@ The command writes two files:
 
 For Sherwood, the defaults are:
 
-- `build/machine-learned/sherwood-rules.dataset.json`
-- `build/machine-learned/sherwood-rules.generated.json`
+- `build/machine-learned-candidate/sherwood-rules.dataset.json`
+- `build/machine-learned-candidate/sherwood-rules.generated.json`
 
 The CLI prints the absolute paths after it finishes.
 
@@ -157,7 +236,7 @@ To install a newly trained Sherwood artifact:
 One straightforward local install flow is:
 
 ```bash
-cp src/main/resources/bots/machine-learned/sherwood-rules.json build/machine-learned/sherwood-rules.previous.json
+cp src/main/resources/bots/machine-learned/sherwood-rules.json build/machine-learned-candidate/sherwood-rules.previous.json
 cp build/machine-learned-candidate/sherwood-rules.generated.json src/main/resources/bots/machine-learned/sherwood-rules.json
 ./gradlew test --tests com.ravensanddragons.game.MachineLearnedBotPhaseOneTest
 ```
@@ -167,7 +246,7 @@ cp build/machine-learned-candidate/sherwood-rules.generated.json src/main/resour
 If the new artifact behaves badly or fails validation, restore the previous JSON:
 
 ```bash
-cp build/machine-learned/sherwood-rules.previous.json src/main/resources/bots/machine-learned/sherwood-rules.json
+cp build/machine-learned-candidate/sherwood-rules.previous.json src/main/resources/bots/machine-learned/sherwood-rules.json
 ./gradlew test --tests com.ravensanddragons.game.MachineLearnedBotPhaseOneTest
 ```
 

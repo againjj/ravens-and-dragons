@@ -1,8 +1,14 @@
 package com.ravensanddragons.training
 
+import com.fasterxml.jackson.databind.SerializationFeature
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.ravensanddragons.game.RandomIndexSource
 
 internal fun defaultTrainingWorkerCount(): Int = Runtime.getRuntime().availableProcessors()
+
+fun trainingObjectMapper() = jacksonObjectMapper()
+    .findAndRegisterModules()
+    .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
 
 internal class SeededRandomIndexSource(
     seed: Int

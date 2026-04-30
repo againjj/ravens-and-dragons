@@ -1,13 +1,11 @@
 package com.ravensanddragons.training
-
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import java.nio.file.Path
 import java.time.Clock
 import kotlin.io.path.absolute
 
 fun main(args: Array<String>) {
     val options = TrainingCliOptions.parse(args.toList())
-    val objectMapper = jacksonObjectMapper().findAndRegisterModules()
+    val objectMapper = trainingObjectMapper()
     val clock = Clock.systemUTC()
 
     val datasetGenerator = MachineLearnedDatasetGenerator(clock = clock)
@@ -61,7 +59,7 @@ private data class TrainingCliOptions(
     val maxPliesPerGame: Int = 300,
     val initialSeed: Int = 1,
     val workerCount: Int = defaultTrainingWorkerCount(),
-    val outputDir: Path = Path.of("build", "machine-learned"),
+    val outputDir: Path = Path.of("build", "machine-learned-candidate"),
     val datasetFilename: String = "sherwood-rules.dataset.json",
     val artifactFilename: String = "sherwood-rules.generated.json"
 ) {
@@ -101,7 +99,7 @@ private data class TrainingCliOptions(
                 maxPliesPerGame = values["max-plies-per-game"]?.toInt() ?: 300,
                 initialSeed = values["initial-seed"]?.toInt() ?: 1,
                 workerCount = values["worker-count"]?.toInt() ?: defaultTrainingWorkerCount(),
-                outputDir = values["output-dir"]?.let(Path::of) ?: Path.of("build", "machine-learned"),
+                outputDir = values["output-dir"]?.let(Path::of) ?: Path.of("build", "machine-learned-candidate"),
                 datasetFilename = values["dataset-filename"] ?: "$ruleConfigurationId.dataset.json",
                 artifactFilename = values["artifact-filename"] ?: "$ruleConfigurationId.generated.json"
             )

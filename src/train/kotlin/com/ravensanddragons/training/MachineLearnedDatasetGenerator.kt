@@ -29,8 +29,8 @@ data class MachineLearnedDatasetGenerationRequest(
 class MachineLearnedDatasetGenerator(
     private val selfPlayRunner: MachineLearnedSelfPlayRunner = MachineLearnedSelfPlayRunner(),
     private val clock: Clock = Clock.systemUTC(),
-    private val expertStrategyFactory: (MachineLearnedDatasetGenerationRequest) -> GameBotStrategy = { request ->
-        BotRegistry(SeededRandomIndexSource(request.initialSeed + 10_000))
+    private val expertStrategyFactory: (MachineLearnedDatasetGenerationRequest, Int) -> GameBotStrategy = { request, seed ->
+        BotRegistry(SeededRandomIndexSource(seed))
             .requireSupportedDefinition(request.expertBotId, request.ruleConfigurationId)
             .strategy
     }
@@ -66,6 +66,7 @@ class MachineLearnedDatasetGenerator(
         val examples = results
             .sortedBy(TaskResult::index)
             .flatMap(TaskResult::examples)
+            .distinctBy { example -> example.positionKey to example.candidateMove }
 
         require(examples.isNotEmpty()) {
             "Training dataset generation produced no examples for ${request.ruleConfigurationId}."
@@ -117,7 +118,7 @@ class MachineLearnedDatasetGenerator(
         task: TaskDefinition,
         request: MachineLearnedDatasetGenerationRequest
     ): TaskResult {
-        val expertStrategy = expertStrategyFactory(request)
+        val expertStrategy = expertStrategyFactory(request, task.matchup.seed + 10_000)
         val game = selfPlayRunner.play(task.matchup)
         val examples = mutableListOf<TrainingExample>()
 
@@ -127,6 +128,7 @@ class MachineLearnedDatasetGenerator(
             .filter { sampled -> sampled.plyIndex % request.sampleStride == 0 }
             .take(request.maxSampledPositionsPerGame)
             .forEach { sampled ->
+                val positionKey = positionKeyFor(sampled)
                 val expertMove = expertStrategy.chooseMove(sampled.snapshot, sampled.legalMoves)
                 sampled.legalMoves.forEach { candidateMove ->
                     val nextSnapshot = GameRules.movePiece(
@@ -135,6 +137,7 @@ class MachineLearnedDatasetGenerator(
                         candidateMove.destination
                     )
                     examples += TrainingExample(
+                        positionKey = positionKey,
                         ruleConfigurationId = request.ruleConfigurationId,
                         featureSchemaVersion = MachineLearnedFeatureEncoder.schemaVersion,
                         boardSize = sampled.snapshot.boardSize,
@@ -153,6 +156,30 @@ class MachineLearnedDatasetGenerator(
             }
 
         return TaskResult(index = task.index, examples = examples)
+    }
+
+    private fun positionKeyFor(sampled: SelfPlayPosition): String {
+        val snapshot = sampled.snapshot
+        val boardKey = snapshot.board.entries
+            .sortedBy { (square) -> square }
+            .joinToString("|") { (square, piece) -> "$square=$piece" }
+        val legalMovesKey = sampled.legalMoves
+            .joinToString("|") { move -> "${move.origin}->${move.destination}" }
+        return buildString {
+            append(snapshot.ruleConfigurationId)
+            append(';')
+            append(snapshot.activeSide)
+            append(';')
+            append(snapshot.phase)
+            append(';')
+            append(snapshot.boardSize)
+            append(';')
+            append(snapshot.specialSquare)
+            append(';')
+            append(boardKey)
+            append(';')
+            append(legalMovesKey)
+        }
     }
 
     private fun <T> executeTasks(
