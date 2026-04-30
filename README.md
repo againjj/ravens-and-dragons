@@ -64,7 +64,7 @@ A repeatable local memory-profiling runbook lives at [docs/profiling-runbook.md]
 
 ## Design Docs
 
-- [docs/machine-learned-bot.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-learned-bot.md): architecture and phased implementation plan for the offline-trained, ruleset-scoped `machine-learned` bot `Michelle`
+- [docs/machine-learned-bot.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-learned-bot.md): architecture and phased implementation plan for the offline-trained, ruleset-scoped `machine-learned` bot `Michelle`, including completed phase 1 and 2 status plus the next position-derived feature expansion plan
 - [docs/machine-learned-training-runbook.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-learned-training-runbook.md): step-by-step instructions for training, validating, installing, and rolling back a Sherwood `Michelle` artifact
 
 ## Offline Training

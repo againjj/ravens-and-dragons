@@ -32,7 +32,7 @@ The follow-up bot refactor has now split the old single `GameBots.kt` file into 
 - `docs/profiling-runbook.md`
   - Repeatable local memory-profiling runbook for idle baselines, human-play retention, bot-search churn, and SSE-connected checks.
 - `docs/machine-learned-bot.md`
-  - Design document for the offline-trained `machine-learned` bot `Michelle`, including runtime architecture, artifact format, and phased training plan.
+  - Design document for the offline-trained `machine-learned` bot `Michelle`, including runtime architecture, artifact format, completed phase 1 and 2 status, and the next phase 3 plan for position-derived feature expansion.
 - `docs/machine-learned-training-runbook.md`
   - Runbook for training, validating, installing, and rolling back a locally generated Sherwood `Michelle` artifact.
 - `src/main/resources/bots/machine-learned/*.json`

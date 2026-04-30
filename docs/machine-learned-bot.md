@@ -10,6 +10,13 @@ This document proposes a Sherwood-first machine-learned bot architecture for Rav
 - Training mode: offline local training only
 - Runtime mode: cheap inference inside the existing Kotlin server
 
+Current implementation status:
+
+- Phase 1 runtime scaffolding is implemented.
+- Phase 2 Kotlin-first offline training pipeline is implemented for local use.
+- The current trainer already uses per-position ranking updates over legal-move groups rather than a global positive-versus-negative average.
+- Position-derived feature expansion is the next recommended training-quality step.
+
 The design assumes that each trained artifact is scoped to exactly one `ruleConfigurationId`. A future `Michelle` artifact for another ruleset should be trained, stored, evaluated, and released separately rather than shared across rulesets.
 
 ## Goals
@@ -104,9 +111,11 @@ The first version should not begin with a large reinforcement learning stack. A 
 Recommended first model:
 
 - model type: linear move ranker or very small multilayer perceptron
-- input: handcrafted move-level features
+- input: handcrafted move-local features plus handcrafted features derived from the resulting position
 - output: score for each legal move
 - selection rule: choose the highest-scoring legal move
+
+The intended training objective is per-position ranking, not isolated global classification. For each sampled position, the trainer should compare the expert-preferred legal move against the alternatives from that same legal-move set.
 
 ## Ruleset Scoping Rules
 
@@ -237,10 +246,11 @@ If the repository later wants Python-based model training, this Kotlin-first pha
 
 ## Training Data Design
 
-The first training loop should use expert-labeled move-ranking examples.
+The first training loop should use expert-labeled move-ranking examples grouped by position.
 
 Each example should contain:
 
+- position key
 - `ruleConfigurationId`
 - encoder schema version
 - board size
@@ -271,7 +281,7 @@ Possible `source` values:
 
 ## Feature Strategy
 
-The first version should use handcrafted move-level features rather than raw board tensors.
+The first version should use handcrafted features rather than raw board tensors.
 
 Reasons:
 
@@ -282,6 +292,8 @@ Reasons:
 
 Recommended first-pass features:
 
+Move-local features:
+
 - active side
 - moved piece type
 - origin square category: center-adjacent, edge, corner-adjacent, interior
@@ -291,12 +303,21 @@ Recommended first-pass features:
 - whether the move wins immediately
 - whether the move reduces gold distance to the nearest corner
 - whether the move increases raven pressure on gold
+
+Resulting-position features:
+
 - gold distance to nearest corner after move
 - nearest raven distance to gold after move
 - ravens adjacent to gold after move
 - dragons mobility after move
 - ravens mobility after move
 - piece count difference after move
+- dragons piece count after move
+- ravens piece count after move
+- whether gold remains movable after move
+- whether the opponent has an immediate winning reply
+- whether the move increases or decreases the active side's legal move count next turn
+- whether the resulting position repeats a previously seen position key
 - repetition indicator or repetition risk if cheaply available
 
 Two feature abstractions are useful:
@@ -304,7 +325,7 @@ Two feature abstractions are useful:
 - position features derived from a snapshot
 - move features derived from `(beforeSnapshot, move, afterSnapshot)`
 
-The runtime bot should score move features directly because it ultimately chooses between legal moves.
+The runtime bot should still score one legal move at a time because it ultimately chooses between legal moves. In practice that feature vector should combine move-local facts with position-derived facts from the `afterSnapshot`.
 
 ## Artifact Format
 
@@ -372,7 +393,7 @@ Offline data generation flow:
 2. sample positions from those games
 3. ask the expert to choose the best move for sampled positions
 4. convert each legal move at those positions into move-ranking examples
-5. train the model to rank the expert move above the alternatives
+5. train the model to rank the expert move above the alternatives from the same sampled position
 
 This is the fastest route to a cheap runtime bot that still inherits useful strength from the stronger search bots.
 
@@ -560,15 +581,17 @@ Extend the bot harness so Sherwood-only comparisons can cover:
 
 Goal: support loading and running a cheap machine-learned bot with a placeholder artifact.
 
-Tasks:
+Status: complete
 
-1. Add machine-learned model types and loader
-2. Add the runtime feature encoder and move scorer
-3. Add `MachineLearnedBotStrategy`
-4. Add artifact discovery and registration support
-5. Register bot id `machine-learned` with display name `Michelle`
-6. Add a small hand-authored Sherwood artifact for smoke testing
-7. Add runtime validation tests
+Completed work:
+
+- [x] Add machine-learned model types and loader
+- [x] Add the runtime feature encoder and move scorer
+- [x] Add `MachineLearnedBotStrategy`
+- [x] Add artifact discovery and registration support
+- [x] Register bot id `machine-learned` with display name `Michelle`
+- [x] Add bundled Sherwood artifact support for smoke-tested runtime use
+- [x] Add runtime validation tests
 
 Deliverable:
 
@@ -578,34 +601,42 @@ Deliverable:
 
 Goal: generate Sherwood-only datasets and export first-class artifacts locally.
 
-Tasks:
+Status: complete
 
-1. Add a training source set or equivalent Gradle wiring for offline training code
-2. Add self-play runner reuse around canonical `GameRules`
-3. Add dataset generation from expert and mixed-opponent play
-4. Add training example serialization
-5. Add artifact writer and reader
-6. Add a CLI entrypoint for local training runs
+Completed work:
+
+- [x] Add a training source set or equivalent Gradle wiring for offline training code
+- [x] Add self-play runner reuse around canonical `GameRules`
+- [x] Add dataset generation from expert and mixed-opponent play
+- [x] Add training example serialization
+- [x] Add artifact writer and reader
+- [x] Add a CLI entrypoint for local training runs
+- [x] Train with per-position ranking updates over grouped legal-move examples
+- [x] Deduplicate repeated `(position, move)` examples
+- [x] Parallelize per-game dataset and training work across available CPUs by default
 
 Deliverable:
 
 - local command can produce a Sherwood-only machine-learned artifact
 
-### Phase 3: First Trainable Michelle
+### Phase 3: Position-Derived Feature Expansion And First Trainable Michelle
 
-Goal: train the first useful `Michelle` from expert-labeled Sherwood positions.
+Goal: strengthen the current trainer by adding richer resulting-position signal, then train the first useful `Michelle` from expert-labeled Sherwood positions.
 
 Tasks:
 
-1. Implement linear move-ranking training
-2. Build first Sherwood dataset
-3. Train candidate artifact
-4. Run Sherwood evaluation suite against baseline bots
-5. Tune initial features and labeling mix
+1. Audit the current encoder and separate its outputs into explicit move-local and position-derived groups
+2. Add the first batch of resulting-position features from the `afterSnapshot`
+3. Bump the feature schema version and keep runtime/training validation strict
+4. Regenerate the Sherwood dataset with the expanded feature vector
+5. Train a candidate artifact using the existing per-position ranking trainer
+6. Run the Sherwood evaluation suite against baseline bots
+7. Compare the expanded-feature artifact against the current artifact and keep the better one
+8. Tune the feature mix to remove low-signal or redundant features
 
 Deliverable:
 
-- first data-driven Sherwood `Michelle` artifact with documented evaluation results
+- first data-driven Sherwood `Michelle` artifact with documented evaluation results and explicit position-derived features in its encoder contract
 
 ### Phase 4: Bot-Vs-Bot Strengthening Loop
 
@@ -674,7 +705,8 @@ Phase 1 should be considered complete when:
 Build `Michelle` as a ruleset-scoped `machine-learned` bot with:
 
 - offline local training only
-- cheap runtime move ranking
+- cheap runtime move ranking trained with per-position comparisons
+- mixed move-local and resulting-position feature vectors
 - one artifact per ruleset
 - Sherwood-first rollout
 - expert distillation first
