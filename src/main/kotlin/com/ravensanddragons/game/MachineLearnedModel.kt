@@ -23,4 +23,8 @@ data class MachineLearnedModel(
     val bias: Float,
     val weights: List<Float>,
     val trainingSummary: MachineLearnedTrainingSummary? = null
-)
+) {
+    companion object {
+        const val supportedModelFormatVersion = 1
+    }
+}

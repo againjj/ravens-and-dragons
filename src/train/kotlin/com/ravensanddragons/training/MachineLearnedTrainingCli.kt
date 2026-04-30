@@ -1,0 +1,106 @@
+package com.ravensanddragons.training
+
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import java.nio.file.Path
+import java.time.Clock
+import kotlin.io.path.absolute
+
+fun main(args: Array<String>) {
+    val options = TrainingCliOptions.parse(args.toList())
+    val objectMapper = jacksonObjectMapper().findAndRegisterModules()
+    val clock = Clock.systemUTC()
+
+    val datasetGenerator = MachineLearnedDatasetGenerator(clock = clock)
+    val datasetCodec = TrainingExampleCodec(objectMapper)
+    val trainer = MachineLearnedTrainer(clock)
+    val artifactWriter = MachineLearnedArtifactWriter(objectMapper)
+    val artifactReader = MachineLearnedArtifactReader(objectMapper)
+
+    val dataset = datasetGenerator.generate(
+        MachineLearnedDatasetGenerationRequest(
+            ruleConfigurationId = options.ruleConfigurationId,
+            expertBotId = options.expertBotId,
+            selfPlayBotIds = options.selfPlayBotIds,
+            gamesPerMatchup = options.gamesPerMatchup,
+            sampleStride = options.sampleStride,
+            maxSampledPositionsPerGame = options.maxSampledPositionsPerGame,
+            maxPliesPerGame = options.maxPliesPerGame,
+            initialSeed = options.initialSeed
+        )
+    )
+    val model = trainer.train(dataset)
+
+    val datasetPath = options.outputDir.resolve(options.datasetFilename)
+    val artifactPath = options.outputDir.resolve(options.artifactFilename)
+
+    datasetCodec.write(datasetPath, dataset)
+    artifactWriter.write(artifactPath, model)
+    artifactReader.read(artifactPath)
+
+    println("Generated ${dataset.examples.size} training examples for ${dataset.ruleConfigurationId}.")
+    println("Dataset: ${datasetPath.absolute()}")
+    println("Artifact: ${artifactPath.absolute()}")
+    println("Self-play games: ${dataset.selfPlayGames}")
+    println("Expert bot: ${dataset.expertBotId}")
+}
+
+private data class TrainingCliOptions(
+    val ruleConfigurationId: String = "sherwood-rules",
+    val expertBotId: String = com.ravensanddragons.game.BotRegistry.deepMinimaxBotId,
+    val selfPlayBotIds: List<String> = listOf(
+        com.ravensanddragons.game.BotRegistry.randomBotId,
+        com.ravensanddragons.game.BotRegistry.simpleBotId,
+        com.ravensanddragons.game.BotRegistry.minimaxBotId,
+        com.ravensanddragons.game.BotRegistry.deepMinimaxBotId
+    ),
+    val gamesPerMatchup: Int = 1,
+    val sampleStride: Int = 2,
+    val maxSampledPositionsPerGame: Int = 8,
+    val maxPliesPerGame: Int = 300,
+    val initialSeed: Int = 1,
+    val outputDir: Path = Path.of("build", "machine-learned"),
+    val datasetFilename: String = "sherwood-rules.dataset.json",
+    val artifactFilename: String = "sherwood-rules.generated.json"
+) {
+    companion object {
+        fun parse(args: List<String>): TrainingCliOptions {
+            val values = mutableMapOf<String, String>()
+            var index = 0
+            while (index < args.size) {
+                val token = args[index]
+                require(token.startsWith("--")) {
+                    "Unexpected argument: $token"
+                }
+                require(index + 1 < args.size) {
+                    "Missing value for $token"
+                }
+                values[token.removePrefix("--")] = args[index + 1]
+                index += 2
+            }
+
+            val ruleConfigurationId = values["rule-configuration-id"] ?: "sherwood-rules"
+            return TrainingCliOptions(
+                ruleConfigurationId = ruleConfigurationId,
+                expertBotId = values["expert-bot-id"] ?: com.ravensanddragons.game.BotRegistry.deepMinimaxBotId,
+                selfPlayBotIds = values["self-play-bot-ids"]
+                    ?.split(",")
+                    ?.map(String::trim)
+                    ?.filter(String::isNotBlank)
+                    ?: listOf(
+                        com.ravensanddragons.game.BotRegistry.randomBotId,
+                        com.ravensanddragons.game.BotRegistry.simpleBotId,
+                        com.ravensanddragons.game.BotRegistry.minimaxBotId,
+                        com.ravensanddragons.game.BotRegistry.deepMinimaxBotId
+                    ),
+                gamesPerMatchup = values["games-per-matchup"]?.toInt() ?: 1,
+                sampleStride = values["sample-stride"]?.toInt() ?: 2,
+                maxSampledPositionsPerGame = values["max-sampled-positions-per-game"]?.toInt() ?: 8,
+                maxPliesPerGame = values["max-plies-per-game"]?.toInt() ?: 300,
+                initialSeed = values["initial-seed"]?.toInt() ?: 1,
+                outputDir = values["output-dir"]?.let(Path::of) ?: Path.of("build", "machine-learned"),
+                datasetFilename = values["dataset-filename"] ?: "$ruleConfigurationId.dataset.json",
+                artifactFilename = values["artifact-filename"] ?: "$ruleConfigurationId.generated.json"
+            )
+        }
+    }
+}

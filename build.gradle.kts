@@ -29,6 +29,26 @@ repositories {
     mavenCentral()
 }
 
+val trainSourceSet = sourceSets.create("train") {
+    java.srcDir("src/train/kotlin")
+    resources.srcDir("src/train/resources")
+    compileClasspath += sourceSets.main.get().output
+    runtimeClasspath += output + compileClasspath
+}
+
+configurations.named(trainSourceSet.implementationConfigurationName) {
+    extendsFrom(configurations.implementation.get())
+}
+
+configurations.named(trainSourceSet.runtimeOnlyConfigurationName) {
+    extendsFrom(configurations.runtimeOnly.get())
+}
+
+sourceSets.named("test") {
+    compileClasspath += trainSourceSet.output
+    runtimeClasspath += trainSourceSet.output
+}
+
 node {
     download.set(true)
     version.set("22.12.0")
@@ -104,6 +124,22 @@ val botMatchHarnessTest by tasks.registering(Test::class) {
     val botMatchHarnessGamesPerMatchup = System.getProperty("botMatchHarnessGamesPerMatchup")
     if (botMatchHarnessGamesPerMatchup != null) {
         systemProperty("botMatchHarnessGamesPerMatchup", botMatchHarnessGamesPerMatchup)
+    }
+}
+
+val runMachineLearnedTraining by tasks.registering(JavaExec::class) {
+    group = LifecycleBasePlugin.BUILD_GROUP
+    description = "Generates an offline machine-learned dataset and artifact."
+    classpath = trainSourceSet.runtimeClasspath
+    mainClass.set("com.ravensanddragons.training.MachineLearnedTrainingCliKt")
+    javaLauncher.set(java21Launcher)
+
+    if (project.hasProperty("trainingArgs")) {
+        args(
+            (project.property("trainingArgs") as String)
+                .split(Regex("\\s+"))
+                .filter(String::isNotBlank)
+        )
     }
 }
 
