@@ -60,6 +60,10 @@ To run a larger head-to-head batch, pass `botMatchHarnessGamesPerMatchup` to Gra
 
 A repeatable local memory-profiling runbook lives at [docs/profiling-runbook.md](/Users/jrayazian/code/ravens-and-dragons/docs/profiling-runbook.md). It covers idle baselines, human-play retention checks, bot-search allocation churn, and SSE-connected profiling passes.
 
+## Design Docs
+
+- [docs/machine-learned-bot.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-learned-bot.md): proposed architecture and phased implementation plan for the offline-trained, ruleset-scoped `machine-learned` bot `Michelle`
+
 ## Local Authentication Setup
 
 Guest and local-account sign-in work without extra setup.
