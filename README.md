@@ -75,7 +75,7 @@ Run the current Sherwood-only offline training pipeline with:
 ./gradlew runMachineLearnedTraining
 ```
 
-That command writes a dataset plus a generated Michelle artifact under `build/machine-learned` by default.
+That command writes a dataset plus a generated Michelle artifact under `build/machine-learned` by default and now uses all available CPUs unless you override `--worker-count`.
 
 For installation and validation steps, use [docs/machine-learned-training-runbook.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-learned-training-runbook.md).
 

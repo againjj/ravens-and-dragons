@@ -59,7 +59,7 @@ The training entrypoint is:
 ./gradlew runMachineLearnedTraining
 ```
 
-By default it trains a Sherwood artifact and writes outputs under `build/machine-learned`.
+By default it trains a Sherwood artifact, uses all available CPUs for per-game dataset generation work, and writes outputs under `build/machine-learned`.
 
 Example:
 
@@ -79,6 +79,7 @@ The CLI currently supports these arguments:
 - `--max-sampled-positions-per-game`
 - `--max-plies-per-game`
 - `--initial-seed`
+- `--worker-count`
 - `--output-dir`
 - `--dataset-filename`
 - `--artifact-filename`
@@ -88,6 +89,7 @@ Notes:
 - `--self-play-bot-ids` is a comma-separated list such as `random,simple,minimax,deep-minimax`.
 - `--rule-configuration-id` should stay `sherwood-rules` unless the runtime and training work have both been extended for another ruleset.
 - larger `games-per-matchup` values produce bigger datasets and longer runs.
+- if `--worker-count` is omitted, the CLI uses `Runtime.getRuntime().availableProcessors()`.
 
 ## Recommended First Run
 

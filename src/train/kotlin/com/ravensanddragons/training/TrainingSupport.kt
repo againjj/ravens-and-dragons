@@ -2,6 +2,8 @@ package com.ravensanddragons.training
 
 import com.ravensanddragons.game.RandomIndexSource
 
+internal fun defaultTrainingWorkerCount(): Int = Runtime.getRuntime().availableProcessors()
+
 internal class SeededRandomIndexSource(
     seed: Int
 ) : RandomIndexSource {

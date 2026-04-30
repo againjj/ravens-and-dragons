@@ -25,7 +25,8 @@ fun main(args: Array<String>) {
             sampleStride = options.sampleStride,
             maxSampledPositionsPerGame = options.maxSampledPositionsPerGame,
             maxPliesPerGame = options.maxPliesPerGame,
-            initialSeed = options.initialSeed
+            initialSeed = options.initialSeed,
+            workerCount = options.workerCount
         )
     )
     val model = trainer.train(dataset)
@@ -42,6 +43,7 @@ fun main(args: Array<String>) {
     println("Artifact: ${artifactPath.absolute()}")
     println("Self-play games: ${dataset.selfPlayGames}")
     println("Expert bot: ${dataset.expertBotId}")
+    println("Workers: ${options.workerCount}")
 }
 
 private data class TrainingCliOptions(
@@ -58,6 +60,7 @@ private data class TrainingCliOptions(
     val maxSampledPositionsPerGame: Int = 8,
     val maxPliesPerGame: Int = 300,
     val initialSeed: Int = 1,
+    val workerCount: Int = defaultTrainingWorkerCount(),
     val outputDir: Path = Path.of("build", "machine-learned"),
     val datasetFilename: String = "sherwood-rules.dataset.json",
     val artifactFilename: String = "sherwood-rules.generated.json"
@@ -97,6 +100,7 @@ private data class TrainingCliOptions(
                 maxSampledPositionsPerGame = values["max-sampled-positions-per-game"]?.toInt() ?: 8,
                 maxPliesPerGame = values["max-plies-per-game"]?.toInt() ?: 300,
                 initialSeed = values["initial-seed"]?.toInt() ?: 1,
+                workerCount = values["worker-count"]?.toInt() ?: defaultTrainingWorkerCount(),
                 outputDir = values["output-dir"]?.let(Path::of) ?: Path.of("build", "machine-learned"),
                 datasetFilename = values["dataset-filename"] ?: "$ruleConfigurationId.dataset.json",
                 artifactFilename = values["artifact-filename"] ?: "$ruleConfigurationId.generated.json"
