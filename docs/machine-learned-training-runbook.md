@@ -62,7 +62,16 @@ The training entrypoint is:
 ./gradlew runMachineLearnedTraining
 ```
 
-By default it trains a Sherwood artifact, uses all available CPUs for per-game dataset generation work, and writes outputs under `build/machine-learned-candidate`.
+By default it trains a Sherwood artifact, uses all available CPUs for per-game dataset generation work, writes outputs under `build/machine-learned-candidate`, and reports coarse progress for dataset generation and model training.
+
+Progress output is intentionally compact:
+
+```text
+Generating dataset:
+0%..10%..20%..30%..40%..50%..60%..70%..80%..90%..100%
+Training model:
+0%..10%..20%..30%..40%..50%..60%..70%..80%..90%..100%
+```
 
 Example:
 
@@ -231,7 +240,7 @@ To smoke-evaluate Michelle against the baseline bots, run:
 ./gradlew botMatchHarnessTest -DbotMatchHarnessGamesPerMatchup=1
 ```
 
-The phase 3 installed artifact was generated from 4,306 examples and passed this one-game-per-matchup harness run with 8 Michelle Sherwood evaluation games completed, outcomes `{Dragons win=2, Draw by repetition=1, Ravens win=5}`, and average 35.25 plies.
+The current installed artifact was generated from 314 labeled positions across 32 self-play games using `deep-minimax` as the expert.
 
 ## Install A New Artifact
 

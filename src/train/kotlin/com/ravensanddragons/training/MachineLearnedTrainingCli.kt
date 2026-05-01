@@ -7,13 +7,26 @@ fun main(args: Array<String>) {
     val options = TrainingCliOptions.parse(args.toList())
     val objectMapper = trainingObjectMapper()
     val clock = Clock.systemUTC()
+    val datasetProgress = DecileProgressLine(System.out, "Generating dataset")
+    val trainingProgress = DecileProgressLine(System.out, "Training model")
 
-    val datasetGenerator = MachineLearnedDatasetGenerator(clock = clock)
+    val datasetGenerator = MachineLearnedDatasetGenerator(
+        clock = clock,
+        progressListener = TrainingProgressListener { completed, total ->
+            datasetProgress.update(completed, total)
+        }
+    )
     val datasetCodec = TrainingExampleCodec(objectMapper)
-    val trainer = MachineLearnedTrainer(clock)
+    val trainer = MachineLearnedTrainer(
+        clock = clock,
+        progressListener = TrainingProgressListener { completed, total ->
+            trainingProgress.update(completed, total)
+        }
+    )
     val artifactWriter = MachineLearnedArtifactWriter(objectMapper)
     val artifactReader = MachineLearnedArtifactReader(objectMapper)
 
+    datasetProgress.start()
     val dataset = datasetGenerator.generate(
         MachineLearnedDatasetGenerationRequest(
             ruleConfigurationId = options.ruleConfigurationId,
@@ -27,7 +40,11 @@ fun main(args: Array<String>) {
             workerCount = options.workerCount
         )
     )
+    datasetProgress.finish()
+
+    trainingProgress.start()
     val model = trainer.train(dataset)
+    trainingProgress.finish()
 
     val datasetPath = options.outputDir.resolve(options.datasetFilename)
     val artifactPath = options.outputDir.resolve(options.artifactFilename)

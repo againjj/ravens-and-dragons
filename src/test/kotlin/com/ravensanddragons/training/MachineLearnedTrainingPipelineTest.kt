@@ -131,6 +131,42 @@ class MachineLearnedTrainingPipelineTest {
     }
 
     @Test
+    fun `dataset generation reports completed task progress`() {
+        val reports = mutableListOf<Pair<Int, Int>>()
+        val generator = MachineLearnedDatasetGenerator(
+            selfPlayRunner = StubSelfPlayRunner(),
+            clock = fixedClock(),
+            progressListener = TrainingProgressListener { completed, total ->
+                reports += completed to total
+            },
+            expertStrategyFactory = { _, _ ->
+                object : GameBotStrategy {
+                    override fun chooseMove(snapshot: GameSnapshot, legalMoves: List<LegalMove>): LegalMove =
+                        legalMoves.first()
+                }
+            }
+        )
+
+        generator.generate(
+            MachineLearnedDatasetGenerationRequest(
+                ruleConfigurationId = "sherwood-rules",
+                selfPlayBotIds = listOf("random", "simple"),
+                gamesPerMatchup = 1,
+                sampleStride = 3,
+                maxSampledPositionsPerGame = 2,
+                maxPliesPerGame = 24,
+                initialSeed = 7,
+                workerCount = 1
+            )
+        )
+
+        assertEquals(
+            listOf(1 to 4, 2 to 4, 3 to 4, 4 to 4),
+            reports
+        )
+    }
+
+    @Test
     fun `dataset codec round trips generated examples`() {
         val dataset = MachineLearnedDataset(
             ruleConfigurationId = "sherwood-rules",
@@ -308,6 +344,60 @@ class MachineLearnedTrainingPipelineTest {
         assertTrue(
             MachineLearnedMoveScorer.score(model, dataset.examples[2].features.toFloatArray()) >
                 MachineLearnedMoveScorer.score(model, dataset.examples[3].features.toFloatArray())
+        )
+    }
+
+    @Test
+    fun `trainer reports completed epoch progress`() {
+        val reports = mutableListOf<Pair<Int, Int>>()
+        val trainer = MachineLearnedTrainer(
+            clock = fixedClock(),
+            progressListener = TrainingProgressListener { completed, total ->
+                reports += completed to total
+            }
+        )
+        val dataset = MachineLearnedDataset(
+            ruleConfigurationId = "sherwood-rules",
+            featureSchemaVersion = MachineLearnedFeatureEncoder.schemaVersion,
+            generatedAt = Instant.parse("2026-04-30T00:00:00Z"),
+            expertBotId = "deep-minimax",
+            selfPlayBotIds = listOf("simple"),
+            selfPlayGames = 1,
+            examples = listOf(
+                example(
+                    label = 1f,
+                    features = featureVector("after-evaluation-for-active-side" to 10f)
+                ),
+                example(
+                    label = 0f,
+                    features = featureVector("after-evaluation-for-active-side" to -10f)
+                )
+            )
+        )
+
+        trainer.train(dataset)
+
+        assertEquals(
+            (1..12).map { it to 12 },
+            reports
+        )
+    }
+
+    @Test
+    fun `decile progress line prints compact milestones`() {
+        val output = StringBuilder()
+        val progress = DecileProgressLine(output, "Generating dataset")
+
+        progress.start()
+        progress.update(completed = 1, total = 4)
+        progress.update(completed = 2, total = 4)
+        progress.update(completed = 3, total = 4)
+        progress.update(completed = 4, total = 4)
+        progress.finish()
+
+        assertEquals(
+            "Generating dataset:\n0%..10%..20%..30%..40%..50%..60%..70%..80%..90%..100%\n",
+            output.toString()
         )
     }
 

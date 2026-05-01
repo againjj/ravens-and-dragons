@@ -6,8 +6,8 @@ import com.ravensanddragons.game.GameRules
 import com.ravensanddragons.game.MachineLearnedFeatureEncoder
 import java.time.Clock
 import java.util.concurrent.Callable
+import java.util.concurrent.ExecutorCompletionService
 import java.util.concurrent.Executors
-import java.util.concurrent.Future
 
 data class MachineLearnedDatasetGenerationRequest(
     val ruleConfigurationId: String,
@@ -29,6 +29,7 @@ data class MachineLearnedDatasetGenerationRequest(
 class MachineLearnedDatasetGenerator(
     private val selfPlayRunner: MachineLearnedSelfPlayRunner = MachineLearnedSelfPlayRunner(),
     private val clock: Clock = Clock.systemUTC(),
+    private val progressListener: TrainingProgressListener = TrainingProgressListener { _, _ -> },
     private val expertStrategyFactory: (MachineLearnedDatasetGenerationRequest, Int) -> GameBotStrategy = { request, seed ->
         BotRegistry(SeededRandomIndexSource(seed))
             .requireSupportedDefinition(request.expertBotId, request.ruleConfigurationId)
@@ -191,15 +192,24 @@ class MachineLearnedDatasetGenerator(
             return emptyList()
         }
         if (workerCount <= 1) {
-            return tasks.map(block)
+            return tasks.mapIndexed { index, task ->
+                block(task).also {
+                    progressListener.report(index + 1, tasks.size)
+                }
+            }
         }
 
         val executor = Executors.newFixedThreadPool(workerCount)
         return try {
-            val futures = tasks.map { task ->
-                executor.submit(Callable { block(task) })
+            val completionService = ExecutorCompletionService<T>(executor)
+            tasks.forEach { task ->
+                completionService.submit(Callable { block(task) })
             }
-            futures.map(Future<T>::get)
+            (1..tasks.size).map { completed ->
+                completionService.take().get().also {
+                    progressListener.report(completed, tasks.size)
+                }
+            }
         } finally {
             executor.shutdown()
         }

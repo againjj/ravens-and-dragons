@@ -11,7 +11,7 @@ Ravens and Dragons is a Spring Boot and Kotlin web app for playing a browser-bas
 - Claim the ravens or dragons side in a live game
 - In `Free Play`, setup clicks now cycle `raven -> dragon -> gold -> empty`, and the starting-side picker lists Ravens first and defaults to Ravens
 - In a fresh supported preset game, choose a server-driven bot from the live-game seat panel and assign it to the opposite open seat for `Original Game`, `Sherwood Rules`, `Square One`, `Sherwood x 9`, or `Square One x 9`
-- Phase 3 of the machine-learned bot rollout is now live: `Michelle` appears for `Sherwood Rules` from a generated ruleset-scoped artifact trained with expanded move-local and resulting-position features
+- Phase 3 of the machine-learned bot rollout is now live: `Michelle` appears for `Sherwood Rules` from a generated ruleset-scoped artifact trained with expanded move-local and resulting-position features; the bundled artifact was refreshed from 314 labeled positions across 32 self-play games
 - The offline Kotlin training pipeline can generate Sherwood-only Michelle datasets, train per-position move-ranking weights, deduplicate repeated move examples, write runtime-compatible artifacts, and smoke-evaluate Michelle against baseline bots through `botMatchHarnessTest`
 - `Maxine` stays on the existing minimax search, while `Alphie` uses a deeper optimized alpha-beta search with subtree caching and reused child snapshots
 - Undo against a bot reverses one full exchange, still works after a game-ending human move or bot reply when that last exchange is undoable, and can now be repeated across multiple consecutive undo steps
@@ -75,7 +75,7 @@ Run the current Sherwood-only offline training pipeline with:
 ./gradlew runMachineLearnedTraining
 ```
 
-That command writes a dataset plus a generated Michelle artifact under `build/machine-learned-candidate` by default, uses all available CPUs unless you override `--worker-count`, and emits artifacts for the current feature schema.
+That command writes a dataset plus a generated Michelle artifact under `build/machine-learned-candidate` by default, uses all available CPUs unless you override `--worker-count`, reports coarse `0%..10%..100%` progress for dataset generation and model training, and emits artifacts for the current feature schema.
 
 For installation and validation steps, use [docs/machine-learned-training-runbook.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-learned-training-runbook.md).
 

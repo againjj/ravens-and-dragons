@@ -9,7 +9,8 @@ import com.ravensanddragons.game.MachineLearnedTrainingSummary
 import java.time.Clock
 
 class MachineLearnedTrainer(
-    private val clock: Clock = Clock.systemUTC()
+    private val clock: Clock = Clock.systemUTC(),
+    private val progressListener: TrainingProgressListener = TrainingProgressListener { _, _ -> }
 ) {
     companion object {
         private const val trainingEpochs = 12
@@ -74,7 +75,7 @@ class MachineLearnedTrainer(
         val averagedWeights = FloatArray(MachineLearnedFeatureEncoder.featureCount)
         var updateCount = 0
 
-        repeat(trainingEpochs) {
+        repeat(trainingEpochs) { epochIndex ->
             examplesByPosition.entries
                 .sortedBy { (positionKey) -> positionKey }
                 .forEach { (_, positionExamples) ->
@@ -94,6 +95,7 @@ class MachineLearnedTrainer(
                         }
                     }
                 }
+            progressListener.report(epochIndex + 1, trainingEpochs)
         }
 
         val finalScaledWeights = if (updateCount == 0) scaledWeights else averagedWeights.map { it / updateCount }.toFloatArray()
