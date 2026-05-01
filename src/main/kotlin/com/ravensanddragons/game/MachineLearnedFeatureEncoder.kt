@@ -3,26 +3,41 @@ package com.ravensanddragons.game
 import kotlin.math.abs
 
 object MachineLearnedFeatureEncoder {
-    const val schemaVersion = 2
+    const val schemaVersion = 3
 
-    val moveLocalFeatureNames = listOf(
+    val absoluteMoveLocalFeatureNames = listOf(
         "active-side-dragons",
         "moved-piece-gold",
         "moved-piece-dragon",
         "moved-piece-raven",
-        "origin-center-adjacent",
-        "origin-edge",
-        "origin-corner-adjacent",
-        "destination-center-adjacent",
-        "destination-edge",
-        "destination-corner-adjacent",
         "captured-opponent-count",
         "move-wins-immediately",
+        "mover-origin-center-adjacent",
+        "mover-origin-edge",
+        "mover-origin-corner-adjacent",
+        "mover-destination-center-adjacent",
+        "mover-destination-edge",
+        "mover-destination-corner-adjacent"
+    )
+
+    val relativeMoveLocalFeatureNames = listOf(
+        "gold-origin-center-adjacent",
+        "gold-origin-edge",
+        "gold-origin-corner-adjacent",
+        "gold-destination-center-adjacent",
+        "gold-destination-edge",
+        "gold-destination-corner-adjacent",
         "gold-corner-distance-delta",
         "raven-pressure-delta"
     )
 
-    val positionDerivedFeatureNames = listOf(
+    val absolutePositionDerivedFeatureNames = listOf(
+        "after-opponent-immediate-win",
+        "after-active-side-legal-move-delta",
+        "after-evaluation-for-active-side"
+    )
+
+    val relativePositionDerivedFeatureNames = listOf(
         "after-gold-corner-distance",
         "after-nearest-raven-distance-to-gold",
         "after-ravens-adjacent-to-gold",
@@ -32,12 +47,11 @@ object MachineLearnedFeatureEncoder {
         "after-dragons-piece-count",
         "after-ravens-piece-count",
         "after-gold-movable",
-        "after-opponent-immediate-win",
-        "after-active-side-legal-move-delta",
-        "after-position-repeat-risk",
-        "after-evaluation-for-active-side"
+        "after-position-repeat-risk"
     )
 
+    val moveLocalFeatureNames = absoluteMoveLocalFeatureNames + relativeMoveLocalFeatureNames
+    val positionDerivedFeatureNames = absolutePositionDerivedFeatureNames + relativePositionDerivedFeatureNames
     val featureNames = moveLocalFeatureNames + positionDerivedFeatureNames
     val featureCount: Int = featureNames.size
 
@@ -53,17 +67,22 @@ object MachineLearnedFeatureEncoder {
         val afterActiveMobility = mobilityForSide(afterSnapshot, mover)
 
         return (
-            moveLocalFeatures(beforeSnapshot, move, afterSnapshot, movedPiece, mover) +
-                positionDerivedFeatures(
+            absoluteMoveLocalFeatures(beforeSnapshot, move, afterSnapshot, movedPiece, mover) +
+                relativeMoveLocalFeatures(beforeSnapshot, move, afterSnapshot, movedPiece, mover) +
+                absolutePositionDerivedFeatures(
                     afterSnapshot = afterSnapshot,
                     mover = mover,
                     opponent = opponent,
                     activeSideLegalMoveDelta = afterActiveMobility - beforeActiveMobility
+                ) +
+                relativePositionDerivedFeatures(
+                    afterSnapshot = afterSnapshot,
+                    mover = mover
                 )
         ).toFloatArray()
     }
 
-    private fun moveLocalFeatures(
+    private fun absoluteMoveLocalFeatures(
         beforeSnapshot: GameSnapshot,
         move: LegalMove,
         afterSnapshot: GameSnapshot,
@@ -75,26 +94,54 @@ object MachineLearnedFeatureEncoder {
             if (movedPiece == Piece.gold) 1f else 0f,
             if (movedPiece == Piece.dragon) 1f else 0f,
             if (movedPiece == Piece.raven) 1f else 0f,
+            BotStrategySupport.capturedOpponentCount(beforeSnapshot, afterSnapshot, mover).toFloat(),
+            if (BotStrategySupport.isWinningSnapshotFor(afterSnapshot, mover)) 1f else 0f,
             if (isCenterAdjacent(move.origin, beforeSnapshot)) 1f else 0f,
             if (isEdge(move.origin, beforeSnapshot.boardSize)) 1f else 0f,
             if (isCornerAdjacent(move.origin, beforeSnapshot.boardSize)) 1f else 0f,
             if (isCenterAdjacent(move.destination, beforeSnapshot)) 1f else 0f,
             if (isEdge(move.destination, beforeSnapshot.boardSize)) 1f else 0f,
-            if (isCornerAdjacent(move.destination, beforeSnapshot.boardSize)) 1f else 0f,
-            BotStrategySupport.capturedOpponentCount(beforeSnapshot, afterSnapshot, mover).toFloat(),
-            if (BotStrategySupport.isWinningSnapshotFor(afterSnapshot, mover)) 1f else 0f,
+            if (isCornerAdjacent(move.destination, beforeSnapshot.boardSize)) 1f else 0f
+        )
+
+    private fun relativeMoveLocalFeatures(
+        beforeSnapshot: GameSnapshot,
+        move: LegalMove,
+        afterSnapshot: GameSnapshot,
+        movedPiece: Piece,
+        mover: Side
+    ): List<Float> =
+        relativeFeatures(
+            mover,
+            if (movedPiece == Piece.gold && isCenterAdjacent(move.origin, beforeSnapshot)) 1f else 0f,
+            if (movedPiece == Piece.gold && isEdge(move.origin, beforeSnapshot.boardSize)) 1f else 0f,
+            if (movedPiece == Piece.gold && isCornerAdjacent(move.origin, beforeSnapshot.boardSize)) 1f else 0f,
+            if (movedPiece == Piece.gold && isCenterAdjacent(move.destination, beforeSnapshot)) 1f else 0f,
+            if (movedPiece == Piece.gold && isEdge(move.destination, beforeSnapshot.boardSize)) 1f else 0f,
+            if (movedPiece == Piece.gold && isCornerAdjacent(move.destination, beforeSnapshot.boardSize)) 1f else 0f,
             (BotStrategySupport.goldCornerDistance(beforeSnapshot) - BotStrategySupport.goldCornerDistance(afterSnapshot)).toFloat(),
             (BotStrategySupport.ravenPressure(afterSnapshot) - BotStrategySupport.ravenPressure(beforeSnapshot)).toFloat()
         )
 
-    private fun positionDerivedFeatures(
+    private fun absolutePositionDerivedFeatures(
         afterSnapshot: GameSnapshot,
         mover: Side,
         opponent: Side,
         activeSideLegalMoveDelta: Int
+    ): List<Float> =
+        listOf(
+            if (BotStrategySupport.hasImmediateWinningMove(afterSnapshot, opponent)) 1f else 0f,
+            activeSideLegalMoveDelta.toFloat(),
+            BotStrategySupport.evaluateForSide(afterSnapshot, mover).toFloat()
+        )
+
+    private fun relativePositionDerivedFeatures(
+        afterSnapshot: GameSnapshot,
+        mover: Side
     ): List<Float> {
         val goldSquare = goldSquare(afterSnapshot)
-        return listOf(
+        return relativeFeatures(
+            mover,
             BotStrategySupport.goldCornerDistance(afterSnapshot).toFloat(),
             nearestRavenDistanceToGold(afterSnapshot, goldSquare).toFloat(),
             ravensAdjacentToGold(afterSnapshot, goldSquare).toFloat(),
@@ -104,11 +151,19 @@ object MachineLearnedFeatureEncoder {
             pieceCountForSide(afterSnapshot, Side.dragons).toFloat(),
             pieceCountForSide(afterSnapshot, Side.ravens).toFloat(),
             if (goldRemainsMovable(afterSnapshot, goldSquare)) 1f else 0f,
-            if (BotStrategySupport.hasImmediateWinningMove(afterSnapshot, opponent)) 1f else 0f,
-            activeSideLegalMoveDelta.toFloat(),
-            if (isRepeatedPosition(afterSnapshot)) 1f else 0f,
-            BotStrategySupport.evaluateForSide(afterSnapshot, mover).toFloat()
+            if (isRepeatedPosition(afterSnapshot)) 1f else 0f
         )
+    }
+
+    private fun relativeFeatures(mover: Side, vararg rawValues: Float): List<Float> {
+        val multiplier = if (mover == Side.dragons) 1f else -1f
+        return rawValues.map { value ->
+            if (value == 0f) {
+                0f
+            } else {
+                value * multiplier
+            }
+        }
     }
 
     private fun isCenterAdjacent(square: String, snapshot: GameSnapshot): Boolean =

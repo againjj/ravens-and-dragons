@@ -50,16 +50,25 @@ class MachineLearnedTrainingPipelineTest {
                 "moved-piece-gold",
                 "moved-piece-dragon",
                 "moved-piece-raven",
-                "origin-center-adjacent",
-                "origin-edge",
-                "origin-corner-adjacent",
-                "destination-center-adjacent",
-                "destination-edge",
-                "destination-corner-adjacent",
                 "captured-opponent-count",
                 "move-wins-immediately",
+                "mover-origin-center-adjacent",
+                "mover-origin-edge",
+                "mover-origin-corner-adjacent",
+                "mover-destination-center-adjacent",
+                "mover-destination-edge",
+                "mover-destination-corner-adjacent",
+                "gold-origin-center-adjacent",
+                "gold-origin-edge",
+                "gold-origin-corner-adjacent",
+                "gold-destination-center-adjacent",
+                "gold-destination-edge",
+                "gold-destination-corner-adjacent",
                 "gold-corner-distance-delta",
                 "raven-pressure-delta",
+                "after-opponent-immediate-win",
+                "after-active-side-legal-move-delta",
+                "after-evaluation-for-active-side",
                 "after-gold-corner-distance",
                 "after-nearest-raven-distance-to-gold",
                 "after-ravens-adjacent-to-gold",
@@ -69,10 +78,7 @@ class MachineLearnedTrainingPipelineTest {
                 "after-dragons-piece-count",
                 "after-ravens-piece-count",
                 "after-gold-movable",
-                "after-opponent-immediate-win",
-                "after-active-side-legal-move-delta",
-                "after-position-repeat-risk",
-                "after-evaluation-for-active-side"
+                "after-position-repeat-risk"
             ),
             MachineLearnedFeatureEncoder.featureNames
         )
@@ -85,10 +91,13 @@ class MachineLearnedTrainingPipelineTest {
         assertEquals(MachineLearnedFeatureEncoder.featureCount, features.size)
         assertFeatureEquals("active-side-dragons", 1f, features)
         assertFeatureEquals("moved-piece-gold", 1f, features)
-        assertFeatureEquals("origin-edge", 1f, features)
-        assertFeatureEquals("origin-corner-adjacent", 1f, features)
-        assertFeatureEquals("destination-edge", 1f, features)
         assertFeatureEquals("move-wins-immediately", 1f, features)
+        assertFeatureEquals("mover-origin-edge", 1f, features)
+        assertFeatureEquals("mover-origin-corner-adjacent", 1f, features)
+        assertFeatureEquals("mover-destination-edge", 1f, features)
+        assertFeatureEquals("gold-origin-edge", 1f, features)
+        assertFeatureEquals("gold-origin-corner-adjacent", 1f, features)
+        assertFeatureEquals("gold-destination-edge", 1f, features)
         assertFeatureEquals("gold-corner-distance-delta", 1f, features)
         assertFeatureEquals("raven-pressure-delta", -1f, features)
         assertFeatureEquals("after-gold-corner-distance", 0f, features)
@@ -98,6 +107,41 @@ class MachineLearnedTrainingPipelineTest {
         assertFeatureEquals("after-dragons-piece-count", 2f, features)
         assertFeatureEquals("after-ravens-piece-count", 1f, features)
         assertFeatureEquals("after-evaluation-for-active-side", 1_000_000f, features)
+    }
+
+    @Test
+    fun `feature encoder flips relative features for raven moves`() {
+        val snapshot = GameSnapshot(
+            board = linkedMapOf(
+                "a2" to Piece.gold,
+                "d5" to Piece.dragon,
+                "g7" to Piece.raven
+            ),
+            boardSize = 7,
+            specialSquare = "d4",
+            phase = Phase.move,
+            activeSide = Side.ravens,
+            pendingMove = null,
+            turns = emptyList(),
+            ruleConfigurationId = "sherwood-rules",
+            positionKeys = listOf("initial")
+        )
+
+        val features = MachineLearnedFeatureEncoder.encode(
+            snapshot,
+            LegalMove("g7", "b7"),
+            GameRules.movePiece(snapshot, "g7", "b7")
+        )
+
+        assertFeatureEquals("active-side-dragons", -1f, features)
+        assertFeatureEquals("moved-piece-raven", 1f, features)
+        assertFeatureEquals("mover-origin-edge", 1f, features)
+        assertFeatureEquals("mover-destination-edge", 1f, features)
+        assertFeatureEquals("gold-origin-edge", 0f, features)
+        assertFeatureEquals("gold-corner-distance-delta", 0f, features)
+        assertFeatureEquals("after-gold-corner-distance", -1f, features)
+        assertFeatureEquals("after-dragons-piece-count", -2f, features)
+        assertFeatureEquals("after-ravens-piece-count", -1f, features)
     }
 
     @Test
@@ -419,8 +463,14 @@ class MachineLearnedTrainingPipelineTest {
     }
 
     @Test
-    fun `evolution loop runs population leagues and final gate`() {
-        val loop = MachineLearnedEvolutionLoop(clock = fixedClock())
+    fun `evolution loop runs candidate leagues and survivor comparison rankings`() {
+        val progressReports = mutableListOf<Pair<Int, Int>>()
+        val loop = MachineLearnedEvolutionLoop(
+            clock = fixedClock(),
+            progressListener = TrainingProgressListener { completed, total ->
+                progressReports += completed to total
+            }
+        )
 
         val result = loop.run(
             MachineLearnedEvolutionRequest(
@@ -437,7 +487,7 @@ class MachineLearnedTrainingPipelineTest {
                 survivorCount = 2,
                 generations = 2,
                 gamesPerPairing = 1,
-                baselineBotIds = emptyList(),
+                baselineBotIds = listOf("random"),
                 maxPliesPerGame = 24,
                 openingRandomPlies = 1,
                 initialSeed = 11,
@@ -445,7 +495,8 @@ class MachineLearnedTrainingPipelineTest {
                 mutationScale = 0.1f,
                 crossoverRate = 1.0,
                 eliteCount = 1,
-                finalGateGamesPerPairing = 1,
+                survivorComparisonGamesPerPairing = 1,
+                workerCount = 2,
                 promotionThresholds = MachineLearnedEvolutionPromotionThresholds(
                     minimumWinRate = 0.0,
                     maximumLossRate = 1.0
@@ -460,10 +511,36 @@ class MachineLearnedTrainingPipelineTest {
         assertTrue(report.generationSummaries.all { summary -> summary.survivorIds.size == 2 })
         assertTrue(report.generationSummaries.all { summary -> summary.matches.all { it.openingRandomPlies == 1 } })
         assertTrue(report.generationSummaries.all { summary -> summary.matches.all { it.turnCount > 0 } })
-        assertEquals(2, report.finalGateMatches.size)
-        assertTrue(report.finalGateMatches.all { match -> match.candidateResults.containsKey(report.bestCandidateId) })
-        assertTrue(report.finalPromotionDecision.promote)
+        assertTrue(
+            report.generationSummaries.all { summary ->
+                summary.matches.all { match ->
+                    match.dragonsType == MachineLearnedEvolutionParticipantType.candidate &&
+                        match.ravensType == MachineLearnedEvolutionParticipantType.candidate
+                }
+            }
+        )
+        assertEquals(12, report.survivorComparisonMatches.size)
+        assertEquals(
+            2,
+            report.survivorComparisonRankings.count {
+                it.participantType == MachineLearnedEvolutionParticipantType.candidate
+            }
+        )
+        assertEquals(
+            1,
+            report.survivorComparisonRankings.count {
+                it.participantType == MachineLearnedEvolutionParticipantType.baseline
+            }
+        )
+        assertEquals(
+            1,
+            report.survivorComparisonRankings.count {
+                it.participantType == MachineLearnedEvolutionParticipantType.incumbent
+            }
+        )
+        assertEquals(listOf(1, 2, 3, 4), report.survivorComparisonRankings.map(MachineLearnedEvolutionRanking::rank))
         assertEquals(MachineLearnedFeatureEncoder.featureCount, result.bestModel.weights.size)
+        assertEquals((1..36).map { it to 36 }, progressReports)
     }
 
     @Test

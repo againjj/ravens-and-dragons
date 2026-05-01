@@ -294,19 +294,30 @@ Reasons:
 
 Recommended first-pass features:
 
-Move-local features:
+Absolute move-local features:
 
 - active side
 - moved piece type
-- origin square category: center-adjacent, edge, corner-adjacent, interior
-- destination square category
 - whether the move captures
 - number of captured pieces
 - whether the move wins immediately
-- whether the move reduces gold distance to the nearest corner
-- whether the move increases raven pressure on gold
+- mover origin square category: center-adjacent, edge, corner-adjacent, interior
+- mover destination square category
 
-Resulting-position features:
+Relative move-local features:
+
+- gold origin square category: center-adjacent, edge, corner-adjacent, interior
+- gold destination square category
+- gold distance delta to the nearest corner
+- raven pressure delta on gold
+
+Absolute resulting-position features:
+
+- whether the opponent has an immediate winning reply
+- whether the move increases or decreases the active side's legal move count next turn
+- shared evaluation score from the active side's perspective
+
+Relative resulting-position features:
 
 - gold distance to nearest corner after move
 - nearest raven distance to gold after move
@@ -317,17 +328,14 @@ Resulting-position features:
 - dragons piece count after move
 - ravens piece count after move
 - whether gold remains movable after move
-- whether the opponent has an immediate winning reply
-- whether the move increases or decreases the active side's legal move count next turn
 - whether the resulting position repeats a previously seen position key
-- repetition indicator or repetition risk if cheaply available
 
 Two feature abstractions are useful:
 
 - position features derived from a snapshot
 - move features derived from `(beforeSnapshot, move, afterSnapshot)`
 
-The runtime bot should still score one legal move at a time because it ultimately chooses between legal moves. In practice that feature vector should combine move-local facts with position-derived facts from the `afterSnapshot`.
+The runtime bot should still score one legal move at a time because it ultimately chooses between legal moves. In practice that feature vector should combine move-local facts with position-derived facts from the `afterSnapshot`. Relative features are encoded with a `+1` multiplier for dragon turns and a `-1` multiplier for raven turns, which is equivalent to flipping those feature weights for raven moves in the current linear ranker.
 
 ## Artifact Format
 
@@ -344,7 +352,7 @@ Suggested artifact shape:
   "botId": "machine-learned",
   "displayName": "Michelle",
   "modelFormatVersion": 1,
-  "featureSchemaVersion": 2,
+  "featureSchemaVersion": 3,
   "ruleConfigurationId": "sherwood-rules",
   "trainedAt": "2026-04-30T00:00:00Z",
   "trainingSummary": {
@@ -407,12 +415,11 @@ Recommended generation loop:
 
 1. seed a population from the incumbent, an optional supervised artifact, and mutations around those models
 2. run candidate-vs-candidate games in both seat assignments
-3. run candidate-vs-baseline games against fixed bots such as `Maxine` and `Alphie`
-4. rank candidates by league score
-5. keep survivors and elites
-6. create children through random weight perturbation and crossover
-7. repeat for several generations
-8. run a final gate for the best evolved candidate against the incumbent and baselines
+3. rank candidates by candidate-only league score
+4. keep survivors and elites
+5. create children through random weight perturbation and crossover
+6. repeat for several generations
+7. run a survivor comparison league that ranks the surviving population against the incumbent and fixed baselines
 
 Data to retain from evolution runs:
 
@@ -421,7 +428,7 @@ Data to retain from evolution runs:
 - candidate id and parent ids
 - candidate origin, such as incumbent, seed, mutation, or crossover
 - generation scores and survivor ids
-- final gate win/loss/draw rates
+- survivor comparison rankings and win/loss/draw rates
 
 This makes game outcome the optimization signal rather than relying only on expert-labeled static positions.
 
@@ -440,7 +447,7 @@ For each evolution run:
 - discard poor performers
 - mutate and combine survivors
 - repeat for configurable generations
-- promote only if the best survivor clears a final incumbent and baseline gate
+- promote only if the best survivor ranks above the incumbent and baselines in the survivor comparison league
 
 This reduces brittleness and avoids making promotion depend on a single candidate's lucky or unlucky run.
 
@@ -631,7 +638,7 @@ Tasks:
 - [x] Regenerate the Sherwood dataset with the expanded feature vector
 - [x] Train a candidate artifact using the existing per-position ranking trainer
 - [x] Run the Sherwood evaluation suite against baseline bots
-- [x] Replace the schema-1 placeholder artifact with the schema-2 expanded-feature artifact because runtime validation intentionally rejects old-schema artifacts
+- [x] Replace old-schema artifacts when runtime validation intentionally rejects them
 - [x] Tune the feature mix to remove low-signal or redundant features
 
 Deliverable:
@@ -640,10 +647,11 @@ Deliverable:
 
 Completed phase 3 notes:
 
-- `MachineLearnedFeatureEncoder` now uses schema version 2 and exposes explicit `moveLocalFeatureNames`, `positionDerivedFeatureNames`, and combined `featureNames`.
+- `MachineLearnedFeatureEncoder` now uses schema version 3 and exposes explicit absolute and relative move-local/resulting-position feature groups, plus the legacy combined `moveLocalFeatureNames`, `positionDerivedFeatureNames`, and `featureNames`.
 - The expanded vector includes move-local piece/square/capture/win/delta signals plus after-position gold distance, raven pressure, mobility, material, gold mobility, opponent immediate-win, legal-move delta, repetition-risk, and shared evaluation features.
+- Relative feature values are sign-adjusted by side before scoring, using `+1` for dragon moves and `-1` for raven moves.
 - The bundled Sherwood artifact was regenerated with `./gradlew runMachineLearnedTraining`, producing 4,306 training examples from 16 self-play games and 105 labeled positions.
-- The installed artifact is `src/main/resources/bots/machine-learned/sherwood-rules.json`, has `featureSchemaVersion: 2`, and was trained from `deep-minimax` labels.
+- The installed artifact is `src/main/resources/bots/machine-learned/sherwood-rules.json`, has `featureSchemaVersion: 3`, and was trained from `deep-minimax` labels before being migrated to the schema-3 feature order.
 - The bot harness now includes Sherwood-only Michelle baseline smoke coverage. A one-game-per-matchup run completed 8 Michelle evaluation games with outcomes `{Dragons win=2, Draw by repetition=1, Ravens win=5}` and average 35.25 plies.
 
 ### Phase 4: Population-Based Evolution Loop
@@ -657,11 +665,11 @@ Tasks:
 1. [x] Remove the old `--mode strengthen` workflow so strengthening is no longer a one-candidate pass/fail check
 2. [x] Add a population of Michelle candidate artifacts seeded from the incumbent and an optional trained artifact
 3. [x] Run candidate-vs-candidate leagues with swapped seats and seeded opening diversity
-4. [x] Add candidate-vs-baseline games during each generation so the population does not overfit to itself
-5. [x] Rank candidates by league results and keep configurable survivors plus elites
+4. [x] Keep generation scoring candidate-only so baselines and the incumbent do not steer survivor selection
+5. [x] Rank candidates by candidate-only league results and keep configurable survivors plus elites
 6. [x] Generate the next population with random weight perturbation and crossover between survivors
 7. [x] Repeat for configurable generations
-8. [x] Run a final best-candidate gate against the incumbent and baselines
+8. [x] Run a survivor comparison ranking against the incumbent and configured baselines
 9. [x] Write a best evolved artifact and an evolution report
 
 Deliverable:
@@ -670,11 +678,11 @@ Deliverable:
 
 Completed phase 4 notes:
 
-- `MachineLearnedEvolutionLoop` runs a configurable population of linear Michelle models through candidate round-robins, baseline games, survivor selection, mutation, crossover, and a final incumbent/baseline gate.
+- `MachineLearnedEvolutionLoop` runs a configurable population of linear Michelle models through candidate-only round-robins, survivor selection, mutation, crossover, and a final survivor/incumbent/baseline comparison ranking.
 - The loop treats supervised training as a seed generator rather than the whole strengthening mechanism; `--seed-artifact` can point at a freshly trained artifact, while `--incumbent-artifact` anchors the search.
-- Candidate models use the existing schema-2 feature vector and linear weight artifact format, so mutation and crossover can operate directly on model weights without changing runtime inference.
+- Candidate models use the existing schema-3 feature vector and linear weight artifact format, so mutation and crossover can operate directly on model weights without changing runtime inference.
 - Evolution games use configurable early opening randomization through `openingRandomPlies`.
-- The evolution report includes per-generation candidate scores, survivor ids, match summaries, final gate results, and a final promotion decision.
+- The evolution report includes per-generation candidate scores, survivor ids, match summaries, survivor comparison rankings, and a final promotion decision.
 - The existing `runMachineLearnedTraining` CLI now supports `--mode evolve`; `--mode strengthen` has been removed.
 
 Implementation plan now embodied by phase 4:
@@ -682,11 +690,10 @@ Implementation plan now embodied by phase 4:
 1. Use normal `train` mode to produce an optional supervised seed artifact.
 2. Start evolution from the incumbent, the optional seed, and mutations around those anchors.
 3. For each generation, play every candidate against the others in both seat assignments.
-4. Add baseline games against configured bots such as `minimax` and `deep-minimax`.
-5. Score candidates from wins, draws, and losses.
-6. Preserve elites, keep survivors, and fill the next generation with survivor mutations and crossover children.
-7. After the final generation, evaluate the best candidate against the incumbent and baselines with a larger final gate.
-8. Install the evolved artifact only if the final promotion decision passes the configured win-rate and loss-rate thresholds.
+4. Score candidates only from candidate-vs-candidate wins, draws, and losses.
+5. Preserve elites, keep survivors, and fill the next generation with survivor mutations and crossover children.
+6. After the final generation, rank the surviving candidates against the incumbent and configured baselines in a separate comparison league.
+7. Install the evolved artifact only if the final promotion decision passes the configured win-rate and loss-rate thresholds.
 
 ### Phase 5: Operational Hardening
 
