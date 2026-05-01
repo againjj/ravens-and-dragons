@@ -4,19 +4,21 @@ This runbook describes how to train and install a new `Michelle` artifact with t
 
 ## Should We Train Now?
 
-Yes, for an initial local training run.
+Yes, for candidate iteration or replacement runs.
 
-The phase 2 pipeline is now in place:
+The phase 3 pipeline is now in place:
 
 - Gradle exposes `runMachineLearnedTraining`
 - the offline training code can generate a Sherwood-only dataset
 - the trainer can export a runtime-compatible JSON artifact
 - the artifact can be loaded back through the runtime validation rules
+- the current encoder uses schema version 2 with explicit move-local and resulting-position feature names
+- the bot match harness includes a Sherwood-only Michelle baseline smoke evaluation
 
 What this means in practice:
 
 - we can generate a new local `Michelle` artifact now
-- this is appropriate for a first candidate artifact or an iteration artifact
+- this is appropriate for an iteration artifact
 - this is not yet the full phase 4 promotion workflow with incumbent-vs-candidate league gating
 
 If the goal is “produce a new artifact and try it locally,” training can begin now.
@@ -31,6 +33,7 @@ The current training pipeline is intentionally narrow:
 - runtime bot id: `machine-learned`
 - display name: `Michelle`
 - artifact format: JSON
+- feature schema: version 2
 - install location: `src/main/resources/bots/machine-learned/<ruleConfigurationId>.json`
 
 Do not reuse a Sherwood artifact for another ruleset.
@@ -139,6 +142,7 @@ What each argument means and what it changes:
 Serialization note:
 
 - generated artifacts now write `trainedAt` as an ISO-8601 string such as `"2026-04-30T12:00:00Z"` so the offline output matches the documented runtime artifact shape.
+- generated artifacts must match the runtime `MachineLearnedFeatureEncoder.schemaVersion`; old schema-1 artifacts intentionally fail validation after the phase 3 feature expansion.
 
 ## How Position Sampling Works
 
@@ -168,7 +172,7 @@ Each surviving sampled position is then labeled by the expert bot:
 - Each repeated game gets a different incrementing seed starting from `initialSeed`.
 - Today, the seed mostly matters when a matchup includes `random`, because `Randall` is the bot that consumes the seeded random source.
 - If a matchup contains only deterministic bots, changing the seed may have little or no effect on the resulting game.
-- Repeated positions are not currently discarded. If the same snapshot or `(snapshot, move)` example appears more than once, it stays in the dataset and effectively gets extra weight during training.
+- Repeated `(snapshot, move)` examples are deduplicated after generation so repeated games do not overweight identical candidate moves.
 
 ## Recommended First Run
 
@@ -208,6 +212,7 @@ At minimum, do these checks after training:
    - `botId = machine-learned`
    - `displayName = Michelle`
    - `ruleConfigurationId = sherwood-rules`
+   - `featureSchemaVersion = 2`
 4. Run the Michelle runtime tests:
 
 ```bash
@@ -219,6 +224,14 @@ If you want a broader safety pass, run:
 ```bash
 ./gradlew test
 ```
+
+To smoke-evaluate Michelle against the baseline bots, run:
+
+```bash
+./gradlew botMatchHarnessTest -DbotMatchHarnessGamesPerMatchup=1
+```
+
+The phase 3 installed artifact was generated from 4,306 examples and passed this one-game-per-matchup harness run with 8 Michelle Sherwood evaluation games completed, outcomes `{Dragons win=2, Draw by repetition=1, Ravens win=5}`, and average 35.25 plies.
 
 ## Install A New Artifact
 
@@ -260,6 +273,8 @@ At minimum, check:
 - `Michelle` vs `Simon`
 - `Michelle` vs `Maxine`
 - `Michelle` vs `Alphie`
+
+The harness command above covers those pairings as Sherwood smoke tests in both seat assignments. It proves completion and basic outcomes, not statistical superiority.
 
 If the artifact looks worse than the current bundled Sherwood artifact, do not install it as the default.
 

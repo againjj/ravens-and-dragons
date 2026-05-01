@@ -93,14 +93,16 @@ tasks.withType<BootJar>().configureEach {
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
     javaLauncher.set(java21Launcher)
-    filter {
-        excludeTestsMatching("com.ravensanddragons.game.BotMatchHarnessTest")
-    }
-    doFirst {
-        val frontendTestTask = testFrontend.get()
-        if (filter.includePatterns.isEmpty() && !gradle.taskGraph.hasTask(frontendTestTask)) {
-            buildFrontend.get().exec()
-            frontendTestTask.exec()
+    if (name == "test") {
+        filter {
+            excludeTestsMatching("com.ravensanddragons.game.BotMatchHarnessTest")
+        }
+        doFirst {
+            val frontendTestTask = testFrontend.get()
+            if (filter.includePatterns.isEmpty() && !gradle.taskGraph.hasTask(frontendTestTask)) {
+                buildFrontend.get().exec()
+                frontendTestTask.exec()
+            }
         }
     }
 
@@ -118,7 +120,7 @@ val botMatchHarnessTest by tasks.registering(Test::class) {
     useJUnitPlatform()
     javaLauncher.set(java21Launcher)
     filter {
-        includeTestsMatching("com.ravensanddragons.game.BotMatchHarnessTest")
+        includeTestsMatching("com.ravensanddragons.game.BotMatchHarnessTest*")
     }
 
     val botMatchHarnessGamesPerMatchup = System.getProperty("botMatchHarnessGamesPerMatchup")

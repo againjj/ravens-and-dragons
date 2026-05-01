@@ -15,7 +15,8 @@ Current implementation status:
 - Phase 1 runtime scaffolding is implemented.
 - Phase 2 Kotlin-first offline training pipeline is implemented for local use.
 - The current trainer already uses per-position ranking updates over legal-move groups rather than a global positive-versus-negative average.
-- Position-derived feature expansion is the next recommended training-quality step.
+- Phase 3 position-derived feature expansion is implemented with a generated Sherwood `Michelle` artifact.
+- Bot-vs-bot strengthening and candidate promotion are the next recommended training-quality steps.
 
 The design assumes that each trained artifact is scoped to exactly one `ruleConfigurationId`. A future `Michelle` artifact for another ruleset should be trained, stored, evaluated, and released separately rather than shared across rulesets.
 
@@ -342,7 +343,7 @@ Suggested artifact shape:
   "botId": "machine-learned",
   "displayName": "Michelle",
   "modelFormatVersion": 1,
-  "featureSchemaVersion": 1,
+  "featureSchemaVersion": 2,
   "ruleConfigurationId": "sherwood-rules",
   "trainedAt": "2026-04-30T00:00:00Z",
   "trainingSummary": {
@@ -623,20 +624,30 @@ Deliverable:
 
 Goal: strengthen the current trainer by adding richer resulting-position signal, then train the first useful `Michelle` from expert-labeled Sherwood positions.
 
+Status: complete
+
 Tasks:
 
-1. Audit the current encoder and separate its outputs into explicit move-local and position-derived groups
-2. Add the first batch of resulting-position features from the `afterSnapshot`
-3. Bump the feature schema version and keep runtime/training validation strict
-4. Regenerate the Sherwood dataset with the expanded feature vector
-5. Train a candidate artifact using the existing per-position ranking trainer
-6. Run the Sherwood evaluation suite against baseline bots
-7. Compare the expanded-feature artifact against the current artifact and keep the better one
-8. Tune the feature mix to remove low-signal or redundant features
+- [x] Audit the current encoder and separate its outputs into explicit move-local and position-derived groups
+- [x] Add the first batch of resulting-position features from the `afterSnapshot`
+- [x] Bump the feature schema version and keep runtime/training validation strict
+- [x] Regenerate the Sherwood dataset with the expanded feature vector
+- [x] Train a candidate artifact using the existing per-position ranking trainer
+- [x] Run the Sherwood evaluation suite against baseline bots
+- [x] Replace the schema-1 placeholder artifact with the schema-2 expanded-feature artifact because runtime validation intentionally rejects old-schema artifacts
+- [x] Tune the feature mix to remove low-signal or redundant features
 
 Deliverable:
 
 - first data-driven Sherwood `Michelle` artifact with documented evaluation results and explicit position-derived features in its encoder contract
+
+Completed phase 3 notes:
+
+- `MachineLearnedFeatureEncoder` now uses schema version 2 and exposes explicit `moveLocalFeatureNames`, `positionDerivedFeatureNames`, and combined `featureNames`.
+- The expanded vector includes move-local piece/square/capture/win/delta signals plus after-position gold distance, raven pressure, mobility, material, gold mobility, opponent immediate-win, legal-move delta, repetition-risk, and shared evaluation features.
+- The bundled Sherwood artifact was regenerated with `./gradlew runMachineLearnedTraining`, producing 4,306 training examples from 16 self-play games and 105 labeled positions.
+- The installed artifact is `src/main/resources/bots/machine-learned/sherwood-rules.json`, has `featureSchemaVersion: 2`, and was trained from `deep-minimax` labels.
+- The bot harness now includes Sherwood-only Michelle baseline smoke coverage. A one-game-per-matchup run completed 8 Michelle evaluation games with outcomes `{Dragons win=2, Draw by repetition=1, Ravens win=5}` and average 35.25 plies.
 
 ### Phase 4: Bot-Vs-Bot Strengthening Loop
 

@@ -179,7 +179,7 @@ class MachineLearnedBotPhaseOneTest {
           "botId": "machine-learned",
           "displayName": "Michelle",
           "modelFormatVersion": 1,
-          "featureSchemaVersion": 1,
+          "featureSchemaVersion": ${MachineLearnedFeatureEncoder.schemaVersion},
           "ruleConfigurationId": "sherwood-rules",
           "trainedAt": "2026-04-30T00:00:00Z",
           "trainingSummary": {
@@ -189,9 +189,22 @@ class MachineLearnedBotPhaseOneTest {
           },
           "modelType": "linear-move-ranker",
           "bias": 0.0,
-          "weights": [0.05, -0.2, 0.1, 0.1, 1.5, 1000.0, -0.4, -0.6, 0.002]
+          "weights": [${machineLearnedTestWeights().joinToString(", ")}]
         }
     """.trimIndent()
+
+    private fun machineLearnedTestWeights(): List<Float> {
+        val weights = MutableList(MachineLearnedFeatureEncoder.featureCount) { 0f }
+        weights[MachineLearnedFeatureEncoder.featureNames.indexOf("moved-piece-gold")] = -0.2f
+        weights[MachineLearnedFeatureEncoder.featureNames.indexOf("moved-piece-dragon")] = 0.1f
+        weights[MachineLearnedFeatureEncoder.featureNames.indexOf("moved-piece-raven")] = 0.1f
+        weights[MachineLearnedFeatureEncoder.featureNames.indexOf("captured-opponent-count")] = 1.5f
+        weights[MachineLearnedFeatureEncoder.featureNames.indexOf("move-wins-immediately")] = 1000f
+        weights[MachineLearnedFeatureEncoder.featureNames.indexOf("after-gold-corner-distance")] = -0.4f
+        weights[MachineLearnedFeatureEncoder.featureNames.indexOf("raven-pressure-delta")] = -0.6f
+        weights[MachineLearnedFeatureEncoder.featureNames.indexOf("after-evaluation-for-active-side")] = 0.002f
+        return weights
+    }
 
     private class FixedRandomIndexSource : RandomIndexSource {
         override fun nextInt(bound: Int): Int = 0

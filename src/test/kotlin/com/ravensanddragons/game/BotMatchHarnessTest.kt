@@ -1,5 +1,6 @@
 package com.ravensanddragons.game
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -13,6 +14,9 @@ class BotMatchHarnessTest {
         private const val gamesPerMatchupProperty = "botMatchHarnessGamesPerMatchup"
         private const val defaultGamesPerMatchup = 1
     }
+
+    private val objectMapper = jacksonObjectMapper().findAndRegisterModules()
+    private val machineLearnedRegistry = MachineLearnedRegistry.from(MachineLearnedModelLoader(objectMapper))
 
     @Test
     fun `randall and maxine complete many head to head games without errors`() {
@@ -54,6 +58,52 @@ class BotMatchHarnessTest {
         )
     }
 
+    @Test
+    fun `michelle completes sherwood evaluation games against baseline bots`() {
+        val gamesPerMatchup = configuredGamesPerMatchup()
+        val baselineBotIds = listOf(
+            BotRegistry.randomBotId,
+            BotRegistry.simpleBotId,
+            BotRegistry.minimaxBotId,
+            BotRegistry.deepMinimaxBotId
+        )
+        val matchups = mutableListOf<BotMatchResult>()
+
+        baselineBotIds.forEachIndexed { index, baselineBotId ->
+            repeat(gamesPerMatchup) { seed ->
+                matchups += runMatch(
+                    ruleConfigurationId = "sherwood-rules",
+                    dragonsBotId = BotRegistry.machineLearnedBotId,
+                    ravensBotId = baselineBotId,
+                    seed = seed + 1 + (index * 100)
+                )
+                matchups += runMatch(
+                    ruleConfigurationId = "sherwood-rules",
+                    dragonsBotId = baselineBotId,
+                    ravensBotId = BotRegistry.machineLearnedBotId,
+                    seed = seed + 51 + (index * 100)
+                )
+            }
+        }
+
+        assertEquals(baselineBotIds.size * 2 * gamesPerMatchup, matchups.size)
+        assertTrue(matchups.all { it.finished }, "Every Michelle evaluation match should finish.")
+        assertTrue(matchups.all { it.turnCount > 0 }, "Every Michelle evaluation match should make progress.")
+
+        val outcomesByLabel = matchups.groupingBy { it.outcome }.eachCount().toSortedMap()
+        val averageTurns = matchups.map(BotMatchResult::turnCount).average()
+        println(
+            buildString {
+                append("Michelle Sherwood evaluation summary: ran ")
+                append(matchups.size)
+                append(" games; outcomes=")
+                append(outcomesByLabel)
+                append("; averagePlies=")
+                append(String.format("%.2f", averageTurns))
+            }
+        )
+    }
+
     private fun runMatch(
         ruleConfigurationId: String,
         dragonsBotId: String,
@@ -74,7 +124,7 @@ class BotMatchHarnessTest {
         )
         val runner = BotTurnRunner(
             GameCommandService(clock),
-            BotRegistry(SeededRandomIndexSource(seed))
+            BotRegistry(SeededRandomIndexSource(seed), machineLearnedRegistry)
         )
         var persistedTurns = 0
 

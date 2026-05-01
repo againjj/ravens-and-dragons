@@ -9,7 +9,6 @@ import com.ravensanddragons.game.MachineLearnedMoveScorer
 import com.ravensanddragons.game.Phase
 import com.ravensanddragons.game.Piece
 import com.ravensanddragons.game.Side
-import org.junit.jupiter.api.Assertions.assertArrayEquals
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -41,16 +40,60 @@ class MachineLearnedTrainingPipelineTest {
             positionKeys = listOf("initial")
         )
 
+        assertEquals(
+            listOf(
+                "active-side-dragons",
+                "moved-piece-gold",
+                "moved-piece-dragon",
+                "moved-piece-raven",
+                "origin-center-adjacent",
+                "origin-edge",
+                "origin-corner-adjacent",
+                "destination-center-adjacent",
+                "destination-edge",
+                "destination-corner-adjacent",
+                "captured-opponent-count",
+                "move-wins-immediately",
+                "gold-corner-distance-delta",
+                "raven-pressure-delta",
+                "after-gold-corner-distance",
+                "after-nearest-raven-distance-to-gold",
+                "after-ravens-adjacent-to-gold",
+                "after-dragons-mobility",
+                "after-ravens-mobility",
+                "after-piece-count-difference",
+                "after-dragons-piece-count",
+                "after-ravens-piece-count",
+                "after-gold-movable",
+                "after-opponent-immediate-win",
+                "after-active-side-legal-move-delta",
+                "after-position-repeat-risk",
+                "after-evaluation-for-active-side"
+            ),
+            MachineLearnedFeatureEncoder.featureNames
+        )
         val features = MachineLearnedFeatureEncoder.encode(
             snapshot,
             LegalMove("a2", "a1"),
             GameRules.movePiece(snapshot, "a2", "a1")
         )
 
-        assertArrayEquals(
-            floatArrayOf(1f, 1f, 0f, 0f, 0f, 1f, 0f, -12f, 1_000_000f),
-            features
-        )
+        assertEquals(MachineLearnedFeatureEncoder.featureCount, features.size)
+        assertFeatureEquals("active-side-dragons", 1f, features)
+        assertFeatureEquals("moved-piece-gold", 1f, features)
+        assertFeatureEquals("origin-edge", 1f, features)
+        assertFeatureEquals("origin-corner-adjacent", 1f, features)
+        assertFeatureEquals("destination-edge", 1f, features)
+        assertFeatureEquals("move-wins-immediately", 1f, features)
+        assertFeatureEquals("gold-corner-distance-delta", 1f, features)
+        assertFeatureEquals("raven-pressure-delta", -1f, features)
+        assertFeatureEquals("after-gold-corner-distance", 0f, features)
+        assertFeatureEquals("after-nearest-raven-distance-to-gold", 12f, features)
+        assertFeatureEquals("after-ravens-adjacent-to-gold", 0f, features)
+        assertFeatureEquals("after-piece-count-difference", 1f, features)
+        assertFeatureEquals("after-dragons-piece-count", 2f, features)
+        assertFeatureEquals("after-ravens-piece-count", 1f, features)
+        assertFeatureEquals("after-evaluation-for-active-side", 1_000_000f, features)
     }
 
     @Test
@@ -91,7 +134,7 @@ class MachineLearnedTrainingPipelineTest {
     fun `dataset codec round trips generated examples`() {
         val dataset = MachineLearnedDataset(
             ruleConfigurationId = "sherwood-rules",
-            featureSchemaVersion = 1,
+            featureSchemaVersion = MachineLearnedFeatureEncoder.schemaVersion,
             generatedAt = Instant.parse("2026-04-30T00:00:00Z"),
             expertBotId = "deep-minimax",
             selfPlayBotIds = listOf("random", "simple"),
@@ -100,12 +143,12 @@ class MachineLearnedTrainingPipelineTest {
                 TrainingExample(
                     positionKey = "position-1",
                     ruleConfigurationId = "sherwood-rules",
-                    featureSchemaVersion = 1,
+                    featureSchemaVersion = MachineLearnedFeatureEncoder.schemaVersion,
                     boardSize = 7,
                     activeSide = Side.ravens,
                     candidateMove = LegalMove("d7", "c7"),
                     expertMove = LegalMove("d7", "c7"),
-                    features = listOf(1f, 0f, 0f, 1f, 0f, 0f, 5f, -1f, 12f),
+                    features = featureVector("active-side-dragons" to -1f, "moved-piece-raven" to 1f),
                     label = 1f,
                     source = TrainingExampleSource.expertImitation
                 )
@@ -130,8 +173,24 @@ class MachineLearnedTrainingPipelineTest {
             selfPlayBotIds = listOf("random", "simple"),
             selfPlayGames = 2,
             examples = listOf(
-                example(label = 1f, features = listOf(1f, 1f, 0f, 0f, 0f, 1f, 0f, -12f, 1_000_000f)),
-                example(label = 0f, features = listOf(1f, 0f, 1f, 0f, 0f, 0f, 3f, -4f, 18f))
+                example(
+                    label = 1f,
+                    features = featureVector(
+                        "active-side-dragons" to 1f,
+                        "moved-piece-gold" to 1f,
+                        "move-wins-immediately" to 1f,
+                        "after-evaluation-for-active-side" to 1_000_000f
+                    )
+                ),
+                example(
+                    label = 0f,
+                    features = featureVector(
+                        "active-side-dragons" to 1f,
+                        "moved-piece-dragon" to 1f,
+                        "after-gold-corner-distance" to 3f,
+                        "after-evaluation-for-active-side" to 18f
+                    )
+                )
             )
         )
         val trainer = MachineLearnedTrainer(fixedClock())
@@ -199,22 +258,43 @@ class MachineLearnedTrainingPipelineTest {
                 example(
                     positionKey = "position-a",
                     label = 1f,
-                    features = listOf(0f, 0f, 0f, 1f, 1f, 0f, 4f, 2f, 40f)
+                    features = featureVector(
+                        "moved-piece-raven" to 1f,
+                        "captured-opponent-count" to 1f,
+                        "after-ravens-adjacent-to-gold" to 2f,
+                        "after-evaluation-for-active-side" to 40f
+                    )
                 ),
                 example(
                     positionKey = "position-a",
                     label = 0f,
-                    features = listOf(0f, 0f, 0f, 1f, 0f, 0f, 6f, -1f, -20f)
+                    features = featureVector(
+                        "moved-piece-raven" to 1f,
+                        "after-gold-corner-distance" to 6f,
+                        "after-ravens-adjacent-to-gold" to -1f,
+                        "after-evaluation-for-active-side" to -20f
+                    )
                 ),
                 example(
                     positionKey = "position-b",
                     label = 1f,
-                    features = listOf(0f, 0f, 1f, 0f, 1f, 0f, 3f, 1f, 25f)
+                    features = featureVector(
+                        "moved-piece-dragon" to 1f,
+                        "captured-opponent-count" to 1f,
+                        "after-gold-corner-distance" to 3f,
+                        "after-piece-count-difference" to 1f,
+                        "after-evaluation-for-active-side" to 25f
+                    )
                 ),
                 example(
                     positionKey = "position-b",
                     label = 0f,
-                    features = listOf(0f, 0f, 1f, 0f, 0f, 0f, 7f, -2f, -30f)
+                    features = featureVector(
+                        "moved-piece-dragon" to 1f,
+                        "after-gold-corner-distance" to 7f,
+                        "after-piece-count-difference" to -2f,
+                        "after-evaluation-for-active-side" to -30f
+                    )
                 )
             )
         )
@@ -248,6 +328,22 @@ class MachineLearnedTrainingPipelineTest {
         label = label,
         source = TrainingExampleSource.expertImitation
     )
+
+    private fun featureVector(vararg values: Pair<String, Float>): List<Float> {
+        val features = MutableList(MachineLearnedFeatureEncoder.featureCount) { 0f }
+        values.forEach { (name, value) ->
+            val index = MachineLearnedFeatureEncoder.featureNames.indexOf(name)
+            require(index >= 0) { "Unknown machine-learned feature: $name" }
+            features[index] = value
+        }
+        return features
+    }
+
+    private fun assertFeatureEquals(featureName: String, expected: Float, features: FloatArray) {
+        val index = MachineLearnedFeatureEncoder.featureNames.indexOf(featureName)
+        require(index >= 0) { "Unknown machine-learned feature: $featureName" }
+        assertEquals(expected, features[index])
+    }
 
     private fun fixedClock(now: Instant = Instant.parse("2026-04-30T12:00:00Z")): Clock =
         Clock.fixed(now, ZoneOffset.UTC)
