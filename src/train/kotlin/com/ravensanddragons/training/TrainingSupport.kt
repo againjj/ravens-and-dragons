@@ -2,9 +2,34 @@ package com.ravensanddragons.training
 
 import com.fasterxml.jackson.databind.SerializationFeature
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.ravensanddragons.game.GameSnapshot
+import com.ravensanddragons.game.LegalMove
 import com.ravensanddragons.game.RandomIndexSource
 
 internal fun defaultTrainingWorkerCount(): Int = Runtime.getRuntime().availableProcessors()
+
+internal fun trainingPositionKey(snapshot: GameSnapshot, legalMoves: List<LegalMove>): String {
+    val boardKey = snapshot.board.entries
+        .sortedBy { (square) -> square }
+        .joinToString("|") { (square, piece) -> "$square=$piece" }
+    val legalMovesKey = legalMoves
+        .joinToString("|") { move -> "${move.origin}->${move.destination}" }
+    return buildString {
+        append(snapshot.ruleConfigurationId)
+        append(';')
+        append(snapshot.activeSide)
+        append(';')
+        append(snapshot.phase)
+        append(';')
+        append(snapshot.boardSize)
+        append(';')
+        append(snapshot.specialSquare)
+        append(';')
+        append(boardKey)
+        append(';')
+        append(legalMovesKey)
+    }
+}
 
 fun trainingObjectMapper() = jacksonObjectMapper()
     .findAndRegisterModules()

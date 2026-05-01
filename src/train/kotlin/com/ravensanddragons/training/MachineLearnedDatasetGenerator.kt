@@ -22,6 +22,7 @@ data class MachineLearnedDatasetGenerationRequest(
     val sampleStride: Int = 2,
     val maxSampledPositionsPerGame: Int = 8,
     val maxPliesPerGame: Int = 300,
+    val openingRandomPlies: Int = 0,
     val initialSeed: Int = 1,
     val workerCount: Int = defaultTrainingWorkerCount()
 )
@@ -51,6 +52,9 @@ class MachineLearnedDatasetGenerator(
         }
         require(request.maxPliesPerGame > 0) {
             "Training dataset maxPliesPerGame must be positive."
+        }
+        require(request.openingRandomPlies >= 0) {
+            "Training dataset openingRandomPlies must not be negative."
         }
         require(request.workerCount > 0) {
             "Training dataset workerCount must be positive."
@@ -105,7 +109,8 @@ class MachineLearnedDatasetGenerator(
                             dragonsBotId = dragonsBotId,
                             ravensBotId = ravensBotId,
                             seed = nextSeed++,
-                            maxPlies = request.maxPliesPerGame
+                            maxPlies = request.maxPliesPerGame,
+                            openingRandomPlies = request.openingRandomPlies
                         )
                     )
                 }
@@ -129,7 +134,7 @@ class MachineLearnedDatasetGenerator(
             .filter { sampled -> sampled.plyIndex % request.sampleStride == 0 }
             .take(request.maxSampledPositionsPerGame)
             .forEach { sampled ->
-                val positionKey = positionKeyFor(sampled)
+                val positionKey = trainingPositionKey(sampled.snapshot, sampled.legalMoves)
                 val expertMove = expertStrategy.chooseMove(sampled.snapshot, sampled.legalMoves)
                 sampled.legalMoves.forEach { candidateMove ->
                     val nextSnapshot = GameRules.movePiece(
@@ -157,30 +162,6 @@ class MachineLearnedDatasetGenerator(
             }
 
         return TaskResult(index = task.index, examples = examples)
-    }
-
-    private fun positionKeyFor(sampled: SelfPlayPosition): String {
-        val snapshot = sampled.snapshot
-        val boardKey = snapshot.board.entries
-            .sortedBy { (square) -> square }
-            .joinToString("|") { (square, piece) -> "$square=$piece" }
-        val legalMovesKey = sampled.legalMoves
-            .joinToString("|") { move -> "${move.origin}->${move.destination}" }
-        return buildString {
-            append(snapshot.ruleConfigurationId)
-            append(';')
-            append(snapshot.activeSide)
-            append(';')
-            append(snapshot.phase)
-            append(';')
-            append(snapshot.boardSize)
-            append(';')
-            append(snapshot.specialSquare)
-            append(';')
-            append(boardKey)
-            append(';')
-            append(legalMovesKey)
-        }
     }
 
     private fun <T> executeTasks(

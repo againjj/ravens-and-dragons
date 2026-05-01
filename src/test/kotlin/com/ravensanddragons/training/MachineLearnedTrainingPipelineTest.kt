@@ -4,8 +4,12 @@ import com.ravensanddragons.game.GameBotStrategy
 import com.ravensanddragons.game.GameSnapshot
 import com.ravensanddragons.game.LegalMove
 import com.ravensanddragons.game.MachineLearnedFeatureEncoder
+import com.ravensanddragons.game.MachineLearnedModel
+import com.ravensanddragons.game.MachineLearnedModelMetadata
 import com.ravensanddragons.game.MachineLearnedModelLoader
 import com.ravensanddragons.game.MachineLearnedMoveScorer
+import com.ravensanddragons.game.MachineLearnedRegistry
+import com.ravensanddragons.game.MachineLearnedTrainingSummary
 import com.ravensanddragons.game.Phase
 import com.ravensanddragons.game.Piece
 import com.ravensanddragons.game.Side
@@ -164,6 +168,37 @@ class MachineLearnedTrainingPipelineTest {
             listOf(1 to 4, 2 to 4, 3 to 4, 4 to 4),
             reports
         )
+    }
+
+    @Test
+    fun `dataset generation passes opening diversity into self play matchups`() {
+        val runner = RecordingSelfPlayRunner()
+        val generator = MachineLearnedDatasetGenerator(
+            selfPlayRunner = runner,
+            clock = fixedClock(),
+            expertStrategyFactory = { _, _ ->
+                object : GameBotStrategy {
+                    override fun chooseMove(snapshot: GameSnapshot, legalMoves: List<LegalMove>): LegalMove =
+                        legalMoves.first()
+                }
+            }
+        )
+
+        generator.generate(
+            MachineLearnedDatasetGenerationRequest(
+                ruleConfigurationId = "sherwood-rules",
+                selfPlayBotIds = listOf("random"),
+                gamesPerMatchup = 1,
+                sampleStride = 1,
+                maxSampledPositionsPerGame = 1,
+                maxPliesPerGame = 24,
+                openingRandomPlies = 3,
+                initialSeed = 7,
+                workerCount = 1
+            )
+        )
+
+        assertEquals(listOf(3), runner.matchups.map(SelfPlayMatchup::openingRandomPlies))
     }
 
     @Test
@@ -384,6 +419,46 @@ class MachineLearnedTrainingPipelineTest {
     }
 
     @Test
+    fun `strengthening loop runs candidate league and mines replay positions`() {
+        val loop = MachineLearnedStrengtheningLoop()
+
+        val report = loop.run(
+            MachineLearnedStrengtheningRequest(
+                ruleConfigurationId = "sherwood-rules",
+                candidateModel = model(
+                    featureName = "after-evaluation-for-active-side",
+                    weight = 1f
+                ),
+                incumbentModel = model(
+                    featureName = "after-evaluation-for-active-side",
+                    weight = -1f
+                ),
+                gamesPerPairing = 1,
+                selfPlayGames = 1,
+                baselineBotIds = emptyList(),
+                maxPliesPerGame = 24,
+                openingRandomPlies = 1,
+                initialSeed = 11,
+                longGamePlyThreshold = 1,
+                maxHardPositions = 8,
+                promotionThresholds = MachineLearnedPromotionThresholds(
+                    minimumWinRate = 0.0,
+                    maximumLossRate = 1.0
+                )
+            )
+        )
+
+        assertEquals("sherwood-rules", report.ruleConfigurationId)
+        assertEquals(3, report.matches.size)
+        assertEquals(2, report.matches.count { it.candidateResult != CandidateMatchResult.notApplicable })
+        assertTrue(report.matches.all { it.openingRandomPlies == 1 })
+        assertTrue(report.matches.all { it.turnCount > 0 })
+        assertTrue(report.hardPositions.isNotEmpty())
+        assertTrue(report.hardPositions.all { it.legalMoveCount > 1 })
+        assertTrue(report.promotionDecision.promote)
+    }
+
+    @Test
     fun `decile progress line prints compact milestones`() {
         val output = StringBuilder()
         val progress = DecileProgressLine(output, "Generating dataset")
@@ -429,6 +504,31 @@ class MachineLearnedTrainingPipelineTest {
         return features
     }
 
+    private fun model(featureName: String, weight: Float): MachineLearnedModel {
+        val weights = MutableList(MachineLearnedFeatureEncoder.featureCount) { 0f }
+        val index = MachineLearnedFeatureEncoder.featureNames.indexOf(featureName)
+        require(index >= 0) { "Unknown machine-learned feature: $featureName" }
+        weights[index] = weight
+        return MachineLearnedModel(
+            metadata = MachineLearnedModelMetadata(
+                botId = MachineLearnedRegistry.botId,
+                displayName = MachineLearnedRegistry.displayName,
+                ruleConfigurationId = "sherwood-rules",
+                featureSchemaVersion = MachineLearnedFeatureEncoder.schemaVersion,
+                modelFormatVersion = MachineLearnedModel.supportedModelFormatVersion,
+                trainedAt = Instant.parse("2026-04-30T12:00:00Z")
+            ),
+            modelType = MachineLearnedMoveScorer.supportedModelType,
+            bias = 0f,
+            weights = weights,
+            trainingSummary = MachineLearnedTrainingSummary(
+                expertBotId = "test",
+                positions = 1,
+                selfPlayGames = 1
+            )
+        )
+    }
+
     private fun assertFeatureEquals(featureName: String, expected: Float, features: FloatArray) {
         val index = MachineLearnedFeatureEncoder.featureNames.indexOf(featureName)
         require(index >= 0) { "Unknown machine-learned feature: $featureName" }
@@ -438,7 +538,7 @@ class MachineLearnedTrainingPipelineTest {
     private fun fixedClock(now: Instant = Instant.parse("2026-04-30T12:00:00Z")): Clock =
         Clock.fixed(now, ZoneOffset.UTC)
 
-    private class StubSelfPlayRunner : MachineLearnedSelfPlayRunner(
+    private open class StubSelfPlayRunner : MachineLearnedSelfPlayRunner(
         botRegistryFactory = { error("Stub runner should not create a bot registry.") }
     ) {
         override fun play(matchup: SelfPlayMatchup): CompletedSelfPlayGame {
@@ -462,6 +562,15 @@ class MachineLearnedTrainingPipelineTest {
                     )
                 )
             )
+        }
+    }
+
+    private class RecordingSelfPlayRunner : StubSelfPlayRunner() {
+        val matchups = mutableListOf<SelfPlayMatchup>()
+
+        override fun play(matchup: SelfPlayMatchup): CompletedSelfPlayGame {
+            matchups += matchup
+            return super.play(matchup)
         }
     }
 }

@@ -16,7 +16,8 @@ Current implementation status:
 - Phase 2 Kotlin-first offline training pipeline is implemented for local use.
 - The current trainer already uses per-position ranking updates over legal-move groups rather than a global positive-versus-negative average.
 - Phase 3 position-derived feature expansion is implemented with a generated Sherwood `Michelle` artifact.
-- Bot-vs-bot strengthening and candidate promotion are the next recommended training-quality steps.
+- Bot-vs-bot strengthening and candidate promotion tooling is implemented for local offline runs.
+- Operational hardening around artifact naming, reports, and release workflow is the next recommended step.
 
 The design assumes that each trained artifact is scoped to exactly one `ruleConfigurationId`. A future `Michelle` artifact for another ruleset should be trained, stored, evaluated, and released separately rather than shared across rulesets.
 
@@ -653,17 +654,27 @@ Completed phase 3 notes:
 
 Goal: improve `Michelle` through iterative offline play and candidate promotion.
 
+Status: complete
+
 Tasks:
 
-1. Add candidate-vs-incumbent league tooling
-2. Add self-play batches for `Michelle`
-3. Add hard-position replay mining from losses and long games
-4. Add opening diversity controls
-5. Define promotion thresholds for replacing the incumbent artifact
+1. [x] Add candidate-vs-incumbent league tooling
+2. [x] Add self-play batches for `Michelle`
+3. [x] Add hard-position replay mining from losses and long games
+4. [x] Add opening diversity controls
+5. [x] Define promotion thresholds for replacing the incumbent artifact
 
 Deliverable:
 
 - repeatable offline improvement cycle for Sherwood `Michelle`
+
+Completed phase 4 notes:
+
+- `MachineLearnedStrengtheningLoop` runs candidate-vs-incumbent games in both seats, optional candidate-vs-baseline comparisons, and candidate self-play batches.
+- The strengthening loop mines hard-position replay candidates from candidate losses and games that cross a configurable long-game ply threshold.
+- Training self-play and strengthening games can use configurable early opening randomization through `openingRandomPlies`.
+- The strengthening report includes match summaries, hard-position replay metadata, and a promotion decision based on configurable candidate win-rate and loss-rate thresholds.
+- The existing `runMachineLearnedTraining` CLI now supports `--mode strengthen` with explicit candidate and incumbent artifact paths, keeping the workflow local and ruleset-scoped.
 
 ### Phase 5: Operational Hardening
 

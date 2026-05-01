@@ -13,7 +13,8 @@ data class SelfPlayMatchup(
     val dragonsBotId: String,
     val ravensBotId: String,
     val seed: Int,
-    val maxPlies: Int
+    val maxPlies: Int,
+    val openingRandomPlies: Int = 0
 )
 
 data class SelfPlayPosition(
@@ -32,6 +33,9 @@ open class MachineLearnedSelfPlayRunner(
     private val botRegistryFactory: (Int) -> BotRegistry = { seed -> BotRegistry(SeededRandomIndexSource(seed)) }
 ) {
     open fun play(matchup: SelfPlayMatchup): CompletedSelfPlayGame {
+        require(matchup.openingRandomPlies >= 0) {
+            "Machine-learned self-play openingRandomPlies must not be negative."
+        }
         val summary = GameRules.getRuleConfigurationSummary(matchup.ruleConfigurationId)
         require(!summary.hasManualCapture) {
             "Machine-learned self-play does not support manual capture rulesets."
@@ -51,6 +55,7 @@ open class MachineLearnedSelfPlayRunner(
         ).strategy
 
         val sampledPositions = mutableListOf<SelfPlayPosition>()
+        val openingRandom = SeededRandomIndexSource(matchup.seed + 30_000)
         var snapshot = GameRules.startGame(matchup.ruleConfigurationId)
 
         repeat(matchup.maxPlies) { plyIndex ->
@@ -67,11 +72,15 @@ open class MachineLearnedSelfPlayRunner(
                 return CompletedSelfPlayGame(matchup, snapshot, sampledPositions)
             }
 
-            val strategy = when (snapshot.activeSide) {
-                Side.dragons -> dragonsStrategy
-                Side.ravens -> ravensStrategy
+            val selectedMove = if (plyIndex < matchup.openingRandomPlies) {
+                legalMoves[openingRandom.nextInt(legalMoves.size)]
+            } else {
+                val strategy = when (snapshot.activeSide) {
+                    Side.dragons -> dragonsStrategy
+                    Side.ravens -> ravensStrategy
+                }
+                strategy.chooseMove(snapshot, legalMoves)
             }
-            val selectedMove = strategy.chooseMove(snapshot, legalMoves)
             sampledPositions += SelfPlayPosition(
                 plyIndex = plyIndex,
                 snapshot = snapshot,

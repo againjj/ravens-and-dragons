@@ -6,7 +6,7 @@ This runbook describes how to train and install a new `Michelle` artifact with t
 
 Yes, for candidate iteration or replacement runs.
 
-The phase 3 pipeline is now in place:
+The phase 4 pipeline is now in place:
 
 - Gradle exposes `runMachineLearnedTraining`
 - the offline training code can generate a Sherwood-only dataset
@@ -14,16 +14,19 @@ The phase 3 pipeline is now in place:
 - the artifact can be loaded back through the runtime validation rules
 - the current encoder uses schema version 2 with explicit move-local and resulting-position feature names
 - the bot match harness includes a Sherwood-only Michelle baseline smoke evaluation
+- training self-play can randomize early opening plies for more diverse positions
+- the CLI can run candidate-vs-incumbent strengthening leagues with promotion thresholds
+- strengthening reports include candidate match outcomes and hard-position replay candidates mined from losses and long games
 
 What this means in practice:
 
 - we can generate a new local `Michelle` artifact now
 - this is appropriate for an iteration artifact
-- this is not yet the full phase 4 promotion workflow with incumbent-vs-candidate league gating
+- we can compare a candidate artifact against the current incumbent before installing it
 
 If the goal is “produce a new artifact and try it locally,” training can begin now.
 
-If the goal is “replace the bundled artifact with a clearly stronger model,” you should still plan to do evaluation after training, because the current pipeline does not yet automate promotion thresholds.
+If the goal is “replace the bundled artifact with a clearly stronger model,” run the strengthening workflow and treat promotion as blocked unless the report clears the configured thresholds.
 
 ## Current Scope
 
@@ -83,6 +86,7 @@ Example:
 
 The CLI currently supports these arguments:
 
+- `--mode`
 - `--rule-configuration-id`
 - `--expert-bot-id`
 - `--self-play-bot-ids`
@@ -90,14 +94,28 @@ The CLI currently supports these arguments:
 - `--sample-stride`
 - `--max-sampled-positions-per-game`
 - `--max-plies-per-game`
+- `--opening-random-plies`
 - `--initial-seed`
 - `--worker-count`
 - `--output-dir`
 - `--dataset-filename`
 - `--artifact-filename`
+- `--candidate-artifact`
+- `--incumbent-artifact`
+- `--baseline-bot-ids`
+- `--self-play-games`
+- `--long-game-ply-threshold`
+- `--max-hard-positions`
+- `--minimum-promotion-win-rate`
+- `--maximum-promotion-loss-rate`
+- `--report-filename`
 
 What each argument means and what it changes:
 
+- `--mode`
+  - Meaning: chooses `train` or `strengthen`.
+  - Effect: `train` generates a dataset and candidate artifact; `strengthen` reads candidate and incumbent artifacts and writes a league report.
+  - Current guidance: use `train` first, then `strengthen` before replacing the bundled artifact.
 - `--rule-configuration-id`
   - Meaning: chooses the single ruleset this run is allowed to train.
   - Effect: controls the opening positions, legal moves, sampled states, expert labeling, dataset metadata, and artifact metadata.
@@ -126,6 +144,10 @@ What each argument means and what it changes:
   - Meaning: maximum ply count allowed before the training runner forces a draw and stops that self-play game.
   - Effect: bounds pathological or very long games so runs finish in predictable time.
   - Practical tradeoff: larger values preserve more long-game behavior; smaller values cap cost more aggressively.
+- `--opening-random-plies`
+  - Meaning: number of early plies selected randomly before normal bot strategy takes over.
+  - Effect: diversifies openings during dataset generation and strengthening games.
+  - Practical tradeoff: larger values broaden opening coverage but can add noisier positions; use small values such as `1` or `2` for candidate evaluation.
 - `--initial-seed`
   - Meaning: starting deterministic seed used when assigning per-game seeds.
   - Effect: controls the reproducible ordering of generated matchups and any seeded random choices inside the training pipeline.
@@ -147,6 +169,42 @@ What each argument means and what it changes:
   - Meaning: output filename for the generated Michelle artifact JSON.
   - Effect: changes only the artifact file name, not the dataset contents or training behavior.
   - Practical tradeoff: useful for keeping multiple candidate artifacts side by side.
+- `--candidate-artifact`
+  - Meaning: path to the candidate artifact when `--mode strengthen`.
+  - Effect: selects the model being evaluated for possible promotion.
+  - Practical tradeoff: required for strengthening mode.
+- `--incumbent-artifact`
+  - Meaning: path to the current incumbent artifact when `--mode strengthen`.
+  - Effect: selects the model the candidate must beat or match safely before replacement.
+  - Practical tradeoff: usually point this at `src/main/resources/bots/machine-learned/sherwood-rules.json`.
+- `--baseline-bot-ids`
+  - Meaning: comma-separated baseline bot ids for extra candidate comparisons in strengthening mode.
+  - Effect: adds ordered candidate-vs-baseline games in both seats.
+  - Practical tradeoff: `minimax,deep-minimax` is a useful default; more baselines increase confidence and run time.
+- `--self-play-games`
+  - Meaning: number of candidate-vs-candidate games to run in strengthening mode.
+  - Effect: adds fresh candidate self-play positions to the hard-position mining pass.
+  - Practical tradeoff: these games do not count toward promotion directly, but they are useful for replay mining.
+- `--long-game-ply-threshold`
+  - Meaning: ply count at which a strengthening game contributes hard-position replay candidates as a long game.
+  - Effect: lets the report flag positions from slow or unresolved games.
+  - Practical tradeoff: lower values produce more replay candidates; higher values focus only on unusually long games.
+- `--max-hard-positions`
+  - Meaning: cap on hard-position replay candidates stored in the strengthening report.
+  - Effect: keeps reports compact.
+  - Practical tradeoff: larger values retain more future training material.
+- `--minimum-promotion-win-rate`
+  - Meaning: minimum candidate win rate across candidate-vs-non-candidate games.
+  - Effect: one half of the promotion gate.
+  - Practical tradeoff: raise this when you want stronger evidence before replacement.
+- `--maximum-promotion-loss-rate`
+  - Meaning: maximum candidate loss rate across candidate-vs-non-candidate games.
+  - Effect: the second half of the promotion gate.
+  - Practical tradeoff: lower this when avoiding regressions matters more than accepting marginal improvements.
+- `--report-filename`
+  - Meaning: output filename for the strengthening report.
+  - Effect: changes only the JSON report path in strengthening mode.
+  - Practical tradeoff: useful when keeping multiple candidate reports in the same output directory.
 
 Serialization note:
 
@@ -242,6 +300,28 @@ To smoke-evaluate Michelle against the baseline bots, run:
 
 The current installed artifact was generated from 314 labeled positions across 32 self-play games using `deep-minimax` as the expert.
 
+## Run The Strengthening Gate
+
+Before replacing the bundled artifact, compare the candidate against the current incumbent:
+
+```bash
+./gradlew runMachineLearnedTraining -PtrainingArgs='--mode strengthen --rule-configuration-id sherwood-rules --candidate-artifact build/machine-learned-candidate/sherwood-rules.generated.json --incumbent-artifact src/main/resources/bots/machine-learned/sherwood-rules.json --games-per-matchup 2 --self-play-games 2 --baseline-bot-ids minimax,deep-minimax --max-plies-per-game 300 --opening-random-plies 2 --minimum-promotion-win-rate 0.55 --maximum-promotion-loss-rate 0.35 --output-dir build/machine-learned-candidate'
+```
+
+The strengthening command writes:
+
+- report: `<output-dir>/<ruleConfigurationId>.strengthening-report.json`
+
+The report includes:
+
+- ordered candidate-vs-incumbent games in both seats
+- candidate-vs-baseline games in both seats
+- candidate self-play games for fresh replay positions
+- hard-position replay candidates mined from candidate losses and long games
+- a promotion decision with candidate wins, losses, draws, win rate, loss rate, and reason
+
+Treat a candidate as eligible for installation only when `promotionDecision.promote` is `true`. If the candidate fails the threshold, keep the bundled incumbent and use the hard-position replay candidates to guide later training runs.
+
 ## Install A New Artifact
 
 The bundled runtime artifact currently lives at:
@@ -274,7 +354,7 @@ cp build/machine-learned-candidate/sherwood-rules.previous.json src/main/resourc
 
 ## Suggested Manual Evaluation
 
-The current pipeline can create artifacts, but it does not yet auto-promote them. Before treating a new artifact as the default bundled model, compare it manually against existing bots.
+The strengthening report is the main local promotion gate. Manual harness runs are still useful as a broader smoke check before treating a new artifact as the default bundled model.
 
 At minimum, check:
 
@@ -283,9 +363,9 @@ At minimum, check:
 - `Michelle` vs `Maxine`
 - `Michelle` vs `Alphie`
 
-The harness command above covers those pairings as Sherwood smoke tests in both seat assignments. It proves completion and basic outcomes, not statistical superiority.
+The harness command above covers those pairings as Sherwood smoke tests in both seat assignments for the currently installed artifact. It proves completion and basic outcomes, not statistical superiority.
 
-If the artifact looks worse than the current bundled Sherwood artifact, do not install it as the default.
+If the artifact fails the strengthening threshold or looks worse than the current bundled Sherwood artifact during manual checks, do not install it as the default.
 
 ## Troubleshooting
 
@@ -311,5 +391,6 @@ The safe loop is:
 1. run `runMachineLearnedTraining`
 2. inspect the generated artifact
 3. validate it with tests
-4. compare it against baseline bots
-5. replace the bundled Sherwood artifact only if it looks like an improvement
+4. run `runMachineLearnedTraining --mode strengthen`
+5. compare the installed artifact against baseline bots
+6. replace the bundled Sherwood artifact only if the strengthening report clears promotion
