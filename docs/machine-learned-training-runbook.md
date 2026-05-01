@@ -15,18 +15,18 @@ The phase 4 pipeline is now in place:
 - the current encoder uses schema version 2 with explicit move-local and resulting-position feature names
 - the bot match harness includes a Sherwood-only Michelle baseline smoke evaluation
 - training self-play can randomize early opening plies for more diverse positions
-- the CLI can run candidate-vs-incumbent strengthening leagues with promotion thresholds
-- strengthening reports include candidate match outcomes and hard-position replay candidates mined from losses and long games
+- the CLI can run population-based evolution with candidate leagues, mutation, crossover, and promotion thresholds
+- evolution reports include generation scores, survivor ids, match outcomes, and final gate results
 
 What this means in practice:
 
 - we can generate a new local `Michelle` artifact now
 - this is appropriate for an iteration artifact
-- we can compare a candidate artifact against the current incumbent before installing it
+- we can evolve a population of candidates against each other, baselines, and the current incumbent before installing a winner
 
 If the goal is “produce a new artifact and try it locally,” training can begin now.
 
-If the goal is “replace the bundled artifact with a clearly stronger model,” run the strengthening workflow and treat promotion as blocked unless the report clears the configured thresholds.
+If the goal is “replace the bundled artifact with a clearly stronger model,” run the evolution workflow and treat promotion as blocked unless the report clears the configured thresholds.
 
 ## Current Scope
 
@@ -100,22 +100,28 @@ The CLI currently supports these arguments:
 - `--output-dir`
 - `--dataset-filename`
 - `--artifact-filename`
-- `--candidate-artifact`
+- `--seed-artifact`
 - `--incumbent-artifact`
 - `--baseline-bot-ids`
-- `--self-play-games`
-- `--long-game-ply-threshold`
-- `--max-hard-positions`
+- `--population-size`
+- `--survivor-count`
+- `--generations`
+- `--mutation-rate`
+- `--mutation-scale`
+- `--crossover-rate`
+- `--elite-count`
+- `--final-gate-games-per-pairing`
 - `--minimum-promotion-win-rate`
 - `--maximum-promotion-loss-rate`
 - `--report-filename`
+- `--evolved-artifact-filename`
 
 What each argument means and what it changes:
 
 - `--mode`
-  - Meaning: chooses `train` or `strengthen`.
-  - Effect: `train` generates a dataset and candidate artifact; `strengthen` reads candidate and incumbent artifacts and writes a league report.
-  - Current guidance: use `train` first, then `strengthen` before replacing the bundled artifact.
+  - Meaning: chooses `train` or `evolve`.
+  - Effect: `train` generates a dataset and seed artifact; `evolve` runs population search and writes a best evolved artifact plus report.
+  - Current guidance: use `train` first when you want a supervised seed, then `evolve` before replacing the bundled artifact.
 - `--rule-configuration-id`
   - Meaning: chooses the single ruleset this run is allowed to train.
   - Effect: controls the opening positions, legal moves, sampled states, expert labeling, dataset metadata, and artifact metadata.
@@ -146,7 +152,7 @@ What each argument means and what it changes:
   - Practical tradeoff: larger values preserve more long-game behavior; smaller values cap cost more aggressively.
 - `--opening-random-plies`
   - Meaning: number of early plies selected randomly before normal bot strategy takes over.
-  - Effect: diversifies openings during dataset generation and strengthening games.
+  - Effect: diversifies openings during dataset generation and evolution games.
   - Practical tradeoff: larger values broaden opening coverage but can add noisier positions; use small values such as `1` or `2` for candidate evaluation.
 - `--initial-seed`
   - Meaning: starting deterministic seed used when assigning per-game seeds.
@@ -169,30 +175,50 @@ What each argument means and what it changes:
   - Meaning: output filename for the generated Michelle artifact JSON.
   - Effect: changes only the artifact file name, not the dataset contents or training behavior.
   - Practical tradeoff: useful for keeping multiple candidate artifacts side by side.
-- `--candidate-artifact`
-  - Meaning: path to the candidate artifact when `--mode strengthen`.
-  - Effect: selects the model being evaluated for possible promotion.
-  - Practical tradeoff: required for strengthening mode.
+- `--seed-artifact`
+  - Meaning: optional path to a supervised artifact when `--mode evolve`.
+  - Effect: adds that artifact to the initial population alongside the incumbent and mutations.
+  - Practical tradeoff: useful for seeding evolution from fresh expert imitation, but not required.
 - `--incumbent-artifact`
-  - Meaning: path to the current incumbent artifact when `--mode strengthen`.
-  - Effect: selects the model the candidate must beat or match safely before replacement.
+  - Meaning: path to the current incumbent artifact when `--mode evolve`.
+  - Effect: anchors the initial population and final promotion gate.
   - Practical tradeoff: usually point this at `src/main/resources/bots/machine-learned/sherwood-rules.json`.
 - `--baseline-bot-ids`
-  - Meaning: comma-separated baseline bot ids for extra candidate comparisons in strengthening mode.
-  - Effect: adds ordered candidate-vs-baseline games in both seats.
+  - Meaning: comma-separated baseline bot ids for candidate comparisons in evolution mode.
+  - Effect: adds ordered candidate-vs-baseline games in both seats during generation leagues and the final gate.
   - Practical tradeoff: `minimax,deep-minimax` is a useful default; more baselines increase confidence and run time.
-- `--self-play-games`
-  - Meaning: number of candidate-vs-candidate games to run in strengthening mode.
-  - Effect: adds fresh candidate self-play positions to the hard-position mining pass.
-  - Practical tradeoff: these games do not count toward promotion directly, but they are useful for replay mining.
-- `--long-game-ply-threshold`
-  - Meaning: ply count at which a strengthening game contributes hard-position replay candidates as a long game.
-  - Effect: lets the report flag positions from slow or unresolved games.
-  - Practical tradeoff: lower values produce more replay candidates; higher values focus only on unusually long games.
-- `--max-hard-positions`
-  - Meaning: cap on hard-position replay candidates stored in the strengthening report.
-  - Effect: keeps reports compact.
-  - Practical tradeoff: larger values retain more future training material.
+- `--population-size`
+  - Meaning: number of Michelle candidates in each generation.
+  - Effect: scales candidate diversity and round-robin cost.
+  - Practical tradeoff: larger populations explore more, but match count grows quickly.
+- `--survivor-count`
+  - Meaning: number of top candidates kept after each generation.
+  - Effect: controls selection pressure.
+  - Practical tradeoff: fewer survivors exploit faster; more survivors preserve diversity.
+- `--generations`
+  - Meaning: number of population cycles to run.
+  - Effect: controls how many rounds of evaluation, selection, mutation, and crossover happen.
+  - Practical tradeoff: more generations search longer and cost more.
+- `--mutation-rate`
+  - Meaning: probability that each model weight is perturbed when creating a child.
+  - Effect: controls how many features change per mutation.
+  - Practical tradeoff: higher values explore faster but can disrupt good candidates.
+- `--mutation-scale`
+  - Meaning: relative size of random weight perturbations.
+  - Effect: controls how far mutated children move from parents.
+  - Practical tradeoff: larger values explore more aggressively and can destabilize strong weights.
+- `--crossover-rate`
+  - Meaning: probability that a child blends two survivor parents instead of mutating one parent.
+  - Effect: controls how often survivor weights are combined.
+  - Practical tradeoff: crossover can combine useful traits, but mutation is simpler and often steadier.
+- `--elite-count`
+  - Meaning: number of top survivors copied into the next generation before filling children.
+  - Effect: protects the best candidates from being lost.
+  - Practical tradeoff: too many elites reduce exploration.
+- `--final-gate-games-per-pairing`
+  - Meaning: number of final best-candidate games against the incumbent and each baseline in each seat assignment.
+  - Effect: controls confidence in the final promotion decision.
+  - Practical tradeoff: increase it for serious replacement runs.
 - `--minimum-promotion-win-rate`
   - Meaning: minimum candidate win rate across candidate-vs-non-candidate games.
   - Effect: one half of the promotion gate.
@@ -202,9 +228,13 @@ What each argument means and what it changes:
   - Effect: the second half of the promotion gate.
   - Practical tradeoff: lower this when avoiding regressions matters more than accepting marginal improvements.
 - `--report-filename`
-  - Meaning: output filename for the strengthening report.
-  - Effect: changes only the JSON report path in strengthening mode.
-  - Practical tradeoff: useful when keeping multiple candidate reports in the same output directory.
+  - Meaning: output filename for the evolution report.
+  - Effect: changes only the JSON report path in evolution mode.
+  - Practical tradeoff: useful when keeping multiple reports in the same output directory.
+- `--evolved-artifact-filename`
+  - Meaning: output filename for the best evolved artifact.
+  - Effect: changes only the evolved artifact path in evolution mode.
+  - Practical tradeoff: useful when keeping multiple evolved candidates side by side.
 
 Serialization note:
 
@@ -300,27 +330,28 @@ To smoke-evaluate Michelle against the baseline bots, run:
 
 The current installed artifact was generated from 314 labeled positions across 32 self-play games using `deep-minimax` as the expert.
 
-## Run The Strengthening Gate
+## Run The Evolution Loop
 
-Before replacing the bundled artifact, compare the candidate against the current incumbent:
+Before replacing the bundled artifact, evolve a population seeded by the current incumbent and, optionally, the newly trained artifact:
 
 ```bash
-./gradlew runMachineLearnedTraining -PtrainingArgs='--mode strengthen --rule-configuration-id sherwood-rules --candidate-artifact build/machine-learned-candidate/sherwood-rules.generated.json --incumbent-artifact src/main/resources/bots/machine-learned/sherwood-rules.json --games-per-matchup 2 --self-play-games 2 --baseline-bot-ids minimax,deep-minimax --max-plies-per-game 300 --opening-random-plies 2 --minimum-promotion-win-rate 0.55 --maximum-promotion-loss-rate 0.35 --output-dir build/machine-learned-candidate'
+./gradlew runMachineLearnedTraining -PtrainingArgs='--mode evolve --rule-configuration-id sherwood-rules --incumbent-artifact src/main/resources/bots/machine-learned/sherwood-rules.json --seed-artifact build/machine-learned-candidate/sherwood-rules.generated.json --population-size 24 --survivor-count 6 --generations 20 --games-per-matchup 1 --baseline-bot-ids minimax,deep-minimax --max-plies-per-game 300 --opening-random-plies 2 --mutation-rate 0.15 --mutation-scale 0.10 --crossover-rate 0.50 --elite-count 2 --final-gate-games-per-pairing 4 --minimum-promotion-win-rate 0.55 --maximum-promotion-loss-rate 0.35 --output-dir build/machine-learned-candidate'
 ```
 
-The strengthening command writes:
+The evolution command writes:
 
-- report: `<output-dir>/<ruleConfigurationId>.strengthening-report.json`
+- best evolved artifact: `<output-dir>/<ruleConfigurationId>.evolved.json`
+- report: `<output-dir>/<ruleConfigurationId>.evolution-report.json`
 
 The report includes:
 
-- ordered candidate-vs-incumbent games in both seats
+- per-generation candidate scores and survivor ids
+- candidate-vs-candidate games in both seats
 - candidate-vs-baseline games in both seats
-- candidate self-play games for fresh replay positions
-- hard-position replay candidates mined from candidate losses and long games
-- a promotion decision with candidate wins, losses, draws, win rate, loss rate, and reason
+- final best-candidate games against the incumbent and baselines
+- a final promotion decision with candidate wins, losses, draws, win rate, loss rate, and reason
 
-Treat a candidate as eligible for installation only when `promotionDecision.promote` is `true`. If the candidate fails the threshold, keep the bundled incumbent and use the hard-position replay candidates to guide later training runs.
+Treat the evolved artifact as eligible for installation only when `finalPromotionDecision.promote` is `true`. If the candidate fails the threshold, keep the bundled incumbent and adjust population size, generations, mutation settings, seed artifact quality, or final gate size before trying again.
 
 ## Install A New Artifact
 
@@ -354,7 +385,7 @@ cp build/machine-learned-candidate/sherwood-rules.previous.json src/main/resourc
 
 ## Suggested Manual Evaluation
 
-The strengthening report is the main local promotion gate. Manual harness runs are still useful as a broader smoke check before treating a new artifact as the default bundled model.
+The evolution report is the main local promotion gate. Manual harness runs are still useful as a broader smoke check before treating a new artifact as the default bundled model.
 
 At minimum, check:
 
@@ -365,7 +396,7 @@ At minimum, check:
 
 The harness command above covers those pairings as Sherwood smoke tests in both seat assignments for the currently installed artifact. It proves completion and basic outcomes, not statistical superiority.
 
-If the artifact fails the strengthening threshold or looks worse than the current bundled Sherwood artifact during manual checks, do not install it as the default.
+If the artifact fails the evolution threshold or looks worse than the current bundled Sherwood artifact during manual checks, do not install it as the default.
 
 ## Troubleshooting
 
@@ -391,6 +422,6 @@ The safe loop is:
 1. run `runMachineLearnedTraining`
 2. inspect the generated artifact
 3. validate it with tests
-4. run `runMachineLearnedTraining --mode strengthen`
+4. run `runMachineLearnedTraining --mode evolve`
 5. compare the installed artifact against baseline bots
-6. replace the bundled Sherwood artifact only if the strengthening report clears promotion
+6. replace the bundled Sherwood artifact only if the evolution report clears promotion

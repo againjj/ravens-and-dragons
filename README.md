@@ -11,8 +11,8 @@ Ravens and Dragons is a Spring Boot and Kotlin web app for playing a browser-bas
 - Claim the ravens or dragons side in a live game
 - In `Free Play`, setup clicks now cycle `raven -> dragon -> gold -> empty`, and the starting-side picker lists Ravens first and defaults to Ravens
 - In a fresh supported preset game, choose a server-driven bot from the live-game seat panel and assign it to the opposite open seat for `Original Game`, `Sherwood Rules`, `Square One`, `Sherwood x 9`, or `Square One x 9`
-- Phase 4 of the machine-learned bot rollout is now live: `Michelle` appears for `Sherwood Rules` from a generated ruleset-scoped artifact, and the offline tooling can run candidate-vs-incumbent strengthening leagues before replacing the bundled model
-- The offline Kotlin training pipeline can generate Sherwood-only Michelle datasets, train per-position move-ranking weights, deduplicate repeated move examples, write runtime-compatible artifacts, mine hard-position replay candidates, and smoke-evaluate Michelle against baseline bots through `botMatchHarnessTest`
+- Phase 4 of the machine-learned bot rollout is now live: `Michelle` appears for `Sherwood Rules` from a generated ruleset-scoped artifact, and the offline tooling can evolve candidate populations before replacing the bundled model
+- The offline Kotlin training pipeline can generate Sherwood-only Michelle datasets, train per-position move-ranking weights, deduplicate repeated move examples, write runtime-compatible artifacts, evolve populations with mutation/crossover, and smoke-evaluate Michelle against baseline bots through `botMatchHarnessTest`
 - `Maxine` stays on the existing minimax search, while `Alphie` uses a deeper optimized alpha-beta search with subtree caching and reused child snapshots
 - Undo against a bot reverses one full exchange, still works after a game-ending human move or bot reply when that last exchange is undoable, and can now be repeated across multiple consecutive undo steps
 - Streamed move updates now avoid an extra full game-view refresh unless seat, bot, or ruleset metadata changed
@@ -65,7 +65,7 @@ A repeatable local memory-profiling runbook lives at [docs/profiling-runbook.md]
 ## Design Docs
 
 - [docs/machine-learned-bot.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-learned-bot.md): architecture and phased implementation plan for the offline-trained, ruleset-scoped `machine-learned` bot `Michelle`, including completed phase 1, 2, 3, and 4 status plus the next operational-hardening plan
-- [docs/machine-learned-training-runbook.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-learned-training-runbook.md): step-by-step instructions for training, strengthening, validating, installing, and rolling back a Sherwood `Michelle` artifact
+- [docs/machine-learned-training-runbook.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-learned-training-runbook.md): step-by-step instructions for training, evolving, validating, installing, and rolling back a Sherwood `Michelle` artifact
 
 ## Offline Training
 
@@ -77,7 +77,7 @@ Run the current Sherwood-only offline training pipeline with:
 
 That command writes a dataset plus a generated Michelle artifact under `build/machine-learned-candidate` by default, uses all available CPUs unless you override `--worker-count`, reports coarse `0%..10%..100%` progress for dataset generation and model training, and emits artifacts for the current feature schema.
 
-Run the local strengthening gate with `--mode strengthen` and explicit candidate/incumbent artifact paths before installing a generated artifact as the bundled Sherwood model.
+Run the local evolution loop with `--mode evolve`, an explicit incumbent artifact path, and an optional supervised seed artifact before installing a generated artifact as the bundled Sherwood model.
 
 For installation and validation steps, use [docs/machine-learned-training-runbook.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-learned-training-runbook.md).
 

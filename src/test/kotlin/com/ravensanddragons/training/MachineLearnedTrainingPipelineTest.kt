@@ -419,43 +419,51 @@ class MachineLearnedTrainingPipelineTest {
     }
 
     @Test
-    fun `strengthening loop runs candidate league and mines replay positions`() {
-        val loop = MachineLearnedStrengtheningLoop()
+    fun `evolution loop runs population leagues and final gate`() {
+        val loop = MachineLearnedEvolutionLoop(clock = fixedClock())
 
-        val report = loop.run(
-            MachineLearnedStrengtheningRequest(
+        val result = loop.run(
+            MachineLearnedEvolutionRequest(
                 ruleConfigurationId = "sherwood-rules",
-                candidateModel = model(
-                    featureName = "after-evaluation-for-active-side",
-                    weight = 1f
-                ),
                 incumbentModel = model(
                     featureName = "after-evaluation-for-active-side",
                     weight = -1f
                 ),
+                seedModel = model(
+                    featureName = "after-evaluation-for-active-side",
+                    weight = 1f
+                ),
+                populationSize = 4,
+                survivorCount = 2,
+                generations = 2,
                 gamesPerPairing = 1,
-                selfPlayGames = 1,
                 baselineBotIds = emptyList(),
                 maxPliesPerGame = 24,
                 openingRandomPlies = 1,
                 initialSeed = 11,
-                longGamePlyThreshold = 1,
-                maxHardPositions = 8,
-                promotionThresholds = MachineLearnedPromotionThresholds(
+                mutationRate = 0.5,
+                mutationScale = 0.1f,
+                crossoverRate = 1.0,
+                eliteCount = 1,
+                finalGateGamesPerPairing = 1,
+                promotionThresholds = MachineLearnedEvolutionPromotionThresholds(
                     minimumWinRate = 0.0,
                     maximumLossRate = 1.0
                 )
             )
         )
+        val report = result.report
 
         assertEquals("sherwood-rules", report.ruleConfigurationId)
-        assertEquals(3, report.matches.size)
-        assertEquals(2, report.matches.count { it.candidateResult != CandidateMatchResult.notApplicable })
-        assertTrue(report.matches.all { it.openingRandomPlies == 1 })
-        assertTrue(report.matches.all { it.turnCount > 0 })
-        assertTrue(report.hardPositions.isNotEmpty())
-        assertTrue(report.hardPositions.all { it.legalMoveCount > 1 })
-        assertTrue(report.promotionDecision.promote)
+        assertEquals(2, report.generationSummaries.size)
+        assertTrue(report.generationSummaries.all { summary -> summary.candidates.size == 4 })
+        assertTrue(report.generationSummaries.all { summary -> summary.survivorIds.size == 2 })
+        assertTrue(report.generationSummaries.all { summary -> summary.matches.all { it.openingRandomPlies == 1 } })
+        assertTrue(report.generationSummaries.all { summary -> summary.matches.all { it.turnCount > 0 } })
+        assertEquals(2, report.finalGateMatches.size)
+        assertTrue(report.finalGateMatches.all { match -> match.candidateResults.containsKey(report.bestCandidateId) })
+        assertTrue(report.finalPromotionDecision.promote)
+        assertEquals(MachineLearnedFeatureEncoder.featureCount, result.bestModel.weights.size)
     }
 
     @Test

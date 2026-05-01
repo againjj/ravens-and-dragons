@@ -16,8 +16,8 @@ Current implementation status:
 - Phase 2 Kotlin-first offline training pipeline is implemented for local use.
 - The current trainer already uses per-position ranking updates over legal-move groups rather than a global positive-versus-negative average.
 - Phase 3 position-derived feature expansion is implemented with a generated Sherwood `Michelle` artifact.
-- Bot-vs-bot strengthening and candidate promotion tooling is implemented for local offline runs.
-- Operational hardening around artifact naming, reports, and release workflow is the next recommended step.
+- Evolutionary bot strengthening is implemented for local offline runs and replaces the old single-candidate strengthen gate.
+- Operational hardening around longer evolutionary runs, artifact naming, reports, and release workflow is the next recommended step.
 
 The design assumes that each trained artifact is scoped to exactly one `ruleConfigurationId`. A future `Michelle` artifact for another ruleset should be trained, stored, evaluated, and released separately rather than shared across rulesets.
 
@@ -399,44 +399,50 @@ Offline data generation flow:
 
 This is the fastest route to a cheap runtime bot that still inherits useful strength from the stronger search bots.
 
-### Phase 2: Bot-Vs-Bot Strengthening
+### Phase 2: Population-Based Evolution
 
-After the initial distilled `Michelle` exists, future cycles should strengthen it through offline bot-vs-bot play.
+After the initial distilled `Michelle` exists, future cycles should strengthen it through offline population search.
 
-Recommended league participants:
+Recommended generation loop:
 
-- `Michelle` vs `Michelle`
-- `Michelle` vs `Alphie`
-- `Michelle` vs `Maxine`
-- `Michelle` vs mixed baselines from diverse openings
+1. seed a population from the incumbent, an optional supervised artifact, and mutations around those models
+2. run candidate-vs-candidate games in both seat assignments
+3. run candidate-vs-baseline games against fixed bots such as `Maxine` and `Alphie`
+4. rank candidates by league score
+5. keep survivors and elites
+6. create children through random weight perturbation and crossover
+7. repeat for several generations
+8. run a final gate for the best evolved candidate against the incumbent and baselines
 
-Data to retain from league runs:
+Data to retain from evolution runs:
 
 - full game result
 - turn count
-- sampled positions
-- move chosen
-- legal alternatives
-- whether the game was later won, lost, or drawn
-- whether the position led to a tactical failure or missed win
+- candidate id and parent ids
+- candidate origin, such as incumbent, seed, mutation, or crossover
+- generation scores and survivor ids
+- final gate win/loss/draw rates
 
-This gives the training loop fresh examples from the bot's own mistakes rather than only from expert-labeled static positions.
+This makes game outcome the optimization signal rather than relying only on expert-labeled static positions.
 
 ## Future Strengthening Roadmap
 
 These steps extend the system beyond initial expert distillation.
 
-### A. Candidate Vs Incumbent Promotion
+### A. Evolutionary Population Search
 
-Treat the current best `Michelle` artifact as the incumbent champion.
+Treat the current best `Michelle` artifact as the incumbent anchor, not as the only opponent.
 
-For each new training run:
+For each evolution run:
 
-- train a candidate artifact for one ruleset
-- run candidate vs incumbent matches
-- promote only if the candidate clears a predefined evaluation threshold
+- create many candidates
+- run a population league
+- discard poor performers
+- mutate and combine survivors
+- repeat for configurable generations
+- promote only if the best survivor clears a final incumbent and baseline gate
 
-This reduces regression risk and creates a clear release gate.
+This reduces brittleness and avoids making promotion depend on a single candidate's lucky or unlucky run.
 
 ### B. Self-Play Refinement
 
@@ -467,17 +473,7 @@ To avoid overfitting a narrow line:
 - optionally seed games from curated midgame Sherwood positions
 - ensure both dragons and ravens perspectives are represented evenly
 
-### E. Population Training
-
-Later, if useful:
-
-- train multiple candidate `Michelle` variants with different seeds or hyperparameters
-- run cross-play among them
-- promote variants that are robust across the league rather than only against one incumbent
-
-This can reduce brittleness and style collapse.
-
-### F. Deeper Expert Refreshes
+### E. Deeper Expert Refreshes
 
 As training improves:
 
@@ -530,7 +526,7 @@ Mitigation:
 
 - begin with expert distillation from `Alphie`
 - retain immediate-win checks
-- iterate with bot-vs-bot strengthening
+- iterate with population-based bot evolution
 - consider a slightly richer model only if the lightweight ranker is insufficient
 
 ### Risk: Training Cost Grows Too Quickly
@@ -650,31 +646,47 @@ Completed phase 3 notes:
 - The installed artifact is `src/main/resources/bots/machine-learned/sherwood-rules.json`, has `featureSchemaVersion: 2`, and was trained from `deep-minimax` labels.
 - The bot harness now includes Sherwood-only Michelle baseline smoke coverage. A one-game-per-matchup run completed 8 Michelle evaluation games with outcomes `{Dragons win=2, Draw by repetition=1, Ravens win=5}` and average 35.25 plies.
 
-### Phase 4: Bot-Vs-Bot Strengthening Loop
+### Phase 4: Population-Based Evolution Loop
 
-Goal: improve `Michelle` through iterative offline play and candidate promotion.
+Goal: improve `Michelle` through iterative offline population search instead of a single-candidate promotion gate.
 
 Status: complete
 
 Tasks:
 
-1. [x] Add candidate-vs-incumbent league tooling
-2. [x] Add self-play batches for `Michelle`
-3. [x] Add hard-position replay mining from losses and long games
-4. [x] Add opening diversity controls
-5. [x] Define promotion thresholds for replacing the incumbent artifact
+1. [x] Remove the old `--mode strengthen` workflow so strengthening is no longer a one-candidate pass/fail check
+2. [x] Add a population of Michelle candidate artifacts seeded from the incumbent and an optional trained artifact
+3. [x] Run candidate-vs-candidate leagues with swapped seats and seeded opening diversity
+4. [x] Add candidate-vs-baseline games during each generation so the population does not overfit to itself
+5. [x] Rank candidates by league results and keep configurable survivors plus elites
+6. [x] Generate the next population with random weight perturbation and crossover between survivors
+7. [x] Repeat for configurable generations
+8. [x] Run a final best-candidate gate against the incumbent and baselines
+9. [x] Write a best evolved artifact and an evolution report
 
 Deliverable:
 
-- repeatable offline improvement cycle for Sherwood `Michelle`
+- repeatable offline evolutionary improvement cycle for Sherwood `Michelle`
 
 Completed phase 4 notes:
 
-- `MachineLearnedStrengtheningLoop` runs candidate-vs-incumbent games in both seats, optional candidate-vs-baseline comparisons, and candidate self-play batches.
-- The strengthening loop mines hard-position replay candidates from candidate losses and games that cross a configurable long-game ply threshold.
-- Training self-play and strengthening games can use configurable early opening randomization through `openingRandomPlies`.
-- The strengthening report includes match summaries, hard-position replay metadata, and a promotion decision based on configurable candidate win-rate and loss-rate thresholds.
-- The existing `runMachineLearnedTraining` CLI now supports `--mode strengthen` with explicit candidate and incumbent artifact paths, keeping the workflow local and ruleset-scoped.
+- `MachineLearnedEvolutionLoop` runs a configurable population of linear Michelle models through candidate round-robins, baseline games, survivor selection, mutation, crossover, and a final incumbent/baseline gate.
+- The loop treats supervised training as a seed generator rather than the whole strengthening mechanism; `--seed-artifact` can point at a freshly trained artifact, while `--incumbent-artifact` anchors the search.
+- Candidate models use the existing schema-2 feature vector and linear weight artifact format, so mutation and crossover can operate directly on model weights without changing runtime inference.
+- Evolution games use configurable early opening randomization through `openingRandomPlies`.
+- The evolution report includes per-generation candidate scores, survivor ids, match summaries, final gate results, and a final promotion decision.
+- The existing `runMachineLearnedTraining` CLI now supports `--mode evolve`; `--mode strengthen` has been removed.
+
+Implementation plan now embodied by phase 4:
+
+1. Use normal `train` mode to produce an optional supervised seed artifact.
+2. Start evolution from the incumbent, the optional seed, and mutations around those anchors.
+3. For each generation, play every candidate against the others in both seat assignments.
+4. Add baseline games against configured bots such as `minimax` and `deep-minimax`.
+5. Score candidates from wins, draws, and losses.
+6. Preserve elites, keep survivors, and fill the next generation with survivor mutations and crossover children.
+7. After the final generation, evaluate the best candidate against the incumbent and baselines with a larger final gate.
+8. Install the evolved artifact only if the final promotion decision passes the configured win-rate and loss-rate thresholds.
 
 ### Phase 5: Operational Hardening
 
@@ -719,7 +731,7 @@ Phase 1 should be considered complete when:
 
 - Whether the offline training code should live in a dedicated Gradle source set or a separate module
 - Whether a linear model is strong enough or if the first release should jump straight to a tiny MLP
-- How much of the bot-vs-bot strengthening loop should be promoted into first-class Gradle tasks versus manual local scripts
+- How much of the evolutionary loop should be promoted into first-class Gradle tasks versus manual local scripts
 - Whether future model artifacts should remain in Git or live outside the repo with a release import step
 
 ## Recommendation Summary
@@ -732,6 +744,6 @@ Build `Michelle` as a ruleset-scoped `machine-learned` bot with:
 - one artifact per ruleset
 - Sherwood-first rollout
 - expert distillation first
-- bot-vs-bot strengthening as the main future improvement path
+- population-based evolution as the main future improvement path
 
 This gives the project a pragmatic path to a stronger learned bot without fighting the current Kotlin-first architecture or blurring the boundaries between different Ravens and Dragons rule configurations.

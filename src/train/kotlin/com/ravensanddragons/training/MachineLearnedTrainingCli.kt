@@ -15,8 +15,8 @@ fun main(args: Array<String>) {
     val datasetProgress = DecileProgressLine(System.out, "Generating dataset")
     val trainingProgress = DecileProgressLine(System.out, "Training model")
 
-    if (options.mode == TrainingCliMode.strengthen) {
-        runStrengthening(options, objectMapper)
+    if (options.mode == TrainingCliMode.evolve) {
+        runEvolution(options, objectMapper, clock)
         return
     }
 
@@ -73,55 +73,65 @@ fun main(args: Array<String>) {
     println("Workers: ${options.workerCount}")
 }
 
-private fun runStrengthening(
+private fun runEvolution(
     options: TrainingCliOptions,
-    objectMapper: ObjectMapper
+    objectMapper: ObjectMapper,
+    clock: Clock
 ) {
-    val candidatePath = requireNotNull(options.candidateArtifactPath) {
-        "--candidate-artifact is required when --mode strengthen."
-    }
     val incumbentPath = requireNotNull(options.incumbentArtifactPath) {
-        "--incumbent-artifact is required when --mode strengthen."
+        "--incumbent-artifact is required when --mode evolve."
     }
     val artifactReader = MachineLearnedArtifactReader(objectMapper)
-    val reportPath = options.outputDir.resolve(options.reportFilename)
-    val report = MachineLearnedStrengtheningLoop().run(
-        MachineLearnedStrengtheningRequest(
+    val artifactWriter = MachineLearnedArtifactWriter(objectMapper)
+    val reportPath = options.outputDir.resolve(options.evolutionReportFilename)
+    val bestArtifactPath = options.outputDir.resolve(options.evolvedArtifactFilename)
+    val result = MachineLearnedEvolutionLoop(clock = clock).run(
+        MachineLearnedEvolutionRequest(
             ruleConfigurationId = options.ruleConfigurationId,
-            candidateModel = artifactReader.read(candidatePath),
             incumbentModel = artifactReader.read(incumbentPath),
+            seedModel = options.seedArtifactPath?.let(artifactReader::read),
+            populationSize = options.populationSize,
+            survivorCount = options.survivorCount,
+            generations = options.generations,
             gamesPerPairing = options.gamesPerMatchup,
-            selfPlayGames = options.selfPlayGames,
             baselineBotIds = options.baselineBotIds,
             maxPliesPerGame = options.maxPliesPerGame,
             openingRandomPlies = options.openingRandomPlies,
             initialSeed = options.initialSeed,
-            longGamePlyThreshold = options.longGamePlyThreshold,
-            maxHardPositions = options.maxHardPositions,
-            promotionThresholds = MachineLearnedPromotionThresholds(
+            mutationRate = options.mutationRate,
+            mutationScale = options.mutationScale,
+            crossoverRate = options.crossoverRate,
+            eliteCount = options.eliteCount,
+            finalGateGamesPerPairing = options.finalGateGamesPerPairing,
+            promotionThresholds = MachineLearnedEvolutionPromotionThresholds(
                 minimumWinRate = options.minimumPromotionWinRate,
                 maximumLossRate = options.maximumPromotionLossRate
             )
         )
     )
 
+    artifactWriter.write(bestArtifactPath, result.bestModel)
     reportPath.parent?.let(Files::createDirectories)
     Files.newBufferedWriter(reportPath).use { writer ->
-        objectMapper.writerWithDefaultPrettyPrinter().writeValue(writer, report)
+        objectMapper.writerWithDefaultPrettyPrinter().writeValue(writer, result.report)
     }
 
-    println("Ran ${report.matches.size} strengthening games for ${report.ruleConfigurationId}.")
-    println("Candidate wins: ${report.promotionDecision.candidateWins}")
-    println("Candidate losses: ${report.promotionDecision.candidateLosses}")
-    println("Candidate draws: ${report.promotionDecision.candidateDraws}")
-    println("Promotion: ${report.promotionDecision.promote} (${report.promotionDecision.reason})")
-    println("Hard positions: ${report.hardPositions.size}")
+    val matchCount = result.report.generationSummaries.sumOf { summary -> summary.matches.size } +
+        result.report.finalGateMatches.size
+    println("Ran ${result.report.generationSummaries.size} evolution generations for ${result.report.ruleConfigurationId}.")
+    println("Evolution matches: $matchCount")
+    println("Best candidate: ${result.report.bestCandidateId}")
+    println("Candidate wins: ${result.report.finalPromotionDecision.candidateWins}")
+    println("Candidate losses: ${result.report.finalPromotionDecision.candidateLosses}")
+    println("Candidate draws: ${result.report.finalPromotionDecision.candidateDraws}")
+    println("Promotion: ${result.report.finalPromotionDecision.promote} (${result.report.finalPromotionDecision.reason})")
+    println("Best artifact: ${bestArtifactPath.absolutePathString()}")
     println("Report: ${reportPath.absolutePathString()}")
 }
 
 private enum class TrainingCliMode {
     train,
-    strengthen
+    evolve
 }
 
 private val defaultSelfPlayBotIds = listOf(
@@ -131,7 +141,7 @@ private val defaultSelfPlayBotIds = listOf(
     BotRegistry.deepMinimaxBotId
 )
 
-private val defaultStrengtheningBaselineBotIds = listOf(
+private val defaultEvolutionBaselineBotIds = listOf(
     BotRegistry.minimaxBotId,
     BotRegistry.deepMinimaxBotId
 )
@@ -151,15 +161,21 @@ private data class TrainingCliOptions(
     val outputDir: Path = Path.of("build", "machine-learned-candidate"),
     val datasetFilename: String = "sherwood-rules.dataset.json",
     val artifactFilename: String = "sherwood-rules.generated.json",
-    val candidateArtifactPath: Path? = null,
+    val seedArtifactPath: Path? = null,
     val incumbentArtifactPath: Path? = null,
-    val baselineBotIds: List<String> = defaultStrengtheningBaselineBotIds,
-    val selfPlayGames: Int = 1,
-    val longGamePlyThreshold: Int = 120,
-    val maxHardPositions: Int = 64,
+    val baselineBotIds: List<String> = defaultEvolutionBaselineBotIds,
+    val populationSize: Int = 24,
+    val survivorCount: Int = 6,
+    val generations: Int = 20,
+    val mutationRate: Double = 0.15,
+    val mutationScale: Float = 0.1f,
+    val crossoverRate: Double = 0.5,
+    val eliteCount: Int = 2,
+    val finalGateGamesPerPairing: Int = 4,
     val minimumPromotionWinRate: Double = 0.55,
     val maximumPromotionLossRate: Double = 0.35,
-    val reportFilename: String = "sherwood-rules.strengthening-report.json"
+    val evolutionReportFilename: String = "sherwood-rules.evolution-report.json",
+    val evolvedArtifactFilename: String = "sherwood-rules.evolved.json"
 ) {
     companion object {
         fun parse(args: List<String>): TrainingCliOptions {
@@ -197,19 +213,25 @@ private data class TrainingCliOptions(
                 outputDir = values["output-dir"]?.let(Path::of) ?: Path.of("build", "machine-learned-candidate"),
                 datasetFilename = values["dataset-filename"] ?: "$ruleConfigurationId.dataset.json",
                 artifactFilename = values["artifact-filename"] ?: "$ruleConfigurationId.generated.json",
-                candidateArtifactPath = values["candidate-artifact"]?.let(Path::of),
+                seedArtifactPath = values["seed-artifact"]?.let(Path::of),
                 incumbentArtifactPath = values["incumbent-artifact"]?.let(Path::of),
                 baselineBotIds = values["baseline-bot-ids"]
                     ?.split(",")
                     ?.map(String::trim)
                     ?.filter(String::isNotBlank)
-                    ?: defaultStrengtheningBaselineBotIds,
-                selfPlayGames = values["self-play-games"]?.toInt() ?: 1,
-                longGamePlyThreshold = values["long-game-ply-threshold"]?.toInt() ?: 120,
-                maxHardPositions = values["max-hard-positions"]?.toInt() ?: 64,
+                    ?: defaultEvolutionBaselineBotIds,
+                populationSize = values["population-size"]?.toInt() ?: 24,
+                survivorCount = values["survivor-count"]?.toInt() ?: 6,
+                generations = values["generations"]?.toInt() ?: 20,
+                mutationRate = values["mutation-rate"]?.toDouble() ?: 0.15,
+                mutationScale = values["mutation-scale"]?.toFloat() ?: 0.1f,
+                crossoverRate = values["crossover-rate"]?.toDouble() ?: 0.5,
+                eliteCount = values["elite-count"]?.toInt() ?: 2,
+                finalGateGamesPerPairing = values["final-gate-games-per-pairing"]?.toInt() ?: 4,
                 minimumPromotionWinRate = values["minimum-promotion-win-rate"]?.toDouble() ?: 0.55,
                 maximumPromotionLossRate = values["maximum-promotion-loss-rate"]?.toDouble() ?: 0.35,
-                reportFilename = values["report-filename"] ?: "$ruleConfigurationId.strengthening-report.json"
+                evolutionReportFilename = values["report-filename"] ?: "$ruleConfigurationId.evolution-report.json",
+                evolvedArtifactFilename = values["evolved-artifact-filename"] ?: "$ruleConfigurationId.evolved.json"
             )
         }
     }
