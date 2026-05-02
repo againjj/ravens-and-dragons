@@ -24,6 +24,8 @@ Ravens and Dragons is a Spring Boot and Kotlin web app for playing a browser-bas
 
 You do not need a separate Gradle or Node installation. The Gradle wrapper is included, and the frontend toolchain is managed through Gradle.
 
+The Gradle wrapper is pinned to Gradle 9.4.1 so local runs on newer JDKs avoid Gradle's Java 25 native-access warning, and the Spring dependency-management Gradle plugin is kept on 1.1.7 to avoid Gradle 10 deprecation warnings.
+
 ## Run Locally
 
 Start the app:

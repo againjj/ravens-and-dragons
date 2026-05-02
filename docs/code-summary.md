@@ -114,10 +114,12 @@ The follow-up bot refactor has now split the old single `GameBots.kt` file into 
 ## Build And Runtime Flow
 
 - Gradle is the primary build entrypoint.
+- The Gradle wrapper is pinned to Gradle 9.4.1, the first tested 9.x latest-patch release that removes the Java 25 restricted native-access warning during wrapper runs.
 - `build.gradle.kts` uses:
   - Spring Boot for serving the app.
   - Kotlin/JVM with Java 21.
   - Spring JDBC plus Flyway for persistence.
+  - The Spring dependency-management Gradle plugin at 1.1.7 to avoid the Gradle 10 module-coordinate deprecation warning seen with 1.1.6.
   - `com.github.node-gradle.node` to download Node and npm automatically.
 - Frontend build flow:
   - `npm run build` runs `tsc && vite build`.
