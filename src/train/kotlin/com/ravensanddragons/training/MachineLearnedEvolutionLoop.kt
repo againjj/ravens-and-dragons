@@ -13,6 +13,9 @@ import com.ravensanddragons.game.Phase
 import com.ravensanddragons.game.Side
 import com.ravensanddragons.game.TurnType
 import java.time.Clock
+import java.util.concurrent.Callable
+import java.util.concurrent.ExecutorCompletionService
+import java.util.concurrent.Executors
 import kotlin.math.abs
 import kotlin.math.max
 
@@ -25,8 +28,7 @@ enum class MachineLearnedEvolutionParticipantType {
 enum class MachineLearnedEvolutionResult {
     win,
     loss,
-    draw,
-    notApplicable
+    draw
 }
 
 enum class MachineLearnedCandidateOrigin {
@@ -44,7 +46,7 @@ data class MachineLearnedEvolutionPromotionThresholds(
 data class MachineLearnedEvolutionRequest(
     val ruleConfigurationId: String,
     val incumbentModel: MachineLearnedModel,
-    val seedModel: MachineLearnedModel? = null,
+    val seedModels: List<MachineLearnedModel> = emptyList(),
     val populationSize: Int = 24,
     val survivorCount: Int = 6,
     val generations: Int = 20,
@@ -57,21 +59,29 @@ data class MachineLearnedEvolutionRequest(
     val mutationScale: Float = 0.1f,
     val crossoverRate: Double = 0.5,
     val eliteCount: Int = 2,
-    val finalGateGamesPerPairing: Int = 4,
+    val survivorComparisonGamesPerPairing: Int = 4,
+    val workerCount: Int = defaultTrainingWorkerCount(),
     val promotionThresholds: MachineLearnedEvolutionPromotionThresholds = MachineLearnedEvolutionPromotionThresholds()
 )
 
 data class MachineLearnedEvolutionReport(
     val ruleConfigurationId: String,
     val generationSummaries: List<MachineLearnedGenerationSummary>,
-    val finalGateMatches: List<MachineLearnedEvolutionMatch>,
+    val survivorComparisonMatches: List<MachineLearnedEvolutionMatch>,
+    val survivorComparisonRankings: List<MachineLearnedEvolutionRanking>,
     val finalPromotionDecision: MachineLearnedEvolutionPromotionDecision,
     val bestCandidateId: String
 )
 
 data class MachineLearnedEvolutionResultBundle(
     val bestModel: MachineLearnedModel,
+    val survivorModels: List<MachineLearnedEvolutionSurvivorModel>,
     val report: MachineLearnedEvolutionReport
+)
+
+data class MachineLearnedEvolutionSurvivorModel(
+    val candidateId: String,
+    val model: MachineLearnedModel
 )
 
 data class MachineLearnedGenerationSummary(
@@ -116,8 +126,19 @@ data class MachineLearnedEvolutionPromotionDecision(
     val reason: String
 )
 
+data class MachineLearnedEvolutionRanking(
+    val rank: Int,
+    val participantType: MachineLearnedEvolutionParticipantType,
+    val participantId: String,
+    val score: Double,
+    val wins: Int,
+    val losses: Int,
+    val draws: Int
+)
+
 class MachineLearnedEvolutionLoop(
     private val clock: Clock = Clock.systemUTC(),
+    private val progressListener: TrainingProgressListener = TrainingProgressListener { _, _ -> },
     private val baselineRegistryFactory: (Int) -> BotRegistry = { seed -> BotRegistry(SeededRandomIndexSource(seed)) }
 ) {
     fun run(request: MachineLearnedEvolutionRequest): MachineLearnedEvolutionResultBundle {
@@ -128,14 +149,20 @@ class MachineLearnedEvolutionLoop(
         var nextCandidateIndex = 1
         var population = initialPopulation(request, random) { "g0-c${nextCandidateIndex++}" }
         val generationSummaries = mutableListOf<MachineLearnedGenerationSummary>()
+        val progressTotal = totalMatchCount(request)
+        var progressCompleted = 0
+        var finalSurvivors = emptyList<EvolutionCandidate>()
 
         repeat(request.generations) { generation ->
-            val matches = playGeneration(request, population, nextSeed)
+            val generationTasks = buildGenerationTasks(request, population, nextSeed)
+            val matches = playTasks(request, generationTasks, progressCompleted, progressTotal)
+            progressCompleted += generationTasks.size
             nextSeed += matches.size
             val scored = scorePopulation(population, matches)
             val ranked = scored.sortedByRank()
             val survivors = ranked.take(request.survivorCount)
             val best = survivors.first().candidate
+            finalSurvivors = survivors.map(ScoredCandidate::candidate)
 
             generationSummaries += MachineLearnedGenerationSummary(
                 generation = generation,
@@ -156,21 +183,48 @@ class MachineLearnedEvolutionLoop(
             }
         }
 
-        val finalBestId = generationSummaries.last().bestCandidateId
-        val finalBest = population.first { candidate -> candidate.id == finalBestId }
-        val finalGateMatches = playFinalGate(request, finalBest, nextSeed)
-        val finalPromotionDecision = decideFinalPromotion(finalBest.id, finalGateMatches, request.promotionThresholds)
+        val comparisonTasks = buildSurvivorComparisonTasks(request, finalSurvivors, nextSeed)
+        val comparisonMatches = playTasks(request, comparisonTasks, progressCompleted, progressTotal)
+        val comparisonRankings = rankComparisonParticipants(comparisonTasks, comparisonMatches)
+        val finalBest = bestSurvivorComparisonCandidate(finalSurvivors, comparisonRankings)
+        val finalPromotionDecision = decideFinalPromotion(
+            candidateId = finalBest.id,
+            rankings = comparisonRankings,
+            matches = comparisonMatches,
+            thresholds = request.promotionThresholds
+        )
 
         return MachineLearnedEvolutionResultBundle(
             bestModel = finalBest.model,
+            survivorModels = finalSurvivors.map { survivor ->
+                MachineLearnedEvolutionSurvivorModel(
+                    candidateId = survivor.id,
+                    model = survivor.model
+                )
+            },
             report = MachineLearnedEvolutionReport(
                 ruleConfigurationId = request.ruleConfigurationId,
                 generationSummaries = generationSummaries,
-                finalGateMatches = finalGateMatches,
+                survivorComparisonMatches = comparisonMatches,
+                survivorComparisonRankings = comparisonRankings,
                 finalPromotionDecision = finalPromotionDecision,
                 bestCandidateId = finalBest.id
             )
         )
+    }
+
+    private fun bestSurvivorComparisonCandidate(
+        survivors: List<EvolutionCandidate>,
+        rankings: List<MachineLearnedEvolutionRanking>
+    ): EvolutionCandidate {
+        val bestCandidateRanking = requireNotNull(
+            rankings.firstOrNull { ranking ->
+                ranking.participantType == MachineLearnedEvolutionParticipantType.candidate
+            }
+        ) {
+            "Machine-learned evolution survivor comparison produced no candidate ranking."
+        }
+        return survivors.first { survivor -> survivor.id == bestCandidateRanking.participantId }
     }
 
     private fun initialPopulation(
@@ -186,7 +240,7 @@ class MachineLearnedEvolutionLoop(
             parentIds = emptyList(),
             model = refreshedModel(request.incumbentModel)
         )
-        request.seedModel?.let { seedModel ->
+        request.seedModels.forEach { seedModel ->
             candidates += EvolutionCandidate(
                 id = idFactory(),
                 generation = 0,
@@ -299,66 +353,147 @@ class MachineLearnedEvolutionLoop(
         return weight + random.nextSignedFloat() * mutationMagnitude
     }
 
-    private fun playGeneration(
+    private fun buildGenerationTasks(
         request: MachineLearnedEvolutionRequest,
         population: List<EvolutionCandidate>,
         initialSeed: Int
-    ): List<MachineLearnedEvolutionMatch> {
-        val matches = mutableListOf<MachineLearnedEvolutionMatch>()
+    ): List<MatchTask> {
+        val tasks = mutableListOf<MatchTask>()
         var nextSeed = initialSeed
+        var nextIndex = 0
 
         for (firstIndex in population.indices) {
             for (secondIndex in firstIndex + 1 until population.size) {
-                val first = population[firstIndex].participant(request.ruleConfigurationId)
-                val second = population[secondIndex].participant(request.ruleConfigurationId)
+                val first = population[firstIndex].participantDefinition()
+                val second = population[secondIndex].participantDefinition()
                 repeat(request.gamesPerPairing) {
-                    matches += play(request, first, second, nextSeed++)
-                    matches += play(request, second, first, nextSeed++)
+                    tasks += MatchTask(nextIndex++, nextSeed, first, second)
+                    nextSeed++
+                    tasks += MatchTask(nextIndex++, nextSeed, second, first)
+                    nextSeed++
                 }
             }
         }
 
-        request.baselineBotIds.forEach { baselineBotId ->
-            population.forEach { candidate ->
-                repeat(request.gamesPerPairing) {
-                    val baseline = baselineParticipant(request, baselineBotId, nextSeed + 10_000)
-                    val candidateParticipant = candidate.participant(request.ruleConfigurationId)
-                    matches += play(request, candidateParticipant, baseline, nextSeed++)
-                    matches += play(request, baseline, candidateParticipant, nextSeed++)
-                }
-            }
-        }
-
-        return matches
+        return tasks
     }
 
-    private fun playFinalGate(
+    private fun buildSurvivorComparisonTasks(
         request: MachineLearnedEvolutionRequest,
-        candidate: EvolutionCandidate,
+        survivors: List<EvolutionCandidate>,
         initialSeed: Int
-    ): List<MachineLearnedEvolutionMatch> {
-        val matches = mutableListOf<MachineLearnedEvolutionMatch>()
+    ): List<MatchTask> {
+        val tasks = mutableListOf<MatchTask>()
         var nextSeed = initialSeed
-        val candidateParticipant = candidate.participant(request.ruleConfigurationId)
-        val incumbent = LeagueParticipant(
-            type = MachineLearnedEvolutionParticipantType.incumbent,
-            id = "incumbent",
-            strategy = MachineLearnedBotStrategy(mapOf(request.ruleConfigurationId to request.incumbentModel))
-        )
-
-        repeat(request.finalGateGamesPerPairing) {
-            matches += play(request, candidateParticipant, incumbent, nextSeed++)
-            matches += play(request, incumbent, candidateParticipant, nextSeed++)
+        var nextIndex = 0
+        val participants = buildList {
+            addAll(survivors.map { survivor -> survivor.participantDefinition() })
+            add(
+                LeagueParticipantDefinition(
+                    type = MachineLearnedEvolutionParticipantType.incumbent,
+                    id = "incumbent",
+                    model = request.incumbentModel
+                )
+            )
+            addAll(request.baselineBotIds.mapIndexed { index, baselineBotId ->
+                baselineDefinition(baselineBotId, index)
+            })
         }
-        request.baselineBotIds.forEach { baselineBotId ->
-            repeat(request.finalGateGamesPerPairing) {
-                val baseline = baselineParticipant(request, baselineBotId, nextSeed + 10_000)
-                matches += play(request, candidateParticipant, baseline, nextSeed++)
-                matches += play(request, baseline, candidateParticipant, nextSeed++)
+
+        for (firstIndex in participants.indices) {
+            for (secondIndex in firstIndex + 1 until participants.size) {
+                val first = participants[firstIndex]
+                val second = participants[secondIndex]
+                repeat(request.survivorComparisonGamesPerPairing) {
+                    tasks += MatchTask(nextIndex++, nextSeed, first, second)
+                    nextSeed++
+                    tasks += MatchTask(nextIndex++, nextSeed, second, first)
+                    nextSeed++
+                }
             }
         }
 
-        return matches
+        return tasks
+    }
+
+    private fun playTasks(
+        request: MachineLearnedEvolutionRequest,
+        tasks: List<MatchTask>,
+        alreadyCompleted: Int,
+        totalMatches: Int
+    ): List<MachineLearnedEvolutionMatch> {
+        if (tasks.isEmpty()) {
+            return emptyList()
+        }
+        val workerCount = minOf(request.workerCount, tasks.size)
+        val results = if (workerCount <= 1) {
+            tasks.mapIndexed { index, task ->
+                playTask(request, task).also {
+                    progressListener.report(alreadyCompleted + index + 1, totalMatches)
+                }
+            }
+        } else {
+            val executor = Executors.newFixedThreadPool(workerCount)
+            try {
+                val completionService = ExecutorCompletionService<MatchResult>(executor)
+                tasks.forEach { task ->
+                    completionService.submit(Callable { playTask(request, task) })
+                }
+                (1..tasks.size).map { completed ->
+                    completionService.take().get().also {
+                        progressListener.report(alreadyCompleted + completed, totalMatches)
+                    }
+                }
+            } finally {
+                executor.shutdown()
+            }
+        }
+
+        return results
+            .sortedBy(MatchResult::index)
+            .map(MatchResult::match)
+    }
+
+    private fun playTask(
+        request: MachineLearnedEvolutionRequest,
+        task: MatchTask
+    ): MatchResult =
+        MatchResult(
+            index = task.index,
+            match = play(
+                request = request,
+                dragons = participant(task.dragons, request, task.seed),
+                ravens = participant(task.ravens, request, task.seed),
+                seed = task.seed
+            )
+        )
+
+    private fun totalMatchCount(request: MachineLearnedEvolutionRequest): Int {
+        val candidatePairings = request.populationSize * (request.populationSize - 1) / 2
+        val generationMatches = candidatePairings * request.gamesPerPairing * 2 * request.generations
+        val comparisonParticipantCount = request.survivorCount + 1 + request.baselineBotIds.size
+        val comparisonPairings = comparisonParticipantCount * (comparisonParticipantCount - 1) / 2
+        val comparisonMatches = comparisonPairings * request.survivorComparisonGamesPerPairing * 2
+        return generationMatches + comparisonMatches
+    }
+
+    private fun participant(
+        definition: LeagueParticipantDefinition,
+        request: MachineLearnedEvolutionRequest,
+        matchSeed: Int
+    ): LeagueParticipant {
+        val strategy = when (definition.type) {
+            MachineLearnedEvolutionParticipantType.candidate,
+            MachineLearnedEvolutionParticipantType.incumbent -> MachineLearnedBotStrategy(
+                mapOf(request.ruleConfigurationId to requireNotNull(definition.model))
+            )
+            MachineLearnedEvolutionParticipantType.baseline -> baselineRegistryFactory(
+                matchSeed + 10_000 + requireNotNull(definition.baselineSeedOffset)
+            )
+                .requireSupportedDefinition(definition.id, request.ruleConfigurationId)
+                .strategy
+        }
+        return LeagueParticipant(definition.type, definition.id, strategy)
     }
 
     private fun play(
@@ -441,21 +576,6 @@ class MachineLearnedEvolutionLoop(
         return results
     }
 
-    private fun resultFor(candidateSide: Side, outcome: String): MachineLearnedEvolutionResult =
-        when (outcome) {
-            "Dragons win" -> if (candidateSide == Side.dragons) {
-                MachineLearnedEvolutionResult.win
-            } else {
-                MachineLearnedEvolutionResult.loss
-            }
-            "Ravens win" -> if (candidateSide == Side.ravens) {
-                MachineLearnedEvolutionResult.win
-            } else {
-                MachineLearnedEvolutionResult.loss
-            }
-            else -> MachineLearnedEvolutionResult.draw
-        }
-
     private fun scorePopulation(
         population: List<EvolutionCandidate>,
         matches: List<MachineLearnedEvolutionMatch>
@@ -469,25 +589,71 @@ class MachineLearnedEvolutionLoop(
             ScoredCandidate(candidate, score, wins, losses, draws)
         }
 
+    private fun rankComparisonParticipants(
+        tasks: List<MatchTask>,
+        matches: List<MachineLearnedEvolutionMatch>
+    ): List<MachineLearnedEvolutionRanking> {
+        val participants = tasks
+            .flatMap { task -> listOf(task.dragons, task.ravens) }
+            .distinctBy { participant -> participant.key }
+        val scored = participants.map { participant ->
+            val results = matches.mapNotNull { match -> participant.resultFrom(match) }
+            ScoredParticipant(
+                participant = participant,
+                wins = results.count { result -> result == MachineLearnedEvolutionResult.win },
+                losses = results.count { result -> result == MachineLearnedEvolutionResult.loss },
+                draws = results.count { result -> result == MachineLearnedEvolutionResult.draw }
+            )
+        }.sortedWith(
+            compareByDescending<ScoredParticipant> { it.score }
+                .thenBy { it.participant.type.name }
+                .thenBy { it.participant.id }
+        )
+
+        return scored.mapIndexed { index, participant ->
+            MachineLearnedEvolutionRanking(
+                rank = index + 1,
+                participantType = participant.participant.type,
+                participantId = participant.participant.id,
+                score = participant.score,
+                wins = participant.wins,
+                losses = participant.losses,
+                draws = participant.draws
+            )
+        }
+    }
+
     private fun decideFinalPromotion(
         candidateId: String,
+        rankings: List<MachineLearnedEvolutionRanking>,
         matches: List<MachineLearnedEvolutionMatch>,
         thresholds: MachineLearnedEvolutionPromotionThresholds
     ): MachineLearnedEvolutionPromotionDecision {
-        val results = matches.mapNotNull { match -> match.candidateResults[candidateId] }
+        val candidate = LeagueParticipantDefinition(MachineLearnedEvolutionParticipantType.candidate, candidateId)
+        val results = matches
+            .filter { match -> match.hasParticipant(candidate) }
+            .filterNot { match -> match.isCandidateOnly() }
+            .map { match -> requireNotNull(candidate.resultFrom(match)) }
         val wins = results.count { result -> result == MachineLearnedEvolutionResult.win }
         val losses = results.count { result -> result == MachineLearnedEvolutionResult.loss }
         val draws = results.count { result -> result == MachineLearnedEvolutionResult.draw }
         val total = results.size
         val winRate = if (total == 0) 0.0 else wins.toDouble() / total
         val lossRate = if (total == 0) 1.0 else losses.toDouble() / total
+        val candidateRank = rankings.firstOrNull {
+            it.participantType == MachineLearnedEvolutionParticipantType.candidate && it.participantId == candidateId
+        }?.rank ?: Int.MAX_VALUE
+        val bestNonCandidateRank = rankings
+            .filterNot { it.participantType == MachineLearnedEvolutionParticipantType.candidate }
+            .minOfOrNull(MachineLearnedEvolutionRanking::rank) ?: Int.MAX_VALUE
         val promote = total > 0 &&
+            candidateRank < bestNonCandidateRank &&
             winRate >= thresholds.minimumWinRate &&
             lossRate <= thresholds.maximumLossRate
         val reason = if (promote) {
-            "Best evolved candidate cleared the final incumbent and baseline gate."
+            "Best evolved candidate ranked above the incumbent and baselines in the survivor comparison league."
         } else {
-            "Best evolved candidate did not clear the final incumbent and baseline gate."
+            "Best evolved candidate did not rank above the incumbent and baselines in the survivor comparison league."
         }
 
         return MachineLearnedEvolutionPromotionDecision(
@@ -501,24 +667,21 @@ class MachineLearnedEvolutionLoop(
         )
     }
 
-    private fun baselineParticipant(
-        request: MachineLearnedEvolutionRequest,
+    private fun baselineDefinition(
         baselineBotId: String,
-        seed: Int
-    ): LeagueParticipant =
-        LeagueParticipant(
+        seedOffset: Int
+    ): LeagueParticipantDefinition =
+        LeagueParticipantDefinition(
             type = MachineLearnedEvolutionParticipantType.baseline,
             id = baselineBotId,
-            strategy = baselineRegistryFactory(seed)
-                .requireSupportedDefinition(baselineBotId, request.ruleConfigurationId)
-                .strategy
+            baselineSeedOffset = seedOffset
         )
 
-    private fun EvolutionCandidate.participant(ruleConfigurationId: String): LeagueParticipant =
-        LeagueParticipant(
+    private fun EvolutionCandidate.participantDefinition(): LeagueParticipantDefinition =
+        LeagueParticipantDefinition(
             type = MachineLearnedEvolutionParticipantType.candidate,
             id = id,
-            strategy = MachineLearnedBotStrategy(mapOf(ruleConfigurationId to model))
+            model = model
         )
 
     private fun refreshedModel(model: MachineLearnedModel): MachineLearnedModel =
@@ -539,11 +702,14 @@ class MachineLearnedEvolutionLoop(
             "Machine-learned evolution does not support manual end-game rulesets."
         }
         validateModel("Incumbent", request.incumbentModel, request.ruleConfigurationId)
-        request.seedModel?.let { seedModel ->
+        request.seedModels.forEach { seedModel ->
             validateModel("Seed", seedModel, request.ruleConfigurationId)
         }
         require(request.populationSize >= 2) {
             "Machine-learned evolution populationSize must be at least 2."
+        }
+        require(request.seedModels.size + 1 <= request.populationSize) {
+            "Machine-learned evolution seed artifact count plus incumbent must not exceed populationSize."
         }
         require(request.survivorCount in 1..request.populationSize) {
             "Machine-learned evolution survivorCount must be between 1 and populationSize."
@@ -572,8 +738,11 @@ class MachineLearnedEvolutionLoop(
         require(request.eliteCount in 0..request.survivorCount) {
             "Machine-learned evolution eliteCount must be between 0 and survivorCount."
         }
-        require(request.finalGateGamesPerPairing > 0) {
-            "Machine-learned evolution finalGateGamesPerPairing must be positive."
+        require(request.survivorComparisonGamesPerPairing > 0) {
+            "Machine-learned evolution survivorComparisonGamesPerPairing must be positive."
+        }
+        require(request.workerCount > 0) {
+            "Machine-learned evolution workerCount must be positive."
         }
         require(request.promotionThresholds.minimumWinRate in 0.0..1.0) {
             "Machine-learned evolution minimumWinRate must be between 0 and 1."
@@ -636,9 +805,69 @@ class MachineLearnedEvolutionLoop(
         val strategy: GameBotStrategy
     )
 
+    private data class LeagueParticipantDefinition(
+        val type: MachineLearnedEvolutionParticipantType,
+        val id: String,
+        val model: MachineLearnedModel? = null,
+        val baselineSeedOffset: Int? = null
+    ) {
+        val key: String = "${type.name}:$id"
+
+        fun resultFrom(match: MachineLearnedEvolutionMatch): MachineLearnedEvolutionResult? =
+            when {
+                match.dragonsType == type && match.dragonsId == id -> resultFor(Side.dragons, match.outcome)
+                match.ravensType == type && match.ravensId == id -> resultFor(Side.ravens, match.outcome)
+                else -> null
+            }
+    }
+
+    private data class MatchTask(
+        val index: Int,
+        val seed: Int,
+        val dragons: LeagueParticipantDefinition,
+        val ravens: LeagueParticipantDefinition
+    )
+
+    private data class MatchResult(
+        val index: Int,
+        val match: MachineLearnedEvolutionMatch
+    )
+
+    private data class ScoredParticipant(
+        val participant: LeagueParticipantDefinition,
+        val wins: Int,
+        val losses: Int,
+        val draws: Int
+    ) {
+        val score: Double = wins.toDouble() + draws.toDouble() * 0.5 - losses.toDouble() * 0.15
+    }
+
     private companion object {
         fun List<ScoredCandidate>.sortedByRank(): List<ScoredCandidate> =
             sortedWith(compareByDescending<ScoredCandidate> { it.score }.thenBy { it.candidate.id })
+
+        fun MachineLearnedEvolutionMatch.hasParticipant(participant: LeagueParticipantDefinition): Boolean =
+            (dragonsType == participant.type && dragonsId == participant.id) ||
+                (ravensType == participant.type && ravensId == participant.id)
+
+        fun MachineLearnedEvolutionMatch.isCandidateOnly(): Boolean =
+            dragonsType == MachineLearnedEvolutionParticipantType.candidate &&
+                ravensType == MachineLearnedEvolutionParticipantType.candidate
+
+        fun resultFor(candidateSide: Side, outcome: String): MachineLearnedEvolutionResult =
+            when (outcome) {
+                "Dragons win" -> if (candidateSide == Side.dragons) {
+                    MachineLearnedEvolutionResult.win
+                } else {
+                    MachineLearnedEvolutionResult.loss
+                }
+                "Ravens win" -> if (candidateSide == Side.ravens) {
+                    MachineLearnedEvolutionResult.win
+                } else {
+                    MachineLearnedEvolutionResult.loss
+                }
+                else -> MachineLearnedEvolutionResult.draw
+            }
 
         fun differentIndex(
             index: Int,

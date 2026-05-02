@@ -77,7 +77,7 @@ Run the current Sherwood-only offline training pipeline with:
 
 That command writes a dataset plus a generated Michelle artifact under `build/machine-learned-candidate` by default, uses all available CPUs unless you override `--worker-count`, reports coarse `0%..10%..100%` progress for dataset generation and model training, and emits schema-3 artifacts.
 
-Run the local evolution loop with `--mode evolve`, an explicit incumbent artifact path, and an optional supervised seed artifact before installing a generated artifact as the bundled Sherwood model.
+Run the local evolution loop with `--mode evolve`, an explicit incumbent artifact path, and any number of repeated `--seed-artifact` inputs before installing a generated artifact as the bundled Sherwood model. Evolution writes the best survivor-comparison artifact plus one artifact for each final survivor.
 
 For installation and validation steps, use [docs/machine-learned-training-runbook.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-learned-training-runbook.md).
 

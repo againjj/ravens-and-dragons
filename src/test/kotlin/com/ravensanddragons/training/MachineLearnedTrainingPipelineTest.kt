@@ -479,9 +479,15 @@ class MachineLearnedTrainingPipelineTest {
                     featureName = "after-evaluation-for-active-side",
                     weight = -1f
                 ),
-                seedModel = model(
-                    featureName = "after-evaluation-for-active-side",
-                    weight = 1f
+                seedModels = listOf(
+                    model(
+                        featureName = "after-evaluation-for-active-side",
+                        weight = 1f
+                    ),
+                    model(
+                        featureName = "captured-opponent-count",
+                        weight = 0.25f
+                    )
                 ),
                 populationSize = 4,
                 survivorCount = 2,
@@ -539,6 +545,13 @@ class MachineLearnedTrainingPipelineTest {
             }
         )
         assertEquals(listOf(1, 2, 3, 4), report.survivorComparisonRankings.map(MachineLearnedEvolutionRanking::rank))
+        assertEquals(
+            report.survivorComparisonRankings.first {
+                it.participantType == MachineLearnedEvolutionParticipantType.candidate
+            }.participantId,
+            report.bestCandidateId
+        )
+        assertEquals(report.generationSummaries.last().survivorIds, result.survivorModels.map { it.candidateId })
         assertEquals(MachineLearnedFeatureEncoder.featureCount, result.bestModel.weights.size)
         assertEquals((1..36).map { it to 36 }, progressReports)
     }

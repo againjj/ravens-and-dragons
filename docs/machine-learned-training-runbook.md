@@ -71,8 +71,8 @@ Evolution searches directly over Michelle weight vectors:
 4. Keep top survivors and elites.
 5. Create the next generation through mutation and crossover.
 6. After the final generation, compare surviving candidates against the incumbent and configured baselines.
-7. Write the best evolved artifact and an evolution report.
-8. Mark the best candidate promotable only if it clears the configured win/loss thresholds.
+7. Write the best evolved artifact, one artifact for each final survivor, and an evolution report.
+8. Mark the best survivor-comparison candidate promotable only if it clears the configured win/loss thresholds.
 
 Baselines and the incumbent do not steer generation survivor selection; they are used in the final survivor comparison.
 
@@ -171,6 +171,7 @@ Expected outputs:
 | Output | Default path |
 |---|---|
 | Best evolved artifact | `build/machine-learned-candidate/sherwood-rules.evolved.json` |
+| Final survivor artifacts | `build/machine-learned-candidate/sherwood-rules.<candidateId>.json` |
 | Evolution report | `build/machine-learned-candidate/sherwood-rules.evolution-report.json` |
 
 Evolution progress is one compact meter covering generation games plus survivor comparison games:
@@ -195,7 +196,7 @@ Important fields:
 | `generationSummaries` | Candidate-only generation results, including candidate scores, match outcomes, survivors, and best candidate per generation. |
 | `survivorComparisonMatches` | Final games between surviving candidates, the incumbent, and configured baselines. |
 | `survivorComparisonRankings` | Ranked comparison participants with score, wins, losses, and draws. |
-| `bestCandidateId` | Candidate id whose model was written to the evolved artifact. |
+| `bestCandidateId` | Highest-ranked candidate in survivor comparison; its model was written to the evolved artifact. |
 | `finalPromotionDecision.promote` | Whether the best candidate cleared the configured promotion thresholds. |
 | `finalPromotionDecision.reason` | Human-readable reason for the promotion decision. |
 
@@ -234,7 +235,7 @@ Evolution options:
 | Option | Default | Meaning |
 |---|---|---|
 | `--incumbent-artifact` | required for `evolve` | Current artifact used to seed population and final comparison. |
-| `--seed-artifact` | omitted | Optional supervised artifact used as another initial candidate. |
+| `--seed-artifact` | omitted | Optional artifact used as an initial candidate. Repeat this option to seed evolution with multiple artifacts. |
 | `--baseline-bot-ids` | `minimax,deep-minimax` | Baselines included in survivor comparison, not generation selection. |
 | `--population-size` | `24` | Number of Michelle candidates per generation. |
 | `--survivor-count` | `6` | Top candidates kept after each generation. |
@@ -252,6 +253,7 @@ Evolution options:
 Notes:
 
 - `--games-per-matchup` is used in both modes. In train mode it controls self-play games per ordered bot pairing; in evolve mode it controls candidate-vs-candidate games per ordered pairing.
+- `--seed-artifact` may be repeated, for example `--seed-artifact first.json --seed-artifact second.json`; all provided seeds are added to the initial population with the incumbent before mutation fills the rest.
 - `--final-gate-games-per-pairing` is still accepted as a backward-compatible alias for `--survivor-comparison-games-per-pairing`, but new commands should use `--survivor-comparison-games-per-pairing`.
 - More workers usually reduce wall-clock time but increase CPU and memory pressure.
 
