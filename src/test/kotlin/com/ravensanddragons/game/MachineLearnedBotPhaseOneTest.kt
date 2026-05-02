@@ -196,8 +196,6 @@ class MachineLearnedBotPhaseOneTest {
     private fun machineLearnedTestWeights(): List<Float> {
         val weights = MutableList(MachineLearnedFeatureEncoder.featureCount) { 0f }
         weights[MachineLearnedFeatureEncoder.featureNames.indexOf("moved-piece-gold")] = -0.2f
-        weights[MachineLearnedFeatureEncoder.featureNames.indexOf("moved-piece-dragon")] = 0.1f
-        weights[MachineLearnedFeatureEncoder.featureNames.indexOf("moved-piece-raven")] = 0.1f
         weights[MachineLearnedFeatureEncoder.featureNames.indexOf("captured-opponent-count")] = 1.5f
         weights[MachineLearnedFeatureEncoder.featureNames.indexOf("move-wins-immediately")] = 1000f
         weights[MachineLearnedFeatureEncoder.featureNames.indexOf("after-gold-corner-distance")] = -0.4f

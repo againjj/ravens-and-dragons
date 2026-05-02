@@ -296,8 +296,7 @@ Recommended first-pass features:
 
 Absolute move-local features:
 
-- active side
-- moved piece type
+- whether the gold moved
 - whether the move captures
 - number of captured pieces
 - whether the move wins immediately
@@ -314,6 +313,7 @@ Relative move-local features:
 Absolute resulting-position features:
 
 - whether the opponent has an immediate winning reply
+- number of mover-owned pieces that the opponent could capture on the next move
 - whether the move increases or decreases the active side's legal move count next turn
 - shared evaluation score from the active side's perspective
 
@@ -324,7 +324,6 @@ Relative resulting-position features:
 - ravens adjacent to gold after move
 - dragons mobility after move
 - ravens mobility after move
-- piece count difference after move
 - dragons piece count after move
 - ravens piece count after move
 - whether gold remains movable after move
@@ -352,7 +351,7 @@ Suggested artifact shape:
   "botId": "machine-learned",
   "displayName": "Michelle",
   "modelFormatVersion": 1,
-  "featureSchemaVersion": 3,
+  "featureSchemaVersion": 4,
   "ruleConfigurationId": "sherwood-rules",
   "trainedAt": "2026-04-30T00:00:00Z",
   "trainingSummary": {
@@ -647,11 +646,11 @@ Deliverable:
 
 Completed phase 3 notes:
 
-- `MachineLearnedFeatureEncoder` now uses schema version 3 and exposes explicit absolute and relative move-local/resulting-position feature groups, plus the legacy combined `moveLocalFeatureNames`, `positionDerivedFeatureNames`, and `featureNames`.
-- The expanded vector includes move-local piece/square/capture/win/delta signals plus after-position gold distance, raven pressure, mobility, material, gold mobility, opponent immediate-win, legal-move delta, repetition-risk, and shared evaluation features.
+- `MachineLearnedFeatureEncoder` now uses schema version 4 and exposes explicit absolute and relative move-local/resulting-position feature groups, plus the legacy combined `moveLocalFeatureNames`, `positionDerivedFeatureNames`, and `featureNames`.
+- The expanded vector includes move-local gold/square/capture/win/delta signals plus after-position gold distance, raven pressure, mobility, material, gold mobility, opponent immediate-win, opponent capture-threat count, legal-move delta, repetition-risk, and shared evaluation features.
 - Relative feature values are sign-adjusted by side before scoring, using `+1` for dragon moves and `-1` for raven moves.
 - The bundled Sherwood artifact was regenerated with `./gradlew runMachineLearnedTraining`, producing 4,306 training examples from 16 self-play games and 105 labeled positions.
-- The installed artifact is `src/main/resources/bots/machine-learned/sherwood-rules.json`, has `featureSchemaVersion: 3`, and was trained from `deep-minimax` labels before being migrated to the schema-3 feature order.
+- The installed artifact is `src/main/resources/bots/machine-learned/sherwood-rules.json`, has `featureSchemaVersion: 4`, and preserves existing weights by feature name from the previous artifact while setting the new `after-opponent-captures` weight to `0`.
 - The bot harness now includes Sherwood-only Michelle baseline smoke coverage. A one-game-per-matchup run completed 8 Michelle evaluation games with outcomes `{Dragons win=2, Draw by repetition=1, Ravens win=5}` and average 35.25 plies.
 
 ### Phase 4: Population-Based Evolution Loop
@@ -680,7 +679,7 @@ Completed phase 4 notes:
 
 - `MachineLearnedEvolutionLoop` runs a configurable population of linear Michelle models through candidate-only round-robins, survivor selection, mutation, crossover, and a final survivor/incumbent/baseline comparison ranking.
 - The loop treats supervised training as a seed generator rather than the whole strengthening mechanism; `--seed-artifact` can point at a freshly trained artifact, while `--incumbent-artifact` anchors the search.
-- Candidate models use the existing schema-3 feature vector and linear weight artifact format, so mutation and crossover can operate directly on model weights without changing runtime inference.
+- Candidate models use the existing schema-4 feature vector and linear weight artifact format, so mutation and crossover can operate directly on model weights without changing runtime inference.
 - Evolution games use configurable early opening randomization through `openingRandomPlies`.
 - The evolution report includes per-generation candidate scores, survivor ids, match summaries, survivor comparison rankings, and a final promotion decision.
 - The existing `runMachineLearnedTraining` CLI now supports `--mode evolve`; `--mode strengthen` has been removed.

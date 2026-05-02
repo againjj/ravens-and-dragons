@@ -3,13 +3,10 @@ package com.ravensanddragons.game
 import kotlin.math.abs
 
 object MachineLearnedFeatureEncoder {
-    const val schemaVersion = 3
+    const val schemaVersion = 4
 
     val absoluteMoveLocalFeatureNames = listOf(
-        "active-side-dragons",
         "moved-piece-gold",
-        "moved-piece-dragon",
-        "moved-piece-raven",
         "captured-opponent-count",
         "move-wins-immediately",
         "mover-origin-center-adjacent",
@@ -33,6 +30,7 @@ object MachineLearnedFeatureEncoder {
 
     val absolutePositionDerivedFeatureNames = listOf(
         "after-opponent-immediate-win",
+        "after-opponent-captures",
         "after-active-side-legal-move-delta",
         "after-evaluation-for-active-side"
     )
@@ -43,7 +41,6 @@ object MachineLearnedFeatureEncoder {
         "after-ravens-adjacent-to-gold",
         "after-dragons-mobility",
         "after-ravens-mobility",
-        "after-piece-count-difference",
         "after-dragons-piece-count",
         "after-ravens-piece-count",
         "after-gold-movable",
@@ -90,10 +87,7 @@ object MachineLearnedFeatureEncoder {
         mover: Side
     ): List<Float> =
         listOf(
-            if (mover == Side.dragons) 1f else -1f,
             if (movedPiece == Piece.gold) 1f else 0f,
-            if (movedPiece == Piece.dragon) 1f else 0f,
-            if (movedPiece == Piece.raven) 1f else 0f,
             BotStrategySupport.capturedOpponentCount(beforeSnapshot, afterSnapshot, mover).toFloat(),
             if (BotStrategySupport.isWinningSnapshotFor(afterSnapshot, mover)) 1f else 0f,
             if (isCenterAdjacent(move.origin, beforeSnapshot)) 1f else 0f,
@@ -131,6 +125,7 @@ object MachineLearnedFeatureEncoder {
     ): List<Float> =
         listOf(
             if (BotStrategySupport.hasImmediateWinningMove(afterSnapshot, opponent)) 1f else 0f,
+            opponentCaptureThreatCount(afterSnapshot, mover, opponent).toFloat(),
             activeSideLegalMoveDelta.toFloat(),
             BotStrategySupport.evaluateForSide(afterSnapshot, mover).toFloat()
         )
@@ -147,7 +142,6 @@ object MachineLearnedFeatureEncoder {
             ravensAdjacentToGold(afterSnapshot, goldSquare).toFloat(),
             mobilityForSide(afterSnapshot, Side.dragons).toFloat(),
             mobilityForSide(afterSnapshot, Side.ravens).toFloat(),
-            (pieceCountForSide(afterSnapshot, Side.dragons) - pieceCountForSide(afterSnapshot, Side.ravens)).toFloat(),
             pieceCountForSide(afterSnapshot, Side.dragons).toFloat(),
             pieceCountForSide(afterSnapshot, Side.ravens).toFloat(),
             if (goldRemainsMovable(afterSnapshot, goldSquare)) 1f else 0f,
@@ -215,6 +209,26 @@ object MachineLearnedFeatureEncoder {
 
     private fun mobilityForSide(snapshot: GameSnapshot, side: Side): Int =
         GameRules.countLegalMoves(snapshotForSide(snapshot, side))
+
+    private fun opponentCaptureThreatCount(afterSnapshot: GameSnapshot, mover: Side, opponent: Side): Int {
+        if (afterSnapshot.phase != Phase.move) {
+            return 0
+        }
+
+        val opponentSnapshot = snapshotForSide(afterSnapshot, opponent)
+        return GameRules.getLegalMoves(opponentSnapshot)
+            .asSequence()
+            .flatMap { move ->
+                val nextSnapshot = GameRules.movePiece(opponentSnapshot, move.origin, move.destination)
+                afterSnapshot.board.entries
+                    .asSequence()
+                    .filter { (_, piece) -> GameRules.sideOwnsPiece(mover, piece) }
+                    .filter { (square) -> !nextSnapshot.board.containsKey(square) }
+                    .map { (square) -> square }
+            }
+            .toSet()
+            .size
+    }
 
     private fun pieceCountForSide(snapshot: GameSnapshot, side: Side): Int =
         snapshot.board.values.count { piece -> GameRules.sideOwnsPiece(side, piece) }

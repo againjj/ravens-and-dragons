@@ -40,12 +40,12 @@ The feature groups are:
 
 | Group | Meaning |
 |---|---|
-| `absoluteMoveLocalFeatureNames` | Mover identity, moved piece type, captures, immediate wins, and mover-square geometry. |
+| `absoluteMoveLocalFeatureNames` | Gold moves, captures, immediate wins, and mover-square geometry. |
 | `relativeMoveLocalFeatureNames` | Gold-square geometry, gold corner progress, and raven pressure deltas. |
-| `absolutePositionDerivedFeatureNames` | Opponent immediate-win danger, active-side legal-move delta, and shared evaluation from the mover's perspective. |
+| `absolutePositionDerivedFeatureNames` | Opponent immediate-win danger, opponent capture-threat count, active-side legal-move delta, and shared evaluation from the mover's perspective. |
 | `relativePositionDerivedFeatureNames` | Board facts whose value changes by side, such as gold distance, raven pressure, mobility, material, gold mobility, and repetition risk. |
 
-Any generated artifact must have exactly one weight for each current feature name and must declare `featureSchemaVersion: 3`.
+Any generated artifact must have exactly one weight for each current feature name and must declare `featureSchemaVersion: 4`.
 
 ## Pipeline Shape
 
@@ -147,7 +147,7 @@ Confirm these fields:
 | `displayName` | `Michelle` |
 | `ruleConfigurationId` | `sherwood-rules` |
 | `modelFormatVersion` | `1` |
-| `featureSchemaVersion` | `3` |
+| `featureSchemaVersion` | `4` |
 | `modelType` | `linear-move-ranker` |
 
 Then run:
@@ -327,7 +327,7 @@ If Michelle disappears from the UI after installing an artifact:
 - Confirm the file is still named `sherwood-rules.json`.
 - Confirm the JSON has `ruleConfigurationId: "sherwood-rules"`.
 - Confirm the JSON has `botId: "machine-learned"` and `displayName: "Michelle"`.
-- Confirm the JSON has `featureSchemaVersion: 3`.
+- Confirm the JSON has `featureSchemaVersion: 4`.
 - Run `./gradlew test --tests com.ravensanddragons.game.MachineLearnedBotPhaseOneTest`.
 
 If evolution does not promote a candidate:

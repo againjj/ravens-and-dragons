@@ -46,10 +46,7 @@ class MachineLearnedTrainingPipelineTest {
 
         assertEquals(
             listOf(
-                "active-side-dragons",
                 "moved-piece-gold",
-                "moved-piece-dragon",
-                "moved-piece-raven",
                 "captured-opponent-count",
                 "move-wins-immediately",
                 "mover-origin-center-adjacent",
@@ -67,6 +64,7 @@ class MachineLearnedTrainingPipelineTest {
                 "gold-corner-distance-delta",
                 "raven-pressure-delta",
                 "after-opponent-immediate-win",
+                "after-opponent-captures",
                 "after-active-side-legal-move-delta",
                 "after-evaluation-for-active-side",
                 "after-gold-corner-distance",
@@ -74,7 +72,6 @@ class MachineLearnedTrainingPipelineTest {
                 "after-ravens-adjacent-to-gold",
                 "after-dragons-mobility",
                 "after-ravens-mobility",
-                "after-piece-count-difference",
                 "after-dragons-piece-count",
                 "after-ravens-piece-count",
                 "after-gold-movable",
@@ -89,7 +86,6 @@ class MachineLearnedTrainingPipelineTest {
         )
 
         assertEquals(MachineLearnedFeatureEncoder.featureCount, features.size)
-        assertFeatureEquals("active-side-dragons", 1f, features)
         assertFeatureEquals("moved-piece-gold", 1f, features)
         assertFeatureEquals("move-wins-immediately", 1f, features)
         assertFeatureEquals("mover-origin-edge", 1f, features)
@@ -103,7 +99,7 @@ class MachineLearnedTrainingPipelineTest {
         assertFeatureEquals("after-gold-corner-distance", 0f, features)
         assertFeatureEquals("after-nearest-raven-distance-to-gold", 12f, features)
         assertFeatureEquals("after-ravens-adjacent-to-gold", 0f, features)
-        assertFeatureEquals("after-piece-count-difference", 1f, features)
+        assertFeatureEquals("after-opponent-captures", 0f, features)
         assertFeatureEquals("after-dragons-piece-count", 2f, features)
         assertFeatureEquals("after-ravens-piece-count", 1f, features)
         assertFeatureEquals("after-evaluation-for-active-side", 1_000_000f, features)
@@ -133,8 +129,6 @@ class MachineLearnedTrainingPipelineTest {
             GameRules.movePiece(snapshot, "g7", "b7")
         )
 
-        assertFeatureEquals("active-side-dragons", -1f, features)
-        assertFeatureEquals("moved-piece-raven", 1f, features)
         assertFeatureEquals("mover-origin-edge", 1f, features)
         assertFeatureEquals("mover-destination-edge", 1f, features)
         assertFeatureEquals("gold-origin-edge", 0f, features)
@@ -142,6 +136,33 @@ class MachineLearnedTrainingPipelineTest {
         assertFeatureEquals("after-gold-corner-distance", -1f, features)
         assertFeatureEquals("after-dragons-piece-count", -2f, features)
         assertFeatureEquals("after-ravens-piece-count", -1f, features)
+    }
+
+    @Test
+    fun `feature encoder counts pieces the opponent could capture next`() {
+        val snapshot = GameSnapshot(
+            board = linkedMapOf(
+                "b2" to Piece.gold,
+                "d5" to Piece.dragon,
+                "d7" to Piece.raven
+            ),
+            boardSize = 7,
+            specialSquare = "d4",
+            phase = Phase.move,
+            activeSide = Side.dragons,
+            pendingMove = null,
+            turns = emptyList(),
+            ruleConfigurationId = "sherwood-rules",
+            positionKeys = listOf("initial")
+        )
+
+        val features = MachineLearnedFeatureEncoder.encode(
+            snapshot,
+            LegalMove("b2", "b1"),
+            GameRules.movePiece(snapshot, "b2", "b1")
+        )
+
+        assertFeatureEquals("after-opponent-captures", 1f, features)
     }
 
     @Test
@@ -263,7 +284,7 @@ class MachineLearnedTrainingPipelineTest {
                     activeSide = Side.ravens,
                     candidateMove = LegalMove("d7", "c7"),
                     expertMove = LegalMove("d7", "c7"),
-                    features = featureVector("active-side-dragons" to -1f, "moved-piece-raven" to 1f),
+                    features = featureVector("after-gold-corner-distance" to -1f),
                     label = 1f,
                     source = TrainingExampleSource.expertImitation
                 )
@@ -291,7 +312,6 @@ class MachineLearnedTrainingPipelineTest {
                 example(
                     label = 1f,
                     features = featureVector(
-                        "active-side-dragons" to 1f,
                         "moved-piece-gold" to 1f,
                         "move-wins-immediately" to 1f,
                         "after-evaluation-for-active-side" to 1_000_000f
@@ -300,8 +320,6 @@ class MachineLearnedTrainingPipelineTest {
                 example(
                     label = 0f,
                     features = featureVector(
-                        "active-side-dragons" to 1f,
-                        "moved-piece-dragon" to 1f,
                         "after-gold-corner-distance" to 3f,
                         "after-evaluation-for-active-side" to 18f
                     )
@@ -374,7 +392,6 @@ class MachineLearnedTrainingPipelineTest {
                     positionKey = "position-a",
                     label = 1f,
                     features = featureVector(
-                        "moved-piece-raven" to 1f,
                         "captured-opponent-count" to 1f,
                         "after-ravens-adjacent-to-gold" to 2f,
                         "after-evaluation-for-active-side" to 40f
@@ -384,7 +401,6 @@ class MachineLearnedTrainingPipelineTest {
                     positionKey = "position-a",
                     label = 0f,
                     features = featureVector(
-                        "moved-piece-raven" to 1f,
                         "after-gold-corner-distance" to 6f,
                         "after-ravens-adjacent-to-gold" to -1f,
                         "after-evaluation-for-active-side" to -20f
@@ -394,10 +410,9 @@ class MachineLearnedTrainingPipelineTest {
                     positionKey = "position-b",
                     label = 1f,
                     features = featureVector(
-                        "moved-piece-dragon" to 1f,
                         "captured-opponent-count" to 1f,
                         "after-gold-corner-distance" to 3f,
-                        "after-piece-count-difference" to 1f,
+                        "after-opponent-captures" to 1f,
                         "after-evaluation-for-active-side" to 25f
                     )
                 ),
@@ -405,9 +420,8 @@ class MachineLearnedTrainingPipelineTest {
                     positionKey = "position-b",
                     label = 0f,
                     features = featureVector(
-                        "moved-piece-dragon" to 1f,
                         "after-gold-corner-distance" to 7f,
-                        "after-piece-count-difference" to -2f,
+                        "after-opponent-captures" to 2f,
                         "after-evaluation-for-active-side" to -30f
                     )
                 )
