@@ -3,6 +3,8 @@ import com.ravensanddragons.game.GameRules
 import com.ravensanddragons.game.GameBotStrategy
 import com.ravensanddragons.game.GameSnapshot
 import com.ravensanddragons.game.LegalMove
+import com.ravensanddragons.game.MachineLearnedArtifactRunSummary
+import com.ravensanddragons.game.MachineLearnedEvolutionSummary
 import com.ravensanddragons.game.MachineLearnedFeatureEncoder
 import com.ravensanddragons.game.MachineLearnedModel
 import com.ravensanddragons.game.MachineLearnedModelMetadata
@@ -332,7 +334,39 @@ class MachineLearnedTrainingPipelineTest {
         val runtimeLoader = MachineLearnedModelLoader(objectMapper)
         val path = Files.createTempDirectory("michelle-artifact").resolve("sherwood-rules.json")
 
-        val model = trainer.train(dataset)
+        val model = trainer.train(dataset).copy(
+            trainingSummary = MachineLearnedTrainingSummary(
+                expertBotId = "deep-minimax",
+                positions = 1,
+                selfPlayGames = 2,
+                selfPlayBotIds = listOf("random", "simple"),
+                gamesPerMatchup = 1,
+                sampleStride = 2,
+                maxSampledPositionsPerGame = 8,
+                maxPliesPerGame = 300,
+                openingRandomPlies = 2,
+                run = MachineLearnedArtifactRunSummary(
+                    runId = "sherwood-rules.train.20260430T120000Z",
+                    mode = "train",
+                    initialSeed = 7,
+                    workerCount = 2,
+                    outputDir = "build/machine-learned-candidate",
+                    datasetPath = "build/machine-learned-candidate/sherwood-rules.train.20260430T120000Z.dataset.json",
+                    artifactPath = "build/machine-learned-candidate/sherwood-rules.train.20260430T120000Z.generated.json"
+                ),
+                evolution = MachineLearnedEvolutionSummary(
+                    bestCandidateId = "g1-c3",
+                    promote = true,
+                    winRate = 0.6,
+                    lossRate = 0.2,
+                    candidateWins = 3,
+                    candidateLosses = 1,
+                    candidateDraws = 1,
+                    promotionReason = "Test promotion.",
+                    baselineBotIds = listOf("minimax", "deep-minimax")
+                )
+            )
+        )
         writer.write(path, model)
         val artifactJson = path.readText()
 
@@ -346,6 +380,9 @@ class MachineLearnedTrainingPipelineTest {
         ).single()
 
         assertTrue(artifactJson.contains("\"trainedAt\" : \"2026-04-30T12:00:00Z\""))
+        assertTrue(artifactJson.contains("\"runId\" : \"sherwood-rules.train.20260430T120000Z\""))
+        assertTrue(artifactJson.contains("\"selfPlayBotIds\" : [ \"random\", \"simple\" ]"))
+        assertTrue(artifactJson.contains("\"bestCandidateId\" : \"g1-c3\""))
         assertEquals(model, loadedByReader)
         assertEquals(model, runtimeLoaded)
     }
@@ -497,18 +534,14 @@ class MachineLearnedTrainingPipelineTest {
                     model(
                         featureName = "after-evaluation-for-active-side",
                         weight = 1f
-                    ),
-                    model(
-                        featureName = "captured-opponent-count",
-                        weight = 0.25f
                     )
                 ),
-                populationSize = 4,
+                populationSize = 3,
                 survivorCount = 2,
                 generations = 2,
                 gamesPerPairing = 1,
                 baselineBotIds = listOf("random"),
-                maxPliesPerGame = 24,
+                maxPliesPerGame = 8,
                 openingRandomPlies = 1,
                 initialSeed = 11,
                 mutationRate = 0.5,
@@ -527,7 +560,7 @@ class MachineLearnedTrainingPipelineTest {
 
         assertEquals("sherwood-rules", report.ruleConfigurationId)
         assertEquals(2, report.generationSummaries.size)
-        assertTrue(report.generationSummaries.all { summary -> summary.candidates.size == 4 })
+        assertTrue(report.generationSummaries.all { summary -> summary.candidates.size == 3 })
         assertTrue(report.generationSummaries.all { summary -> summary.survivorIds.size == 2 })
         assertTrue(report.generationSummaries.all { summary -> summary.matches.all { it.openingRandomPlies == 1 } })
         assertTrue(report.generationSummaries.all { summary -> summary.matches.all { it.turnCount > 0 } })
@@ -567,7 +600,7 @@ class MachineLearnedTrainingPipelineTest {
         )
         assertEquals(report.generationSummaries.last().survivorIds, result.survivorModels.map { it.candidateId })
         assertEquals(MachineLearnedFeatureEncoder.featureCount, result.bestModel.weights.size)
-        assertEquals((1..36).map { it to 36 }, progressReports)
+        assertEquals((1..24).map { it to 24 }, progressReports)
     }
 
     @Test

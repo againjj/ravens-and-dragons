@@ -25,14 +25,14 @@ The current scope is intentionally narrow:
 | Ruleset | `sherwood-rules` |
 | Model type | `linear-move-ranker` |
 | Model format | `1` |
-| Feature schema | `3` |
+| Feature schema | `4` |
 | Artifact format | JSON |
 
 Do not reuse a Sherwood artifact for another ruleset. Add a separate artifact for each supported ruleset.
 
 ## Feature Schema
 
-The encoder lives in [MachineLearnedFeatureEncoder.kt](/Users/jrayazian/code/ravens-and-dragons/src/main/kotlin/com/ravensanddragons/game/MachineLearnedFeatureEncoder.kt). Schema version `3` groups features by whether they are absolute or relative to the side to move.
+The encoder lives in [MachineLearnedFeatureEncoder.kt](/Users/jrayazian/code/ravens-and-dragons/src/main/kotlin/com/ravensanddragons/game/MachineLearnedFeatureEncoder.kt). Schema version `4` groups features by whether they are absolute or relative to the side to move and whether they are move-local or derived from the resulting position.
 
 Absolute features already mean the same thing from the mover's point of view. Relative features are encoded with a side multiplier: `+1` for dragon turns and `-1` for raven turns. In the current linear model, that is equivalent to multiplying relative feature weights by `-1` when Michelle is playing ravens.
 
@@ -105,7 +105,7 @@ The Gradle entrypoint is:
 ./gradlew runMachineLearnedTraining
 ```
 
-With no arguments, it trains `sherwood-rules` using the default self-play bots, `deep-minimax` as the expert, all available CPU cores, and `build/machine-learned-candidate` as the output directory.
+With no arguments, it trains `sherwood-rules` using the default self-play bots, `deep-minimax` as the expert, all available CPU cores, and `build/machine-learned-candidate` as the output directory. The CLI assigns each run a file-safe run id unless you pass `--run-id`.
 
 For a modest explicit run:
 
@@ -117,10 +117,10 @@ Expected outputs:
 
 | Output | Default path |
 |---|---|
-| Dataset | `build/machine-learned-candidate/sherwood-rules.dataset.json` |
-| Seed artifact | `build/machine-learned-candidate/sherwood-rules.generated.json` |
+| Dataset | `build/machine-learned-candidate/<run-id>.dataset.json` |
+| Seed artifact | `build/machine-learned-candidate/<run-id>.generated.json` |
 
-The CLI also reads the artifact back after writing it, so a successful run proves the generated JSON passes the shared artifact reader.
+The default run id is `<ruleset>.<mode>.<UTC timestamp>`, for example `sherwood-rules.train.20260502T231500Z`. The CLI also reads the artifact back after writing it, so a successful run proves the generated JSON passes the shared artifact reader.
 
 Progress output is intentionally compact:
 
@@ -136,7 +136,7 @@ Training model:
 After supervised training, inspect the generated artifact:
 
 ```bash
-sed -n '1,80p' build/machine-learned-candidate/sherwood-rules.generated.json
+sed -n '1,120p' build/machine-learned-candidate/<run-id>.generated.json
 ```
 
 Confirm these fields:
@@ -149,6 +149,9 @@ Confirm these fields:
 | `modelFormatVersion` | `1` |
 | `featureSchemaVersion` | `4` |
 | `modelType` | `linear-move-ranker` |
+| `trainingSummary.run.runId` | The run id printed by the CLI. |
+| `trainingSummary.run.commandLine` | The arguments used for the run, when arguments were provided. |
+| `trainingSummary.run.artifactPath` | Path to the artifact that was written. Relative output directories stay relative so copied release artifacts do not embed local machine paths. |
 
 Then run:
 
@@ -163,16 +166,18 @@ That test covers artifact validation, registration, legal move selection, immedi
 Use evolution before replacing the bundled artifact. The usual input is the current bundled artifact as incumbent, plus an optional supervised seed artifact from the previous step.
 
 ```bash
-./gradlew runMachineLearnedTraining -PtrainingArgs='--mode evolve --rule-configuration-id sherwood-rules --incumbent-artifact src/main/resources/bots/machine-learned/sherwood-rules.json --seed-artifact build/machine-learned-candidate/sherwood-rules.generated.json --population-size 24 --survivor-count 6 --generations 20 --games-per-matchup 1 --baseline-bot-ids minimax,deep-minimax --max-plies-per-game 300 --opening-random-plies 2 --mutation-rate 0.15 --mutation-scale 0.10 --crossover-rate 0.50 --elite-count 2 --survivor-comparison-games-per-pairing 4 --minimum-promotion-win-rate 0.55 --maximum-promotion-loss-rate 0.35 --output-dir build/machine-learned-candidate'
+./gradlew runMachineLearnedTraining -PtrainingArgs='--mode evolve --rule-configuration-id sherwood-rules --incumbent-artifact src/main/resources/bots/machine-learned/sherwood-rules.json --seed-artifact build/machine-learned-candidate/<seed-run-id>.generated.json --population-size 24 --survivor-count 6 --generations 20 --games-per-matchup 1 --baseline-bot-ids minimax,deep-minimax --max-plies-per-game 300 --opening-random-plies 2 --mutation-rate 0.15 --mutation-scale 0.10 --crossover-rate 0.50 --elite-count 2 --survivor-comparison-games-per-pairing 4 --minimum-promotion-win-rate 0.55 --maximum-promotion-loss-rate 0.35 --output-dir build/machine-learned-candidate'
 ```
 
 Expected outputs:
 
 | Output | Default path |
 |---|---|
-| Best evolved artifact | `build/machine-learned-candidate/sherwood-rules.evolved.json` |
-| Final survivor artifacts | `build/machine-learned-candidate/sherwood-rules.<candidateId>.json` |
-| Evolution report | `build/machine-learned-candidate/sherwood-rules.evolution-report.json` |
+| Best evolved artifact | `build/machine-learned-candidate/<run-id>.evolved.json` |
+| Final survivor artifacts | `build/machine-learned-candidate/<run-id>.<candidateId>.json` |
+| Evolution report | `build/machine-learned-candidate/<run-id>.evolution-report.json` |
+
+Evolved artifacts include `trainingSummary.evolution`, which mirrors the promotion decision and records the incumbent, seed artifacts, and baseline bots used for the comparison.
 
 Evolution progress is one compact meter covering generation games plus survivor comparison games:
 
@@ -186,7 +191,7 @@ Running evolution matches:
 Open the report:
 
 ```bash
-sed -n '1,220p' build/machine-learned-candidate/sherwood-rules.evolution-report.json
+sed -n '1,220p' build/machine-learned-candidate/<run-id>.evolution-report.json
 ```
 
 Important fields:
@@ -211,6 +216,7 @@ General options:
 | Option | Default | Meaning |
 |---|---|---|
 | `--mode` | `train` | `train` runs supervised training; `evolve` runs population search. |
+| `--run-id` | `<ruleset>.<mode>.<UTC timestamp>` | File-safe id used in default dataset, artifact, survivor, and report filenames and embedded in artifact metadata. It may contain only letters, numbers, dots, underscores, and hyphens. |
 | `--rule-configuration-id` | `sherwood-rules` | Ruleset for dataset generation, artifact metadata, and evolution games. |
 | `--max-plies-per-game` | `300` | Hard cap before a self-play or evolution game is stopped as a draw. |
 | `--opening-random-plies` | `0` in train mode unless set; commonly `2` in evolve commands | Number of early plies selected randomly before normal strategy resumes. |
@@ -227,8 +233,8 @@ Supervised training options:
 | `--games-per-matchup` | `1` | Number of games for each ordered self-play pairing. |
 | `--sample-stride` | `2` | Keep positions where `plyIndex % sampleStride == 0`. |
 | `--max-sampled-positions-per-game` | `8` | Maximum sampled positions labeled from one game. |
-| `--dataset-filename` | `<ruleset>.dataset.json` | Dataset output filename. |
-| `--artifact-filename` | `<ruleset>.generated.json` | Supervised artifact output filename. |
+| `--dataset-filename` | `<run-id>.dataset.json` | Dataset output filename. |
+| `--artifact-filename` | `<run-id>.generated.json` | Supervised artifact output filename. |
 
 Evolution options:
 
@@ -247,8 +253,8 @@ Evolution options:
 | `--survivor-comparison-games-per-pairing` | `4` | Ordered games per pairing in the final survivor/incumbent/baseline comparison. |
 | `--minimum-promotion-win-rate` | `0.55` | Minimum win rate for promotion across best-candidate comparison games. |
 | `--maximum-promotion-loss-rate` | `0.35` | Maximum loss rate for promotion across best-candidate comparison games. |
-| `--report-filename` | `<ruleset>.evolution-report.json` | Evolution report filename. |
-| `--evolved-artifact-filename` | `<ruleset>.evolved.json` | Best evolved artifact filename. |
+| `--report-filename` | `<run-id>.evolution-report.json` | Evolution report filename. |
+| `--evolved-artifact-filename` | `<run-id>.evolved.json` | Best evolved artifact filename. |
 
 Notes:
 
@@ -256,6 +262,7 @@ Notes:
 - `--seed-artifact` may be repeated, for example `--seed-artifact first.json --seed-artifact second.json`; all provided seeds are added to the initial population with the incumbent before mutation fills the rest.
 - `--final-gate-games-per-pairing` is still accepted as a backward-compatible alias for `--survivor-comparison-games-per-pairing`, but new commands should use `--survivor-comparison-games-per-pairing`.
 - More workers usually reduce wall-clock time but increase CPU and memory pressure.
+- Passing explicit filename options overrides the run-id filename convention, but the artifact metadata still records the run id.
 
 ## Install A New Artifact
 
@@ -270,14 +277,14 @@ cp src/main/resources/bots/machine-learned/sherwood-rules.json build/machine-lea
 Install a supervised seed artifact:
 
 ```bash
-cp build/machine-learned-candidate/sherwood-rules.generated.json src/main/resources/bots/machine-learned/sherwood-rules.json
+cp build/machine-learned-candidate/<run-id>.generated.json src/main/resources/bots/machine-learned/sherwood-rules.json
 ./gradlew test --tests com.ravensanddragons.game.MachineLearnedBotPhaseOneTest
 ```
 
 Install an evolved artifact:
 
 ```bash
-cp build/machine-learned-candidate/sherwood-rules.evolved.json src/main/resources/bots/machine-learned/sherwood-rules.json
+cp build/machine-learned-candidate/<run-id>.evolved.json src/main/resources/bots/machine-learned/sherwood-rules.json
 ./gradlew test --tests com.ravensanddragons.game.MachineLearnedBotPhaseOneTest
 ```
 

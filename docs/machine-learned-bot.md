@@ -17,7 +17,7 @@ Current implementation status:
 - The current trainer already uses per-position ranking updates over legal-move groups rather than a global positive-versus-negative average.
 - Phase 3 position-derived feature expansion is implemented with a generated Sherwood `Michelle` artifact.
 - Evolutionary bot strengthening is implemented for local offline runs and replaces the old single-candidate strengthen gate.
-- Operational hardening around longer evolutionary runs, artifact naming, reports, and release workflow is the next recommended step.
+- Operational hardening around run ids, artifact naming, reports, metadata provenance, and release workflow is implemented.
 
 The design assumes that each trained artifact is scoped to exactly one `ruleConfigurationId`. A future `Michelle` artifact for another ruleset should be trained, stored, evaluated, and released separately rather than shared across rulesets.
 
@@ -698,17 +698,27 @@ Implementation plan now embodied by phase 4:
 
 Goal: make artifacts, training runs, and releases easier to manage safely.
 
+Status: complete
+
 Tasks:
 
-1. Add richer artifact metadata and training summaries
-2. Add explicit run ids and artifact naming conventions
-3. Add evaluation report output
-4. Document local workflows for training, evaluating, and releasing
-5. Decide whether to keep training Kotlin-only or add a future Python trainer path
+1. [x] Add richer artifact metadata and training summaries
+2. [x] Add explicit run ids and artifact naming conventions
+3. [x] Add evaluation report output
+4. [x] Document local workflows for training, evaluating, and releasing
+5. [x] Decide whether to keep training Kotlin-only or add a future Python trainer path
 
 Deliverable:
 
 - stable, documented local process for producing and releasing machine-learned artifacts
+
+Completed phase 5 notes:
+
+- Generated artifacts now include run provenance under `trainingSummary.run`, including run id, mode, command-line arguments, seed, worker count, output directory, and written dataset/artifact/report paths.
+- Training artifacts include self-play parameters such as bot ids, games per matchup, sampling settings, max plies, and opening-random-ply count.
+- Evolved artifacts include `trainingSummary.evolution`, mirroring the final promotion decision and recording the incumbent, seed artifacts, and baseline bots used for survivor comparison.
+- The CLI accepts `--run-id`; when it is omitted, generated dataset, artifact, survivor, and report files use a default `<ruleset>.<mode>.<UTC timestamp>` id to reduce accidental overwrites.
+- The Kotlin-first trainer remains the supported path. A future Python trainer is still possible, but it should import/export the same schema-versioned artifact contract instead of replacing the canonical Kotlin rule/data path.
 
 ## Suggested Local Commands
 
@@ -735,9 +745,7 @@ Phase 1 should be considered complete when:
 
 ## Open Questions
 
-- Whether the offline training code should live in a dedicated Gradle source set or a separate module
 - Whether a linear model is strong enough or if the first release should jump straight to a tiny MLP
-- How much of the evolutionary loop should be promoted into first-class Gradle tasks versus manual local scripts
 - Whether future model artifacts should remain in Git or live outside the repo with a release import step
 
 ## Recommendation Summary
