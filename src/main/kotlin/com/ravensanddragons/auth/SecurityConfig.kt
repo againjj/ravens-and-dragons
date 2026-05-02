@@ -48,7 +48,7 @@ class SecurityConfig {
             .csrf { it.disable() }
             .addFilterBefore(forwardedHeaderFilter(), OAuth2AuthorizationRequestRedirectFilter::class.java)
             .authorizeHttpRequests {
-                it.dispatcherTypeMatchers(DispatcherType.FORWARD).permitAll()
+                it.dispatcherTypeMatchers(DispatcherType.FORWARD, DispatcherType.ASYNC).permitAll()
                 it.requestMatchers(HttpMethod.GET, "/health", "/login", "/api/auth/session", "/styles.css", "/assets/**", "/favicon.ico").permitAll()
                 it.requestMatchers("/api/auth/guest", "/api/auth/signup", "/api/auth/login", "/login/**", "/oauth2/**").permitAll()
                 it.requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll()

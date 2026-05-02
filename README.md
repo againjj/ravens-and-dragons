@@ -16,6 +16,7 @@ Ravens and Dragons is a Spring Boot and Kotlin web app for playing a browser-bas
 - `Maxine` stays on the existing minimax search, while `Alphie` uses a deeper optimized alpha-beta search with subtree caching and reused child snapshots
 - Undo against a bot reverses one full exchange, still works after a game-ending human move or bot reply when that last exchange is undoable, and can now be repeated across multiple consecutive undo steps
 - Streamed move updates now avoid an extra full game-view refresh unless seat, bot, or ruleset metadata changed
+- Logging out while a game stream is open lets the SSE teardown finish without noisy Spring Security access-denied stack traces
 
 ## Requirements
 

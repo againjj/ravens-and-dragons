@@ -1,10 +1,12 @@
 package com.ravensanddragons.game
 
+import jakarta.servlet.DispatcherType
 import org.hamcrest.Matchers.equalTo
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.http.MediaType
+import org.springframework.test.web.servlet.request.RequestPostProcessor
 import org.springframework.test.web.servlet.get
 
 @SpringBootTest
@@ -39,6 +41,18 @@ class GameAuthorizationControllerTest : AbstractGameControllerTestSupport() {
             accept = MediaType.TEXT_EVENT_STREAM
         }.andExpect {
             status { isUnauthorized() }
+        }
+    }
+
+    @Test
+    fun `stream async redispatch can complete after logout invalidates the session`() {
+        val game = createGame()
+
+        mockMvc.get("/api/games/${game.id}/stream") {
+            accept = MediaType.TEXT_EVENT_STREAM
+            with(asyncDispatcher())
+        }.andExpect {
+            status { isOk() }
         }
     }
 
@@ -171,5 +185,11 @@ class GameAuthorizationControllerTest : AbstractGameControllerTestSupport() {
             jsonPath("$.snapshot.board.a1", equalTo("dragon"))
         }
     }
+
+    private fun asyncDispatcher(): RequestPostProcessor =
+        RequestPostProcessor { request ->
+            request.dispatcherType = DispatcherType.ASYNC
+            request
+        }
 
 }
