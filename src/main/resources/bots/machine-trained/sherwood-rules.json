@@ -4,19 +4,40 @@
   "modelFormatVersion" : 1,
   "featureSchemaVersion" : 5,
   "ruleConfigurationId" : "sherwood-rules",
-  "trainedAt" : "2026-05-02T22:03:15.644558Z",
+  "trainedAt" : "2026-05-03T11:20:46.662671Z",
   "trainingSummary" : {
     "expertBotId" : "deep-minimax",
     "positions" : 29,
     "selfPlayGames" : 8,
+    "maxPliesPerGame" : 300,
+    "openingRandomPlies" : 2,
+    "run" : {
+      "runId" : "sherwood-rules.evolve.20260503T064324Z",
+      "mode" : "evolve",
+      "commandLine" : "--mode evolve --rule-configuration-id sherwood-rules --incumbent-artifact src/main/resources/bots/machine-trained/sherwood-rules.json --seed-artifact src/main/resources/bots/machine-trained/sherwood-rules.json --population-size 20 --survivor-count 6 --generations 50 --games-per-matchup 2 --baseline-bot-ids minimax,deep-minimax --max-plies-per-game 300 --opening-random-plies 2 --mutation-rate 0.15 --mutation-scale 0.10 --crossover-rate 0.50 --elite-count 2 --survivor-comparison-games-per-pairing 1 --minimum-promotion-win-rate 0.55 --maximum-promotion-loss-rate 0.35 --output-dir build/machine-trained-candidate",
+      "initialSeed" : 1,
+      "workerCount" : 8,
+      "outputDir" : "build/machine-trained-candidate",
+      "artifactPath" : "build/machine-trained-candidate/sherwood-rules.evolve.20260503T064324Z.evolved.json",
+      "evolutionReportPath" : "build/machine-trained-candidate/sherwood-rules.evolve.20260503T064324Z.evolution-report.json"
+    },
     "evolution" : {
+      "bestCandidateId" : "g49-c982",
       "promote" : false,
-      "promotionReason" : "Migrated from schema 4 as a schema 5 seed; regenerate or evolve before promotion."
+      "winRate" : 0.16666666666666666,
+      "lossRate" : 0.3333333333333333,
+      "candidateWins" : 1,
+      "candidateLosses" : 2,
+      "candidateDraws" : 3,
+      "promotionReason" : "Best evolved candidate did not rank above the incumbent and baselines in the survivor comparison league.",
+      "baselineBotIds" : [ "minimax", "deep-minimax" ],
+      "seedArtifactPaths" : [ "src/main/resources/bots/machine-trained/sherwood-rules.json" ],
+      "incumbentArtifactPath" : "src/main/resources/bots/machine-trained/sherwood-rules.json"
     }
   },
   "modelType" : "side-specialized-linear-move-ranker",
   "bias" : 0.0,
   "featureNames" : [ "moved-piece-gold", "captured-opponent-count", "move-wins-immediately", "gold-corner-distance-delta", "raven-pressure-delta", "moved-piece-to-structurally-uncapturable-square", "after-gold-corner-distance", "after-gold-legal-move-count", "after-gold-on-structurally-uncapturable-square", "after-nearest-raven-distance-to-gold", "after-ravens-adjacent-to-gold", "after-mover-legal-move-count", "after-opponent-legal-move-count", "after-mover-piece-count", "after-opponent-piece-count", "after-opponent-immediate-win", "after-opponent-capture-threat-count", "after-opponent-can-capture-gold", "after-mover-structurally-uncapturable-piece-count", "after-opponent-structurally-uncapturable-piece-count", "after-position-repeat-risk" ],
-  "dragonWeights" : [ -0.026932161, 8.767159, 0.016138583, 0.0062719183, 0.17878166, 0.0, 0.011221782, 0.0, 0.0, 0.025753655, 0.45434397, -0.043969467, 0.054050855, -0.378471, 0.029142683, -0.01859266, -7.1731437E-4, 0.0, 0.0, 0.0, 0.026317297 ],
-  "ravenWeights" : [ -0.026932161, 8.767159, 0.016138583, -0.0062719183, -0.17878166, 0.0, -0.011221782, 0.0, 0.0, -0.025753655, -0.45434397, -0.054050855, 0.043969467, -0.029142683, 0.378471, -0.01859266, -7.1731437E-4, 0.0, 0.0, 0.0, 0.026317297 ]
+  "dragonWeights" : [ -0.005074573, 7.2213655, 0.029340275, 0.04333244, 0.15885979, -0.0053642504, 0.01962474, 0.0023632427, -0.024197696, 0.03318006, 0.44046614, -0.060740583, 0.04583768, -0.45167732, 0.015815351, -0.01406575, -0.0067324713, 0.015798628, -0.009603637, 0.014478844, 0.041645072 ],
+  "ravenWeights" : [ -0.0070547145, 8.798888, 0.003885725, -0.025940284, -0.13763686, 0.0015435902, 0.019965023, 0.016962904, -0.006772329, -0.034083024, -0.42557272, -0.04753336, 0.041329317, -0.03427004, 0.33262902, -0.026075125, -0.0099753095, 0.006635341, -0.039206803, -0.0035744335, 0.027165972 ]
 }

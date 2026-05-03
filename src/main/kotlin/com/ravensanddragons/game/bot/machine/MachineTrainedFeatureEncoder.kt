@@ -41,65 +41,91 @@ object MachineTrainedFeatureEncoder {
     val featureNames = moveLocalFeatureNames + positionDerivedFeatureNames
     val featureCount: Int = featureNames.size
 
+    data class ScoringContext(
+        val mover: Side,
+        val opponent: Side,
+        val bias: Float,
+        val weights: List<Float>,
+        val beforeGoldCornerDistance: Int,
+        val beforeRavenPressure: Int
+    )
+
+    fun createScoringContext(beforeSnapshot: GameSnapshot, model: MachineTrainedModel): ScoringContext {
+        require(model.modelType == MachineTrainedMoveScorer.supportedModelType) {
+            "Unsupported machine-trained model type: ${model.modelType}"
+        }
+        val weights = when (beforeSnapshot.activeSide) {
+            Side.dragons -> model.dragonWeights
+            Side.ravens -> model.ravenWeights
+        }
+        require(weights.size == featureCount) {
+            "Feature vector size $featureCount does not match weight count ${weights.size}."
+        }
+
+        return ScoringContext(
+            mover = beforeSnapshot.activeSide,
+            opponent = BotStrategySupport.oppositeSide(beforeSnapshot.activeSide),
+            bias = model.bias,
+            weights = weights,
+            beforeGoldCornerDistance = BotStrategySupport.goldCornerDistance(beforeSnapshot),
+            beforeRavenPressure = BotStrategySupport.ravenPressure(beforeSnapshot)
+        )
+    }
+
     fun encode(
         beforeSnapshot: GameSnapshot,
         move: LegalMove,
         afterSnapshot: GameSnapshot
-    ): FloatArray {
-        val movedPiece = beforeSnapshot.board.getValue(move.origin)
-        val mover = beforeSnapshot.activeSide
-        val opponent = BotStrategySupport.oppositeSide(mover)
+    ): FloatArray =
+        encode(beforeSnapshot, move, afterSnapshot, createEncodingContext(beforeSnapshot))
 
-        return (
-            moveLocalFeatures(beforeSnapshot, move, afterSnapshot, movedPiece, mover) +
-                positionDerivedFeatures(
-                    afterSnapshot = afterSnapshot,
-                    mover = mover,
-                    opponent = opponent
-                )
-        ).toFloatArray()
-    }
-
-    private fun moveLocalFeatures(
+    fun encode(
         beforeSnapshot: GameSnapshot,
         move: LegalMove,
         afterSnapshot: GameSnapshot,
-        movedPiece: Piece,
-        mover: Side
-    ): List<Float> =
-        listOf(
-            if (movedPiece == Piece.gold) 1f else 0f,
-            BotStrategySupport.capturedOpponentCount(beforeSnapshot, afterSnapshot, mover).toFloat(),
-            if (BotStrategySupport.isWinningSnapshotFor(afterSnapshot, mover)) 1f else 0f,
-            (BotStrategySupport.goldCornerDistance(beforeSnapshot) - BotStrategySupport.goldCornerDistance(afterSnapshot)).toFloat(),
-            (BotStrategySupport.ravenPressure(afterSnapshot) - BotStrategySupport.ravenPressure(beforeSnapshot)).toFloat(),
-            if (isStructurallyUncapturableSquare(move.destination, movedPiece, beforeSnapshot)) 1f else 0f
-        )
+        context: ScoringContext
+    ): FloatArray {
+        val movedPiece = beforeSnapshot.board.getValue(move.origin)
+        val afterMetrics = AfterSnapshotMetrics(afterSnapshot, context)
+        val features = FloatArray(featureCount)
+        var index = 0
 
-    private fun positionDerivedFeatures(
-        afterSnapshot: GameSnapshot,
-        mover: Side,
-        opponent: Side
-    ): List<Float> {
-        val goldSquare = goldSquare(afterSnapshot)
-        return listOf(
-            BotStrategySupport.goldCornerDistance(afterSnapshot).toFloat(),
-            goldLegalMoveCount(afterSnapshot, goldSquare).toFloat(),
-            if (goldSquare != null && BoardCoordinates.isStructurallyUncapturableGoldSquare(goldSquare, afterSnapshot.boardSize, afterSnapshot.specialSquare)) 1f else 0f,
-            nearestRavenDistanceToGold(afterSnapshot, goldSquare).toFloat(),
-            ravensAdjacentToGold(afterSnapshot, goldSquare).toFloat(),
-            mobilityForSide(afterSnapshot, mover).toFloat(),
-            mobilityForSide(afterSnapshot, opponent).toFloat(),
-            pieceCountForSide(afterSnapshot, mover).toFloat(),
-            pieceCountForSide(afterSnapshot, opponent).toFloat(),
-            if (BotStrategySupport.hasImmediateWinningMove(afterSnapshot, opponent)) 1f else 0f,
-            opponentCaptureThreatCount(afterSnapshot, mover, opponent).toFloat(),
-            if (opponentCanCaptureGold(afterSnapshot, opponent)) 1f else 0f,
-            structurallyUncapturablePieceCount(afterSnapshot, mover).toFloat(),
-            structurallyUncapturablePieceCount(afterSnapshot, opponent).toFloat(),
-            if (isRepeatedPosition(afterSnapshot)) 1f else 0f
-        )
+        features[index++] = if (movedPiece == Piece.gold) 1f else 0f
+        features[index++] = BotStrategySupport.capturedOpponentCount(beforeSnapshot, afterSnapshot, context.mover).toFloat()
+        features[index++] = if (BotStrategySupport.isWinningSnapshotFor(afterSnapshot, context.mover)) 1f else 0f
+        features[index++] = (context.beforeGoldCornerDistance - afterMetrics.goldCornerDistance).toFloat()
+        features[index++] = (afterMetrics.ravenPressure - context.beforeRavenPressure).toFloat()
+        features[index++] = if (isStructurallyUncapturableSquare(move.destination, movedPiece, beforeSnapshot)) 1f else 0f
+
+        val goldSquare = afterMetrics.goldSquare
+        features[index++] = afterMetrics.goldCornerDistance.toFloat()
+        features[index++] = goldLegalMoveCount(afterMetrics, goldSquare).toFloat()
+        features[index++] = if (goldSquare != null && BoardCoordinates.isStructurallyUncapturableGoldSquare(goldSquare, afterSnapshot.boardSize, afterSnapshot.specialSquare)) 1f else 0f
+        features[index++] = nearestRavenDistanceToGold(afterSnapshot, goldSquare).toFloat()
+        features[index++] = ravensAdjacentToGold(afterSnapshot, goldSquare).toFloat()
+        features[index++] = afterMetrics.legalMoveCountFor(context.mover).toFloat()
+        features[index++] = afterMetrics.legalMoveCountFor(context.opponent).toFloat()
+        features[index++] = pieceCountForSide(afterSnapshot, context.mover).toFloat()
+        features[index++] = pieceCountForSide(afterSnapshot, context.opponent).toFloat()
+        features[index++] = if (opponentHasImmediateWinningMove(afterMetrics)) 1f else 0f
+        features[index++] = opponentCaptureThreatCount(afterMetrics).toFloat()
+        features[index++] = if (opponentCanCaptureGold(afterMetrics, goldSquare)) 1f else 0f
+        features[index++] = structurallyUncapturablePieceCount(afterSnapshot, context.mover).toFloat()
+        features[index++] = structurallyUncapturablePieceCount(afterSnapshot, context.opponent).toFloat()
+        features[index] = if (isRepeatedPosition(afterSnapshot)) 1f else 0f
+
+        return features
     }
+
+    private fun createEncodingContext(beforeSnapshot: GameSnapshot): ScoringContext =
+        ScoringContext(
+            mover = beforeSnapshot.activeSide,
+            opponent = BotStrategySupport.oppositeSide(beforeSnapshot.activeSide),
+            bias = 0f,
+            weights = emptyList(),
+            beforeGoldCornerDistance = BotStrategySupport.goldCornerDistance(beforeSnapshot),
+            beforeRavenPressure = BotStrategySupport.ravenPressure(beforeSnapshot)
+        )
 
     private fun nearestRavenDistanceToGold(snapshot: GameSnapshot, goldSquare: String?): Int {
         if (goldSquare == null) {
@@ -126,31 +152,28 @@ object MachineTrainedFeatureEncoder {
         }
     }
 
-    private fun goldLegalMoveCount(snapshot: GameSnapshot, goldSquare: String?): Int {
+    private fun goldLegalMoveCount(afterMetrics: AfterSnapshotMetrics, goldSquare: String?): Int {
         if (goldSquare == null) {
             return 0
         }
 
-        return GameRules.getLegalMoves(snapshotForSide(snapshot, Side.dragons))
+        return afterMetrics.legalMovesFor(Side.dragons)
             .count { move -> move.origin == goldSquare }
     }
 
-    private fun mobilityForSide(snapshot: GameSnapshot, side: Side): Int =
-        GameRules.countLegalMoves(snapshotForSide(snapshot, side))
-
-    private fun opponentCaptureThreatCount(afterSnapshot: GameSnapshot, mover: Side, opponent: Side): Int {
+    private fun opponentCaptureThreatCount(afterMetrics: AfterSnapshotMetrics): Int {
+        val afterSnapshot = afterMetrics.snapshot
         if (afterSnapshot.phase != Phase.move) {
             return 0
         }
 
-        val opponentSnapshot = snapshotForSide(afterSnapshot, opponent)
-        return GameRules.getLegalMoves(opponentSnapshot)
+        return afterMetrics.legalMovesFor(afterMetrics.context.opponent)
             .asSequence()
             .flatMap { move ->
-                val nextSnapshot = GameRules.movePiece(opponentSnapshot, move.origin, move.destination)
+                val nextSnapshot = GameRules.movePiece(afterMetrics.opponentSnapshot, move.origin, move.destination)
                 afterSnapshot.board.entries
                     .asSequence()
-                    .filter { (_, piece) -> GameRules.sideOwnsPiece(mover, piece) }
+                    .filter { (_, piece) -> GameRules.sideOwnsPiece(afterMetrics.context.mover, piece) }
                     .filter { (square) -> !nextSnapshot.board.containsKey(square) }
                     .map { (square) -> square }
             }
@@ -158,15 +181,23 @@ object MachineTrainedFeatureEncoder {
             .size
     }
 
-    private fun opponentCanCaptureGold(afterSnapshot: GameSnapshot, opponent: Side): Boolean {
-        val goldSquare = goldSquare(afterSnapshot) ?: return false
-        val opponentSnapshot = snapshotForSide(afterSnapshot, opponent)
-        return GameRules.getLegalMoves(opponentSnapshot)
+    private fun opponentCanCaptureGold(afterMetrics: AfterSnapshotMetrics, goldSquare: String?): Boolean {
+        goldSquare ?: return false
+        return afterMetrics.legalMovesFor(afterMetrics.context.opponent)
             .any { move ->
-                val nextSnapshot = GameRules.movePiece(opponentSnapshot, move.origin, move.destination)
+                val nextSnapshot = GameRules.movePiece(afterMetrics.opponentSnapshot, move.origin, move.destination)
                 goldSquare !in nextSnapshot.board
             }
     }
+
+    private fun opponentHasImmediateWinningMove(afterMetrics: AfterSnapshotMetrics): Boolean =
+        afterMetrics.legalMovesFor(afterMetrics.context.opponent)
+            .any { move ->
+                BotStrategySupport.isWinningSnapshotFor(
+                    GameRules.movePiece(afterMetrics.opponentSnapshot, move.origin, move.destination),
+                    afterMetrics.context.opponent
+                )
+            }
 
     private fun pieceCountForSide(snapshot: GameSnapshot, side: Side): Int =
         snapshot.board.values.count { piece -> GameRules.sideOwnsPiece(side, piece) }
@@ -210,4 +241,26 @@ object MachineTrainedFeatureEncoder {
 
     private fun squareIndexes(square: String): Pair<Int, Int> =
         (square[0] - 'a') to (square.drop(1).toInt() - 1)
+
+    private class AfterSnapshotMetrics(
+        val snapshot: GameSnapshot,
+        val context: ScoringContext
+    ) {
+        val goldSquare: String? by lazy { goldSquare(snapshot) }
+        val goldCornerDistance: Int by lazy { BotStrategySupport.goldCornerDistance(snapshot) }
+        val ravenPressure: Int by lazy { BotStrategySupport.ravenPressure(snapshot) }
+        val opponentSnapshot: GameSnapshot by lazy { snapshotForSide(snapshot, context.opponent) }
+        private val legalMovesBySide = mutableMapOf<Side, List<LegalMove>>()
+
+        fun legalMovesFor(side: Side): List<LegalMove> =
+            legalMovesBySide.getOrPut(side) { GameRules.getLegalMoves(snapshotForSide(snapshot, side)) }
+
+        fun legalMoveCountFor(side: Side): Int =
+            legalMovesBySide[side]?.size
+                ?: if (side == context.opponent) {
+                    legalMovesFor(side).size
+                } else {
+                    GameRules.countLegalMoves(snapshotForSide(snapshot, side))
+                }
+    }
 }

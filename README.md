@@ -11,7 +11,7 @@ Ravens and Dragons is a Spring Boot and Kotlin web app for playing a browser-bas
 - Claim the ravens or dragons side in a live game
 - In `Free Play`, setup clicks now cycle `raven -> dragon -> gold -> empty`, and the starting-side picker lists Ravens first and defaults to Ravens
 - In a fresh supported preset game, choose a server-driven bot from the live-game seat panel and assign it to the opposite open seat for `Original Game`, `Sherwood Rules`, `Square One`, `Sherwood x 9`, or `Square One x 9`
-- `Michelle` appears for `Sherwood Rules` from a schema-5 ruleset-scoped artifact with side-specific dragon/raven weight vectors and compact tactical board features
+- `Michelle` appears for `Sherwood Rules` from an evolved schema-5 ruleset-scoped artifact with side-specific dragon/raven weight vectors, compact tactical board features, and a lower-allocation runtime scoring path
 - The offline Kotlin training pipeline can generate Sherwood-only Michelle datasets, train side-specific per-position move-ranking weights, deduplicate repeated move examples, write runtime-compatible artifacts with run provenance, evolve candidate populations with mutation/crossover, and smoke-evaluate Michelle against baseline bots through `botMatchHarnessTest`
 - `Maxine` stays on the existing minimax search, while `Alphie` uses a deeper optimized alpha-beta search with subtree caching and reused child snapshots
 - Undo against a bot reverses one full exchange, still works after a game-ending human move or bot reply when that last exchange is undoable, and can now be repeated across multiple consecutive undo steps

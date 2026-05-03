@@ -17,12 +17,13 @@ class MachineTrainedBotStrategy(
 
         BotStrategySupport.findImmediateWinningMove(snapshot, legalMoves)?.let { return it }
 
+        val scoringContext = MachineTrainedFeatureEncoder.createScoringContext(snapshot, model)
         var bestMove = legalMoves.first()
-        var bestScore = scoreMove(snapshot, bestMove, model)
+        var bestScore = scoreMove(snapshot, bestMove, scoringContext)
 
         for (index in 1 until legalMoves.size) {
             val move = legalMoves[index]
-            val score = scoreMove(snapshot, move, model)
+            val score = scoreMove(snapshot, move, scoringContext)
             if (score > bestScore) {
                 bestMove = move
                 bestScore = score
@@ -32,9 +33,13 @@ class MachineTrainedBotStrategy(
         return bestMove
     }
 
-    private fun scoreMove(snapshot: GameSnapshot, move: LegalMove, model: MachineTrainedModel): Float {
+    private fun scoreMove(
+        snapshot: GameSnapshot,
+        move: LegalMove,
+        scoringContext: MachineTrainedFeatureEncoder.ScoringContext
+    ): Float {
         val nextSnapshot = BotStrategySupport.applyMove(snapshot, move)
-        val features = MachineTrainedFeatureEncoder.encode(snapshot, move, nextSnapshot)
-        return MachineTrainedMoveScorer.score(model, snapshot.activeSide, features)
+        val features = MachineTrainedFeatureEncoder.encode(snapshot, move, nextSnapshot, scoringContext)
+        return MachineTrainedMoveScorer.score(scoringContext, features)
     }
 }
