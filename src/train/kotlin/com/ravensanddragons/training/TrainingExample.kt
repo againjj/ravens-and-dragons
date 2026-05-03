@@ -1,7 +1,12 @@
 package com.ravensanddragons.training
 
-import com.ravensanddragons.game.LegalMove
-import com.ravensanddragons.game.Side
+import com.ravensanddragons.game.bot.*
+import com.ravensanddragons.game.bot.machine.*
+import com.ravensanddragons.game.bot.strategy.*
+import com.ravensanddragons.game.model.*
+import com.ravensanddragons.game.rules.*
+
+
 import java.time.Instant
 
 enum class TrainingExampleSource {
@@ -21,7 +26,7 @@ data class TrainingExample(
     val source: TrainingExampleSource
 )
 
-data class MachineLearnedDataset(
+data class MachineTrainedDataset(
     val ruleConfigurationId: String,
     val featureSchemaVersion: Int,
     val generatedAt: Instant,

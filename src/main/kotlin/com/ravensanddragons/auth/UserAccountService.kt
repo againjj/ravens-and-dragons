@@ -1,7 +1,7 @@
 package com.ravensanddragons.auth
 
-import com.ravensanddragons.game.GameSessionService
-import com.ravensanddragons.game.GameStore
+import com.ravensanddragons.game.persistence.GameStore
+import com.ravensanddragons.game.session.GameSessionService
 import jakarta.annotation.PostConstruct
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service

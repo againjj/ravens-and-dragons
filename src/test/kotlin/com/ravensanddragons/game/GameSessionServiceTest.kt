@@ -1,5 +1,15 @@
 package com.ravensanddragons.game
 
+import com.ravensanddragons.game.bot.*
+import com.ravensanddragons.game.bot.machine.*
+import com.ravensanddragons.game.bot.strategy.*
+import com.ravensanddragons.game.model.*
+import com.ravensanddragons.game.persistence.*
+import com.ravensanddragons.game.rules.*
+import com.ravensanddragons.game.session.*
+import com.ravensanddragons.game.web.*
+
+
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull

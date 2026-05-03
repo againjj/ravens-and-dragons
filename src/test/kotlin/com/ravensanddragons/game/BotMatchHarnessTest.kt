@@ -1,5 +1,15 @@
 package com.ravensanddragons.game
 
+import com.ravensanddragons.game.bot.*
+import com.ravensanddragons.game.bot.machine.*
+import com.ravensanddragons.game.bot.strategy.*
+import com.ravensanddragons.game.model.*
+import com.ravensanddragons.game.persistence.*
+import com.ravensanddragons.game.rules.*
+import com.ravensanddragons.game.session.*
+import com.ravensanddragons.game.web.*
+
+
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -16,7 +26,7 @@ class BotMatchHarnessTest {
     }
 
     private val objectMapper = jacksonObjectMapper().findAndRegisterModules()
-    private val machineLearnedRegistry = MachineLearnedRegistry.from(MachineLearnedModelLoader(objectMapper))
+    private val machineTrainedRegistry = MachineTrainedRegistry.from(MachineTrainedModelLoader(objectMapper))
 
     @Test
     fun `randall and maxine complete many head to head games without errors`() {
@@ -73,14 +83,14 @@ class BotMatchHarnessTest {
             repeat(gamesPerMatchup) { seed ->
                 matchups += runMatch(
                     ruleConfigurationId = "sherwood-rules",
-                    dragonsBotId = BotRegistry.machineLearnedBotId,
+                    dragonsBotId = BotRegistry.machineTrainedBotId,
                     ravensBotId = baselineBotId,
                     seed = seed + 1 + (index * 100)
                 )
                 matchups += runMatch(
                     ruleConfigurationId = "sherwood-rules",
                     dragonsBotId = baselineBotId,
-                    ravensBotId = BotRegistry.machineLearnedBotId,
+                    ravensBotId = BotRegistry.machineTrainedBotId,
                     seed = seed + 51 + (index * 100)
                 )
             }
@@ -124,7 +134,7 @@ class BotMatchHarnessTest {
         )
         val runner = BotTurnRunner(
             GameCommandService(clock),
-            BotRegistry(SeededRandomIndexSource(seed), machineLearnedRegistry)
+            BotRegistry(SeededRandomIndexSource(seed), machineTrainedRegistry)
         )
         var persistedTurns = 0
 

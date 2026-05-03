@@ -67,22 +67,22 @@ A repeatable local memory-profiling runbook lives at [docs/profiling-runbook.md]
 
 ## Design Docs
 
-- [docs/machine-learned-bot-improvements.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-learned-bot-improvements.md): planning notes for making the evolved, ruleset-scoped `machine-learned` bot `Michelle` stronger
-- [docs/machine-learned-training-runbook.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-learned-training-runbook.md): human-facing guide to the current Michelle pipeline, including runtime behavior, schema-4 features, training, evolution, validation, installation, rollback, and troubleshooting
+- [docs/machine-trained-bot-improvements.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-trained-bot-improvements.md): planning notes for making the evolved, ruleset-scoped `machine-trained` bot `Michelle` stronger
+- [docs/machine-training-runbook.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-training-runbook.md): human-facing guide to the current Michelle pipeline, including runtime behavior, schema-4 features, training, evolution, validation, installation, rollback, and troubleshooting
 
 ## Offline Training
 
 Run the current Sherwood-only offline training pipeline with:
 
 ```bash
-./gradlew runMachineLearnedTraining
+./gradlew runMachineTraining
 ```
 
-That command writes a run-id-named dataset plus a generated Michelle artifact under `build/machine-learned-candidate` by default, uses all available CPUs unless you override `--worker-count`, reports coarse `0%..10%..100%` progress for dataset generation and model training, and emits schema-4 artifacts with the run id, command arguments, portable paths, seed, worker count, and training parameters embedded in `trainingSummary`.
+That command writes a run-id-named dataset plus a generated Michelle artifact under `build/machine-trained-candidate` by default, uses all available CPUs unless you override `--worker-count`, reports coarse `0%..10%..100%` progress for dataset generation and model training, and emits schema-4 artifacts with the run id, command arguments, portable paths, seed, worker count, and training parameters embedded in `trainingSummary`.
 
 Run the local evolution loop with `--mode evolve`, an explicit incumbent artifact path, and any number of repeated `--seed-artifact` inputs before installing a generated artifact as the bundled Sherwood model. Evolution writes the best survivor-comparison artifact plus one artifact for each final survivor, all named from the run id unless explicit filename overrides are provided.
 
-For installation and validation steps, use [docs/machine-learned-training-runbook.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-learned-training-runbook.md).
+For installation and validation steps, use [docs/machine-training-runbook.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-training-runbook.md).
 
 ## Local Authentication Setup
 

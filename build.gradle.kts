@@ -129,11 +129,11 @@ val botMatchHarnessTest by tasks.registering(Test::class) {
     }
 }
 
-val runMachineLearnedTraining by tasks.registering(JavaExec::class) {
+val runMachineTraining by tasks.registering(JavaExec::class) {
     group = LifecycleBasePlugin.BUILD_GROUP
-    description = "Generates an offline machine-learned dataset and artifact."
+    description = "Generates an offline machine-trained dataset and artifact."
     classpath = trainSourceSet.runtimeClasspath
-    mainClass.set("com.ravensanddragons.training.MachineLearnedTrainingCliKt")
+    mainClass.set("com.ravensanddragons.training.MachineTrainingCliKt")
     javaLauncher.set(java21Launcher)
 
     if (project.hasProperty("trainingArgs")) {
