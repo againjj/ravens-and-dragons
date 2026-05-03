@@ -44,6 +44,8 @@ The follow-up bot refactor has now split the old single `GameBots.kt` file into 
   - Flyway migrations for the persistent game schema.
 - `docs/profiling-runbook.md`
   - Repeatable local memory-profiling runbook for idle baselines, human-play retention, bot-search churn, and SSE-connected checks.
+- `docs/multi-game-service-structure-plan.md`
+  - Staged architecture plan for evolving this app into a multi-game service with shared platform infrastructure, an assembling app project, and top-level game modules such as `ravens-and-dragons/`.
 - `docs/machine-trained-bot-improvements.md`
   - Planning notes for making the evolved `machine-trained` bot `Michelle` stronger, including shallow search, richer fitness, outcome learning, game-stage specialization, and evaluation reliability.
 - `docs/machine-trained-feature-schema-plan.md`

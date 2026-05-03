@@ -76,6 +76,8 @@ If a requested change would alter one of those rules, implement it only when tha
 
 ## Testing Rules
 
+- Keep tests as independent as possible so they remain safe to run in parallel.
+- Avoid shared mutable state, order dependencies, and shared database rows between tests unless the test explicitly owns and resets that state.
 - When backend gameplay logic changes, update or add tests in `src/test/kotlin/com/ravensanddragons/game/GameRulesTest.kt` and related server tests.
 - When frontend helper behavior changes, update or add tests in `src/test/frontend/game.test.js`.
 - When React/Redux UI behavior changes, update or add tests under `src/test/frontend/*.test.ts(x)`.
