@@ -68,6 +68,7 @@ A repeatable local memory-profiling runbook lives at [docs/profiling-runbook.md]
 ## Design Docs
 
 - [docs/machine-trained-bot-improvements.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-trained-bot-improvements.md): planning notes for making the evolved, ruleset-scoped `machine-trained` bot `Michelle` stronger
+- [docs/machine-trained-feature-schema-plan.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-trained-feature-schema-plan.md): implementation plan for migrating Michelle to a compact schema-5 side-specialized feature vector
 - [docs/machine-training-runbook.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-training-runbook.md): human-facing guide to the current Michelle pipeline, including runtime behavior, schema-4 features, training, evolution, validation, installation, rollback, and troubleshooting
 
 ## Offline Training
