@@ -2,15 +2,21 @@
   "botId" : "machine-trained",
   "displayName" : "Michelle",
   "modelFormatVersion" : 1,
-  "featureSchemaVersion" : 4,
+  "featureSchemaVersion" : 5,
   "ruleConfigurationId" : "sherwood-rules",
   "trainedAt" : "2026-05-02T22:03:15.644558Z",
   "trainingSummary" : {
     "expertBotId" : "deep-minimax",
     "positions" : 29,
-    "selfPlayGames" : 8
+    "selfPlayGames" : 8,
+    "evolution" : {
+      "promote" : false,
+      "promotionReason" : "Migrated from schema 4 as a schema 5 seed; regenerate or evolve before promotion."
+    }
   },
-  "modelType" : "linear-move-ranker",
+  "modelType" : "side-specialized-linear-move-ranker",
   "bias" : 0.0,
-  "weights" : [ -0.026932161, 8.767159, 0.016138583, -2.4053364, -0.17979205, 2.9466212, 0.6269349, -0.26369172, -5.028183, 0.018946854, -8.1525673E-4, 0.026456589, -0.006430397, -0.011672776, -0.012991138, 0.0062719183, 0.17878166, -0.01859266, -7.1731437E-4, 0.1703841, 0.017230604, 0.011221782, 0.025753655, 0.45434397, -0.043969467, 0.054050855, -0.378471, 0.029142683, -1.0205318, 0.026317297 ]
+  "featureNames" : [ "moved-piece-gold", "captured-opponent-count", "move-wins-immediately", "gold-corner-distance-delta", "raven-pressure-delta", "moved-piece-to-structurally-uncapturable-square", "after-gold-corner-distance", "after-gold-legal-move-count", "after-gold-on-structurally-uncapturable-square", "after-nearest-raven-distance-to-gold", "after-ravens-adjacent-to-gold", "after-mover-legal-move-count", "after-opponent-legal-move-count", "after-mover-piece-count", "after-opponent-piece-count", "after-opponent-immediate-win", "after-opponent-capture-threat-count", "after-opponent-can-capture-gold", "after-mover-structurally-uncapturable-piece-count", "after-opponent-structurally-uncapturable-piece-count", "after-position-repeat-risk" ],
+  "dragonWeights" : [ -0.026932161, 8.767159, 0.016138583, 0.0062719183, 0.17878166, 0.0, 0.011221782, 0.0, 0.0, 0.025753655, 0.45434397, -0.043969467, 0.054050855, -0.378471, 0.029142683, -0.01859266, -7.1731437E-4, 0.0, 0.0, 0.0, 0.026317297 ],
+  "ravenWeights" : [ -0.026932161, 8.767159, 0.016138583, -0.0062719183, -0.17878166, 0.0, -0.011221782, 0.0, 0.0, -0.025753655, -0.45434397, -0.054050855, 0.043969467, -0.029142683, 0.378471, -0.01859266, -7.1731437E-4, 0.0, 0.0, 0.0, 0.026317297 ]
 }

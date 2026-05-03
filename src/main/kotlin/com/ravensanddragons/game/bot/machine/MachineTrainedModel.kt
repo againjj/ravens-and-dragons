@@ -65,7 +65,8 @@ data class MachineTrainedModel(
     val metadata: MachineTrainedModelMetadata,
     val modelType: String,
     val bias: Float,
-    val weights: List<Float>,
+    val dragonWeights: List<Float>,
+    val ravenWeights: List<Float>,
     val trainingSummary: MachineTrainingSummary
 ) {
     companion object {

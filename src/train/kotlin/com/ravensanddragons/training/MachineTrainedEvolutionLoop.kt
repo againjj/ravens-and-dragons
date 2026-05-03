@@ -309,7 +309,8 @@ class MachineTrainedEvolutionLoop(
             parentIds = listOf(parent.id),
             model = parent.model.copy(
                 metadata = refreshedMetadata(parent.model),
-                weights = parent.model.weights.map { weight -> maybeMutateWeight(weight, request, random) }
+                dragonWeights = mutateWeights(parent.model.dragonWeights, request, random),
+                ravenWeights = mutateWeights(parent.model.ravenWeights, request, random)
             )
         )
 
@@ -328,13 +329,33 @@ class MachineTrainedEvolutionLoop(
             parentIds = listOf(parentA.id, parentB.id),
             model = parentA.model.copy(
                 metadata = refreshedMetadata(parentA.model),
-                weights = parentA.model.weights.indices.map { index ->
-                    val blend = random.nextUnitFloat()
-                    val blended = parentA.model.weights[index] * blend + parentB.model.weights[index] * (1f - blend)
-                    maybeMutateWeight(blended, request, random)
-                }
+                dragonWeights = crossoverWeights(parentA.model.dragonWeights, parentB.model.dragonWeights, request, random),
+                ravenWeights = crossoverWeights(parentA.model.ravenWeights, parentB.model.ravenWeights, request, random)
             )
         )
+
+    private fun mutateWeights(
+        weights: List<Float>,
+        request: MachineTrainedEvolutionRequest,
+        random: SeededRandomIndexSource
+    ): List<Float> =
+        weights.map { weight -> maybeMutateWeight(weight, request, random) }
+
+    private fun crossoverWeights(
+        parentAWeights: List<Float>,
+        parentBWeights: List<Float>,
+        request: MachineTrainedEvolutionRequest,
+        random: SeededRandomIndexSource
+    ): List<Float> {
+        require(parentAWeights.size == parentBWeights.size) {
+            "Machine-trained evolution cannot cross over side vectors with different lengths."
+        }
+        return parentAWeights.indices.map { index ->
+            val blend = random.nextUnitFloat()
+            val blended = parentAWeights[index] * blend + parentBWeights[index] * (1f - blend)
+            maybeMutateWeight(blended, request, random)
+        }
+    }
 
     private fun maybeMutateWeight(
         weight: Float,
@@ -761,8 +782,11 @@ class MachineTrainedEvolutionLoop(
         require(model.modelType == MachineTrainedMoveScorer.supportedModelType) {
             "$label artifact model type ${model.modelType} is not supported for evolution."
         }
-        require(model.weights.size == MachineTrainedFeatureEncoder.featureCount) {
-            "$label artifact weight count ${model.weights.size} does not match encoder feature count ${MachineTrainedFeatureEncoder.featureCount}."
+        require(model.dragonWeights.size == MachineTrainedFeatureEncoder.featureCount) {
+            "$label artifact dragon weight count ${model.dragonWeights.size} does not match encoder feature count ${MachineTrainedFeatureEncoder.featureCount}."
+        }
+        require(model.ravenWeights.size == MachineTrainedFeatureEncoder.featureCount) {
+            "$label artifact raven weight count ${model.ravenWeights.size} does not match encoder feature count ${MachineTrainedFeatureEncoder.featureCount}."
         }
     }
 

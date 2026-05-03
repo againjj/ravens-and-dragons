@@ -1,6 +1,6 @@
 # Machine-Trained Feature Schema Plan
 
-This plan describes the next feature-vector change for `Michelle`, the `machine-trained` bot. The goal is to make the linear model more side-aware, less biased by hand-authored evaluation, and better at valuing tactical board geometry while keeping runtime inference cheap and artifacts inspectable.
+This plan describes the schema-5 feature-vector change for `Michelle`, the `machine-trained` bot. The migration described here has been implemented: runtime artifacts now use side-specific dragon/raven weight vectors, raw schema-5 features, structural uncapturability signals, and no schema-4 runtime fallback.
 
 ## Goals
 

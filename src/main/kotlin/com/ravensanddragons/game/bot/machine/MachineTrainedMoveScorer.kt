@@ -7,19 +7,23 @@ import com.ravensanddragons.game.rules.*
 
 
 object MachineTrainedMoveScorer {
-    const val supportedModelType = "linear-move-ranker"
+    const val supportedModelType = "side-specialized-linear-move-ranker"
 
-    fun score(model: MachineTrainedModel, features: FloatArray): Float {
+    fun score(model: MachineTrainedModel, activeSide: Side, features: FloatArray): Float {
         require(model.modelType == supportedModelType) {
             "Unsupported machine-trained model type: ${model.modelType}"
         }
-        require(features.size == model.weights.size) {
-            "Feature vector size ${features.size} does not match weight count ${model.weights.size}."
+        val weights = when (activeSide) {
+            Side.dragons -> model.dragonWeights
+            Side.ravens -> model.ravenWeights
+        }
+        require(features.size == weights.size) {
+            "Feature vector size ${features.size} does not match weight count ${weights.size}."
         }
 
         var total = model.bias
         for (index in features.indices) {
-            total += model.weights[index] * features[index]
+            total += weights[index] * features[index]
         }
         return total
     }

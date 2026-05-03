@@ -7,6 +7,7 @@ import com.ravensanddragons.game.model.*
 import com.ravensanddragons.game.rules.*
 
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -42,36 +43,29 @@ class MachineTrainingPipelineTest {
                 "moved-piece-gold",
                 "captured-opponent-count",
                 "move-wins-immediately",
-                "mover-origin-center-adjacent",
-                "mover-origin-edge",
-                "mover-origin-corner-adjacent",
-                "mover-destination-center-adjacent",
-                "mover-destination-edge",
-                "mover-destination-corner-adjacent",
-                "gold-origin-center-adjacent",
-                "gold-origin-edge",
-                "gold-origin-corner-adjacent",
-                "gold-destination-center-adjacent",
-                "gold-destination-edge",
-                "gold-destination-corner-adjacent",
                 "gold-corner-distance-delta",
                 "raven-pressure-delta",
-                "after-opponent-immediate-win",
-                "after-opponent-captures",
-                "after-active-side-legal-move-delta",
-                "after-evaluation-for-active-side",
+                "moved-piece-to-structurally-uncapturable-square",
                 "after-gold-corner-distance",
+                "after-gold-legal-move-count",
+                "after-gold-on-structurally-uncapturable-square",
                 "after-nearest-raven-distance-to-gold",
                 "after-ravens-adjacent-to-gold",
-                "after-dragons-mobility",
-                "after-ravens-mobility",
-                "after-dragons-piece-count",
-                "after-ravens-piece-count",
-                "after-gold-movable",
+                "after-mover-legal-move-count",
+                "after-opponent-legal-move-count",
+                "after-mover-piece-count",
+                "after-opponent-piece-count",
+                "after-opponent-immediate-win",
+                "after-opponent-capture-threat-count",
+                "after-opponent-can-capture-gold",
+                "after-mover-structurally-uncapturable-piece-count",
+                "after-opponent-structurally-uncapturable-piece-count",
                 "after-position-repeat-risk"
             ),
             MachineTrainedFeatureEncoder.featureNames
         )
+        assertFalse(MachineTrainedFeatureEncoder.featureNames.any { it.contains("origin") })
+        assertFalse("after-evaluation-for-active-side" in MachineTrainedFeatureEncoder.featureNames)
         val features = MachineTrainedFeatureEncoder.encode(
             snapshot,
             LegalMove("a2", "a1"),
@@ -81,25 +75,19 @@ class MachineTrainingPipelineTest {
         assertEquals(MachineTrainedFeatureEncoder.featureCount, features.size)
         assertFeatureEquals("moved-piece-gold", 1f, features)
         assertFeatureEquals("move-wins-immediately", 1f, features)
-        assertFeatureEquals("mover-origin-edge", 1f, features)
-        assertFeatureEquals("mover-origin-corner-adjacent", 1f, features)
-        assertFeatureEquals("mover-destination-edge", 1f, features)
-        assertFeatureEquals("gold-origin-edge", 1f, features)
-        assertFeatureEquals("gold-origin-corner-adjacent", 1f, features)
-        assertFeatureEquals("gold-destination-edge", 1f, features)
         assertFeatureEquals("gold-corner-distance-delta", 1f, features)
         assertFeatureEquals("raven-pressure-delta", -1f, features)
         assertFeatureEquals("after-gold-corner-distance", 0f, features)
+        assertFeatureEquals("after-gold-legal-move-count", 2f, features)
         assertFeatureEquals("after-nearest-raven-distance-to-gold", 12f, features)
         assertFeatureEquals("after-ravens-adjacent-to-gold", 0f, features)
-        assertFeatureEquals("after-opponent-captures", 0f, features)
-        assertFeatureEquals("after-dragons-piece-count", 2f, features)
-        assertFeatureEquals("after-ravens-piece-count", 1f, features)
-        assertFeatureEquals("after-evaluation-for-active-side", 1_000_000f, features)
+        assertFeatureEquals("after-opponent-capture-threat-count", 0f, features)
+        assertFeatureEquals("after-mover-piece-count", 2f, features)
+        assertFeatureEquals("after-opponent-piece-count", 1f, features)
     }
 
     @Test
-    fun `feature encoder flips relative features for raven moves`() {
+    fun `feature encoder keeps raw facts for raven moves`() {
         val snapshot = GameSnapshot(
             board = linkedMapOf(
                 "a2" to Piece.gold,
@@ -122,13 +110,55 @@ class MachineTrainingPipelineTest {
             GameRules.movePiece(snapshot, "g7", "b7")
         )
 
-        assertFeatureEquals("mover-origin-edge", 1f, features)
-        assertFeatureEquals("mover-destination-edge", 1f, features)
-        assertFeatureEquals("gold-origin-edge", 0f, features)
         assertFeatureEquals("gold-corner-distance-delta", 0f, features)
-        assertFeatureEquals("after-gold-corner-distance", -1f, features)
-        assertFeatureEquals("after-dragons-piece-count", -2f, features)
-        assertFeatureEquals("after-ravens-piece-count", -1f, features)
+        assertFeatureEquals("after-gold-corner-distance", 1f, features)
+        assertFeatureEquals("after-mover-piece-count", 1f, features)
+        assertFeatureEquals("after-opponent-piece-count", 2f, features)
+    }
+
+    @Test
+    fun `structural uncapturability identifies known edge squares`() {
+        assertEquals(
+            setOf("c1", "e1", "a3", "g3", "a5", "g5", "c7", "e7"),
+            BoardCoordinates.structurallyUncapturableSquares(7, "d4", Piece.raven)
+        )
+        assertEquals(
+            setOf("c1", "g1", "a3", "i3", "a7", "i7", "c9", "g9"),
+            BoardCoordinates.structurallyUncapturableSquares(9, "e5", Piece.dragon)
+        )
+    }
+
+    @Test
+    fun `feature encoder marks moves to structurally uncapturable squares`() {
+        val snapshot = GameSnapshot(
+            board = linkedMapOf(
+                "a2" to Piece.gold,
+                "d5" to Piece.dragon,
+                "g7" to Piece.raven
+            ),
+            boardSize = 7,
+            specialSquare = "d4",
+            phase = Phase.move,
+            activeSide = Side.ravens,
+            pendingMove = null,
+            turns = emptyList(),
+            ruleConfigurationId = "sherwood-rules",
+            positionKeys = listOf("initial")
+        )
+
+        val structuralFeatures = MachineTrainedFeatureEncoder.encode(
+            snapshot,
+            LegalMove("g7", "c7"),
+            GameRules.movePiece(snapshot, "g7", "c7")
+        )
+        val ordinaryFeatures = MachineTrainedFeatureEncoder.encode(
+            snapshot,
+            LegalMove("g7", "b7"),
+            GameRules.movePiece(snapshot, "g7", "b7")
+        )
+
+        assertFeatureEquals("moved-piece-to-structurally-uncapturable-square", 1f, structuralFeatures)
+        assertFeatureEquals("moved-piece-to-structurally-uncapturable-square", 0f, ordinaryFeatures)
     }
 
     @Test
@@ -155,7 +185,7 @@ class MachineTrainingPipelineTest {
             GameRules.movePiece(snapshot, "b2", "b1")
         )
 
-        assertFeatureEquals("after-opponent-captures", 1f, features)
+        assertFeatureEquals("after-opponent-capture-threat-count", 1f, features)
     }
 
     @Test
@@ -306,15 +336,13 @@ class MachineTrainingPipelineTest {
                     label = 1f,
                     features = featureVector(
                         "moved-piece-gold" to 1f,
-                        "move-wins-immediately" to 1f,
-                        "after-evaluation-for-active-side" to 1_000_000f
+                        "move-wins-immediately" to 1f
                     )
                 ),
                 example(
                     label = 0f,
                     features = featureVector(
-                        "after-gold-corner-distance" to 3f,
-                        "after-evaluation-for-active-side" to 18f
+                        "after-gold-corner-distance" to 3f
                     )
                 )
             )
@@ -421,8 +449,7 @@ class MachineTrainingPipelineTest {
                     label = 1f,
                     features = featureVector(
                         "captured-opponent-count" to 1f,
-                        "after-ravens-adjacent-to-gold" to 2f,
-                        "after-evaluation-for-active-side" to 40f
+                        "after-ravens-adjacent-to-gold" to 2f
                     )
                 ),
                 example(
@@ -430,8 +457,7 @@ class MachineTrainingPipelineTest {
                     label = 0f,
                     features = featureVector(
                         "after-gold-corner-distance" to 6f,
-                        "after-ravens-adjacent-to-gold" to -1f,
-                        "after-evaluation-for-active-side" to -20f
+                        "after-ravens-adjacent-to-gold" to 0f
                     )
                 ),
                 example(
@@ -440,8 +466,7 @@ class MachineTrainingPipelineTest {
                     features = featureVector(
                         "captured-opponent-count" to 1f,
                         "after-gold-corner-distance" to 3f,
-                        "after-opponent-captures" to 1f,
-                        "after-evaluation-for-active-side" to 25f
+                        "after-opponent-capture-threat-count" to 1f
                     )
                 ),
                 example(
@@ -449,8 +474,7 @@ class MachineTrainingPipelineTest {
                     label = 0f,
                     features = featureVector(
                         "after-gold-corner-distance" to 7f,
-                        "after-opponent-captures" to 2f,
-                        "after-evaluation-for-active-side" to -30f
+                        "after-opponent-capture-threat-count" to 2f
                     )
                 )
             )
@@ -459,13 +483,45 @@ class MachineTrainingPipelineTest {
         val model = trainer.train(dataset)
 
         assertTrue(
-            MachineTrainedMoveScorer.score(model, dataset.examples[0].features.toFloatArray()) >
-                MachineTrainedMoveScorer.score(model, dataset.examples[1].features.toFloatArray())
+            MachineTrainedMoveScorer.score(model, Side.ravens, dataset.examples[0].features.toFloatArray()) >
+                MachineTrainedMoveScorer.score(model, Side.ravens, dataset.examples[1].features.toFloatArray())
         )
         assertTrue(
-            MachineTrainedMoveScorer.score(model, dataset.examples[2].features.toFloatArray()) >
-                MachineTrainedMoveScorer.score(model, dataset.examples[3].features.toFloatArray())
+            MachineTrainedMoveScorer.score(model, Side.ravens, dataset.examples[2].features.toFloatArray()) >
+                MachineTrainedMoveScorer.score(model, Side.ravens, dataset.examples[3].features.toFloatArray())
         )
+    }
+
+    @Test
+    fun `trainer updates only the active side vector for side-specific examples`() {
+        val trainer = MachineTrainedTrainer(fixedClock())
+        val dataset = MachineTrainedDataset(
+            ruleConfigurationId = "sherwood-rules",
+            featureSchemaVersion = MachineTrainedFeatureEncoder.schemaVersion,
+            generatedAt = Instant.parse("2026-04-30T00:00:00Z"),
+            expertBotId = "deep-minimax",
+            selfPlayBotIds = listOf("simple"),
+            selfPlayGames = 1,
+            examples = listOf(
+                example(
+                    positionKey = "dragon-position",
+                    activeSide = Side.dragons,
+                    label = 1f,
+                    features = featureVector("captured-opponent-count" to 1f)
+                ),
+                example(
+                    positionKey = "dragon-position",
+                    activeSide = Side.dragons,
+                    label = 0f,
+                    features = featureVector("captured-opponent-count" to 0f)
+                )
+            )
+        )
+
+        val model = trainer.train(dataset)
+
+        assertTrue(model.dragonWeights.any { it != 0f })
+        assertTrue(model.ravenWeights.all { it == 0f })
     }
 
     @Test
@@ -487,11 +543,11 @@ class MachineTrainingPipelineTest {
             examples = listOf(
                 example(
                     label = 1f,
-                    features = featureVector("after-evaluation-for-active-side" to 10f)
+                    features = featureVector("captured-opponent-count" to 1f)
                 ),
                 example(
                     label = 0f,
-                    features = featureVector("after-evaluation-for-active-side" to -10f)
+                    features = featureVector("after-gold-corner-distance" to 4f)
                 )
             )
         )
@@ -518,12 +574,12 @@ class MachineTrainingPipelineTest {
             MachineTrainedEvolutionRequest(
                 ruleConfigurationId = "sherwood-rules",
                 incumbentModel = model(
-                    featureName = "after-evaluation-for-active-side",
+                    featureName = "captured-opponent-count",
                     weight = -1f
                 ),
                 seedModels = listOf(
                     model(
-                        featureName = "after-evaluation-for-active-side",
+                        featureName = "captured-opponent-count",
                         weight = 1f
                     )
                 ),
@@ -590,8 +646,45 @@ class MachineTrainingPipelineTest {
             report.bestCandidateId
         )
         assertEquals(report.generationSummaries.last().survivorIds, result.survivorModels.map { it.candidateId })
-        assertEquals(MachineTrainedFeatureEncoder.featureCount, result.bestModel.weights.size)
+        assertEquals(MachineTrainedFeatureEncoder.featureCount, result.bestModel.dragonWeights.size)
+        assertEquals(MachineTrainedFeatureEncoder.featureCount, result.bestModel.ravenWeights.size)
+        assertTrue(result.survivorModels.all { it.model.dragonWeights.size == MachineTrainedFeatureEncoder.featureCount })
+        assertTrue(result.survivorModels.all { it.model.ravenWeights.size == MachineTrainedFeatureEncoder.featureCount })
         assertEquals((1..24).map { it to 24 }, progressReports)
+    }
+
+    @Test
+    fun `schema four migration creates a valid schema five seed`() {
+        val legacyWeights = MutableList(30) { 0f }
+        legacyWeights[0] = 1f
+        legacyWeights[15] = 2f
+        legacyWeights[24] = 3f
+        legacyWeights[25] = 4f
+        val payload = MachineTrainedSchemaMigration.migrateSchemaFourSeed(
+            LegacySchemaFourMachineTrainedArtifactPayload(
+                botId = MachineTrainedRegistry.botId,
+                displayName = MachineTrainedRegistry.displayName,
+                modelFormatVersion = MachineTrainedModel.supportedModelFormatVersion,
+                featureSchemaVersion = 4,
+                ruleConfigurationId = "sherwood-rules",
+                trainedAt = Instant.parse("2026-04-30T12:00:00Z"),
+                trainingSummary = MachineTrainingSummary(expertBotId = "test", positions = 1, selfPlayGames = 1),
+                modelType = "linear-move-ranker",
+                bias = 0f,
+                weights = legacyWeights
+            )
+        )
+
+        val model = MachineTrainedArtifactSupport.toModel(payload)
+
+        assertEquals(MachineTrainedFeatureEncoder.schemaVersion, payload.featureSchemaVersion)
+        assertEquals(MachineTrainedMoveScorer.supportedModelType, payload.modelType)
+        assertEquals(1f, model.dragonWeights[MachineTrainedFeatureEncoder.featureNames.indexOf("moved-piece-gold")])
+        assertEquals(1f, model.ravenWeights[MachineTrainedFeatureEncoder.featureNames.indexOf("moved-piece-gold")])
+        assertEquals(2f, model.dragonWeights[MachineTrainedFeatureEncoder.featureNames.indexOf("gold-corner-distance-delta")])
+        assertEquals(-2f, model.ravenWeights[MachineTrainedFeatureEncoder.featureNames.indexOf("gold-corner-distance-delta")])
+        assertEquals(3f, model.dragonWeights[MachineTrainedFeatureEncoder.featureNames.indexOf("after-mover-legal-move-count")])
+        assertEquals(-4f, model.ravenWeights[MachineTrainedFeatureEncoder.featureNames.indexOf("after-mover-legal-move-count")])
     }
 
     @Test
@@ -614,6 +707,7 @@ class MachineTrainingPipelineTest {
 
     private fun example(
         positionKey: String = "position-1",
+        activeSide: Side = Side.ravens,
         label: Float,
         features: List<Float>,
         ruleConfigurationId: String = "sherwood-rules"
@@ -622,7 +716,7 @@ class MachineTrainingPipelineTest {
         ruleConfigurationId = ruleConfigurationId,
         featureSchemaVersion = MachineTrainedFeatureEncoder.schemaVersion,
         boardSize = 7,
-        activeSide = Side.ravens,
+        activeSide = activeSide,
         candidateMove = LegalMove("d7", "c7"),
         expertMove = LegalMove("d7", "c7"),
         features = features,
@@ -656,7 +750,8 @@ class MachineTrainingPipelineTest {
             ),
             modelType = MachineTrainedMoveScorer.supportedModelType,
             bias = 0f,
-            weights = weights,
+            dragonWeights = weights,
+            ravenWeights = weights,
             trainingSummary = MachineTrainingSummary(
                 expertBotId = "test",
                 positions = 1,

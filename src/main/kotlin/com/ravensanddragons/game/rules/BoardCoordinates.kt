@@ -35,6 +35,32 @@ object BoardCoordinates {
     fun isCorner(square: String, boardSize: Int): Boolean =
         square in cornerSquares(boardSize)
 
+    fun isStructurallyUncapturableRegularSquare(square: String, boardSize: Int, specialSquare: String): Boolean {
+        val indexes = indexes(square, boardSize) ?: return false
+        if (isCenter(square, specialSquare) || isCorner(square, boardSize)) {
+            return false
+        }
+
+        val lastIndex = boardSize - 1
+        return ((indexes.rankIndex == 0 || indexes.rankIndex == lastIndex) &&
+            (indexes.fileIndex == 2 || indexes.fileIndex == lastIndex - 2)) ||
+            ((indexes.fileIndex == 0 || indexes.fileIndex == lastIndex) &&
+                (indexes.rankIndex == 2 || indexes.rankIndex == lastIndex - 2))
+    }
+
+    fun isStructurallyUncapturableGoldSquare(square: String, boardSize: Int, specialSquare: String): Boolean =
+        isStructurallyUncapturableRegularSquare(square, boardSize, specialSquare)
+
+    fun structurallyUncapturableSquares(boardSize: Int, specialSquare: String, piece: Piece): Set<String> =
+        allSquares(boardSize)
+            .filter { square ->
+                when (piece) {
+                    Piece.gold -> isStructurallyUncapturableGoldSquare(square, boardSize, specialSquare)
+                    Piece.dragon, Piece.raven -> isStructurallyUncapturableRegularSquare(square, boardSize, specialSquare)
+                }
+            }
+            .toSet()
+
     fun neighbors(square: String, boardSize: Int): List<String> =
         geometry(boardSize).neighbors[square] ?: emptyList()
 

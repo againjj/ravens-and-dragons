@@ -35,6 +35,6 @@ class MachineTrainedBotStrategy(
     private fun scoreMove(snapshot: GameSnapshot, move: LegalMove, model: MachineTrainedModel): Float {
         val nextSnapshot = BotStrategySupport.applyMove(snapshot, move)
         val features = MachineTrainedFeatureEncoder.encode(snapshot, move, nextSnapshot)
-        return MachineTrainedMoveScorer.score(model, features)
+        return MachineTrainedMoveScorer.score(model, snapshot.activeSide, features)
     }
 }

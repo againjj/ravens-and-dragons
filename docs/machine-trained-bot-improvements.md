@@ -10,10 +10,10 @@ This note captures high-leverage changes that can make the evolved `Michelle` bo
 2. checks for an immediate winning move,
 3. applies each legal move once,
 4. encodes move-local and resulting-position features,
-5. scores each move with `bias + sum(weight[i] * feature[i])`,
+5. scores each move with the active side's weight vector and `bias + sum(weight[i] * feature[i])`,
 6. chooses the highest-scoring legal move.
 
-The offline pipeline can create supervised seed artifacts from expert-labeled self-play positions and can evolve weight vectors through candidate-only round-robin games followed by survivor comparison against the incumbent and configured baselines.
+The offline pipeline can create supervised seed artifacts from expert-labeled self-play positions and can evolve side-specific weight vectors through candidate-only round-robin games followed by survivor comparison against the incumbent and configured baselines.
 
 ## Biggest Opportunities
 
@@ -84,15 +84,15 @@ Two incremental options:
 
 Interaction features are easier to inspect and evolve. A tiny neural model may learn better combinations but needs stricter artifact validation, runtime tests, and performance checks.
 
-### Specialize By Side Or Game Stage
+### Specialize By Game Stage
 
-The current encoder flips relative features for raven turns so one weight vector can serve both sides. That keeps artifacts compact, but dragons and ravens have asymmetric goals. Stronger artifacts may use:
+Schema 5 already gives dragons and ravens separate weight vectors. The next specialization layer is game stage, because the same board fact can mean different things in openings, containment fights, and nearly-terminal escapes.
 
-- separate dragon and raven weights,
+Stronger artifacts may use:
+
 - separate early, middle, and late-game weights,
-- separate move-ranking and position-value heads.
-
-Side-specific weights are the simplest major specialization and fit the current artifact-backed runtime well.
+- separate move-ranking and position-value heads,
+- explicit phase/context features for material, gold distance, and mobility.
 
 ### Improve Opening Diversity And Evaluation Reliability
 
@@ -110,7 +110,7 @@ The evolution report should keep enough detail to explain why a candidate surviv
 
 1. Improve evaluation reliability first: fixed seed suites, stronger reports, and shaped fitness.
 2. Add shallow search around Michelle using the current artifact scorer as the leaf evaluator.
-3. Introduce side-specific weights or interaction features.
+3. Add interaction features or game-stage specialization.
 4. Add outcome-based self-play training data.
 5. Consider a tiny nonlinear model only after the improved linear/search version plateaus.
 

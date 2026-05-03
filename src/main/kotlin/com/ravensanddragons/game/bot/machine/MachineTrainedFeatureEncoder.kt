@@ -9,52 +9,35 @@ import com.ravensanddragons.game.rules.*
 import kotlin.math.abs
 
 object MachineTrainedFeatureEncoder {
-    const val schemaVersion = 4
+    const val schemaVersion = 5
 
-    val absoluteMoveLocalFeatureNames = listOf(
+    val moveLocalFeatureNames = listOf(
         "moved-piece-gold",
         "captured-opponent-count",
         "move-wins-immediately",
-        "mover-origin-center-adjacent",
-        "mover-origin-edge",
-        "mover-origin-corner-adjacent",
-        "mover-destination-center-adjacent",
-        "mover-destination-edge",
-        "mover-destination-corner-adjacent"
-    )
-
-    val relativeMoveLocalFeatureNames = listOf(
-        "gold-origin-center-adjacent",
-        "gold-origin-edge",
-        "gold-origin-corner-adjacent",
-        "gold-destination-center-adjacent",
-        "gold-destination-edge",
-        "gold-destination-corner-adjacent",
         "gold-corner-distance-delta",
-        "raven-pressure-delta"
+        "raven-pressure-delta",
+        "moved-piece-to-structurally-uncapturable-square"
     )
 
-    val absolutePositionDerivedFeatureNames = listOf(
-        "after-opponent-immediate-win",
-        "after-opponent-captures",
-        "after-active-side-legal-move-delta",
-        "after-evaluation-for-active-side"
-    )
-
-    val relativePositionDerivedFeatureNames = listOf(
+    val positionDerivedFeatureNames = listOf(
         "after-gold-corner-distance",
+        "after-gold-legal-move-count",
+        "after-gold-on-structurally-uncapturable-square",
         "after-nearest-raven-distance-to-gold",
         "after-ravens-adjacent-to-gold",
-        "after-dragons-mobility",
-        "after-ravens-mobility",
-        "after-dragons-piece-count",
-        "after-ravens-piece-count",
-        "after-gold-movable",
+        "after-mover-legal-move-count",
+        "after-opponent-legal-move-count",
+        "after-mover-piece-count",
+        "after-opponent-piece-count",
+        "after-opponent-immediate-win",
+        "after-opponent-capture-threat-count",
+        "after-opponent-can-capture-gold",
+        "after-mover-structurally-uncapturable-piece-count",
+        "after-opponent-structurally-uncapturable-piece-count",
         "after-position-repeat-risk"
     )
 
-    val moveLocalFeatureNames = absoluteMoveLocalFeatureNames + relativeMoveLocalFeatureNames
-    val positionDerivedFeatureNames = absolutePositionDerivedFeatureNames + relativePositionDerivedFeatureNames
     val featureNames = moveLocalFeatureNames + positionDerivedFeatureNames
     val featureCount: Int = featureNames.size
 
@@ -66,26 +49,18 @@ object MachineTrainedFeatureEncoder {
         val movedPiece = beforeSnapshot.board.getValue(move.origin)
         val mover = beforeSnapshot.activeSide
         val opponent = BotStrategySupport.oppositeSide(mover)
-        val beforeActiveMobility = mobilityForSide(beforeSnapshot, mover)
-        val afterActiveMobility = mobilityForSide(afterSnapshot, mover)
 
         return (
-            absoluteMoveLocalFeatures(beforeSnapshot, move, afterSnapshot, movedPiece, mover) +
-                relativeMoveLocalFeatures(beforeSnapshot, move, afterSnapshot, movedPiece, mover) +
-                absolutePositionDerivedFeatures(
+            moveLocalFeatures(beforeSnapshot, move, afterSnapshot, movedPiece, mover) +
+                positionDerivedFeatures(
                     afterSnapshot = afterSnapshot,
                     mover = mover,
-                    opponent = opponent,
-                    activeSideLegalMoveDelta = afterActiveMobility - beforeActiveMobility
-                ) +
-                relativePositionDerivedFeatures(
-                    afterSnapshot = afterSnapshot,
-                    mover = mover
+                    opponent = opponent
                 )
         ).toFloatArray()
     }
 
-    private fun absoluteMoveLocalFeatures(
+    private fun moveLocalFeatures(
         beforeSnapshot: GameSnapshot,
         move: LegalMove,
         afterSnapshot: GameSnapshot,
@@ -96,88 +71,35 @@ object MachineTrainedFeatureEncoder {
             if (movedPiece == Piece.gold) 1f else 0f,
             BotStrategySupport.capturedOpponentCount(beforeSnapshot, afterSnapshot, mover).toFloat(),
             if (BotStrategySupport.isWinningSnapshotFor(afterSnapshot, mover)) 1f else 0f,
-            if (isCenterAdjacent(move.origin, beforeSnapshot)) 1f else 0f,
-            if (isEdge(move.origin, beforeSnapshot.boardSize)) 1f else 0f,
-            if (isCornerAdjacent(move.origin, beforeSnapshot.boardSize)) 1f else 0f,
-            if (isCenterAdjacent(move.destination, beforeSnapshot)) 1f else 0f,
-            if (isEdge(move.destination, beforeSnapshot.boardSize)) 1f else 0f,
-            if (isCornerAdjacent(move.destination, beforeSnapshot.boardSize)) 1f else 0f
-        )
-
-    private fun relativeMoveLocalFeatures(
-        beforeSnapshot: GameSnapshot,
-        move: LegalMove,
-        afterSnapshot: GameSnapshot,
-        movedPiece: Piece,
-        mover: Side
-    ): List<Float> =
-        relativeFeatures(
-            mover,
-            if (movedPiece == Piece.gold && isCenterAdjacent(move.origin, beforeSnapshot)) 1f else 0f,
-            if (movedPiece == Piece.gold && isEdge(move.origin, beforeSnapshot.boardSize)) 1f else 0f,
-            if (movedPiece == Piece.gold && isCornerAdjacent(move.origin, beforeSnapshot.boardSize)) 1f else 0f,
-            if (movedPiece == Piece.gold && isCenterAdjacent(move.destination, beforeSnapshot)) 1f else 0f,
-            if (movedPiece == Piece.gold && isEdge(move.destination, beforeSnapshot.boardSize)) 1f else 0f,
-            if (movedPiece == Piece.gold && isCornerAdjacent(move.destination, beforeSnapshot.boardSize)) 1f else 0f,
             (BotStrategySupport.goldCornerDistance(beforeSnapshot) - BotStrategySupport.goldCornerDistance(afterSnapshot)).toFloat(),
-            (BotStrategySupport.ravenPressure(afterSnapshot) - BotStrategySupport.ravenPressure(beforeSnapshot)).toFloat()
+            (BotStrategySupport.ravenPressure(afterSnapshot) - BotStrategySupport.ravenPressure(beforeSnapshot)).toFloat(),
+            if (isStructurallyUncapturableSquare(move.destination, movedPiece, beforeSnapshot)) 1f else 0f
         )
 
-    private fun absolutePositionDerivedFeatures(
+    private fun positionDerivedFeatures(
         afterSnapshot: GameSnapshot,
         mover: Side,
-        opponent: Side,
-        activeSideLegalMoveDelta: Int
-    ): List<Float> =
-        listOf(
-            if (BotStrategySupport.hasImmediateWinningMove(afterSnapshot, opponent)) 1f else 0f,
-            opponentCaptureThreatCount(afterSnapshot, mover, opponent).toFloat(),
-            activeSideLegalMoveDelta.toFloat(),
-            BotStrategySupport.evaluateForSide(afterSnapshot, mover).toFloat()
-        )
-
-    private fun relativePositionDerivedFeatures(
-        afterSnapshot: GameSnapshot,
-        mover: Side
+        opponent: Side
     ): List<Float> {
         val goldSquare = goldSquare(afterSnapshot)
-        return relativeFeatures(
-            mover,
+        return listOf(
             BotStrategySupport.goldCornerDistance(afterSnapshot).toFloat(),
+            goldLegalMoveCount(afterSnapshot, goldSquare).toFloat(),
+            if (goldSquare != null && BoardCoordinates.isStructurallyUncapturableGoldSquare(goldSquare, afterSnapshot.boardSize, afterSnapshot.specialSquare)) 1f else 0f,
             nearestRavenDistanceToGold(afterSnapshot, goldSquare).toFloat(),
             ravensAdjacentToGold(afterSnapshot, goldSquare).toFloat(),
-            mobilityForSide(afterSnapshot, Side.dragons).toFloat(),
-            mobilityForSide(afterSnapshot, Side.ravens).toFloat(),
-            pieceCountForSide(afterSnapshot, Side.dragons).toFloat(),
-            pieceCountForSide(afterSnapshot, Side.ravens).toFloat(),
-            if (goldRemainsMovable(afterSnapshot, goldSquare)) 1f else 0f,
+            mobilityForSide(afterSnapshot, mover).toFloat(),
+            mobilityForSide(afterSnapshot, opponent).toFloat(),
+            pieceCountForSide(afterSnapshot, mover).toFloat(),
+            pieceCountForSide(afterSnapshot, opponent).toFloat(),
+            if (BotStrategySupport.hasImmediateWinningMove(afterSnapshot, opponent)) 1f else 0f,
+            opponentCaptureThreatCount(afterSnapshot, mover, opponent).toFloat(),
+            if (opponentCanCaptureGold(afterSnapshot, opponent)) 1f else 0f,
+            structurallyUncapturablePieceCount(afterSnapshot, mover).toFloat(),
+            structurallyUncapturablePieceCount(afterSnapshot, opponent).toFloat(),
             if (isRepeatedPosition(afterSnapshot)) 1f else 0f
         )
     }
-
-    private fun relativeFeatures(mover: Side, vararg rawValues: Float): List<Float> {
-        val multiplier = if (mover == Side.dragons) 1f else -1f
-        return rawValues.map { value ->
-            if (value == 0f) {
-                0f
-            } else {
-                value * multiplier
-            }
-        }
-    }
-
-    private fun isCenterAdjacent(square: String, snapshot: GameSnapshot): Boolean =
-        BoardCoordinates.isOrthogonallyAdjacent(square, snapshot.specialSquare, snapshot.boardSize)
-
-    private fun isEdge(square: String, boardSize: Int): Boolean {
-        val (fileIndex, rankIndex) = squareIndexes(square)
-        return fileIndex == 0 || rankIndex == 0 || fileIndex == boardSize - 1 || rankIndex == boardSize - 1
-    }
-
-    private fun isCornerAdjacent(square: String, boardSize: Int): Boolean =
-        BoardCoordinates.cornerSquares(boardSize).any { corner ->
-            BoardCoordinates.isOrthogonallyAdjacent(square, corner, boardSize)
-        }
 
     private fun nearestRavenDistanceToGold(snapshot: GameSnapshot, goldSquare: String?): Int {
         if (goldSquare == null) {
@@ -204,13 +126,13 @@ object MachineTrainedFeatureEncoder {
         }
     }
 
-    private fun goldRemainsMovable(snapshot: GameSnapshot, goldSquare: String?): Boolean {
+    private fun goldLegalMoveCount(snapshot: GameSnapshot, goldSquare: String?): Int {
         if (goldSquare == null) {
-            return false
+            return 0
         }
 
         return GameRules.getLegalMoves(snapshotForSide(snapshot, Side.dragons))
-            .any { move -> move.origin == goldSquare }
+            .count { move -> move.origin == goldSquare }
     }
 
     private fun mobilityForSide(snapshot: GameSnapshot, side: Side): Int =
@@ -236,8 +158,38 @@ object MachineTrainedFeatureEncoder {
             .size
     }
 
+    private fun opponentCanCaptureGold(afterSnapshot: GameSnapshot, opponent: Side): Boolean {
+        val goldSquare = goldSquare(afterSnapshot) ?: return false
+        val opponentSnapshot = snapshotForSide(afterSnapshot, opponent)
+        return GameRules.getLegalMoves(opponentSnapshot)
+            .any { move ->
+                val nextSnapshot = GameRules.movePiece(opponentSnapshot, move.origin, move.destination)
+                goldSquare !in nextSnapshot.board
+            }
+    }
+
     private fun pieceCountForSide(snapshot: GameSnapshot, side: Side): Int =
         snapshot.board.values.count { piece -> GameRules.sideOwnsPiece(side, piece) }
+
+    private fun structurallyUncapturablePieceCount(snapshot: GameSnapshot, side: Side): Int =
+        snapshot.board.entries.count { (square, piece) ->
+            GameRules.sideOwnsPiece(side, piece) &&
+                isStructurallyUncapturableSquare(square, piece, snapshot)
+        }
+
+    private fun isStructurallyUncapturableSquare(square: String, piece: Piece, snapshot: GameSnapshot): Boolean =
+        when (piece) {
+            Piece.gold -> BoardCoordinates.isStructurallyUncapturableGoldSquare(
+                square,
+                snapshot.boardSize,
+                snapshot.specialSquare
+            )
+            Piece.dragon, Piece.raven -> BoardCoordinates.isStructurallyUncapturableRegularSquare(
+                square,
+                snapshot.boardSize,
+                snapshot.specialSquare
+            )
+        }
 
     private fun isRepeatedPosition(snapshot: GameSnapshot): Boolean {
         val latestPositionKey = snapshot.positionKeys.lastOrNull() ?: return false

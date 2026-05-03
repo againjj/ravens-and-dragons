@@ -12,6 +12,7 @@ import com.ravensanddragons.game.web.*
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -29,7 +30,8 @@ class MachineTrainedBotPhaseOneTest {
         assertEquals(BotRegistry.machineTrainedBotId, model.metadata.botId)
         assertEquals("Michelle", model.metadata.displayName)
         assertEquals("sherwood-rules", model.metadata.ruleConfigurationId)
-        assertEquals(MachineTrainedFeatureEncoder.featureCount, model.weights.size)
+        assertEquals(MachineTrainedFeatureEncoder.featureCount, model.dragonWeights.size)
+        assertEquals(MachineTrainedFeatureEncoder.featureCount, model.ravenWeights.size)
     }
 
     @Test
@@ -55,7 +57,7 @@ class MachineTrainedBotPhaseOneTest {
                 listOf(
                     jsonResource(
                         "sherwood-rules.json",
-                        validArtifactJson().replace("\"modelType\": \"linear-move-ranker\"", "\"modelType\": \"tiny-mlp\"")
+                        validArtifactJson().replace("\"modelType\": \"side-specialized-linear-move-ranker\"", "\"modelType\": \"tiny-mlp\"")
                     )
                 )
             )
@@ -92,6 +94,37 @@ class MachineTrainedBotPhaseOneTest {
         }
 
         assertEquals("Duplicate machine-trained artifacts found for sherwood-rules.", exception.message)
+    }
+
+    @Test
+    fun `loader rejects schema four artifacts after migration`() {
+        val exception = assertThrows(Exception::class.java) {
+            loader.loadModels(listOf(jsonResource("sherwood-rules.json", schemaFourArtifactJson())))
+        }
+
+        assertTrue(exception.message?.contains("featureNames") == true)
+    }
+
+    @Test
+    fun `loader rejects wrong side weight length`() {
+        val exception = assertThrows(IllegalArgumentException::class.java) {
+            loader.loadModels(
+                listOf(
+                    jsonResource(
+                        "sherwood-rules.json",
+                        validArtifactJson().replace(
+                            "\"ravenWeights\": [${machineTrainedTestWeights().joinToString(", ")}]",
+                            "\"ravenWeights\": [0.0]"
+                        )
+                    )
+                )
+            )
+        }
+
+        assertEquals(
+            "Machine-trained artifact raven weight count 1 does not match feature count ${MachineTrainedFeatureEncoder.featureCount}.",
+            exception.message
+        )
     }
 
     @Test
@@ -162,6 +195,25 @@ class MachineTrainedBotPhaseOneTest {
     }
 
     @Test
+    fun `machine trained scorer uses the active side vector`() {
+        val weights = MutableList(MachineTrainedFeatureEncoder.featureCount) { 0f }
+        weights[MachineTrainedFeatureEncoder.featureNames.indexOf("moved-piece-gold")] = 1f
+        val model = modelWithWeights(
+            dragonWeights = weights,
+            ravenWeights = weights.map { -it }
+        )
+        val features = FloatArray(MachineTrainedFeatureEncoder.featureCount)
+        features[MachineTrainedFeatureEncoder.featureNames.indexOf("moved-piece-gold")] = 2f
+
+        assertNotEquals(
+            MachineTrainedMoveScorer.score(model, Side.dragons, features),
+            MachineTrainedMoveScorer.score(model, Side.ravens, features)
+        )
+        assertEquals(2f, MachineTrainedMoveScorer.score(model, Side.dragons, features))
+        assertEquals(-2f, MachineTrainedMoveScorer.score(model, Side.ravens, features))
+    }
+
+    @Test
     fun `machine trained strategy refuses the wrong ruleset`() {
         val strategy = registryWithMichelle().requireDefinitionForTest(BotRegistry.machineTrainedBotId).strategy
         val snapshot = GameRules.startGame("square-one")
@@ -197,9 +249,30 @@ class MachineTrainedBotPhaseOneTest {
             "positions": 16,
             "selfPlayGames": 0
           },
+          "modelType": "side-specialized-linear-move-ranker",
+          "bias": 0.0,
+          "featureNames": [${MachineTrainedFeatureEncoder.featureNames.joinToString(", ") { "\"$it\"" }}],
+          "dragonWeights": [${machineTrainedTestWeights().joinToString(", ")}],
+          "ravenWeights": [${machineTrainedTestWeights().joinToString(", ")}]
+        }
+    """.trimIndent()
+
+    private fun schemaFourArtifactJson(): String = """
+        {
+          "botId": "machine-trained",
+          "displayName": "Michelle",
+          "modelFormatVersion": 1,
+          "featureSchemaVersion": 4,
+          "ruleConfigurationId": "sherwood-rules",
+          "trainedAt": "2026-04-30T00:00:00Z",
+          "trainingSummary": {
+            "expertBotId": "deep-minimax",
+            "positions": 16,
+            "selfPlayGames": 0
+          },
           "modelType": "linear-move-ranker",
           "bias": 0.0,
-          "weights": [${machineTrainedTestWeights().joinToString(", ")}]
+          "weights": [${List(30) { 0f }.joinToString(", ")}]
         }
     """.trimIndent()
 
@@ -210,9 +283,25 @@ class MachineTrainedBotPhaseOneTest {
         weights[MachineTrainedFeatureEncoder.featureNames.indexOf("move-wins-immediately")] = 1000f
         weights[MachineTrainedFeatureEncoder.featureNames.indexOf("after-gold-corner-distance")] = -0.4f
         weights[MachineTrainedFeatureEncoder.featureNames.indexOf("raven-pressure-delta")] = -0.6f
-        weights[MachineTrainedFeatureEncoder.featureNames.indexOf("after-evaluation-for-active-side")] = 0.002f
         return weights
     }
+
+    private fun modelWithWeights(dragonWeights: List<Float>, ravenWeights: List<Float>): MachineTrainedModel =
+        MachineTrainedModel(
+            metadata = MachineTrainedModelMetadata(
+                botId = MachineTrainedRegistry.botId,
+                displayName = MachineTrainedRegistry.displayName,
+                ruleConfigurationId = "sherwood-rules",
+                featureSchemaVersion = MachineTrainedFeatureEncoder.schemaVersion,
+                modelFormatVersion = MachineTrainedModel.supportedModelFormatVersion,
+                trainedAt = java.time.Instant.parse("2026-04-30T00:00:00Z")
+            ),
+            modelType = MachineTrainedMoveScorer.supportedModelType,
+            bias = 0f,
+            dragonWeights = dragonWeights,
+            ravenWeights = ravenWeights,
+            trainingSummary = MachineTrainingSummary(expertBotId = "test", positions = 1, selfPlayGames = 1)
+        )
 
     private class FixedRandomIndexSource : RandomIndexSource {
         override fun nextInt(bound: Int): Int = 0

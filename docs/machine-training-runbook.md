@@ -10,7 +10,7 @@ This runbook explains how the current `Michelle` training pipeline works, how to
 2. A valid artifact registers `Michelle` only for that artifact's `ruleConfigurationId`.
 3. During a bot turn, Michelle first takes any immediate winning move.
 4. If no immediate win exists, Michelle scores every legal move and chooses the highest score.
-5. Scoring uses a linear move ranker: `bias + sum(weight[i] * feature[i])`.
+5. Scoring uses a side-specialized linear move ranker: Michelle encodes one raw schema-5 feature vector, chooses `dragonWeights` or `ravenWeights` from the active side, and scores `bias + sum(weight[i] * feature[i])`.
 
 The current bundled artifact is:
 
@@ -23,29 +23,25 @@ The current scope is intentionally narrow:
 | Bot id | `machine-trained` |
 | Display name | `Michelle` |
 | Ruleset | `sherwood-rules` |
-| Model type | `linear-move-ranker` |
+| Model type | `side-specialized-linear-move-ranker` |
 | Model format | `1` |
-| Feature schema | `4` |
+| Feature schema | `5` |
 | Artifact format | JSON |
 
 Do not reuse a Sherwood artifact for another ruleset. Add a separate artifact for each supported ruleset.
 
 ## Feature Schema
 
-The encoder lives in [MachineTrainedFeatureEncoder.kt](/Users/jrayazian/code/ravens-and-dragons/src/main/kotlin/com/ravensanddragons/game/bot/machine/MachineTrainedFeatureEncoder.kt). Schema version `4` groups features by whether they are absolute or relative to the side to move and whether they are move-local or derived from the resulting position.
-
-Absolute features already mean the same thing from the mover's point of view. Relative features are encoded with a side multiplier: `+1` for dragon turns and `-1` for raven turns. In the current linear model, that is equivalent to multiplying relative feature weights by `-1` when Michelle is playing ravens.
+The encoder lives in [MachineTrainedFeatureEncoder.kt](/Users/jrayazian/code/ravens-and-dragons/src/main/kotlin/com/ravensanddragons/game/bot/machine/MachineTrainedFeatureEncoder.kt). Schema version `5` uses raw mover/opponent/gold facts with no raven-turn sign flipping. Side differences live in the artifact's separate dragon and raven weight vectors.
 
 The feature groups are:
 
 | Group | Meaning |
 |---|---|
-| `absoluteMoveLocalFeatureNames` | Gold moves, captures, immediate wins, and mover-square geometry. |
-| `relativeMoveLocalFeatureNames` | Gold-square geometry, gold corner progress, and raven pressure deltas. |
-| `absolutePositionDerivedFeatureNames` | Opponent immediate-win danger, opponent capture-threat count, active-side legal-move delta, and shared evaluation from the mover's perspective. |
-| `relativePositionDerivedFeatureNames` | Board facts whose value changes by side, such as gold distance, raven pressure, mobility, material, gold mobility, and repetition risk. |
+| `moveLocalFeatureNames` | Gold moves, captures, immediate wins, gold/raven tactical deltas, and moves to structurally uncapturable squares. |
+| `positionDerivedFeatureNames` | Gold escape/containment, mobility, material, immediate opponent danger, capture threats, structural square occupation, and repetition risk. |
 
-Any generated artifact must have exactly one weight for each current feature name and must declare `featureSchemaVersion: 4`.
+Any generated artifact must declare `featureSchemaVersion: 5`, include the exact `featureNames` list, and provide exactly one `dragonWeights` and one `ravenWeights` value for each feature.
 
 ## Pipeline Shape
 
@@ -63,10 +59,10 @@ Supervised training produces a seed artifact:
 8. Train a ranking model that scores the expert move above alternatives from the same position.
 9. Write a dataset JSON and a runtime-compatible artifact JSON.
 
-Evolution searches directly over Michelle weight vectors:
+Evolution searches directly over Michelle side weight vectors:
 
 1. Start from the incumbent artifact and, optionally, a supervised seed artifact.
-2. Fill a candidate population with mutations and crossover.
+2. Fill a candidate population with mutations and crossover over both side vectors.
 3. Run candidate-only round-robin games for each generation.
 4. Keep top survivors and elites.
 5. Create the next generation through mutation and crossover.
@@ -147,8 +143,10 @@ Confirm these fields:
 | `displayName` | `Michelle` |
 | `ruleConfigurationId` | `sherwood-rules` |
 | `modelFormatVersion` | `1` |
-| `featureSchemaVersion` | `4` |
-| `modelType` | `linear-move-ranker` |
+| `featureSchemaVersion` | `5` |
+| `modelType` | `side-specialized-linear-move-ranker` |
+| `featureNames` | Exact schema-5 feature list from the runtime encoder. |
+| `dragonWeights` / `ravenWeights` | One value per feature name for each active side. |
 | `trainingSummary.run.runId` | The run id printed by the CLI. |
 | `trainingSummary.run.commandLine` | The arguments used for the run, when arguments were provided. |
 | `trainingSummary.run.artifactPath` | Path to the artifact that was written. Relative output directories stay relative so copied release artifacts do not embed local machine paths. |
@@ -333,7 +331,8 @@ If Michelle disappears from the UI after installing an artifact:
 - Confirm the file is still named `sherwood-rules.json`.
 - Confirm the JSON has `ruleConfigurationId: "sherwood-rules"`.
 - Confirm the JSON has `botId: "machine-trained"` and `displayName: "Michelle"`.
-- Confirm the JSON has `featureSchemaVersion: 4`.
+- Confirm the JSON has `featureSchemaVersion: 5`.
+- Confirm the JSON has `featureNames`, `dragonWeights`, and `ravenWeights` with matching lengths.
 - Run `./gradlew test --tests com.ravensanddragons.game.MachineTrainedBotPhaseOneTest`.
 
 If evolution does not promote a candidate:

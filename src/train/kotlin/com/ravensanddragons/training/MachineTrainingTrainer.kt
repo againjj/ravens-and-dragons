@@ -46,7 +46,7 @@ class MachineTrainedTrainer(
         }
 
         val featureScales = featureScales(dataset.examples)
-        val weights = trainRankingWeights(examplesByPosition, featureScales)
+        val sideWeights = trainRankingWeights(examplesByPosition, featureScales)
 
         return MachineTrainedModel(
             metadata = MachineTrainedModelMetadata(
@@ -59,7 +59,8 @@ class MachineTrainedTrainer(
             ),
             modelType = MachineTrainedMoveScorer.supportedModelType,
             bias = 0f,
-            weights = weights,
+            dragonWeights = sideWeights.dragonWeights,
+            ravenWeights = sideWeights.ravenWeights,
             trainingSummary = MachineTrainingSummary(
                 expertBotId = dataset.expertBotId,
                 positions = positiveExamples.size,
@@ -71,35 +72,53 @@ class MachineTrainedTrainer(
     private fun trainRankingWeights(
         examplesByPosition: Map<String, List<TrainingExample>>,
         featureScales: FloatArray
-    ): List<Float> {
-        val scaledWeights = FloatArray(MachineTrainedFeatureEncoder.featureCount)
-        val averagedWeights = FloatArray(MachineTrainedFeatureEncoder.featureCount)
-        var updateCount = 0
+    ): SideTrainedWeights {
+        val dragon = TrainableWeights()
+        val raven = TrainableWeights()
 
         repeat(trainingEpochs) { epochIndex ->
             examplesByPosition.entries
                 .sortedBy { (positionKey) -> positionKey }
                 .forEach { (_, positionExamples) ->
+                    val activeSide = positionExamples.first().activeSide
+                    require(positionExamples.all { it.activeSide == activeSide }) {
+                        "Machine training requires each position to contain one active side."
+                    }
+                    val trainableWeights = when (activeSide) {
+                        Side.dragons -> dragon
+                        Side.ravens -> raven
+                    }
                     val positive = positionExamples.first { it.label > 0.5f }
                     val negatives = positionExamples.filter { it.label <= 0.5f }
                     negatives.forEach { negative ->
                         val positiveScaled = scaledFeatures(positive, featureScales)
                         val negativeScaled = scaledFeatures(negative, featureScales)
-                        val positiveScore = dotProduct(scaledWeights, positiveScaled)
-                        val negativeScore = dotProduct(scaledWeights, negativeScaled)
+                        val positiveScore = dotProduct(trainableWeights.scaled, positiveScaled)
+                        val negativeScore = dotProduct(trainableWeights.scaled, negativeScaled)
                         if (positiveScore <= negativeScore + margin) {
-                            for (index in scaledWeights.indices) {
-                                scaledWeights[index] += learningRate * (positiveScaled[index] - negativeScaled[index])
-                                averagedWeights[index] += scaledWeights[index]
+                            for (index in trainableWeights.scaled.indices) {
+                                trainableWeights.scaled[index] += learningRate * (positiveScaled[index] - negativeScaled[index])
+                                trainableWeights.averaged[index] += trainableWeights.scaled[index]
                             }
-                            updateCount += 1
+                            trainableWeights.updateCount += 1
                         }
                     }
                 }
             progressListener.report(epochIndex + 1, trainingEpochs)
         }
 
-        val finalScaledWeights = if (updateCount == 0) scaledWeights else averagedWeights.map { it / updateCount }.toFloatArray()
+        return SideTrainedWeights(
+            dragonWeights = unscale(dragon, featureScales),
+            ravenWeights = unscale(raven, featureScales)
+        )
+    }
+
+    private fun unscale(trainableWeights: TrainableWeights, featureScales: FloatArray): List<Float> {
+        val finalScaledWeights = if (trainableWeights.updateCount == 0) {
+            trainableWeights.scaled
+        } else {
+            trainableWeights.averaged.map { it / trainableWeights.updateCount }.toFloatArray()
+        }
         return finalScaledWeights.indices.map { index -> finalScaledWeights[index] / featureScales[index] }
     }
 
@@ -149,4 +168,15 @@ class MachineTrainedTrainer(
             "Training example feature count ${example.features.size} does not match encoder feature count ${MachineTrainedFeatureEncoder.featureCount}."
         }
     }
+
+    private class TrainableWeights {
+        val scaled = FloatArray(MachineTrainedFeatureEncoder.featureCount)
+        val averaged = FloatArray(MachineTrainedFeatureEncoder.featureCount)
+        var updateCount = 0
+    }
+
+    private data class SideTrainedWeights(
+        val dragonWeights: List<Float>,
+        val ravenWeights: List<Float>
+    )
 }
