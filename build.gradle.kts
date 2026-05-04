@@ -97,13 +97,6 @@ tasks.withType<Test>().configureEach {
         filter {
             excludeTestsMatching("com.ravensanddragons.game.BotMatchHarnessTest")
         }
-        doFirst {
-            val frontendTestTask = testFrontend.get()
-            if (filter.includePatterns.isEmpty() && !gradle.taskGraph.hasTask(frontendTestTask)) {
-                buildFrontend.get().exec()
-                frontendTestTask.exec()
-            }
-        }
     }
 
     val botMatchHarnessGamesPerMatchup = System.getProperty("botMatchHarnessGamesPerMatchup")

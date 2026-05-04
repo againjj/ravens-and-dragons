@@ -47,9 +47,21 @@ The default servlet session timeout is `2h`.
 ./gradlew test
 ```
 
-That command runs the default backend plus frontend verification suite.
+That command runs the default backend JVM test suite.
 
-When you filter backend tests with `--tests`, Gradle skips the frontend test suite so targeted JVM runs stay focused.
+Run the frontend tests separately with:
+
+```bash
+./gradlew testFrontend
+```
+
+Run the full default verification suite with:
+
+```bash
+./gradlew check
+```
+
+That runs the backend JVM tests plus frontend tests. Filtered backend test runs with `--tests` stay focused on JVM tests and do not run frontend tests.
 
 The Randall-vs-Maxine soak harness now runs separately:
 
