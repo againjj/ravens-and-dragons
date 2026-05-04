@@ -1,5 +1,7 @@
 package com.ravensanddragons
 
+import com.ravensanddragons.game.RavensAndDragonsGameModuleDefinition
+import com.ravensanddragons.platform.game.GameModuleRegistry
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.boot.autoconfigure.SpringBootApplication
@@ -13,6 +15,14 @@ import java.time.Duration
 class RavensAndDragonsApplication {
     @Bean
     fun systemClock(): Clock = Clock.systemUTC()
+
+    @Bean
+    fun gameModuleRegistry(): GameModuleRegistry =
+        GameModuleRegistry(
+            listOf(
+                RavensAndDragonsGameModuleDefinition
+            )
+        )
 
     @Bean("staleGameCleanupDelay")
     fun staleGameCleanupDelay(

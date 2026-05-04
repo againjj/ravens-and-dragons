@@ -2,18 +2,17 @@
 
 This file is the canonical list of planned work that is not being implemented immediately. Keep each item issue-tracker-like, link any backing plan files, and remove completed items plus obsolete backing plan files when the work is done.
 
+## Define Frontend Game Entry Contract
+
+- **Goal:** Define how the app shell discovers and renders a game module's frontend entry metadata.
+- **Why:** The backend module contract can enforce server-side identity, routes, persistence ownership, and smoke wiring first, but multiple game UIs will need an explicit frontend entry boundary before the shell can host more than Ravens and Dragons cleanly.
+- **Notes:** Keep current routes unchanged until `Add Game Identity To Routes And Persistence`. Use the existing Ravens and Dragons frontend as the first concrete source of requirements instead of designing around hypothetical games.
+
 ## Always Load Local Environment For Boot Run
 
 - **Goal:** Make local app startup automatically load `.env.local` when running `bootRun`.
 - **Why:** It makes it easier to run `bootRun` without manually sourcing local environment variables first.
 - **Notes:** Preserve the current default app configuration and avoid changing deployment behavior.
-
-## Define The First Game Module Contract
-
-- **Goal:** Define the minimal adapter contract between `platform/`, `app/`, and each game module.
-- **Why:** A small contract is needed before adding another game so routing, commands, persistence, seats, frontend metadata, static assets, migrations, and smoke tests have clear ownership.
-- **Notes:** Extract the first version from real `ravens-and-dragons` needs instead of hypothetical game mechanics.
-- **References:** [docs/multi-game-service-structure-plan.md](/Users/jrayazian/code/ravens-and-dragons/docs/multi-game-service-structure-plan.md).
 
 ## Add Game Identity To Routes And Persistence
 

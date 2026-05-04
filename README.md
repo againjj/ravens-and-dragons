@@ -16,6 +16,7 @@ Ravens and Dragons is a Spring Boot and Kotlin web app for playing a browser-bas
 - `Maxine` stays on the existing minimax search, while `Alphie` uses a deeper optimized alpha-beta search with subtree caching and reused child snapshots
 - Undo against a bot reverses one full exchange, still works after a game-ending human move or bot reply when that last exchange is undoable, and can now be repeated across multiple consecutive undo steps
 - Streamed move updates now avoid an extra full game-view refresh unless seat, bot, or ruleset metadata changed
+- The runnable app assembles Ravens and Dragons through a code-enforced game module contract that records current route ownership and separates platform-owned session metadata from game-owned opaque payloads
 - Logging out while a game stream is open lets the SSE teardown finish without noisy Spring Security access-denied stack traces
 
 ## Requirements
@@ -157,7 +158,7 @@ The stale-game eviction threshold defaults to six weeks, and the cleanup schedul
 ## Project Layout
 
 - `app`: runnable Spring Boot application project that assembles the deployed jar
-- `platform`: shared-service backend project for auth, OAuth provider metadata, route fallback, and generic web exception handling
+- `platform`: shared-service backend project for auth, OAuth provider metadata, route fallback, generic web exception handling, and the game module contract
 - `ravens-and-dragons`: parent game module that aggregates backend and frontend child projects
 - `ravens-and-dragons/ravens-and-dragons-backend`: Ravens and Dragons gameplay, game APIs, resources, JVM tests, and training code
 - `ravens-and-dragons/ravens-and-dragons-frontend`: React frontend, Redux state, browser-side helpers, and frontend tests
