@@ -11,6 +11,7 @@ This file contains repository-specific instructions for AI-assisted work in this
 
 - Do not make changes to the codebase until the user explicitly asks for implementation work.
 - Do not make code changes unless the user asks in the imperative tense.
+- If the user says only `dolt`, interpret it as `do it`.
 - If the user talks about possible changes without using the imperative voice, work in plan mode rather than implementation mode.
 - Do not assume the user wants code changes.
 - A request that describes a feature, fix, or desired outcome is not by itself permission to edit files.
