@@ -144,6 +144,7 @@ The follow-up bot refactor has now split the old single `GameBots.kt` file into 
   - Explicit Flyway `10.22.0` dependencies plus `flyway-database-postgresql` for PostgreSQL 18 compatibility.
   - The machine-training `train` source set and `runMachineTraining` task.
 - `ravens-and-dragons/ravens-and-dragons-frontend/build.gradle.kts` owns the frontend build and uses `com.github.node-gradle.node` to download Node and npm automatically.
+- The frontend dependency lock now pins Vite to `7.3.2` and resolves PostCSS to `8.5.13`, clearing the previously tracked `npm audit` findings without changing app behavior.
 - `app/build.gradle.kts` owns the runnable Spring Boot application, depends on `:ravens-and-dragons:ravens-and-dragons-backend`, and produces `ravens-and-dragons.jar`.
 - Frontend build flow:
   - `npm run build` runs `tsc && vite build`.

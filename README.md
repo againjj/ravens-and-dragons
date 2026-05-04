@@ -27,6 +27,8 @@ You do not need a separate Gradle or Node installation. The Gradle wrapper is in
 
 The Gradle wrapper is pinned to Gradle 9.4.1 so local runs on newer JDKs avoid Gradle's Java 25 native-access warning, and the Spring dependency-management Gradle plugin is kept on 1.1.7 to avoid Gradle 10 deprecation warnings.
 
+The frontend build uses Vite 7.3.2 with a patched PostCSS lockfile resolution so the Gradle-managed npm install/test flow reports no audited vulnerabilities.
+
 ## Run Locally
 
 Start the app:

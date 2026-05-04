@@ -8,12 +8,6 @@ This file is the canonical list of planned work that is not being implemented im
 - **Why:** It makes it easier to run `bootRun` without manually sourcing local environment variables first.
 - **Notes:** Preserve the current default app configuration and avoid changing deployment behavior.
 
-## Fix Frontend Dependency Vulnerabilities
-
-- **Goal:** Resolve the `npm audit` findings currently reported during frontend install/test runs: 2 vulnerabilities total, including 1 moderate and 1 high.
-- **Why:** Build-reported dependency vulnerabilities should be tracked and remediated instead of becoming background noise.
-- **Notes:** Start in `ravens-and-dragons/ravens-and-dragons-frontend/package-lock.json` and `package.json`; prefer non-breaking dependency updates when possible and rerun `./gradlew testFrontend`.
-
 ## Move Obvious Platform Code Out Of The Game Module
 
 - **Goal:** Move auth, OAuth provider metadata, generic web exception handling, and route fallback behavior into `platform/`.
