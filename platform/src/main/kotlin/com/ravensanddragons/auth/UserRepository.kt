@@ -72,6 +72,17 @@ class UserRepository(
             username
         ).firstOrNull()
 
+    fun findAllGuests(): List<UserRecord> =
+        jdbcTemplate.query(
+            """
+            select id, display_name, username, email, password_hash, auth_type, created_at
+            from users
+            where auth_type = ?
+            """.trimIndent(),
+            userRowMapper,
+            AuthType.guest.name
+        )
+
     fun updateDisplayName(userId: String, displayName: String) {
         jdbcTemplate.update(
             """

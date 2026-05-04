@@ -157,11 +157,11 @@ The stale-game eviction threshold defaults to six weeks, and the cleanup schedul
 ## Project Layout
 
 - `app`: runnable Spring Boot application project that assembles the deployed jar
-- `platform`: top-level shared-service project, currently thin and ready for future platform extraction
+- `platform`: shared-service backend project for auth, OAuth provider metadata, route fallback, and generic web exception handling
 - `ravens-and-dragons`: parent game module that aggregates backend and frontend child projects
-- `ravens-and-dragons/ravens-and-dragons-backend`: backend gameplay, resources, JVM tests, and training code
+- `ravens-and-dragons/ravens-and-dragons-backend`: Ravens and Dragons gameplay, game APIs, resources, JVM tests, and training code
 - `ravens-and-dragons/ravens-and-dragons-frontend`: React frontend, Redux state, browser-side helpers, and frontend tests
 - `ravens-and-dragons/ravens-and-dragons-backend/src/main/kotlin/com/ravensanddragons/game`: backend game rules, bot strategies/orchestration, session handling, and game APIs
-- `ravens-and-dragons/ravens-and-dragons-backend/src/main/kotlin/com/ravensanddragons/auth`: authentication and account management
+- `platform/src/main/kotlin/com/ravensanddragons/auth`: authentication and account management
 - `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend`: React frontend, Redux state, and browser-side helpers
 - `docs/code-summary.md`: architecture and implementation summary

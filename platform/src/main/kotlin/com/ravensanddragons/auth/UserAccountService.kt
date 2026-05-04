@@ -1,7 +1,5 @@
 package com.ravensanddragons.auth
 
-import com.ravensanddragons.game.persistence.GameStore
-import com.ravensanddragons.game.session.GameSessionService
 import jakarta.annotation.PostConstruct
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
@@ -13,8 +11,7 @@ import java.util.UUID
 @Service
 class UserAccountService(
     private val userRepository: UserRepository,
-    private val gameStore: GameStore,
-    private val gameSessionService: GameSessionService,
+    private val userReferenceCleanups: List<UserReferenceCleanup>,
     private val passwordEncoder: PasswordEncoder,
     private val clock: Clock
 ) {
@@ -88,7 +85,7 @@ class UserAccountService(
         if (!passwordEncoder.matches(request.password, passwordHash)) {
             throw AuthenticationFailedException("Password confirmation was incorrect.")
         }
-        gameSessionService.clearUserReferences(user.id)
+        clearUserReferences(user.id)
         userRepository.deleteById(user.id)
     }
 
@@ -116,27 +113,16 @@ class UserAccountService(
         if (user.authType != AuthType.guest) {
             return
         }
-        gameSessionService.clearUserReferences(userId)
+        clearUserReferences(userId)
         userRepository.deleteById(userId)
     }
 
     private fun releaseSeatsForGuests() {
-        // Release guest-owned seats before startup cleanup removes the orphaned guest users.
-        gameStore.entries()
-            .flatMap { storedGame ->
-                listOfNotNull(
-                    storedGame.session.dragonsPlayerUserId,
-                    storedGame.session.ravensPlayerUserId,
-                    storedGame.session.createdByUserId
-                )
-            }
-            .distinct()
-            .forEach { userId ->
-                val user = userRepository.findById(userId) ?: return@forEach
-                if (user.authType == AuthType.guest) {
-                    gameSessionService.clearUserReferences(userId)
-                }
-            }
+        userRepository.findAllGuests().forEach { clearUserReferences(it.id) }
+    }
+
+    private fun clearUserReferences(userId: String) {
+        userReferenceCleanups.forEach { it.clearUserReferences(userId) }
     }
 
     private fun validateDisplayName(displayName: String): String {

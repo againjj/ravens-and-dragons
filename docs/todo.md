@@ -8,13 +8,6 @@ This file is the canonical list of planned work that is not being implemented im
 - **Why:** It makes it easier to run `bootRun` without manually sourcing local environment variables first.
 - **Notes:** Preserve the current default app configuration and avoid changing deployment behavior.
 
-## Move Obvious Platform Code Out Of The Game Module
-
-- **Goal:** Move auth, OAuth provider metadata, generic web exception handling, and route fallback behavior into `platform/`.
-- **Why:** Shared service concerns should not remain tangled with Ravens and Dragons-specific rules, bots, board helpers, and UI.
-- **Notes:** Keep canonical Ravens and Dragons gameplay logic in the game module.
-- **References:** [docs/multi-game-service-structure-plan.md](/Users/jrayazian/code/ravens-and-dragons/docs/multi-game-service-structure-plan.md).
-
 ## Define The First Game Module Contract
 
 - **Goal:** Define the minimal adapter contract between `platform/`, `app/`, and each game module.
