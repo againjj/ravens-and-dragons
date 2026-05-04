@@ -15,15 +15,19 @@ build.gradle.kts
 platform/
   build.gradle.kts
   src/main/kotlin/...
-  src/main/frontend/...
-  src/test/...
+  src/test/kotlin/...
 
 ravens-and-dragons/
   build.gradle.kts
-  src/main/kotlin/...
-  src/main/frontend/...
-  src/main/resources/...
-  src/test/...
+  ravens-and-dragons-backend/
+    build.gradle.kts
+    src/main/kotlin/...
+    src/main/resources/...
+    src/test/kotlin/...
+  ravens-and-dragons-frontend/
+    build.gradle.kts
+    src/main/frontend/...
+    src/test/frontend/...
 
 app/
   build.gradle.kts
@@ -36,6 +40,7 @@ app/
 - `ravens-and-dragons/` owns this game's canonical rules, bots, game-specific persistence payloads, game-specific API adapters, game-specific frontend screens, assets, and tests.
 - `app/` owns the runnable Spring Boot application. It wires the platform and the selected game modules into one deployable service.
 - The root project owns orchestration tasks such as aggregate build, aggregate test, formatting, and deployment-facing packaging.
+- Any project that contains both backend and frontend code should be a parent project with two child subprojects: one backend subproject and one frontend subproject.
 
 This layout keeps game modules as first-class top-level projects. If a future game is added locally, it can sit beside `ravens-and-dragons/` with its own name. If a game moves to a separate repository later, the same boundary can be preserved through a Gradle composite build or published artifact.
 
@@ -44,21 +49,30 @@ This layout keeps game modules as first-class top-level projects. If a future ga
 The target command vocabulary should be explicit:
 
 ```bash
+./gradlew :ravens-and-dragons:ravens-and-dragons-backend:test
+./gradlew :ravens-and-dragons:ravens-and-dragons-frontend:test
+./gradlew :ravens-and-dragons:testBackend
+./gradlew :ravens-and-dragons:testFrontend
 ./gradlew :ravens-and-dragons:test
-./gradlew :platform:test
 ./gradlew :app:test
+./gradlew testBackend
+./gradlew testFrontend
 ./gradlew test
 ./gradlew check
 ```
 
-- `:ravens-and-dragons:test` runs only this game's tests.
-- `:platform:test` runs only shared infrastructure tests.
+- Individual backend subprojects use their normal `test` task for backend/JVM tests.
+- Individual frontend subprojects use their normal `test` task for frontend tests. They should not expose a separate `testFrontend` task.
+- Any project that contains subprojects exposes `testBackend` and `testFrontend` aggregate tasks.
+- A project with subprojects has a `test` task that depends on both its `testBackend` and `testFrontend` tasks.
+- Root `testBackend` aggregates backend tests across all included projects that contain backend test targets.
+- Root `testFrontend` aggregates frontend tests across all included projects that contain frontend test targets.
+- Root `test` depends on both root `testBackend` and root `testFrontend`.
 - `:app:test` runs only wiring and integration tests for the assembled service.
-- Root `test` depends on the test tasks for all included modules.
-- Root `check` depends on full verification, including frontend tests and any packaging checks.
+- Root `check` depends on the full verification suite, including root `test` and any packaging checks.
 - Parallel test execution should be enabled at the Gradle scheduling level first, then within individual test tasks only when the tests are isolated enough.
 
-For the near term, the current `testFrontend` task should stop being executed manually inside the JVM `test` task. Frontend and backend tests should become normal Gradle tasks so filtered backend test runs do not accidentally run frontend tests.
+For the near term, the current mixed `:ravens-and-dragons` project should split into backend and frontend child subprojects. The frontend test runner should become that frontend subproject's normal `test` task, while `:ravens-and-dragons:testFrontend` remains only as a parent aggregate. Filtered backend test runs should target the backend child project directly so they do not accidentally run frontend tests.
 
 ## Game Module Contract
 
@@ -112,8 +126,11 @@ The first frontend extraction should be conservative. Move code only when the bo
 ## Migration Plan
 
 1. Clean up current test task wiring.
-   - Make JVM tests and frontend tests separate Gradle tasks.
-   - Make root `check` or root `test` aggregate the full suite.
+   - Split each mixed project into backend and frontend child subprojects.
+   - Make each frontend child project's `test` task run its frontend tests, replacing individual `testFrontend` tasks.
+   - Add `testBackend` and `testFrontend` aggregate tasks to every project that contains subprojects.
+   - Make each such project's `test` task depend on both `testBackend` and `testFrontend`.
+   - Make root `test` depend on root `testBackend` and root `testFrontend`.
    - Preserve the ability to run filtered Kotlin tests without running frontend tests.
 
 2. Introduce top-level subprojects without changing behavior.
@@ -149,7 +166,6 @@ The first frontend extraction should be conservative. Move code only when the bo
 
 ## Open Questions
 
-- Should root `test` mean the full aggregate suite, or should root `check` be the only full-suite command while each project keeps its own `test` task?
 - Should `platform/` include shared frontend code immediately, or should frontend extraction wait until after backend Gradle modules are stable?
 - Should game-specific database migrations live inside each game module, or should `app/` collect and order all migrations centrally?
 - How long should compatibility routes like `/g/{gameId}` remain after game slugs are introduced?

@@ -8,7 +8,7 @@ The backend now also includes session-cookie authentication for guest and local 
 
 Bot opponents now support grouped undo and four selectable strategies. A fresh supported preset game with exactly one authenticated claimed human seat can choose `Randall`, `Simon`, `Maxine`, or `Alphie` from a seat-panel dropdown and assign it to the opposite open seat for `Original Game`, `Sherwood Rules`, `Square One`, `Sherwood x 9`, or `Square One x 9`; bot seat ids persist separately from human ownership, the seat panel renders assigned bot seats as `Bot: Randall`, `Bot: Simon`, `Bot: Maxine`, or `Bot: Alphie`, bot-controlled seats are treated as occupied for later human claim attempts, server-side bot turns run synchronously from canonical Kotlin move generation, and undo now reverses the last human move plus the immediate bot reply. Multi-step undo remains available across consecutive exchanges, and each undo entry now stores a compact restore state instead of a full `GameSnapshot` so per-game retained history stays smaller without changing undo behavior. `Maxine` remains on the existing bounded-depth minimax strategy, while `Alphie` now uses a dedicated alpha-beta strategy with exact-score subtree caching, reused child snapshots, and cached evaluation ordering; `Simon` also reuses the shared evaluation layer instead of keeping a parallel scoring path. The supporting board-geometry and legal-move helpers now cache board-size-specific geometry, reuse stable square identities, avoid several hot-path sequence and set allocations in mutable search, and expose cheaper move-count paths so the stronger bots can search the same depth faster. The bot runner now validates bot-selected moves against the current legal move list with a deterministic fallback if a strategy returns an illegal move or throws mid-search. If the human move ends the game before a bot reply, or the bot reply ends the game, undo still remains available for that last exchange. The old bot-only undo helper sentence has also been removed from the controls panel, leaving undo availability to speak for itself through the button state.
 
-Recent organization work is now reflected directly in the codebase: the old `game.ts` helper module has been split into focused files for shared types, board geometry, client-side rules helpers, and move-history formatting. The backend `GameRules.kt` module has been split into a rule catalog, snapshot factory, shared rule-engine contract, and dedicated free-play, trivial, and original-style rule-engine files while preserving the existing `GameRules` facade for callers. Repeated game-view fetch, auth-session patching, selection normalization, and `401`/`403` recovery logic in `gameThunks.ts` has been consolidated into shared thunk helpers so open, refresh, command, and seat-claim flows stay aligned, and the SSE stream path now only forces a full auth-aware game-view refresh when streamed seat, bot, or ruleset metadata actually changes. The game-only layout and wiring have been extracted from `App.tsx` into a dedicated `GameScreen.tsx` container so the app shell stays focused on auth bootstrap, shared chrome, and route selection. The create flow now has its own frontend-only Redux slice, selectors, and helper module so `/create` can hold a local draft board, rule selection, board size, and starting-side state without touching the persisted game session. The create-rule catalog in `createGameState.ts` is now driven from shared frontend preset definitions instead of repeated handwritten config objects, and `useGameRoute.ts` now centralizes route parsing plus the “clear draft / clear active game / navigate” side effects used across lobby, create, profile, and game transitions. On the backend, command authorization, validation, undo transitions, and side-claim logic have been extracted into `GameCommandService.kt`, leaving `GameSessionService.kt` focused on store orchestration, SSE lifecycle, and metadata-first stale-game cleanup. User-triggered game actions now also funnel frontend request failures into the same dismissible error-box pattern used by auth/profile flows, with a specific server-down message for network failures where the backend does not respond. The repository is now a Gradle multi-project build with top-level `platform`, `ravens-and-dragons`, and `app` subprojects. The Spring Boot entrypoint and executable jar assembly live in `app`; game code, auth/web code, resources, frontend, tests, and machine-training code live in `ravens-and-dragons`; `platform` is a thin compiled project reserved for the next shared-service extraction step. Root Gradle tasks still provide the familiar `bootRun`, `bootJar`, `test`, `testFrontend`, `botMatchHarnessTest`, and `runMachineTraining` entrypoints, and the deployment jar is still copied to `build/libs/ravens-and-dragons.jar`.
+Recent organization work is now reflected directly in the codebase: the old `game.ts` helper module has been split into focused files for shared types, board geometry, client-side rules helpers, and move-history formatting. The backend `GameRules.kt` module has been split into a rule catalog, snapshot factory, shared rule-engine contract, and dedicated free-play, trivial, and original-style rule-engine files while preserving the existing `GameRules` facade for callers. Repeated game-view fetch, auth-session patching, selection normalization, and `401`/`403` recovery logic in `gameThunks.ts` has been consolidated into shared thunk helpers so open, refresh, command, and seat-claim flows stay aligned, and the SSE stream path now only forces a full auth-aware game-view refresh when streamed seat, bot, or ruleset metadata actually changes. The game-only layout and wiring have been extracted from `App.tsx` into a dedicated `GameScreen.tsx` container so the app shell stays focused on auth bootstrap, shared chrome, and route selection. The create flow now has its own frontend-only Redux slice, selectors, and helper module so `/create` can hold a local draft board, rule selection, board size, and starting-side state without touching the persisted game session. The create-rule catalog in `createGameState.ts` is now driven from shared frontend preset definitions instead of repeated handwritten config objects, and `useGameRoute.ts` now centralizes route parsing plus the “clear draft / clear active game / navigate” side effects used across lobby, create, profile, and game transitions. On the backend, command authorization, validation, undo transitions, and side-claim logic have been extracted into `GameCommandService.kt`, leaving `GameSessionService.kt` focused on store orchestration, SSE lifecycle, and metadata-first stale-game cleanup. User-triggered game actions now also funnel frontend request failures into the same dismissible error-box pattern used by auth/profile flows, with a specific server-down message for network failures where the backend does not respond. The repository is now a Gradle multi-project build with top-level `platform`, `ravens-and-dragons`, and `app` subprojects, and the mixed game module is split into `ravens-and-dragons-backend` and `ravens-and-dragons-frontend` child projects. The Spring Boot entrypoint and executable jar assembly live in `app`; game code, auth/web code, resources, JVM tests, and machine-training code live in `ravens-and-dragons/ravens-and-dragons-backend`; frontend source and frontend tests live in `ravens-and-dragons/ravens-and-dragons-frontend`; `platform` is a thin compiled project reserved for the next shared-service extraction step. Root Gradle tasks provide `testBackend`, `testFrontend`, and aggregate `test` entrypoints, while `bootRun`, `bootJar`, `botMatchHarnessTest`, and `runMachineTraining` stay available at the root and the deployment jar is still copied to `build/libs/ravens-and-dragons.jar`.
 The web layer now also includes a dedicated controller advice that recognizes expected disconnected-client I/O during SSE teardown, such as logout-time `Broken pipe` writes, and lets Spring log them as normal client disconnects instead of noisy application errors. Spring Security also permits servlet async redispatches so an already-open game stream can finish teardown after logout without producing access-denied stack traces while initial `/api/games/**` requests remain authenticated.
 The follow-up bot refactor has now split the old single `GameBots.kt` file into focused bot model, registry, strategy, and shared evaluation modules, extracted bot-turn execution plus grouped-undo handling into `BotTurnRunner.kt`, centralized frontend bot-assignment derivation into one selector model used by both the seat panel and thunk logic, and added direct bot-runner coverage plus a deterministic minimax node-budget regression test. `GameBotsTest.kt` now also carries two disabled manual-only checks for comparing representative depth-2 `MinimaxGameBotStrategy` versus `AlphaBetaGameBotStrategy` behavior and relative timing without slowing or destabilizing the default suite. The old `docs/bot-implementation-plan.md` planning document has also been removed, with no remaining in-repo references. Machine-trained runtime scaffolding is now live: the server can load bundled per-ruleset machine-trained artifacts, expose `Michelle` only for rulesets with a matching artifact, and score legal moves through backend loader, registry, feature-encoding, scoring, and strategy helpers. The offline Kotlin pipeline can run Sherwood self-play, serialize expert-labeled datasets, train Michelle with side-specific per-position ranking updates instead of a global positive-minus-negative average, deduplicate repeated `(position, move)` examples, write or reread runtime-compatible JSON through a shared artifact payload contract, parallelize per-game training work across all available CPUs by default, and report coarse decile progress while generating datasets and training models. The encoder contract is schema version 5 with raw mover/opponent/gold features, no raven-turn sign flipping, side-specific dragon/raven weight vectors, compact tactical mobility/material/threat signals, and structural uncapturability features; the bundled Sherwood artifact has been promoted to an evolved schema-5 artifact, Michelle now reuses a per-turn scoring context and direct `FloatArray` feature fills to reduce runtime scoring allocation, and the bot match harness includes a Sherwood-only Michelle-vs-baselines smoke evaluation. The evolution loop can evolve Michelle candidates through candidate-only round-robins, survivor selection, mutation, and crossover across both side vectors, then rank the surviving population against the incumbent and configured baselines without feeding those non-candidate games back into selection; evolution mode parallelizes match work across the configured worker count defaulting to all available CPUs, supports multiple repeated seed artifacts, and writes both the best survivor-comparison artifact and every final survivor artifact under the configured output directory. Generated artifacts embed run provenance, training parameters, and evolution promotion summaries; the CLI accepts `--run-id` and defaults generated dataset, artifact, survivor, and report names to a run-id convention; `docs/machine-training-runbook.md` documents the schema-5 training/evolution/release workflow; `docs/machine-trained-bot-improvements.md` captures higher-leverage improvement ideas for the evolved bot; and the completed schema-5 migration plan has been removed.
 
@@ -16,31 +16,31 @@ The follow-up bot refactor has now split the old single `GameBots.kt` file into 
 
 - `app/src/main/kotlin/com/ravensanddragons/RavensAndDragonsApplication.kt`
   - Spring Boot entrypoint.
-- `ravens-and-dragons/src/main/kotlin/com/ravensanddragons/game/model/*.kt`
+- `ravens-and-dragons/ravens-and-dragons-backend/src/main/kotlin/com/ravensanddragons/game/model/*.kt`
   - Shared game/session DTOs, rule summaries, turn records, undo restore-state models, and game exceptions.
-- `ravens-and-dragons/src/main/kotlin/com/ravensanddragons/game/rules/*.kt`
+- `ravens-and-dragons/ravens-and-dragons-backend/src/main/kotlin/com/ravensanddragons/game/rules/*.kt`
   - Canonical board coordinates, rule metadata, snapshot creation, rule-engine contracts, and free-play/trivial/original-style rule execution.
-- `ravens-and-dragons/src/main/kotlin/com/ravensanddragons/game/bot/*.kt`
+- `ravens-and-dragons/ravens-and-dragons-backend/src/main/kotlin/com/ravensanddragons/game/bot/*.kt`
   - Shared bot value types, bot registry, random-index source, and synchronous bot-turn execution plus grouped human-plus-bot undo handling.
-- `ravens-and-dragons/src/main/kotlin/com/ravensanddragons/game/bot/strategy/*.kt`
+- `ravens-and-dragons/ravens-and-dragons-backend/src/main/kotlin/com/ravensanddragons/game/bot/strategy/*.kt`
   - Dedicated strategy/search implementations for `Randall`, `Simon`, `Maxine`, and `Alphie`, plus shared Kotlin-only bot evaluation and simulation helpers.
-- `ravens-and-dragons/src/main/kotlin/com/ravensanddragons/game/bot/machine/*.kt`
+- `ravens-and-dragons/ravens-and-dragons-backend/src/main/kotlin/com/ravensanddragons/game/bot/machine/*.kt`
   - Machine-trained runtime scaffolding now lives in `MachineTrainedModel.kt`, `MachineTrainedModelLoader.kt`, `MachineTrainedRegistry.kt`, `MachineTrainedFeatureEncoder.kt`, `MachineTrainedMoveScorer.kt`, and `MachineTrainedBotStrategy.kt`, with `BotRegistry.kt` loading `Michelle` from bundled artifacts at startup.
-  - Machine-trained phase 2 offline training now lives under `ravens-and-dragons/src/train/kotlin/com/ravensanddragons/training`, with dataset generation, self-play, artifact read/write, per-position example keys plus deduplication, a ranking-based trainer, decile progress reporting for the training CLI, and a CLI entrypoint. `MachineTrainedArtifactSupport.kt` now centralizes the shared artifact payload and validation contract used by both runtime loading and offline training.
+  - Machine-trained phase 2 offline training now lives under `ravens-and-dragons/ravens-and-dragons-backend/src/train/kotlin/com/ravensanddragons/training`, with dataset generation, self-play, artifact read/write, per-position example keys plus deduplication, a ranking-based trainer, decile progress reporting for the training CLI, and a CLI entrypoint. `MachineTrainedArtifactSupport.kt` now centralizes the shared artifact payload and validation contract used by both runtime loading and offline training.
   - Machine-trained phase 3 now uses schema version 5 with named raw move-local/resulting-position features for gold progress, raven pressure, mobility, material, immediate replies, opponent capture threats, structural uncapturability, and repetition risk, plus side-specific dragon and raven weight vectors.
   - Machine training phase 4 now uses `MachineTrainedEvolutionLoop.kt` for population-based Michelle improvement with parallelized candidate-only round-robins, survivor selection, mutation, crossover, opening diversity controls, survivor/incumbent/baseline comparison rankings, progress reporting, and final promotion-threshold decisions.
   - Machine training phase 5 operational metadata now extends generated artifacts with run provenance, training-parameter summaries, and evolution-promotion summaries.
-- `ravens-and-dragons/src/main/kotlin/com/ravensanddragons/game/session/*.kt`
+- `ravens-and-dragons/ravens-and-dragons-backend/src/main/kotlin/com/ravensanddragons/game/session/*.kt`
   - `GameCommandService.kt` now owns command authorization, validation, undo handling, and seat-claim transitions, while `GameSessionService.kt` keeps persisted-game loading, create-payload seeding, broadcasting, emitter lifecycle, metadata-first stale cleanup, and top-level coordination with `BotTurnRunner.kt`.
-- `ravens-and-dragons/src/main/kotlin/com/ravensanddragons/game/persistence/*.kt`
+- `ravens-and-dragons/ravens-and-dragons-backend/src/main/kotlin/com/ravensanddragons/game/persistence/*.kt`
   - Game store contracts, JDBC persistence, and game JSON encoding/decoding.
-- `ravens-and-dragons/src/main/kotlin/com/ravensanddragons/game/web/*.kt`
+- `ravens-and-dragons/ravens-and-dragons-backend/src/main/kotlin/com/ravensanddragons/game/web/*.kt`
   - REST/SSE game controller endpoints.
-- `ravens-and-dragons/src/main/kotlin/com/ravensanddragons/auth/*.kt`
+- `ravens-and-dragons/ravens-and-dragons-backend/src/main/kotlin/com/ravensanddragons/auth/*.kt`
   - Session auth models, JDBC-backed user persistence, guest and local login flows, optional OAuth login integration, local-account profile management, and session cleanup hooks for temporary guest users.
-- `ravens-and-dragons/src/main/kotlin/com/ravensanddragons/web/*.kt`
+- `ravens-and-dragons/ravens-and-dragons-backend/src/main/kotlin/com/ravensanddragons/web/*.kt`
   - Shared web-layer exception handling, including normalization of expected disconnected-client SSE exceptions.
-- `ravens-and-dragons/src/main/resources/db/migration/*.sql`
+- `ravens-and-dragons/ravens-and-dragons-backend/src/main/resources/db/migration/*.sql`
   - Flyway migrations for the persistent game schema.
 - `docs/profiling-runbook.md`
   - Repeatable local memory-profiling runbook for idle baselines, human-play retention, bot-search churn, and SSE-connected checks.
@@ -52,76 +52,76 @@ The follow-up bot refactor has now split the old single `GameBots.kt` file into 
   - Canonical list of planned work that is not being implemented immediately, including issue-style summaries and links to backing plan files.
 - `docs/machine-training-runbook.md`
   - Runbook for training, validating, installing, and rolling back a locally generated Sherwood `Michelle` artifact, including run-id naming and artifact provenance metadata.
-- `ravens-and-dragons/src/main/resources/bots/machine-trained/*.json`
+- `ravens-and-dragons/ravens-and-dragons-backend/src/main/resources/bots/machine-trained/*.json`
   - Bundled per-ruleset machine-trained artifacts. The Sherwood artifact for `Michelle` is now an evolved schema-5 artifact and matches the side-specialized feature encoder.
-- `ravens-and-dragons/src/main/frontend/index.html`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/index.html`
   - Frontend HTML entry for the Vite build.
   - Loads `/styles.css` and mounts the React app.
-- `ravens-and-dragons/src/main/resources/static/styles.css`
+- `ravens-and-dragons/ravens-and-dragons-backend/src/main/resources/static/styles.css`
   - Owns layout, board sizing variables, responsive behavior, fullscreen styling, and the `#c274c8` highlight color used for the board's corner and center squares.
-- `ravens-and-dragons/src/main/frontend/game-types.ts`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/game-types.ts`
   - Frontend wire types, auth/game DTOs, the local create-draft state shape, and the create-game request payload.
-- `ravens-and-dragons/src/main/frontend/board-geometry.ts`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/board-geometry.ts`
   - Board coordinate helpers, dimension helpers, center-square helpers, and highlighted-square helpers.
-- `ravens-and-dragons/src/main/frontend/features/game/createGameState.ts`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/game/createGameState.ts`
   - Local `/create` draft configuration data, pure snapshot helpers, and the draft-to-create-request mapper.
-- `ravens-and-dragons/src/main/frontend/game-rules-client.ts`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/game-rules-client.ts`
   - Client-side ownership, capture, targeting, and local-selection helpers used by selectors and board rendering.
-- `ravens-and-dragons/src/main/frontend/move-history.ts`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/move-history.ts`
   - Turn notation and grouped move-history row helpers.
-- `ravens-and-dragons/src/main/frontend/game-client.ts`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/game-client.ts`
   - Transport helpers for REST commands, create-game submission, bot assignment, and SSE subscription setup.
-- `ravens-and-dragons/src/main/frontend/App.tsx`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/App.tsx`
   - Top-level React layout and shell composition.
   - Handles auth bootstrap plus switching between the login, lobby, create, profile, and active game screens.
-- `ravens-and-dragons/src/main/frontend/components/GameScreen.tsx`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/components/GameScreen.tsx`
   - Owns the active game screen layout, board sizing hookup, header seat summary, move-list header controls, rules legend, and game-specific feedback dialog.
-- `ravens-and-dragons/src/main/frontend/components/CreateGameScreen.tsx`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/components/CreateGameScreen.tsx`
   - Owns the local `/create` draft layout and composes the draft board, configuration controls, and rules panel.
-- `ravens-and-dragons/src/main/frontend/components/MoveList.tsx`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/components/MoveList.tsx`
   - Owns the scrollable move-history area for the live game screen.
-- `ravens-and-dragons/src/main/frontend/components/SeatPanel.tsx`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/components/SeatPanel.tsx`
   - Compact live-game seat ownership summary, side claim actions, and bot-selection dropdown plus assignment button for the page header.
-- `ravens-and-dragons/src/main/frontend/components/Board.tsx`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/components/Board.tsx`
   - Shared board rendering plus connected and controlled click handling.
-- `ravens-and-dragons/src/main/frontend/components/ControlsPanel.tsx`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/components/ControlsPanel.tsx`
   - Live-game control wiring only, without the removed bot-specific undo helper sentence.
-- `ravens-and-dragons/src/main/frontend/components/GameSetupControls.tsx`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/components/GameSetupControls.tsx`
   - Owns the create-screen configuration block and `Start Game` affordances.
-- `ravens-and-dragons/src/main/frontend/components/RulesPanel.tsx`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/components/RulesPanel.tsx`
   - Shared rules-description renderer for live and draft screens.
-- `ravens-and-dragons/src/main/frontend/app/*.ts`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/app/*.ts`
   - Redux store setup and typed hooks.
-- `ravens-and-dragons/src/main/frontend/features/game/*.ts`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/game/*.ts`
   - Game slice, selectors, thunks, and stream lifecycle wiring.
   - Includes current-game and current-view state, auth-aware game metadata, the local draft-create slice/selectors/helpers, exact undo availability and ownership, a shared selector-level bot-assignment model for target-side/availability/pending-bot rendering, create-game submission from the draft payload, command/claim-side/bot thunks, and shared helpers for applying fetched game views plus auth-failure refresh recovery.
-- `ravens-and-dragons/src/main/frontend/features/auth/*.ts`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/auth/*.ts`
   - Auth session slice, selectors, profile state, and guest/local auth thunks.
-- `ravens-and-dragons/src/main/frontend/features/ui/*.ts`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/ui/*.ts`
   - Local-only UI state such as selected square.
-- `ravens-and-dragons/src/main/frontend/components/*.tsx`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/components/*.tsx`
   - React components for the lobby screen, auth panel, local profile screen, live game screen, create screen, seat summary, board rendering, create controls, rules panels, move list, and status text.
-- `ravens-and-dragons/src/main/frontend/hooks/*.ts`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/hooks/*.ts`
   - Browser hooks for responsive sizing, fullscreen behavior, and URL-to-page routing.
   - `useBoardSizing.ts` now measures the padded board panel so the board can shrink and grow without overflowing the panel.
   - `useGameRoute.ts` now parses browser routes centrally and initializes or clears the local `/create` draft state as the browser enters or leaves that route.
-- `ravens-and-dragons/src/test/frontend/game.test.js`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/test/frontend/game.test.js`
   - Frontend helper tests for server-backed snapshots and local-only selection behavior.
-- `ravens-and-dragons/src/test/frontend/game-thunks.test.ts`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/test/frontend/game-thunks.test.ts`
   - Verifies create/open/claim/bot flows, shared auth-refresh behavior, and server-down feedback handling in the game thunks.
-- `ravens-and-dragons/src/test/frontend/game-screen.test.tsx`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/test/frontend/game-screen.test.tsx`
   - Verifies the game-screen feedback dialog renders and dismisses correctly.
-- `ravens-and-dragons/src/test/frontend/create-game-draft.test.ts`
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/test/frontend/create-game-draft.test.ts`
   - Verifies the local `/create` draft defaults, board cycling, rule switching, and reset behavior.
-- `ravens-and-dragons/src/test/kotlin/com/ravensanddragons/game/GameRulesTest.kt`
+- `ravens-and-dragons/ravens-and-dragons-backend/src/test/kotlin/com/ravensanddragons/game/GameRulesTest.kt`
   - Verifies backend rule transitions plus deterministic Sherwood legal-move generation.
-- `ravens-and-dragons/src/test/kotlin/com/ravensanddragons/game/GameControllerTest.kt`
+- `ravens-and-dragons/ravens-and-dragons-backend/src/test/kotlin/com/ravensanddragons/game/GameControllerTest.kt`
   - Verifies the shared game API, version conflicts, and validation errors.
-- `ravens-and-dragons/src/test/kotlin/com/ravensanddragons/game/BotTurnRunnerTest.kt`
+- `ravens-and-dragons/ravens-and-dragons-backend/src/test/kotlin/com/ravensanddragons/game/BotTurnRunnerTest.kt`
   - Verifies synchronous bot replies, grouped undo entries, and no-op exits for finished or no-legal-move bot states.
-- `ravens-and-dragons/src/test/kotlin/com/ravensanddragons/game/MachineTrainedBotPhaseOneTest.kt`
+- `ravens-and-dragons/ravens-and-dragons-backend/src/test/kotlin/com/ravensanddragons/game/MachineTrainedBotPhaseOneTest.kt`
   - Verifies machine-trained artifact validation, Sherwood-only registration, legal move selection, immediate-win preference, and ruleset scoping.
-- `ravens-and-dragons/src/test/kotlin/com/ravensanddragons/game/BotMatchHarnessTest.kt`
+- `ravens-and-dragons/ravens-and-dragons-backend/src/test/kotlin/com/ravensanddragons/game/BotMatchHarnessTest.kt`
   - Verifies long-running bot match smoke coverage outside the default test suite, now including Sherwood-only Michelle-vs-baselines evaluation games.
 - `app/src/test/kotlin/com/ravensanddragons/RavensAndDragonsApplicationTests.kt`
   - Verifies the Spring application context loads.
@@ -130,28 +130,33 @@ The follow-up bot refactor has now split the old single `GameBots.kt` file into 
 
 - Gradle is the primary build entrypoint.
 - The Gradle wrapper is pinned to Gradle 9.4.1, the first tested 9.x latest-patch release that removes the Java 25 restricted native-access warning during wrapper runs.
-- `settings.gradle.kts` includes three top-level subprojects: `:platform`, `:ravens-and-dragons`, and `:app`.
+- `settings.gradle.kts` includes top-level `:platform`, `:ravens-and-dragons`, and `:app` projects, plus `:ravens-and-dragons:ravens-and-dragons-backend` and `:ravens-and-dragons:ravens-and-dragons-frontend` child projects.
 - The root `build.gradle.kts` owns shared plugin versions, repositories, aggregate lifecycle tasks, and convenience wrappers for the familiar root commands.
 - `platform/build.gradle.kts` is currently a thin Kotlin/JVM project for future shared-service extraction.
-- `ravens-and-dragons/build.gradle.kts` owns the game module build:
+- `ravens-and-dragons/build.gradle.kts` owns parent game-module aggregation tasks:
+  - `:ravens-and-dragons:testBackend` delegates to `:ravens-and-dragons:ravens-and-dragons-backend:test`.
+  - `:ravens-and-dragons:testFrontend` delegates to `:ravens-and-dragons:ravens-and-dragons-frontend:test`.
+  - `:ravens-and-dragons:test` depends on both backend and frontend aggregates.
+- `ravens-and-dragons/ravens-and-dragons-backend/build.gradle.kts` owns the backend game module build:
   - Kotlin/JVM with Java 21.
   - Spring JDBC plus Flyway for persistence.
   - The Spring dependency-management Gradle plugin at 1.1.7 to avoid the Gradle 10 module-coordinate deprecation warning seen with 1.1.6.
-  - `com.github.node-gradle.node` to download Node and npm automatically for the game frontend.
   - Explicit Flyway `10.22.0` dependencies plus `flyway-database-postgresql` for PostgreSQL 18 compatibility.
   - The machine-training `train` source set and `runMachineTraining` task.
-- `app/build.gradle.kts` owns the runnable Spring Boot application, depends on `:ravens-and-dragons`, and produces `ravens-and-dragons.jar`.
+- `ravens-and-dragons/ravens-and-dragons-frontend/build.gradle.kts` owns the frontend build and uses `com.github.node-gradle.node` to download Node and npm automatically.
+- `app/build.gradle.kts` owns the runnable Spring Boot application, depends on `:ravens-and-dragons:ravens-and-dragons-backend`, and produces `ravens-and-dragons.jar`.
 - Frontend build flow:
   - `npm run build` runs `tsc && vite build`.
-  - `ravens-and-dragons/tsconfig.json` typechecks the frontend TypeScript and TSX source and emits test-facing JS modules into `ravens-and-dragons/build/generated/frontend-test`.
-  - `ravens-and-dragons/vite.config.ts` builds the frontend entry and bundle into `ravens-and-dragons/build/generated/frontend` and clears that generated directory before each build so stale hashed assets do not accumulate.
-  - `:ravens-and-dragons:processResources` depends on the frontend build and copies the generated assets into the game module's `static` resources.
+  - `ravens-and-dragons/ravens-and-dragons-frontend/tsconfig.json` typechecks the frontend TypeScript and TSX source and emits test-facing JS modules into `ravens-and-dragons/ravens-and-dragons-frontend/build/generated/frontend-test`.
+  - `ravens-and-dragons/ravens-and-dragons-frontend/vite.config.ts` builds the frontend entry and bundle into `ravens-and-dragons/ravens-and-dragons-frontend/build/generated/frontend` and clears that generated directory before each build so stale hashed assets do not accumulate.
+  - `:ravens-and-dragons:ravens-and-dragons-backend:processResources` depends on `:ravens-and-dragons:ravens-and-dragons-frontend:buildFrontend` and copies the generated assets into the backend module's `static` resources.
 - Frontend test flow:
   - `npm run test` runs Node's built-in test runner against the shared helper tests and Vitest against the React/Redux frontend tests.
-  - Gradle task `:ravens-and-dragons:testFrontend` runs the frontend tests, and root `./gradlew testFrontend` delegates to it.
-  - `./gradlew test` runs the default JVM test suites for the included subprojects.
-  - Root `./gradlew check` runs the default JVM suites plus frontend tests.
-  - Filtered backend runs such as `./gradlew :ravens-and-dragons:test --tests ...` remain JVM-only and skip the frontend test suite.
+  - Gradle task `:ravens-and-dragons:ravens-and-dragons-frontend:test` runs the frontend tests.
+  - `:ravens-and-dragons:testFrontend` and root `./gradlew testFrontend` are aggregate tasks that delegate to frontend child-project `test` tasks.
+  - `./gradlew testBackend` runs backend/JVM suites, `./gradlew testFrontend` runs frontend suites, and `./gradlew test` depends on both.
+  - Root `./gradlew check` runs the full verification suite plus packaging checks.
+  - Filtered backend runs such as `./gradlew :ravens-and-dragons:ravens-and-dragons-backend:test --tests ...` remain JVM-only and skip the frontend test suite.
   - `./gradlew botMatchHarnessTest` runs the long bot-vs-bot soak harness separately from the default `test` task, including the Sherwood-only Michelle evaluation smoke test.
 - Runtime flow:
 - The browser lobby lives at `/`.
@@ -446,15 +451,15 @@ Future UI changes should preserve the split of transport logic, Redux state, ren
 
 ## Build Output Notes
 
-- `ravens-and-dragons/build/generated/frontend-test` now holds the stable transpiled frontend modules used by the Node-based frontend tests.
-- Frontend builds now leave `ravens-and-dragons/build/generated/frontend` with only the current Vite `index.html` plus the hashed assets it references.
-- After `:ravens-and-dragons:processResources`, `ravens-and-dragons/build/resources/main/static` likewise keeps only the current generated frontend files alongside authored static files such as `styles.css`.
+- `ravens-and-dragons/ravens-and-dragons-frontend/build/generated/frontend-test` now holds the stable transpiled frontend modules used by the Node-based frontend tests.
+- Frontend builds now leave `ravens-and-dragons/ravens-and-dragons-frontend/build/generated/frontend` with only the current Vite `index.html` plus the hashed assets it references.
+- After `:ravens-and-dragons:ravens-and-dragons-backend:processResources`, `ravens-and-dragons/ravens-and-dragons-backend/build/resources/main/static` likewise keeps only the current generated frontend files alongside authored static files such as `styles.css`.
 - `:app:bootJar` produces `app/build/libs/ravens-and-dragons.jar`, and root `bootJar` copies that same jar to the historical deployment path at `build/libs/ravens-and-dragons.jar`.
 
 ## Testing Status
 
-- Frontend helper tests live in `ravens-and-dragons/src/test/frontend/game.test.js`.
-- React/Redux component and selector tests live alongside them in `ravens-and-dragons/src/test/frontend/*.test.ts(x)`.
+- Frontend helper tests live in `ravens-and-dragons/ravens-and-dragons-frontend/src/test/frontend/game.test.js`.
+- React/Redux component and selector tests live alongside them in `ravens-and-dragons/ravens-and-dragons-frontend/src/test/frontend/*.test.ts(x)`.
 - The backend now has dedicated rules and API tests.
 - The frontend tests currently cover:
   - server-backed capturable squares
@@ -492,11 +497,11 @@ Future UI changes should preserve the split of transport logic, Redux state, ren
 ## Extension Points For Future Changes
 
 - To add or change gameplay rules:
-  - Start in the Kotlin game module under `ravens-and-dragons/src/main/kotlin/com/ravensanddragons/game`.
-  - Update `ravens-and-dragons/src/test/kotlin/com/ravensanddragons/game/GameRulesTest.kt`.
+  - Start in the Kotlin game module under `ravens-and-dragons/ravens-and-dragons-backend/src/main/kotlin/com/ravensanddragons/game`.
+  - Update `ravens-and-dragons/ravens-and-dragons-backend/src/test/kotlin/com/ravensanddragons/game/GameRulesTest.kt`.
 - To change UI behavior or display:
-  - Start in the relevant React component, selector, thunk, or hook under `ravens-and-dragons/src/main/frontend`.
-  - Update `ravens-and-dragons/src/main/resources/static/styles.css` if layout or styling is affected.
+  - Start in the relevant React component, selector, thunk, or hook under `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend`.
+  - Update `ravens-and-dragons/ravens-and-dragons-backend/src/main/resources/static/styles.css` if layout or styling is affected.
 - To persist games or support richer multiplayer:
   - Extend the backend game store and session service further to add cross-instance event fanout behind the current game-id-based API.
 - To support undo/redo or replay:
@@ -509,7 +514,7 @@ Future UI changes should preserve the split of transport logic, Redux state, ren
 - Capture eligibility is global, not positional; if any opposing capturable piece exists anywhere, capture mode begins.
 - Selection remains browser-local and may be cleared when a new server snapshot makes it invalid.
 - The built frontend entry is now generated by Vite rather than assuming a fixed `/app.js` file.
-- The frontend tests still run against the compiled output in `ravens-and-dragons/build/generated/frontend-test`, so TypeScript build success remains part of frontend test success.
+- The frontend tests still run against the compiled output in `ravens-and-dragons/ravens-and-dragons-frontend/build/generated/frontend-test`, so TypeScript build success remains part of frontend test success.
 - If the default app port is busy during local runs, the preferred workflow is to report that conflict instead of switching ports unless the user explicitly asks for a different port.
 
 ## Suggested Priorities Before Larger Feature Work

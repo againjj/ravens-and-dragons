@@ -20,7 +20,7 @@ kotlin {
 }
 
 dependencies {
-    implementation(project(":ravens-and-dragons"))
+    implementation(project(":ravens-and-dragons:ravens-and-dragons-backend"))
 
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.jetbrains.kotlin:kotlin-reflect")

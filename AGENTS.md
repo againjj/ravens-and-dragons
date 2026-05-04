@@ -36,14 +36,14 @@ This file contains repository-specific instructions for AI-assisted work in this
 
 ## Architecture Rules
 
-- `ravens-and-dragons/src/main/kotlin/com/ravensanddragons/game` is the home for canonical game rules, state transitions, and shared session behavior.
-- Frontend helper modules under `ravens-and-dragons/src/main/frontend` should keep wire types, board helpers, move formatting, and local-only selection helpers out of React components.
-- `ravens-and-dragons/src/main/frontend/App.tsx` should stay focused on shell composition and top-level wiring.
-- `ravens-and-dragons/src/main/frontend/components` should own React rendering.
-- `ravens-and-dragons/src/main/frontend/features/game` should own Redux slices, selectors, thunks, and stream lifecycle helpers for game/session behavior.
-- `ravens-and-dragons/src/main/frontend/features/ui` should own browser-local UI state such as selection.
-- `ravens-and-dragons/src/main/frontend/game-client.ts` should stay focused on REST/SSE transport helpers and client-side request handling.
-- `ravens-and-dragons/src/main/frontend/hooks` should wrap browser APIs such as fullscreen and resize observation.
+- `ravens-and-dragons/ravens-and-dragons-backend/src/main/kotlin/com/ravensanddragons/game` is the home for canonical game rules, state transitions, and shared session behavior.
+- Frontend helper modules under `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend` should keep wire types, board helpers, move formatting, and local-only selection helpers out of React components.
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/App.tsx` should stay focused on shell composition and top-level wiring.
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/components` should own React rendering.
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/game` should own Redux slices, selectors, thunks, and stream lifecycle helpers for game/session behavior.
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/ui` should own browser-local UI state such as selection.
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/game-client.ts` should stay focused on REST/SSE transport helpers and client-side request handling.
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/hooks` should wrap browser APIs such as fullscreen and resize observation.
 - Do not move gameplay logic into React components or split canonical rules between frontend and backend unless the user explicitly asks for that tradeoff.
 - Keep browser-local state limited to UI concerns such as selection and loading/error presentation.
 - If persistence, multiple rooms, or richer multiplayer behavior is added later, discuss the architecture shift before spreading state ownership further.
@@ -90,9 +90,10 @@ If a requested change would alter one of those rules, implement it only when tha
 
 - Keep tests as independent as possible so they remain safe to run in parallel.
 - Avoid shared mutable state, order dependencies, and shared database rows between tests unless the test explicitly owns and resets that state.
-- When backend gameplay logic changes, update or add tests in `ravens-and-dragons/src/test/kotlin/com/ravensanddragons/game/GameRulesTest.kt` and related server tests.
-- When frontend helper behavior changes, update or add tests in `ravens-and-dragons/src/test/frontend/game.test.js`.
-- When React/Redux UI behavior changes, update or add tests under `ravens-and-dragons/src/test/frontend/*.test.ts(x)`.
+- When any build, test, npm, dependency, or audit command reports vulnerabilities, prominently tell the user as soon as they are noticed, including the reported count and severity when available.
+- When backend gameplay logic changes, update or add tests in `ravens-and-dragons/ravens-and-dragons-backend/src/test/kotlin/com/ravensanddragons/game/GameRulesTest.kt` and related server tests.
+- When frontend helper behavior changes, update or add tests in `ravens-and-dragons/ravens-and-dragons-frontend/src/test/frontend/game.test.js`.
+- When React/Redux UI behavior changes, update or add tests under `ravens-and-dragons/ravens-and-dragons-frontend/src/test/frontend/*.test.ts(x)`.
 - When adding a new browser route, add a test that proves the route can be loaded directly by URL.
 - When fixing a bug, start by writing or updating a test that reproduces the failure before fixing the implementation.
 - When logic is extracted or refactored, keep tests focused on behavior rather than implementation details.

@@ -47,11 +47,12 @@ The default servlet session timeout is `2h`.
 ./gradlew test
 ```
 
-That command runs the default JVM test suites for the included subprojects.
+That command runs the backend and frontend test suites for the included subprojects.
 
-Run the frontend tests separately with:
+Run only the backend or frontend tests with:
 
 ```bash
+./gradlew testBackend
 ./gradlew testFrontend
 ```
 
@@ -61,7 +62,7 @@ Run the full default verification suite with:
 ./gradlew check
 ```
 
-That runs the JVM tests plus frontend tests. Filtered backend test runs such as `./gradlew :ravens-and-dragons:test --tests ...` stay focused on JVM tests and do not run frontend tests.
+That runs the same backend and frontend suites plus any other default verification checks. Filtered backend test runs such as `./gradlew :ravens-and-dragons:ravens-and-dragons-backend:test --tests ...` stay focused on JVM tests and do not run frontend tests.
 
 The Randall-vs-Maxine soak harness now runs separately:
 
@@ -71,7 +72,7 @@ The Randall-vs-Maxine soak harness now runs separately:
 
 To run a larger head-to-head batch, pass `botMatchHarnessGamesPerMatchup` to Gradle. For example, `-DbotMatchHarnessGamesPerMatchup=10` runs the release-two Randall/Maxine coverage plus the Sherwood-only Michelle baseline smoke evaluation at ten games per ordered matchup.
 
-`ravens-and-dragons/src/test/kotlin/com/ravensanddragons/game/GameBotsTest.kt` also keeps two disabled manual bot-comparison checks: one for representative depth-2 move agreement between `MinimaxGameBotStrategy` and `AlphaBetaGameBotStrategy`, and one for timing those same representative searches without making the regular suite flaky.
+`ravens-and-dragons/ravens-and-dragons-backend/src/test/kotlin/com/ravensanddragons/game/GameBotsTest.kt` also keeps two disabled manual bot-comparison checks: one for representative depth-2 move agreement between `MinimaxGameBotStrategy` and `AlphaBetaGameBotStrategy`, and one for timing those same representative searches without making the regular suite flaky.
 
 ## Profiling
 
@@ -155,9 +156,10 @@ The stale-game eviction threshold defaults to six weeks, and the cleanup schedul
 
 - `app`: runnable Spring Boot application project that assembles the deployed jar
 - `platform`: top-level shared-service project, currently thin and ready for future platform extraction
-- `ravens-and-dragons`: game module with backend gameplay, frontend, resources, tests, and training code
-- `ravens-and-dragons/src/main/kotlin/com/ravensanddragons/game`: backend game rules, bot strategies/orchestration, session handling, and game APIs
-- `ravens-and-dragons/src/main/kotlin/com/ravensanddragons/auth`: authentication and account management
-- `ravens-and-dragons/src/main/frontend`: React frontend, Redux state, and browser-side helpers
-- `ravens-and-dragons/src/test`: game module backend and frontend tests
+- `ravens-and-dragons`: parent game module that aggregates backend and frontend child projects
+- `ravens-and-dragons/ravens-and-dragons-backend`: backend gameplay, resources, JVM tests, and training code
+- `ravens-and-dragons/ravens-and-dragons-frontend`: React frontend, Redux state, browser-side helpers, and frontend tests
+- `ravens-and-dragons/ravens-and-dragons-backend/src/main/kotlin/com/ravensanddragons/game`: backend game rules, bot strategies/orchestration, session handling, and game APIs
+- `ravens-and-dragons/ravens-and-dragons-backend/src/main/kotlin/com/ravensanddragons/auth`: authentication and account management
+- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend`: React frontend, Redux state, and browser-side helpers
 - `docs/code-summary.md`: architecture and implementation summary
