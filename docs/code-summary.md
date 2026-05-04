@@ -49,7 +49,7 @@ The follow-up bot refactor has now split the old single `GameBots.kt` file into 
 - `docs/machine-trained-bot-improvements.md`
   - Planning notes for making the evolved `machine-trained` bot `Michelle` stronger, including shallow search, richer fitness, outcome learning, game-stage specialization, and evaluation reliability.
 - `docs/todo.md`
-  - Canonical list of planned work that is not being implemented immediately, including issue-style summaries and links to backing plan files.
+  - Canonical list of unfinished follow-up work that is not being implemented immediately, maintained at explicit wrap-up points instead of during exploratory planning.
 - `docs/machine-training-runbook.md`
   - Runbook for training, validating, installing, and rolling back a locally generated Sherwood `Michelle` artifact, including run-id naming and artifact provenance metadata.
 - `ravens-and-dragons/ravens-and-dragons-backend/src/main/resources/bots/machine-trained/*.json`

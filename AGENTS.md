@@ -25,7 +25,11 @@ This file contains repository-specific instructions for AI-assisted work in this
 ## Planning And Todo Rules
 
 - `docs/todo.md` is the canonical list of planned work that is not being implemented immediately.
-- When new planned changes are discussed but not completed in the same commit, add them to `docs/todo.md` with a short description and links to any backing plan files.
+- Do not update `docs/todo.md` or create/update backing plan files during exploratory discussion, investigation, or planning.
+- Keep plans in the conversation while the user is still deciding what to do.
+- If planned work is discussed and then fully implemented in the same session, do not add it to `docs/todo.md`.
+- Add items to `docs/todo.md` only at an explicit wrap-up point, such as before a commit, when the user asks to pause/save remaining work, or when the user asks to update the plan/todo docs.
+- Only add unfinished follow-up work: planned outcomes that were discussed but not completed in the current session/commit.
 - When planned work is completed, remove its entry from `docs/todo.md` and remove any backing plan files that are no longer needed.
 - Keep `docs/todo.md` issue-tracker-like: each item should explain the planned outcome, why it matters, and where to find supporting details.
 

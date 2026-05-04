@@ -82,7 +82,7 @@ A repeatable local memory-profiling runbook lives at [docs/profiling-runbook.md]
 
 - [docs/multi-game-service-structure-plan.md](/Users/jrayazian/code/ravens-and-dragons/docs/multi-game-service-structure-plan.md): staged plan for evolving the app into a multi-game service with top-level game modules such as `ravens-and-dragons/`
 - [docs/machine-trained-bot-improvements.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-trained-bot-improvements.md): planning notes for making the evolved, ruleset-scoped `machine-trained` bot `Michelle` stronger
-- [docs/todo.md](/Users/jrayazian/code/ravens-and-dragons/docs/todo.md): canonical list of planned work that is not being implemented immediately, with links to backing plan files
+- [docs/todo.md](/Users/jrayazian/code/ravens-and-dragons/docs/todo.md): canonical list of unfinished follow-up work, updated at explicit wrap-up points rather than during exploratory planning
 - [docs/machine-training-runbook.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-training-runbook.md): human-facing guide to the current Michelle pipeline, including runtime behavior, schema-5 features, training, evolution, validation, installation, rollback, and troubleshooting
 
 ## Offline Training
