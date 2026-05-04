@@ -1,11 +1,15 @@
-# Agents
+# Agent Instructions
 
-This file contains repository-specific instructions for AI-assisted work in this project.
+This file contains repository-wide instructions for AI-assisted work in this project.
 
 ## Required Startup Step
 
-- Before making changes, read `docs/code-summary.md` and this file.
-- Treat these two files as the project context that should be loaded before implementation or review work.
+- Before making changes, read this file and `code-summary.md` at the repository root.
+- Also read the `AGENTS.md` and `code-summary.md` files for each top-level project you expect to touch:
+  - `app/`
+  - `platform/`
+  - `ravens-and-dragons/`
+- Treat the root and project-level files together as the project context for implementation or review work.
 
 ## Project Priorities
 
@@ -18,9 +22,9 @@ This file contains repository-specific instructions for AI-assisted work in this
 - If the user asks for planning, review, investigation, or explanation first, stay in analysis mode and do not edit files.
 - When the user's intent is ambiguous, default to reading code and proposing a plan only.
 - This rule overrides any general instruction to assume the user wants code changes by default.
-- Preserve existing behavior unless the user explicitly asks to change gameplay or UX.
+- Preserve existing behavior unless the user explicitly asks to change gameplay, UX, build workflow, persistence, or routing.
 - Prefer small, reviewable refactors over broad rewrites.
-- Keep the codebase easy to extend for future rule changes.
+- Keep the codebase easy to extend for future rule and service-boundary changes.
 - When in doubt, optimize for clarity and testability over cleverness.
 
 ## Planning And Todo Rules
@@ -37,69 +41,25 @@ This file contains repository-specific instructions for AI-assisted work in this
 ## Documentation Rules
 
 - Keep `README.md` human-focused and limited to the current state of the repository.
+- Keep root `code-summary.md` focused on service-wide architecture, build/runtime flow, and cross-project responsibilities.
+- Keep project-level `code-summary.md` files focused on the files and behavior owned by that project.
 - Do not include historical implementation notes in `README.md`; preserve that context in planning docs, summaries, or commit history instead.
+- When moving or splitting docs, update file references so startup instructions and design-doc links point at the new canonical files.
 
 ## Architecture Rules
 
-- `ravens-and-dragons/ravens-and-dragons-backend/src/main/kotlin/com/ravensanddragons/game` is the home for canonical game rules, state transitions, and shared session behavior.
-- Frontend helper modules under `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend` should keep wire types, board helpers, move formatting, and local-only selection helpers out of React components.
-- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/App.tsx` should stay focused on shell composition and top-level wiring.
-- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/components` should own React rendering.
-- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/game` should own Redux slices, selectors, thunks, and stream lifecycle helpers for game/session behavior.
-- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/ui` should own browser-local UI state such as selection.
-- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/game-client.ts` should stay focused on REST/SSE transport helpers and client-side request handling.
-- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/hooks` should wrap browser APIs such as fullscreen and resize observation.
-- Do not move gameplay logic into React components or split canonical rules between frontend and backend unless the user explicitly asks for that tradeoff.
-- Keep browser-local state limited to UI concerns such as selection and loading/error presentation.
-- If persistence, multiple rooms, or richer multiplayer behavior is added later, discuss the architecture shift before spreading state ownership further.
-
-## Gameplay Rules That Are Currently Intentional
-
-Unless the user asks to change game behavior, preserve these current rules:
-
-- The game starts in setup mode with an empty board.
-- Clicking any square in setup cycles: empty -> dragon -> raven -> gold -> empty.
-- Any number of gold pieces may be placed during setup.
-- Dragons move first.
-- Dragons may move either a dragon or the gold.
-- Ravens may move only ravens.
-- Movement currently allows a selected piece to move to any empty square.
-- After moving, capture becomes available if any capturable opposing piece exists anywhere on the board.
-- Dragons may capture one raven.
-- Ravens may capture one dragon or the gold.
-- Capture can be skipped.
-- Reloading the page does not reset the game because state is shared and held in server memory.
-- Restarting the server resets the shared game because persistence has not been added.
-
-If a requested change would alter one of those rules, implement it only when that behavior change is intentional.
-
-## Code Organization Rules
-
-- Put canonical gameplay state transition logic in the Kotlin game module.
-- Prefer pure or mostly pure rule helpers that take a snapshot/state and return the next snapshot/state.
-- Keep frontend helpers focused on wire-shape helpers and render-side derivations from the server snapshot.
-- Keep browser-specific code out of shared frontend helper modules.
-- Reuse existing helpers before adding new parallel logic paths.
-- Remove dead code and unused imports when editing related files.
-- Add comments only when the intent is not already obvious from the code.
-
-## Frontend Rules
-
-- Prefer deriving UI from Redux state and selectors instead of manually syncing DOM state.
-- Keep components presentational where practical and push transport/state transitions into thunks, selectors, or hooks.
-- Keep the board responsive and preserve fullscreen support unless the user asks otherwise.
-- Prefer reusable components and hooks over repeated browser wiring when behavior stays the same.
-- Preserve the existing visual language unless the task is explicitly about design or styling.
+- `platform/` owns shared service capabilities: authentication, shared web error handling, route fallback, the game module contract, and reusable platform boundaries.
+- `app/` owns the runnable Spring Boot application, deployed jar assembly, and explicit registration of included game modules.
+- `ravens-and-dragons/` owns Ravens and Dragons game rules, game APIs, game-specific persistence payloads, frontend UI, assets, bots, machine training, and tests.
+- Do not move gameplay rules into `platform/` or `app/`.
+- Do not make platform own game-specific snapshot, undo, rule, bot, board, or command semantics.
+- If persistence, multiple rooms, richer multiplayer behavior, external game repositories, or route slugs are added later, discuss the architecture shift before spreading state ownership further.
 
 ## Testing Rules
 
 - Keep tests as independent as possible so they remain safe to run in parallel.
 - Avoid shared mutable state, order dependencies, and shared database rows between tests unless the test explicitly owns and resets that state.
 - When any build, test, npm, dependency, or audit command reports vulnerabilities, prominently tell the user as soon as they are noticed, including the reported count and severity when available.
-- When backend gameplay logic changes, update or add tests in `ravens-and-dragons/ravens-and-dragons-backend/src/test/kotlin/com/ravensanddragons/game/GameRulesTest.kt` and related server tests.
-- When frontend helper behavior changes, update or add tests in `ravens-and-dragons/ravens-and-dragons-frontend/src/test/frontend/game.test.js`.
-- When React/Redux UI behavior changes, update or add tests under `ravens-and-dragons/ravens-and-dragons-frontend/src/test/frontend/*.test.ts(x)`.
-- When adding a new browser route, add a test that proves the route can be loaded directly by URL.
 - When fixing a bug, start by writing or updating a test that reproduces the failure before fixing the implementation.
 - When logic is extracted or refactored, keep tests focused on behavior rather than implementation details.
 - Run `./gradlew test` before finishing code changes whenever practical.
@@ -108,7 +68,7 @@ If a requested change would alter one of those rules, implement it only when tha
 ## Commit And PR Rules
 
 - Before creating a commit, make sure all tests pass.
-- Before creating a commit, update `docs/code-summary.md` and `README.md` so they reflect every relevant change since the last commit.
+- Before creating a commit, update the relevant `code-summary.md` files and `README.md` so they reflect every relevant change since the last commit.
 - When the user says `commit and push`, always create the commit first and only push after that commit succeeds.
 - Commit messages must use a short, meaningful title line.
 - Commit message bodies must include a full description of what changed and why those changes were made.
@@ -123,26 +83,26 @@ If a requested change would alter one of those rules, implement it only when tha
 
 ## Review Rules
 
-- In review mode, prioritize:
-  - behavior regressions
-  - rule mismatches
-  - missing or stale tests
-  - architecture drift between the Kotlin game module, `game.ts`, Redux state, and React components
-- Call out maintainability issues when they make future game-rule changes riskier.
+- In review mode, prioritize behavior regressions, rule mismatches, missing or stale tests, and architecture drift between projects.
+- Call out maintainability issues when they make future game-rule or service-boundary changes riskier.
 
 ## Change Safety Rules
 
 - Ask before making changes that:
-  - move canonical game rules back into the frontend or split them across layers
+  - move canonical game rules into `platform/`, `app/`, or React components
   - introduce persistence or networking
-  - change the move/capture rules
+  - change move/capture rules
   - materially redesign the UI
   - alter the build or test workflow in a way that affects how the app is run
+  - introduce slugged routes or split stored game-session metadata across new tables
 
 ## Useful Commands
 
 - Run the app: `./gradlew bootRun`
 - Run all tests: `./gradlew test`
+- Run backend tests: `./gradlew testBackend`
+- Run frontend tests: `./gradlew testFrontend`
+- Run full checks: `./gradlew check`
 
 ## Local Run Rules
 
@@ -158,5 +118,5 @@ If a requested change would alter one of those rules, implement it only when tha
 Use this in future requests:
 
 ```text
-Read docs/code-summary.md and AGENTS.md before making changes. Follow those project rules unless I say otherwise.
+Read AGENTS.md and code-summary.md at the root and relevant project levels before making changes. Follow those project rules unless I say otherwise.
 ```

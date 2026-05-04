@@ -162,7 +162,7 @@ The first frontend extraction should be conservative. Move code only when the bo
 - Keep each step behavior-preserving unless a route or persistence migration explicitly requires compatibility handling.
 - Keep tests independent so Gradle and test runners can safely parallelize them.
 - Prefer small mechanical moves with green tests over broad rewrites.
-- Update `docs/code-summary.md` and `README.md` when implementation begins and the actual structure changes.
+- Update the relevant root/project `code-summary.md` files and `README.md` when implementation begins and the actual structure changes.
 
 ## Open Questions
 

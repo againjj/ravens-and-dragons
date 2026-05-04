@@ -165,4 +165,5 @@ The stale-game eviction threshold defaults to six weeks, and the cleanup schedul
 - `ravens-and-dragons/ravens-and-dragons-backend/src/main/kotlin/com/ravensanddragons/game`: backend game rules, bot strategies/orchestration, session handling, and game APIs
 - `platform/src/main/kotlin/com/ravensanddragons/auth`: authentication and account management
 - `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend`: React frontend, Redux state, and browser-side helpers
-- `docs/code-summary.md`: architecture and implementation summary
+- `code-summary.md`: service-wide architecture and implementation summary
+- `app/code-summary.md`, `platform/code-summary.md`, and `ravens-and-dragons/code-summary.md`: project-level implementation summaries
