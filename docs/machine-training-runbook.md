@@ -6,7 +6,7 @@ This runbook explains how the current `Michelle` training pipeline works, how to
 
 `Michelle` is the `machine-trained` bot. Runtime inference is intentionally simple:
 
-1. The server loads JSON artifacts from `src/main/resources/bots/machine-trained/*.json`.
+1. The server loads JSON artifacts from `ravens-and-dragons/src/main/resources/bots/machine-trained/*.json`.
 2. A valid artifact registers `Michelle` only for that artifact's `ruleConfigurationId`.
 3. During a bot turn, Michelle first takes any immediate winning move.
 4. If no immediate win exists, Michelle scores every legal move and chooses the highest score.
@@ -14,7 +14,7 @@ This runbook explains how the current `Michelle` training pipeline works, how to
 
 The current bundled artifact is:
 
-[`src/main/resources/bots/machine-trained/sherwood-rules.json`](/Users/jrayazian/code/ravens-and-dragons/src/main/resources/bots/machine-trained/sherwood-rules.json)
+[`ravens-and-dragons/src/main/resources/bots/machine-trained/sherwood-rules.json`](/Users/jrayazian/code/ravens-and-dragons/ravens-and-dragons/src/main/resources/bots/machine-trained/sherwood-rules.json)
 
 The current scope is intentionally narrow:
 
@@ -32,7 +32,7 @@ Do not reuse a Sherwood artifact for another ruleset. Add a separate artifact fo
 
 ## Feature Schema
 
-The encoder lives in [MachineTrainedFeatureEncoder.kt](/Users/jrayazian/code/ravens-and-dragons/src/main/kotlin/com/ravensanddragons/game/bot/machine/MachineTrainedFeatureEncoder.kt). Schema version `5` uses raw mover/opponent/gold facts with no raven-turn sign flipping. Side differences live in the artifact's separate dragon and raven weight vectors.
+The encoder lives in [MachineTrainedFeatureEncoder.kt](/Users/jrayazian/code/ravens-and-dragons/ravens-and-dragons/src/main/kotlin/com/ravensanddragons/game/bot/machine/MachineTrainedFeatureEncoder.kt). Schema version `5` uses raw mover/opponent/gold facts with no raven-turn sign flipping. Side differences live in the artifact's separate dragon and raven weight vectors.
 
 The feature groups are:
 
@@ -83,8 +83,8 @@ git status --short
 Run the focused Michelle tests before making a serious training run:
 
 ```bash
-./gradlew test --tests com.ravensanddragons.training.MachineTrainingPipelineTest
-./gradlew test --tests com.ravensanddragons.game.MachineTrainedBotPhaseOneTest
+./gradlew :ravens-and-dragons:test --tests com.ravensanddragons.training.MachineTrainingPipelineTest
+./gradlew :ravens-and-dragons:test --tests com.ravensanddragons.game.MachineTrainedBotPhaseOneTest
 ```
 
 For a broader health check:
@@ -154,7 +154,7 @@ Confirm these fields:
 Then run:
 
 ```bash
-./gradlew test --tests com.ravensanddragons.game.MachineTrainedBotPhaseOneTest
+./gradlew :ravens-and-dragons:test --tests com.ravensanddragons.game.MachineTrainedBotPhaseOneTest
 ```
 
 That test covers artifact validation, registration, legal move selection, immediate-win preference, and ruleset scoping.
@@ -164,7 +164,7 @@ That test covers artifact validation, registration, legal move selection, immedi
 Use evolution before replacing the bundled artifact. The usual input is the current bundled artifact as incumbent, plus an optional supervised seed artifact from the previous step.
 
 ```bash
-./gradlew runMachineTraining -PtrainingArgs='--mode evolve --rule-configuration-id sherwood-rules --incumbent-artifact src/main/resources/bots/machine-trained/sherwood-rules.json --seed-artifact build/machine-trained-candidate/<seed-run-id>.generated.json --population-size 24 --survivor-count 6 --generations 20 --games-per-matchup 1 --baseline-bot-ids minimax,deep-minimax --max-plies-per-game 300 --opening-random-plies 2 --mutation-rate 0.15 --mutation-scale 0.10 --crossover-rate 0.50 --elite-count 2 --survivor-comparison-games-per-pairing 4 --minimum-promotion-win-rate 0.55 --maximum-promotion-loss-rate 0.35 --output-dir build/machine-trained-candidate'
+./gradlew runMachineTraining -PtrainingArgs='--mode evolve --rule-configuration-id sherwood-rules --incumbent-artifact ravens-and-dragons/src/main/resources/bots/machine-trained/sherwood-rules.json --seed-artifact build/machine-trained-candidate/<seed-run-id>.generated.json --population-size 24 --survivor-count 6 --generations 20 --games-per-matchup 1 --baseline-bot-ids minimax,deep-minimax --max-plies-per-game 300 --opening-random-plies 2 --mutation-rate 0.15 --mutation-scale 0.10 --crossover-rate 0.50 --elite-count 2 --survivor-comparison-games-per-pairing 4 --minimum-promotion-win-rate 0.55 --maximum-promotion-loss-rate 0.35 --output-dir build/machine-trained-candidate'
 ```
 
 Expected outputs:
@@ -268,21 +268,21 @@ Install only after validation and, for evolved candidates, a passing promotion d
 Keep a backup of the current bundled artifact:
 
 ```bash
-cp src/main/resources/bots/machine-trained/sherwood-rules.json build/machine-trained-candidate/sherwood-rules.previous.json
+cp ravens-and-dragons/src/main/resources/bots/machine-trained/sherwood-rules.json build/machine-trained-candidate/sherwood-rules.previous.json
 ```
 
 Install a supervised seed artifact:
 
 ```bash
-cp build/machine-trained-candidate/<run-id>.generated.json src/main/resources/bots/machine-trained/sherwood-rules.json
-./gradlew test --tests com.ravensanddragons.game.MachineTrainedBotPhaseOneTest
+cp build/machine-trained-candidate/<run-id>.generated.json ravens-and-dragons/src/main/resources/bots/machine-trained/sherwood-rules.json
+./gradlew :ravens-and-dragons:test --tests com.ravensanddragons.game.MachineTrainedBotPhaseOneTest
 ```
 
 Install an evolved artifact:
 
 ```bash
-cp build/machine-trained-candidate/<run-id>.evolved.json src/main/resources/bots/machine-trained/sherwood-rules.json
-./gradlew test --tests com.ravensanddragons.game.MachineTrainedBotPhaseOneTest
+cp build/machine-trained-candidate/<run-id>.evolved.json ravens-and-dragons/src/main/resources/bots/machine-trained/sherwood-rules.json
+./gradlew :ravens-and-dragons:test --tests com.ravensanddragons.game.MachineTrainedBotPhaseOneTest
 ```
 
 For a release-quality check, run the full suite:
@@ -296,8 +296,8 @@ For a release-quality check, run the full suite:
 If the new artifact fails validation or plays badly, restore the backup:
 
 ```bash
-cp build/machine-trained-candidate/sherwood-rules.previous.json src/main/resources/bots/machine-trained/sherwood-rules.json
-./gradlew test --tests com.ravensanddragons.game.MachineTrainedBotPhaseOneTest
+cp build/machine-trained-candidate/sherwood-rules.previous.json ravens-and-dragons/src/main/resources/bots/machine-trained/sherwood-rules.json
+./gradlew :ravens-and-dragons:test --tests com.ravensanddragons.game.MachineTrainedBotPhaseOneTest
 ```
 
 ## Optional Bot Harness Smoke Test
@@ -324,7 +324,7 @@ If training fails:
 - Confirm every bot id in `--self-play-bot-ids`, `--expert-bot-id`, and `--baseline-bot-ids` is valid for Sherwood.
 - Reduce `--worker-count` if the machine is CPU or memory constrained.
 - Reduce `--games-per-matchup`, `--population-size`, `--generations`, or `--survivor-comparison-games-per-pairing` for faster debugging runs.
-- Run `./gradlew test --tests com.ravensanddragons.training.MachineTrainingPipelineTest` to isolate pipeline failures.
+- Run `./gradlew :ravens-and-dragons:test --tests com.ravensanddragons.training.MachineTrainingPipelineTest` to isolate pipeline failures.
 
 If Michelle disappears from the UI after installing an artifact:
 
@@ -333,7 +333,7 @@ If Michelle disappears from the UI after installing an artifact:
 - Confirm the JSON has `botId: "machine-trained"` and `displayName: "Michelle"`.
 - Confirm the JSON has `featureSchemaVersion: 5`.
 - Confirm the JSON has `featureNames`, `dragonWeights`, and `ravenWeights` with matching lengths.
-- Run `./gradlew test --tests com.ravensanddragons.game.MachineTrainedBotPhaseOneTest`.
+- Run `./gradlew :ravens-and-dragons:test --tests com.ravensanddragons.game.MachineTrainedBotPhaseOneTest`.
 
 If evolution does not promote a candidate:
 

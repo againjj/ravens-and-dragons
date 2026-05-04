@@ -2,13 +2,6 @@
 
 This file is the canonical list of planned work that is not being implemented immediately. Keep each item issue-tracker-like, link any backing plan files, and remove completed items plus obsolete backing plan files when the work is done.
 
-## Introduce Top-Level Service Subprojects
-
-- **Goal:** Create `platform/`, `ravens-and-dragons/`, and `app/` Gradle projects without behavior changes.
-- **Why:** These projects make the shared platform, game module, and runnable assembled app boundaries visible.
-- **Notes:** Move files mechanically, keep package names stable at first where practical, and wire `app` to produce the same Spring Boot jar.
-- **References:** [docs/multi-game-service-structure-plan.md](/Users/jrayazian/code/ravens-and-dragons/docs/multi-game-service-structure-plan.md).
-
 ## Always Load Local Environment For Boot Run
 
 - **Goal:** Make local app startup automatically load `.env.local` when running `bootRun`.
