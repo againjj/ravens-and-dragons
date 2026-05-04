@@ -22,6 +22,18 @@ This file contains repository-specific instructions for AI-assisted work in this
 - Keep the codebase easy to extend for future rule changes.
 - When in doubt, optimize for clarity and testability over cleverness.
 
+## Planning And Todo Rules
+
+- `docs/todo.md` is the canonical list of planned work that is not being implemented immediately.
+- When new planned changes are discussed but not completed in the same commit, add them to `docs/todo.md` with a short description and links to any backing plan files.
+- When planned work is completed, remove its entry from `docs/todo.md` and remove any backing plan files that are no longer needed.
+- Keep `docs/todo.md` issue-tracker-like: each item should explain the planned outcome, why it matters, and where to find supporting details.
+
+## Documentation Rules
+
+- Keep `README.md` human-focused and limited to the current state of the repository.
+- Do not include historical implementation notes in `README.md`; preserve that context in planning docs, summaries, or commit history instead.
+
 ## Architecture Rules
 
 - `src/main/kotlin/com/ravensanddragons/game` is the home for canonical game rules, state transitions, and shared session behavior.
