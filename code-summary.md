@@ -8,7 +8,7 @@ This repository is a Spring Boot 3.3 + Kotlin 2.1 service that hosts a browser-b
 - `platform/`: shared service infrastructure such as auth, web error handling, route fallback, and the game module contract.
 - `ravens-and-dragons/`: the Ravens and Dragons game module, including backend rules/APIs, frontend UI, bots, machine training, assets, and tests.
 
-The backend supports multiple persisted game sessions addressed by game id and broadcasts live updates over server-sent events per game. The frontend opens on a lobby, can route into `/create` for a local draft setup flow, and opens live games at `/g/{gameId}`. Current routes remain un-slugged until the planned game-identity route/persistence work.
+The backend supports multiple persisted game sessions addressed by game id and broadcasts live updates over server-sent events per game. The frontend opens on a lobby, can route into `/{gameSlug}/create` for a local draft setup flow, and opens live games at `/g/{gameId}`. Game creation now posts through a slugged API path so the hosting service can distinguish the game type from the session id.
 
 The runnable app now assembles Ravens and Dragons through a platform-owned game module contract. That contract records current browser/API route ownership, the Ravens and Dragons migration namespace, and the boundary between platform-owned session metadata and game-owned opaque payloads.
 
@@ -60,11 +60,11 @@ The Gradle wrapper is pinned to Gradle 9.4.1. Java 21 is the project toolchain. 
   - `/`: lobby redirect/entry.
   - `/login`: auth entry with `next` redirect support.
   - `/lobby`: lobby screen.
-  - `/create`: local draft-create route.
+  - `/{gameSlug}/create`: local draft-create route for the selected game identity.
   - `/profile`: local-account profile route.
   - `/g/{gameId}`: live Ravens and Dragons game route.
 - Auth endpoints live under `/api/auth`.
-- Game creation uses `POST /api/games`.
+- Game creation uses `POST /api/games/{gameSlug}`.
 - Game reads use `GET /api/games/{gameId}` and `GET /api/games/{gameId}/view`.
 - Game commands use `POST /api/games/{gameId}/commands`.
 - Seat and bot actions use dedicated game endpoints.

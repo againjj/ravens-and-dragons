@@ -123,7 +123,7 @@ Create an authenticated guest session and a real game:
 COOKIE=/tmp/rad-profile-first-run/sse.cookies
 rm -f "$COOKIE"
 curl -s -c "$COOKIE" -X POST http://127.0.0.1:8080/api/auth/guest >/dev/null
-CREATE=$(curl -s -b "$COOKIE" -c "$COOKIE" -H 'Content-Type: application/json' -d '{"startingSide":"dragons","board":{"a1":"dragon","g7":"raven"}}' http://127.0.0.1:8080/api/games)
+CREATE=$(curl -s -b "$COOKIE" -c "$COOKIE" -H 'Content-Type: application/json' -d '{"startingSide":"dragons","board":{"a1":"dragon","g7":"raven"}}' http://127.0.0.1:8080/api/games/ravens-and-dragons)
 GAME_ID=$(printf '%s' "$CREATE" | jq -r '.game.id')
 curl -s -b "$COOKIE" -c "$COOKIE" -H 'Content-Type: application/json' -d '{"side":"dragons"}' "http://127.0.0.1:8080/api/games/$GAME_ID/claim-side" >/dev/null
 curl -s -b "$COOKIE" -c "$COOKIE" -H 'Content-Type: application/json' -d '{"side":"ravens"}' "http://127.0.0.1:8080/api/games/$GAME_ID/claim-side" >/dev/null

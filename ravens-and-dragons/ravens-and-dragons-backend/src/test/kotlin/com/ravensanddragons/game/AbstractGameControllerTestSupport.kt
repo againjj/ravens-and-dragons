@@ -57,6 +57,7 @@ abstract class AbstractGameControllerTestSupport {
 
     protected fun seedGame(
         gameId: String = "test-game",
+        gameSlug: String = "ravens-and-dragons",
         snapshot: GameSnapshot = GameRules.createIdleSnapshot(GameRules.freePlayRuleConfigurationId, Side.dragons),
         selectedRuleConfigurationId: String = snapshot.ruleConfigurationId,
         selectedStartingSide: Side = Side.dragons,
@@ -78,6 +79,7 @@ abstract class AbstractGameControllerTestSupport {
     ): GameSession {
         val storedGame = GameSessionFactory.createStoredGame(
             gameId = gameId,
+            gameSlug = gameSlug,
             snapshot = snapshot,
             undoEntries = emptyList(),
             version = version,
@@ -141,7 +143,7 @@ abstract class AbstractGameControllerTestSupport {
 
     protected fun createGame(request: CreateGameRequest = CreateGameRequest()): GameSession =
         objectMapper.readValue(
-            mockMvc.post("/api/games") {
+            mockMvc.post("/api/games/ravens-and-dragons") {
                 with(authenticated("create-game", defaultTestUserId))
                 contentType = MediaType.APPLICATION_JSON
                 content = objectMapper.writeValueAsString(request)

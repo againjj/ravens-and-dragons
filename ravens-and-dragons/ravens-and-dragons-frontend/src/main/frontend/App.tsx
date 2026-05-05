@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useAppDispatch, useAppSelector } from "./app/hooks.js";
 import { AuthPanel } from "./components/AuthPanel.js";
@@ -29,18 +29,39 @@ export const App = ({ gameEntry = ravensAndDragonsGameEntry }: AppProps) => {
     const isLoadingGame = useAppSelector(selectIsLoadingGame);
     const pageRef = useRef<HTMLElement | null>(null);
     const { toggleFullscreen } = useFullscreen(pageRef);
+    const [selectedGameSlug, setSelectedGameSlug] = useState(gameEntry.identity.slug);
+    const gameEntries = useMemo(() => [gameEntry], [gameEntry]);
+    const gameEntriesBySlug = useMemo(
+        () => new Map(gameEntries.map((entry) => [entry.identity.slug, entry])),
+        [gameEntries]
+    );
 
     const { CreateScreen, PlayScreen } = gameEntry.components;
     const useGameSessionLifecycle = gameEntry.lifecycle.useSession;
-    const { page, navigateToCreate, navigateToGame, navigateToLobby, navigateToProfile } = useGameRoute(gameEntry);
+    const { page, navigateToCreate, navigateToGame, navigateToLobby, navigateToProfile, createGameSlug } = useGameRoute(gameEntry);
     const showProfileButton = isAuthenticated && currentUser?.authType === "local" && page !== "profile";
     const showLobbyButton = isAuthenticated && page !== "lobby";
     const showLogoutButton = isAuthenticated && currentUser != null;
     useGameSessionLifecycle();
 
+    const currentCreateGameEntry = createGameSlug ? gameEntriesBySlug.get(createGameSlug) ?? null : null;
+    const selectedLobbyGameEntry = gameEntriesBySlug.get(selectedGameSlug) ?? gameEntries[0];
+
     useEffect(() => {
         void dispatch(loadAuthSession());
     }, [dispatch]);
+
+    useEffect(() => {
+        if (currentCreateGameEntry) {
+            setSelectedGameSlug(currentCreateGameEntry.identity.slug);
+        }
+    }, [currentCreateGameEntry]);
+
+    useEffect(() => {
+        if (page === "create" && createGameSlug && !currentCreateGameEntry) {
+            navigateToLobby("replace");
+        }
+    }, [createGameSlug, currentCreateGameEntry, navigateToLobby, page]);
 
     const handleFullscreen = (): void => {
         void toggleFullscreen().then(({ message }) => {
@@ -54,13 +75,9 @@ export const App = ({ gameEntry = ravensAndDragonsGameEntry }: AppProps) => {
         void dispatch(logout());
     };
 
-    const handleCreateGame = () => {
-        navigateToCreate();
-    };
-
-    const handleStartGameFromCreate = () => {
+    const handleStartGameFromCreate = (gameSlug: string) => {
         void (async () => {
-            const gameId = await gameEntry.lifecycle.startGame(dispatch);
+            const gameId = await gameEntry.lifecycle.startGame(dispatch, gameSlug);
             if (gameId) {
                 navigateToGame(gameId);
             }
@@ -141,15 +158,34 @@ export const App = ({ gameEntry = ravensAndDragonsGameEntry }: AppProps) => {
                     />
                 ) : page === "lobby" ? (
                     <LobbyScreen
+                        games={gameEntries.map((entry) => entry.identity)}
+                        selectedGameSlug={selectedLobbyGameEntry.identity.slug}
                         feedbackMessage={feedbackMessage}
                         isLoading={isLoadingGame}
-                        onCreateGame={handleCreateGame}
+                        onCreateGame={(gameSlug) => {
+                            setSelectedGameSlug(gameSlug);
+                            navigateToCreate(gameSlug);
+                        }}
                         onOpenGame={(gameId) => {
                             navigateToGame(gameId);
                         }}
+                        onSelectGame={(gameSlug) => {
+                            setSelectedGameSlug(gameSlug);
+                        }}
                     />
                 ) : page === "create" ? (
-                    <CreateScreen onStartGame={handleStartGameFromCreate} />
+                    currentCreateGameEntry ? (
+                        <CreateScreen
+                            gameName={currentCreateGameEntry.identity.displayName}
+                            onStartGame={() => {
+                                handleStartGameFromCreate(currentCreateGameEntry.identity.slug);
+                            }}
+                        />
+                    ) : (
+                        <section className="panel">
+                            <StatusBanner text="Loading..." />
+                        </section>
+                    )
                 ) : page === "profile" ? (
                     <section className="auth-layout">
                         <ProfileScreen />

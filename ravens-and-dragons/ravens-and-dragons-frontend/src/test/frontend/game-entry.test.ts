@@ -12,7 +12,7 @@ describe("ravensAndDragonsGameEntry", () => {
         });
         expect(ravensAndDragonsGameEntry.components.CreateScreen).toBe(CreateGameScreen);
         expect(ravensAndDragonsGameEntry.components.PlayScreen).toBe(GameScreen);
-        expect(ravensAndDragonsGameEntry.routes.createPath).toBe("/create");
+        expect(ravensAndDragonsGameEntry.routes.createPath).toBe("/ravens-and-dragons/create");
         expect(ravensAndDragonsGameEntry.routes.buildPlayPath(" CFGHJMP ")).toBe("/g/CFGHJMP");
         expect(ravensAndDragonsGameEntry.routes.matchPlayPath("/g/CFGHJMP")).toBe("CFGHJMP");
         expect(ravensAndDragonsGameEntry.routes.matchPlayPath("/g/not-a-game")).toBeNull();

@@ -20,7 +20,7 @@ The parent project has two child projects:
   - Copies generated frontend assets into backend static resources during `processResources`.
 - `src/main/kotlin/com/ravensanddragons/game/RavensAndDragonsGameModuleDefinition.kt`
   - Ravens and Dragons implementation of the platform game module contract.
-  - Records current `/create`, `/g/{gameId}`, and `/api/games` ownership.
+  - Records current `/ravens-and-dragons/create`, `/g/{gameId}`, and `/api/games/{gameSlug}` ownership.
   - Declares the `ravens-and-dragons` migration namespace.
   - Draws the persistence line between platform-owned session metadata fields and game-owned opaque payloads.
 - `src/main/kotlin/com/ravensanddragons/game/model/*.kt`
@@ -65,7 +65,7 @@ The parent project has two child projects:
   - Records game display metadata, create/play route helpers, create/play components, and lifecycle actions needed to open and run a game UI.
 - `src/main/frontend/ravens-and-dragons-entry.ts`
   - Registers the current Ravens and Dragons frontend entry.
-  - Wires `/create`, `/g/{gameId}`, `CreateGameScreen`, `GameScreen`, create-game submission, open-game loading, lobby return cleanup, create-draft state, and SSE lifecycle behavior into the shell contract.
+  - Wires `/{gameSlug}/create`, `/g/{gameId}`, `CreateGameScreen`, `GameScreen`, create-game submission, open-game loading, lobby return cleanup, create-draft state, and SSE lifecycle behavior into the shell contract.
 - `src/main/frontend/game-types.ts`
   - Frontend wire types, auth/game DTOs, local create-draft state, and create-game request payload.
 - `src/main/frontend/board-geometry.ts`
@@ -104,10 +104,11 @@ Server-only undo history stores compact restore-state entries instead of full sn
 
 ## Current Gameplay And UI Behavior
 
-- The create screen sends its drafted setup to `POST /api/games`.
+- The create screen sends its drafted setup to `POST /api/games/ravens-and-dragons`.
 - The app shell renders Ravens and Dragons through the registered frontend game entry while keeping auth, lobby, profile, header/footer, and fullscreen wiring in the shell.
 - The create and active game screens show `Ravens and Dragons` inside the content area. The create screen splits its configuration and board panels evenly on wide screens, while the active game screen places its information panel left of the board and spans its rules panel below the main panels.
 - Live games open at `/g/{gameId}`.
+- Create flows open at `/ravens-and-dragons/create`.
 - Active games send mutations to `POST /api/games/{gameId}/commands`.
 - Active games subscribe to `GET /api/games/{gameId}/stream`.
 - Request-scoped auth-aware game metadata is loaded from `GET /api/games/{gameId}/view`.

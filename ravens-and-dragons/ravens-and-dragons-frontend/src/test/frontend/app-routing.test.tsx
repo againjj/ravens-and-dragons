@@ -115,19 +115,19 @@ describe("App routing", () => {
         pushStateSpy.mockRestore();
     });
 
-    test("unauthenticated users loading /create are redirected to /login and then back after login", async () => {
+    test("unauthenticated users loading /ravens-and-dragons/create are redirected to /login and then back after login", async () => {
         const user = userEvent.setup();
-        window.history.pushState({}, "", "/create");
+        window.history.pushState({}, "", "/ravens-and-dragons/create");
 
         renderWithStore(<App />);
 
         await screen.findByRole("button", { name: "Continue as Guest" });
         expect(window.location.pathname).toBe("/login");
-        expect(new URLSearchParams(window.location.search).get("next")).toBe("/create");
+        expect(new URLSearchParams(window.location.search).get("next")).toBe("/ravens-and-dragons/create");
 
         await user.click(screen.getByRole("button", { name: "Continue as Guest" }));
         await waitFor(() => {
-            expect(window.location.pathname).toBe("/create");
+            expect(window.location.pathname).toBe("/ravens-and-dragons/create");
         });
         expect(await screen.findByRole("heading", { name: "Create game: Ravens and Dragons", level: 1 })).toBeInTheDocument();
     });
@@ -154,7 +154,7 @@ describe("App routing", () => {
         expect(screen.getByRole("button", { name: "Log Out" })).toBeInTheDocument();
     });
 
-    test("logged in users loading /create can start a game from the draft", async () => {
+    test("logged in users loading /ravens-and-dragons/create can start a game from the draft", async () => {
         const user = userEvent.setup();
         fetchAuthSessionMock.mockResolvedValue({
             authenticated: true,
@@ -186,10 +186,11 @@ describe("App routing", () => {
                 turns: [],
                 ruleConfigurationId: "free-play",
                 positionKeys: []
-            }
+            },
+            gameSlug: "ravens-and-dragons"
         });
         fetchGameViewMock.mockResolvedValue(createGameView({ id: "game-101" }));
-        window.history.pushState({}, "", "/create");
+        window.history.pushState({}, "", "/ravens-and-dragons/create");
         const { store } = renderWithStore(<App />, {
             preloadedState: {
                 createGame: {
@@ -209,7 +210,7 @@ describe("App routing", () => {
         await user.click(screen.getByRole("button", { name: "Start Game" }));
 
         await screen.findByRole("heading", { name: "Game game-101" });
-        expect(createGameSessionMock).toHaveBeenCalledWith({
+        expect(createGameSessionMock).toHaveBeenCalledWith("ravens-and-dragons", {
             ruleConfigurationId: "free-play",
             startingSide: "dragons",
             boardSize: 7,
@@ -221,7 +222,7 @@ describe("App routing", () => {
         expect(window.location.pathname).toBe("/g/game-101");
     });
 
-    test("create game errors stay on /create and preserve the draft", async () => {
+    test("create game errors stay on /ravens-and-dragons/create and preserve the draft", async () => {
         const user = userEvent.setup();
         fetchAuthSessionMock.mockResolvedValue({
             authenticated: true,
@@ -232,7 +233,7 @@ describe("App routing", () => {
             }
         });
         createGameSessionMock.mockRejectedValue(new Error("Unable to create game."));
-        window.history.pushState({}, "", "/create");
+        window.history.pushState({}, "", "/ravens-and-dragons/create");
         const { store } = renderWithStore(<App />, {
             preloadedState: {
                 createGame: {
@@ -250,7 +251,7 @@ describe("App routing", () => {
         expect(await screen.findByRole("heading", { name: "Create game: Ravens and Dragons", level: 1 })).toBeInTheDocument();
         await user.click(screen.getByRole("button", { name: "Start Game" }));
 
-        expect(window.location.pathname).toBe("/create");
+        expect(window.location.pathname).toBe("/ravens-and-dragons/create");
         expect(screen.getByText("Unable to create game.")).toBeInTheDocument();
         expect(store.getState().createGame.draftBoard).toMatchObject({
             a1: "dragon"
@@ -259,7 +260,7 @@ describe("App routing", () => {
         expect(store.getState().game.isSubmitting).toBe(false);
     });
 
-    test("loading /create initializes the draft and leaving the route clears it", async () => {
+    test("loading /ravens-and-dragons/create initializes the draft and leaving the route clears it", async () => {
         fetchAuthSessionMock.mockResolvedValue({
             authenticated: true,
             user: {
@@ -268,7 +269,7 @@ describe("App routing", () => {
                 authType: "local"
             }
         });
-        window.history.pushState({}, "", "/create");
+        window.history.pushState({}, "", "/ravens-and-dragons/create");
 
         const { store } = renderWithStore(<App />);
 
@@ -464,7 +465,7 @@ describe("App routing", () => {
         expect(fetchLocalProfileMock).toHaveBeenCalled();
     });
 
-    test("clicking Create Game from the lobby updates the URL to /create", async () => {
+    test("clicking Create Game from the lobby updates the URL to /ravens-and-dragons/create", async () => {
         const user = userEvent.setup();
         fetchAuthSessionMock.mockResolvedValue({
             authenticated: true,
@@ -479,10 +480,11 @@ describe("App routing", () => {
         renderWithStore(<App />);
 
         await screen.findByRole("heading", { name: "Game Lobby" });
+        expect(screen.getByLabelText("Game")).toHaveValue("ravens-and-dragons");
         await user.click(screen.getByRole("button", { name: "Create Game" }));
 
         await waitFor(() => {
-            expect(window.location.pathname).toBe("/create");
+            expect(window.location.pathname).toBe("/ravens-and-dragons/create");
         });
         expect(await screen.findByRole("heading", { name: "Create game: Ravens and Dragons", level: 1 })).toBeInTheDocument();
     });

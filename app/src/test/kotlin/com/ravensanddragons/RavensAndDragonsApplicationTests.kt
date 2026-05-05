@@ -35,14 +35,15 @@ class RavensAndDragonsApplicationTests(
         assertAll(
             { assertEquals(listOf("ravens-and-dragons"), gameModuleRegistry.modules.map { it.identity.slug }) },
             { assertEquals("Ravens and Dragons", module.identity.displayName) },
-            { assertEquals("/create", module.routes.browserCreatePath) },
+            { assertEquals("/ravens-and-dragons/create", module.routes.browserCreatePath) },
             { assertEquals("/g/{gameId}", module.routes.browserPlayPathPattern) },
-            { assertEquals("/api/games", module.routes.apiBasePath) },
+            { assertEquals("/api/games/{gameSlug}", module.routes.apiBasePath) },
             { assertEquals("ravens-and-dragons", module.persistence.migrationNamespace) },
             {
                 assertEquals(
                     setOf(
                         "id",
+                        "game_slug",
                         "version",
                         "created_at",
                         "updated_at",
@@ -69,8 +70,8 @@ class RavensAndDragonsApplicationTests(
                     module.persistence.opaquePayloadNames
                 )
             },
-            { assertEquals("/create", module.smokeCheck.browserEntryPath) },
-            { assertEquals("/api/games", module.smokeCheck.apiEntryPath) }
+            { assertEquals("/ravens-and-dragons/create", module.smokeCheck.browserEntryPath) },
+            { assertEquals("/api/games/ravens-and-dragons", module.smokeCheck.apiEntryPath) }
         )
     }
 }

@@ -39,9 +39,9 @@ class GameModuleRegistryTest {
                 displayName = "Ravens and Dragons"
             )
             override val routes: GameModuleRoutes = GameModuleRoutes(
-                browserCreatePath = "/create",
+                browserCreatePath = "/$slug/create",
                 browserPlayPathPattern = "/g/{gameId}",
-                apiBasePath = "/api/games"
+                apiBasePath = "/api/games/{gameSlug}"
             )
             override val persistence: GameModulePersistenceContract = GameModulePersistenceContract(
                 migrationNamespace = slug,
@@ -49,8 +49,8 @@ class GameModuleRegistryTest {
                 opaquePayloadNames = setOf("snapshot_json")
             )
             override val smokeCheck: GameModuleSmokeCheck = GameModuleSmokeCheck(
-                browserEntryPath = "/create",
-                apiEntryPath = "/api/games"
+                browserEntryPath = "/$slug/create",
+                apiEntryPath = "/api/games/$slug"
             )
         }
 }

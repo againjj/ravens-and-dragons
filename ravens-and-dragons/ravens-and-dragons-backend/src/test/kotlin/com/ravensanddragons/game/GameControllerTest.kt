@@ -24,7 +24,7 @@ class GameControllerTest : AbstractGameControllerTestSupport() {
 
     @Test
     fun `create game returns an active free-play session that starts in move phase`() {
-        mockMvc.post("/api/games") {
+        mockMvc.post("/api/games/ravens-and-dragons") {
             with(authenticated("create-game"))
             contentType = MediaType.APPLICATION_JSON
             content = objectMapper.writeValueAsString(
@@ -39,6 +39,7 @@ class GameControllerTest : AbstractGameControllerTestSupport() {
             status { isOk() }
             jsonPath("$.game.id") { value(org.hamcrest.Matchers.matchesPattern("[23456789CFGHJMPQRVWX]{7}")) }
             jsonPath("$.game.lifecycle", equalTo("active"))
+            jsonPath("$.game.gameSlug", equalTo("ravens-and-dragons"))
             jsonPath("$.game.snapshot.phase", equalTo("move"))
             jsonPath("$.game.selectedRuleConfigurationId", equalTo("free-play"))
             jsonPath("$.game.selectedStartingSide", equalTo("ravens"))

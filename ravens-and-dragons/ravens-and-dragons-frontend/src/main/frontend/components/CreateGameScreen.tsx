@@ -19,10 +19,11 @@ import { selectFeedbackMessage, selectIsSubmitting } from "../features/game/game
 import { useBoardSizing } from "../hooks/useBoardSizing.js";
 
 interface CreateGameScreenProps {
+    gameName: string;
     onStartGame?: () => void | Promise<void>;
 }
 
-export const CreateGameScreen = ({ onStartGame }: CreateGameScreenProps = {}) => {
+export const CreateGameScreen = ({ gameName, onStartGame }: CreateGameScreenProps) => {
     const dispatch = useAppDispatch();
     const feedbackMessage = useAppSelector(selectFeedbackMessage);
     const isSubmitting = useAppSelector(selectIsSubmitting);
@@ -42,7 +43,7 @@ export const CreateGameScreen = ({ onStartGame }: CreateGameScreenProps = {}) =>
 
     return (
         <section className="game-page create-game-page">
-            <h1 className="content-title">Create game: Ravens and Dragons</h1>
+            <h1 className="content-title">Create game: {gameName}</h1>
 
             <section className="game-layout create-layout">
                 <section className="panel side-panel top-panel create-config-panel">

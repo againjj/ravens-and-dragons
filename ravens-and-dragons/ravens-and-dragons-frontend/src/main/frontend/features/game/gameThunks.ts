@@ -135,11 +135,11 @@ const runSeatManagementRequest = (
     }
 };
 
-export const createGame = (): AppThunk<Promise<string | null>> => async (dispatch, getState) => {
+export const createGame = (gameSlug: string): AppThunk<Promise<string | null>> => async (dispatch, getState) => {
     dispatch(gameActions.commandStarted());
 
     try {
-        const session = await createGameSession(buildCreateGameRequest(getState().createGame));
+        const session = await createGameSession(gameSlug, buildCreateGameRequest(getState().createGame));
         dispatch(gameActions.sessionUpdated(session));
         return session.id;
     } catch (error) {

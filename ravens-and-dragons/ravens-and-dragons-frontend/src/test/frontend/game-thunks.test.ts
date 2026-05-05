@@ -44,10 +44,10 @@ describe("gameThunks", () => {
         store.dispatch(createGameDraftActions.createModeEntered());
         store.dispatch(createGameDraftActions.setupSquareCycled("a1"));
 
-        const createdGameId = await store.dispatch(createGame());
+        const createdGameId = await store.dispatch(createGame("ravens-and-dragons"));
 
         expect(createdGameId).toBe("game-101");
-        expect(createGameSessionMock).toHaveBeenCalledWith({
+        expect(createGameSessionMock).toHaveBeenCalledWith("ravens-and-dragons", {
             ruleConfigurationId: "free-play",
             startingSide: "ravens",
             boardSize: 7,
@@ -66,7 +66,7 @@ describe("gameThunks", () => {
         const store = createAppStore();
         store.dispatch(createGameDraftActions.createModeEntered());
 
-        const createdGameId = await store.dispatch(createGame());
+        const createdGameId = await store.dispatch(createGame("ravens-and-dragons"));
 
         expect(createdGameId).toBeNull();
         expect(store.getState().game.feedbackMessage).toBe("The server is down. Please wait and try again later.");

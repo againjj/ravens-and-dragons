@@ -14,13 +14,13 @@ export interface GameEntryRoutes {
 }
 
 export interface GameEntryComponents {
-    CreateScreen: ComponentType<{ onStartGame: () => void }>;
+    CreateScreen: ComponentType<{ gameName: string; onStartGame: () => void }>;
     PlayScreen: ComponentType;
 }
 
 export interface GameEntryLifecycle {
     useSession: () => void;
-    startGame: (dispatch: AppDispatch) => Promise<string | null>;
+    startGame: (dispatch: AppDispatch, gameSlug: string) => Promise<string | null>;
     openGame: (dispatch: AppDispatch, gameId: string) => void;
     returnToLobby: (dispatch: AppDispatch) => void;
     enterCreateMode: (dispatch: AppDispatch) => void;
@@ -33,3 +33,5 @@ export interface GameEntry {
     components: GameEntryComponents;
     lifecycle: GameEntryLifecycle;
 }
+
+export const buildGameCreatePath = (gameSlug: string): string => `/${gameSlug}/create`;

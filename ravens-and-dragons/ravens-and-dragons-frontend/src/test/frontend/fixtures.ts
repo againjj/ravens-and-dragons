@@ -5,6 +5,7 @@ export const createSession = (
     snapshotOverrides: Partial<ServerGameSession["snapshot"]> = {}
 ): ServerGameSession => ({
     id: "default",
+    gameSlug: "ravens-and-dragons",
     version: 1,
     createdAt: "2026-04-05T00:00:00Z",
     updatedAt: "2026-04-05T00:00:01Z",

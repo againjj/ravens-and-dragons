@@ -10,31 +10,54 @@ describe("LobbyScreen", () => {
         const user = userEvent.setup();
         const onCreateGame = vi.fn();
         const onOpenGame = vi.fn();
+        const onSelectGame = vi.fn();
 
         renderWithStore(
             <LobbyScreen
+                games={[
+                    {
+                        slug: "ravens-and-dragons",
+                        displayName: "Ravens and Dragons"
+                    },
+                    {
+                        slug: "lunar-dunes",
+                        displayName: "Lunar Dunes"
+                    }
+                ]}
+                selectedGameSlug="ravens-and-dragons"
                 feedbackMessage={null}
                 isLoading={false}
                 onCreateGame={onCreateGame}
                 onOpenGame={onOpenGame}
+                onSelectGame={onSelectGame}
             />
         );
 
+        await user.selectOptions(screen.getByLabelText("Game"), "lunar-dunes");
+        expect(onSelectGame).toHaveBeenCalledWith("lunar-dunes");
         await user.click(screen.getByRole("button", { name: "Create Game" }));
         await user.type(screen.getByLabelText("Game ID"), "c7h2rmw");
         await user.click(screen.getByRole("button", { name: "Open Game" }));
 
-        expect(onCreateGame).toHaveBeenCalledTimes(1);
+        expect(onCreateGame).toHaveBeenCalledWith("ravens-and-dragons");
         expect(onOpenGame).toHaveBeenCalledWith("C7H2RMW");
     });
 
     test("renders feedback text from the lobby state", () => {
         renderWithStore(
             <LobbyScreen
+                games={[
+                    {
+                        slug: "ravens-and-dragons",
+                        displayName: "Ravens and Dragons"
+                    }
+                ]}
+                selectedGameSlug="ravens-and-dragons"
                 feedbackMessage='Unable to open game "missing-game".'
                 isLoading={false}
                 onCreateGame={vi.fn()}
                 onOpenGame={vi.fn()}
+                onSelectGame={vi.fn()}
             />
         );
 
@@ -44,10 +67,18 @@ describe("LobbyScreen", () => {
     test("disables opening until a game id is provided", () => {
         renderWithStore(
             <LobbyScreen
+                games={[
+                    {
+                        slug: "ravens-and-dragons",
+                        displayName: "Ravens and Dragons"
+                    }
+                ]}
+                selectedGameSlug="ravens-and-dragons"
                 feedbackMessage={null}
                 isLoading={false}
                 onCreateGame={vi.fn()}
                 onOpenGame={vi.fn()}
+                onSelectGame={vi.fn()}
             />
         );
 
@@ -55,5 +86,6 @@ describe("LobbyScreen", () => {
         expect(screen.getByText("Start Fresh")).toBeInTheDocument();
         expect(screen.getByText("Create a game to start playing a new game.")).toBeInTheDocument();
         expect(screen.getByText("Join Game")).toBeInTheDocument();
+        expect(screen.getByLabelText("Game")).toHaveValue("ravens-and-dragons");
     });
 });

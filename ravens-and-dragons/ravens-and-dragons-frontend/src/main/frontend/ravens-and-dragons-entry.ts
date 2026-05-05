@@ -3,7 +3,7 @@ import { GameScreen } from "./components/GameScreen.js";
 import { createGameDraftActions } from "./features/game/createGameSlice.js";
 import { createGame, openGame, returnToLobby } from "./features/game/gameThunks.js";
 import { useGameSession } from "./features/game/useGameSession.js";
-import type { GameEntry } from "./game-entry.js";
+import { buildGameCreatePath, type GameEntry } from "./game-entry.js";
 import { generatedGameIdPattern } from "./game-types.js";
 
 const playRoutePattern = /^\/g\/([^/]+)$/;
@@ -24,7 +24,7 @@ export const ravensAndDragonsGameEntry: GameEntry = {
         displayName: "Ravens and Dragons"
     },
     routes: {
-        createPath: "/create",
+        createPath: buildGameCreatePath("ravens-and-dragons"),
         buildPlayPath: (gameId) => `/g/${encodeURIComponent(gameId.trim())}`,
         matchPlayPath
     },
@@ -34,7 +34,7 @@ export const ravensAndDragonsGameEntry: GameEntry = {
     },
     lifecycle: {
         useSession: useGameSession,
-        startGame: (dispatch) => dispatch(createGame()),
+        startGame: (dispatch, gameSlug) => dispatch(createGame(gameSlug)),
         openGame: (dispatch, gameId) => {
             void dispatch(openGame(gameId));
         },

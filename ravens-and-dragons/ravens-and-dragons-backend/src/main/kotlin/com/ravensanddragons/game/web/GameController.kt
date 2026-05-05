@@ -27,13 +27,15 @@ class GameController(
     private val authSessionSupport: AuthSessionSupport,
     private val botRegistry: BotRegistry
 ) {
-    @PostMapping("/api/games")
+    @PostMapping("/api/games/{gameSlug}")
     fun createGame(
+        @PathVariable gameSlug: String,
         @RequestBody(required = false) request: CreateGameRequest?,
         servletRequest: HttpServletRequest
     ): CreateGameResponse =
         CreateGameResponse(
             gameSessionService.createGame(
+                gameSlug,
                 request ?: CreateGameRequest(),
                 createdByUserId = authSessionSupport.currentUserId(servletRequest.getSession(false))
             )

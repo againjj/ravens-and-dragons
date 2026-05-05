@@ -26,7 +26,7 @@
 - `platform/src/main/kotlin/com/ravensanddragons/platform/game/GameModuleContract.kt`
   - Platform-owned `GameModuleDefinition` contract.
   - Validating `GameModuleRegistry` for assembled game metadata.
-  - Records game identity, current route ownership, persistence boundary metadata, and smoke-check entry points.
+  - Records game identity, slug-derived create routing, the active-game browser route pattern, slugged API entry points, persistence boundary metadata, and smoke-check entry points.
 - `platform/src/test/kotlin/com/ravensanddragons/platform/game/GameModuleRegistryTest.kt`
   - Verifies registry validation, duplicate slug rejection, and lookup behavior.
 - `platform/src/test/kotlin/com/ravensanddragons/web/DisconnectedClientExceptionHandlerTest.kt`

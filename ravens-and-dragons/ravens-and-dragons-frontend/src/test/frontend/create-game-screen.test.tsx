@@ -16,7 +16,7 @@ describe("CreateGameScreen", () => {
         const store = createAppStore();
         store.dispatch(createGameDraftActions.createModeEntered());
 
-        renderWithStore(<CreateGameScreen />, { store });
+        renderWithStore(<CreateGameScreen gameName="Ravens and Dragons" />, { store });
 
         expect(screen.getByRole("heading", { name: "Create game: Ravens and Dragons", level: 1 })).toBeInTheDocument();
         expect(screen.queryByRole("heading", { name: "Create Game", level: 2 })).toBeNull();
@@ -40,7 +40,7 @@ describe("CreateGameScreen", () => {
         const store = createAppStore();
         store.dispatch(createGameDraftActions.createModeEntered());
 
-        renderWithStore(<CreateGameScreen />, { store });
+        renderWithStore(<CreateGameScreen gameName="Ravens and Dragons" />, { store });
 
         await user.click(screen.getByRole("button", { name: "Square a1" }));
         expect(store.getState().createGame.draftBoard).toMatchObject({

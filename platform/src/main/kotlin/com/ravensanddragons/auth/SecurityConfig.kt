@@ -52,7 +52,7 @@ class SecurityConfig {
                 it.requestMatchers(HttpMethod.GET, "/health", "/login", "/api/auth/session", "/styles.css", "/assets/**", "/favicon.ico").permitAll()
                 it.requestMatchers("/api/auth/guest", "/api/auth/signup", "/api/auth/login", "/login/**", "/oauth2/**").permitAll()
                 it.requestMatchers(HttpMethod.POST, "/api/auth/logout").permitAll()
-                it.requestMatchers("/", "/lobby", "/g/**", "/api/games/**").authenticated()
+                it.requestMatchers("/", "/lobby", "/*/create", "/g/**", "/api/games/**").authenticated()
                 it.anyRequest().authenticated()
             }
             .exceptionHandling {

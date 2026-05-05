@@ -4,8 +4,7 @@ import com.ravensanddragons.game.bot.*
 import com.ravensanddragons.game.model.*
 import com.ravensanddragons.game.persistence.*
 import com.ravensanddragons.game.rules.*
-
-
+import com.ravensanddragons.game.RavensAndDragonsGameModuleDefinition
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
@@ -32,7 +31,13 @@ class GameSessionService(
     private val emittersByGame = ConcurrentHashMap<String, CopyOnWriteArrayList<SseEmitter>>()
     private val gameLocks = ConcurrentHashMap<String, Any>()
 
-    fun createGame(request: CreateGameRequest = CreateGameRequest(), createdByUserId: String? = null): GameSession {
+    fun createGame(request: CreateGameRequest = CreateGameRequest(), createdByUserId: String? = null): GameSession =
+        createGame(RavensAndDragonsGameModuleDefinition.identity.slug, request, createdByUserId)
+
+    fun createGame(gameSlug: String, request: CreateGameRequest = CreateGameRequest(), createdByUserId: String? = null): GameSession {
+        require(gameSlug == RavensAndDragonsGameModuleDefinition.identity.slug) {
+            "Game module '$gameSlug' is not registered."
+        }
         val selectedRuleConfigurationId = request.ruleConfigurationId ?: GameRules.freePlayRuleConfigurationId
         GameRules.getRuleConfigurationSummary(selectedRuleConfigurationId)
         val requestedBoardSize = request.boardSize ?: GameRules.defaultBoardSize
@@ -50,6 +55,7 @@ class GameSessionService(
             )
             val game = GameSessionFactory.createFreshStoredGame(
                 gameId = GameIdGenerator.nextId(),
+                gameSlug = gameSlug,
                 snapshot = snapshot,
                 selectedRuleConfigurationId = snapshot.ruleConfigurationId,
                 selectedStartingSide = snapshot.activeSide,

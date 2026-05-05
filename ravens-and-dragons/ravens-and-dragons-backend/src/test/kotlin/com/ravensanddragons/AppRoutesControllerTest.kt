@@ -53,11 +53,11 @@ class AppRoutesControllerTest : AbstractGameControllerTestSupport() {
 
     @Test
     fun `signed out create route redirects to login`() {
-        mockMvc.get("/create") {
+        mockMvc.get("/ravens-and-dragons/create") {
             secure = false
         }.andExpect {
             status { is3xxRedirection() }
-            redirectedUrl("/login?next=%2Fcreate")
+            redirectedUrl("/login?next=%2Fravens-and-dragons%2Fcreate")
         }
     }
 
@@ -103,7 +103,7 @@ class AppRoutesControllerTest : AbstractGameControllerTestSupport() {
 
     @Test
     fun `authenticated create route loads the frontend app shell directly`() {
-        mockMvc.get("/create") {
+        mockMvc.get("/ravens-and-dragons/create") {
             with(authenticated("create"))
         }.andExpect {
             status { isOk() }

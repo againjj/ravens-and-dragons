@@ -1,20 +1,29 @@
 import { useState } from "react";
 
+import type { GameEntryIdentity } from "../game-entry.js";
+
 interface LobbyScreenProps {
+    games: GameEntryIdentity[];
+    selectedGameSlug: string;
     feedbackMessage: string | null;
     isLoading: boolean;
-    onCreateGame: () => void;
+    onCreateGame: (gameSlug: string) => void;
     onOpenGame: (gameId: string) => void;
+    onSelectGame: (gameSlug: string) => void;
 }
 
 export const LobbyScreen = ({
+    games,
+    selectedGameSlug,
     feedbackMessage,
     isLoading,
     onCreateGame,
-    onOpenGame
+    onOpenGame,
+    onSelectGame
 }: LobbyScreenProps) => {
     const [gameId, setGameId] = useState("");
     const trimmedGameId = gameId.trim();
+    const selectedGame = games.find((game) => game.slug === selectedGameSlug) ?? games[0];
 
     return (
         <section className="lobby-layout">
@@ -31,14 +40,41 @@ export const LobbyScreen = ({
                         <h3>Start Fresh</h3>
                         <p>Create a game to start playing a new game.</p>
                     </div>
-                    <button
-                        id="create-game-button"
-                        type="button"
-                        disabled={isLoading}
-                        onClick={onCreateGame}
-                    >
-                        Create Game
-                    </button>
+                    <div className="lobby-actions">
+                        <div className="control-row">
+                            <label className="control-label" htmlFor="game-select">
+                                Game
+                            </label>
+                            <div className="select-shell">
+                                <select
+                                    id="game-select"
+                                    value={selectedGame?.slug ?? ""}
+                                    disabled={isLoading || games.length === 0}
+                                    onChange={(event) => {
+                                        onSelectGame(event.target.value);
+                                    }}
+                                >
+                                    {games.map((game) => (
+                                        <option key={game.slug} value={game.slug}>
+                                            {game.displayName}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                        <button
+                            id="create-game-button"
+                            type="button"
+                            disabled={isLoading || !selectedGame}
+                            onClick={() => {
+                                if (selectedGame) {
+                                    onCreateGame(selectedGame.slug);
+                                }
+                            }}
+                        >
+                            Create Game
+                        </button>
+                    </div>
                 </section>
 
                 <section className="lobby-card">

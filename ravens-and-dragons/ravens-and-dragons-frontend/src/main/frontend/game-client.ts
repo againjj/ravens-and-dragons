@@ -35,6 +35,7 @@ export type FetchLike = typeof fetch;
 export type EventSourceFactory = (url: string) => EventSourceLike;
 export const defaultCommandErrorMessage = "Unable to apply that action right now.";
 const getGameUrl = (gameId: string): string => `/api/games/${encodeURIComponent(gameId)}`;
+const getCreateGameUrl = (gameSlug: string): string => `/api/games/${encodeURIComponent(gameSlug)}`;
 export const getOAuthLoginUrl = (provider: string, nextPath?: string): string => {
     const baseUrl = `/oauth2/authorization/${encodeURIComponent(provider)}`;
     if (!nextPath) {
@@ -64,10 +65,11 @@ export const isSameServerGame = (
     currentGame.updatedAt === nextGame.updatedAt;
 
 export const createGameSession = async (
+    gameSlug: string,
     request: CreateGameRequest = {},
     fetchImpl: FetchLike = fetch
 ): Promise<ServerGameSession> => {
-    const response = await fetchImpl("/api/games", {
+    const response = await fetchImpl(getCreateGameUrl(gameSlug), {
         method: "POST",
         headers: {
             "Content-Type": "application/json"

@@ -17,6 +17,7 @@ import {
 
 const createGame = (version = 1) => ({
     id: "default",
+    gameSlug: "ravens-and-dragons",
     version,
     createdAt: "2026-04-05T00:00:00Z",
     updatedAt: `2026-04-05T00:00:0${version}Z`,
@@ -83,6 +84,7 @@ test("createGameSession posts to the multi-game endpoint and returns the created
     const calls = [];
 
     const result = await createGameSession(
+        "ravens-and-dragons",
         {},
         async (url, init) => {
             calls.push({ url, init });
@@ -94,7 +96,7 @@ test("createGameSession posts to the multi-game endpoint and returns the created
     );
 
     assert.deepEqual(result, game);
-    assert.equal(calls[0].url, "/api/games");
+    assert.equal(calls[0].url, "/api/games/ravens-and-dragons");
     assert.equal(calls[0].init.method, "POST");
     assert.equal(calls[0].init.body, "{}");
 });

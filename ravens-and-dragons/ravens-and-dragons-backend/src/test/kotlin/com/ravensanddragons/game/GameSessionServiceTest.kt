@@ -40,6 +40,7 @@ class GameSessionServiceTest {
         )
 
         assertEquals(GameLifecycle.active, created.lifecycle)
+        assertEquals("ravens-and-dragons", created.gameSlug)
         assertEquals(Phase.move, created.snapshot.phase)
         assertEquals(Side.ravens, created.snapshot.activeSide)
         assertEquals(Piece.dragon, created.snapshot.board["a1"])

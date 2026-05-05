@@ -10,8 +10,11 @@ class AppRoutesController {
     @ResponseBody
     fun health(): String = "ok"
 
-    @GetMapping("/login", "/lobby", "/create", "/profile")
+    @GetMapping("/login", "/lobby", "/profile")
     fun appRoute(): String = "forward:/index.html"
+
+    @GetMapping("/{gameSlug:[a-z0-9]+(?:-[a-z0-9]+)*}/create")
+    fun createRoute(): String = "forward:/index.html"
 
     @GetMapping("/g/{gameId:[A-Za-z0-9]+}")
     fun gameRoute(): String = "forward:/index.html"

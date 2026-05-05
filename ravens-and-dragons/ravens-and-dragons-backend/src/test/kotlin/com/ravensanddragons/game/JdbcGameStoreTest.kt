@@ -70,6 +70,7 @@ class JdbcGameStoreTest {
 
         assertNotNull(reloaded)
         assertEquals(storedGame, reloaded)
+        assertEquals("ravens-and-dragons", reloaded!!.session.gameSlug)
     }
 
     @Test
@@ -219,6 +220,7 @@ class JdbcGameStoreTest {
             """
             insert into games (
                 id,
+                game_slug,
                 version,
                 created_at,
                 updated_at,
@@ -234,9 +236,10 @@ class JdbcGameStoreTest {
                 created_by_user_id,
                 snapshot_json,
                 undo_snapshots_json
-            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
             "legacy-undo-game",
+            "ravens-and-dragons",
             2L,
             java.sql.Timestamp.from(createdAt),
             java.sql.Timestamp.from(createdAt.plusSeconds(30)),

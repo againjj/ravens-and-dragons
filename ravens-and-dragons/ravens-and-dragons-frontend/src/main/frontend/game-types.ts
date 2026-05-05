@@ -52,6 +52,7 @@ export interface ServerGameSnapshot {
 
 export interface ServerGameSession {
     id: string;
+    gameSlug: string;
     version: number;
     createdAt: string;
     updatedAt: string;

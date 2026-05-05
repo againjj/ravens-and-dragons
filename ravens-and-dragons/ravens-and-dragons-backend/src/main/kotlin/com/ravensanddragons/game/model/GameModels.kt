@@ -4,6 +4,8 @@ package com.ravensanddragons.game.model
 import com.ravensanddragons.auth.AuthUserSummary
 import java.time.Instant
 
+private const val defaultGameSlug = "ravens-and-dragons"
+
 enum class Piece {
     dragon,
     raven,
@@ -88,6 +90,7 @@ data class GameSnapshot(
 
 data class GameSession(
     val id: String,
+    val gameSlug: String = defaultGameSlug,
     val version: Long,
     val createdAt: Instant,
     val updatedAt: Instant,

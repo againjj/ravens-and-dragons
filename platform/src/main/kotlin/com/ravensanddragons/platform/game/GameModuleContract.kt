@@ -58,11 +58,14 @@ class GameModuleRegistry(
         require(module.routes.browserCreatePath.startsWith("/")) {
             "Game module '${module.identity.slug}' must use an absolute browser create path."
         }
+        require(module.routes.browserCreatePath == "/${module.identity.slug}/create") {
+            "Game module '${module.identity.slug}' must derive its browser create path from the slug."
+        }
         require(module.routes.browserPlayPathPattern.startsWith("/")) {
             "Game module '${module.identity.slug}' must use an absolute browser play path pattern."
         }
-        require(module.routes.apiBasePath.startsWith("/api/")) {
-            "Game module '${module.identity.slug}' must use an API base path under /api."
+        require(module.routes.apiBasePath == "/api/games/{gameSlug}") {
+            "Game module '${module.identity.slug}' must use the slugged game API path pattern."
         }
         require(module.persistence.migrationNamespace.isNotBlank()) {
             "Game module '${module.identity.slug}' must declare a migration namespace."

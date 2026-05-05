@@ -8,13 +8,6 @@ This file is the canonical list of planned work that is not being implemented im
 - **Why:** It makes it easier to run `bootRun` without manually sourcing local environment variables first.
 - **Notes:** Preserve the current default app configuration and avoid changing deployment behavior.
 
-## Add Game Identity To Routes And Persistence
-
-- **Goal:** Add game slug handling at API, browser route, and database boundaries.
-- **Why:** A multi-game service needs to distinguish the hosting service's session id from the type of game being played.
-- **Notes:** Decide how long compatibility routes like `/g/{gameId}` should remain.
-- **References:** [docs/multi-game-service-structure-plan.md](/Users/jrayazian/code/ravens-and-dragons/docs/multi-game-service-structure-plan.md).
-
 ## Prepare Ravens And Dragons For External Game Repos
 
 - **Goal:** Make `ravens-and-dragons` buildable and testable as an independent Gradle project and keep the app's included-game list declarative.

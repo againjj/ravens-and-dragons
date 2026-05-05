@@ -19,7 +19,7 @@ class JdbcGameStore(
 ) : GameStore {
     companion object {
         private val selectStoredGameColumns = """
-            select id, version, created_at, updated_at, last_accessed_at, lifecycle,
+            select id, game_slug, version, created_at, updated_at, last_accessed_at, lifecycle,
                    selected_rule_configuration_id, selected_starting_side, selected_board_size,
                    dragons_player_user_id, ravens_player_user_id, dragons_bot_id, ravens_bot_id, created_by_user_id,
                    snapshot_json, undo_snapshots_json
@@ -45,6 +45,7 @@ class JdbcGameStore(
                 updated_at = ?,
                 last_accessed_at = ?,
                 lifecycle = ?,
+                game_slug = ?,
                 selected_rule_configuration_id = ?,
                 selected_starting_side = ?,
                 selected_board_size = ?,
@@ -76,6 +77,7 @@ class JdbcGameStore(
                     updated_at,
                     last_accessed_at,
                     lifecycle,
+                    game_slug,
                     selected_rule_configuration_id,
                     selected_starting_side,
                     selected_board_size,
@@ -86,7 +88,7 @@ class JdbcGameStore(
                     created_by_user_id,
                     snapshot_json,
                     undo_snapshots_json
-                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent(),
                 *insertArguments(game)
             )
@@ -186,6 +188,7 @@ class JdbcGameStore(
             updatedAt = resultSet.getTimestamp("updated_at").toInstant(),
             lastAccessedAt = resultSet.getTimestamp("last_accessed_at").toInstant(),
             lifecycle = GameLifecycle.valueOf(resultSet.getString("lifecycle")),
+            gameSlug = resultSet.getString("game_slug"),
             selectedRuleConfigurationId = resultSet.getString("selected_rule_configuration_id"),
             selectedStartingSide = Side.valueOf(resultSet.getString("selected_starting_side")),
             selectedBoardSize = resultSet.getInt("selected_board_size"),
@@ -204,6 +207,7 @@ class JdbcGameStore(
         Timestamp.from(game.session.updatedAt),
         Timestamp.from(game.lastAccessedAt),
         game.session.lifecycle.name,
+        game.session.gameSlug,
         game.session.selectedRuleConfigurationId,
         game.session.selectedStartingSide.name,
         game.session.selectedBoardSize,
@@ -221,6 +225,7 @@ class JdbcGameStore(
         Timestamp.from(game.session.updatedAt),
         Timestamp.from(game.lastAccessedAt),
         game.session.lifecycle.name,
+        game.session.gameSlug,
         game.session.selectedRuleConfigurationId,
         game.session.selectedStartingSide.name,
         game.session.selectedBoardSize,

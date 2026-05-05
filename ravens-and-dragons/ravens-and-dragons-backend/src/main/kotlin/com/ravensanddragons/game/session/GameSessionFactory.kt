@@ -5,12 +5,12 @@ import com.ravensanddragons.game.model.*
 import com.ravensanddragons.game.persistence.*
 import com.ravensanddragons.game.rules.*
 
-
 import java.time.Instant
 
 object GameSessionFactory {
     fun createFreshStoredGame(
         gameId: String,
+        gameSlug: String = "ravens-and-dragons",
         snapshot: GameSnapshot,
         selectedRuleConfigurationId: String,
         selectedStartingSide: Side,
@@ -31,6 +31,7 @@ object GameSessionFactory {
             snapshot.phase == Phase.none -> GameLifecycle.new
             else -> GameLifecycle.active
         },
+        gameSlug = gameSlug,
         selectedRuleConfigurationId = selectedRuleConfigurationId,
         selectedStartingSide = selectedStartingSide,
         selectedBoardSize = selectedBoardSize,
@@ -41,6 +42,7 @@ object GameSessionFactory {
 
     fun createStoredGame(
         gameId: String,
+        gameSlug: String = "ravens-and-dragons",
         snapshot: GameSnapshot,
         undoEntries: List<UndoEntry>,
         version: Long,
@@ -64,6 +66,7 @@ object GameSessionFactory {
             updatedAt = updatedAt,
             lifecycle = lifecycle,
             snapshot = snapshot,
+            gameSlug = gameSlug,
             canUndo = canUndo(undoEntries, dragonsBotId, ravensBotId, lifecycle),
             undoOwnerSide = undoEntries.lastOrNull()?.ownerSide,
             availableRuleConfigurations = GameRules.availableRuleConfigurations(),
