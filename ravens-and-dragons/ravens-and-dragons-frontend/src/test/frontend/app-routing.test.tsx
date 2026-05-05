@@ -129,7 +129,7 @@ describe("App routing", () => {
         await waitFor(() => {
             expect(window.location.pathname).toBe("/create");
         });
-        expect(await screen.findByRole("heading", { name: "Create Game", level: 2 })).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: "Create game: Ravens and Dragons", level: 1 })).toBeInTheDocument();
     });
 
     test("logged in users loading / are redirected to /lobby", async () => {
@@ -204,7 +204,7 @@ describe("App routing", () => {
             }
         });
 
-        expect(await screen.findByRole("heading", { name: "Create Game", level: 2 })).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: "Create game: Ravens and Dragons", level: 1 })).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Start Game" })).toBeEnabled();
         await user.click(screen.getByRole("button", { name: "Start Game" }));
 
@@ -247,7 +247,7 @@ describe("App routing", () => {
             }
         });
 
-        expect(await screen.findByRole("heading", { name: "Create Game", level: 2 })).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: "Create game: Ravens and Dragons", level: 1 })).toBeInTheDocument();
         await user.click(screen.getByRole("button", { name: "Start Game" }));
 
         expect(window.location.pathname).toBe("/create");
@@ -272,7 +272,7 @@ describe("App routing", () => {
 
         const { store } = renderWithStore(<App />);
 
-        await screen.findByRole("heading", { name: "Create Game", level: 2 });
+        await screen.findByRole("heading", { name: "Create game: Ravens and Dragons", level: 1 });
         expect(store.getState().createGame.isActive).toBe(true);
 
         window.history.pushState({}, "", "/lobby");
@@ -484,7 +484,7 @@ describe("App routing", () => {
         await waitFor(() => {
             expect(window.location.pathname).toBe("/create");
         });
-        expect(await screen.findByRole("heading", { name: "Create Game", level: 2 })).toBeInTheDocument();
+        expect(await screen.findByRole("heading", { name: "Create game: Ravens and Dragons", level: 1 })).toBeInTheDocument();
     });
 
     test("browser back from a lobby-opened game returns to /lobby", async () => {

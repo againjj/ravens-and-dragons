@@ -18,11 +18,10 @@ describe("CreateGameScreen", () => {
 
         renderWithStore(<CreateGameScreen />, { store });
 
-        expect(screen.getByRole("heading", { name: "Ravens and Dragons", level: 1 })).toBeInTheDocument();
-        expect(screen.getByRole("heading", { name: "Create Game", level: 2 })).toBeInTheDocument();
+        expect(screen.getByRole("heading", { name: "Create game: Ravens and Dragons", level: 1 })).toBeInTheDocument();
+        expect(screen.queryByRole("heading", { name: "Create Game", level: 2 })).toBeNull();
         expect(screen.getByRole("heading", { name: "Configuration" })).toBeInTheDocument();
         expect(screen.getByRole("heading", { name: "Rules" })).toBeInTheDocument();
-        expect(screen.getByText("Configure and start your game.")).toBeInTheDocument();
         expect(screen.getByText("Place the pieces before starting the game.")).toBeInTheDocument();
         expect(screen.getByLabelText("Play Style")).toHaveValue("free-play");
         expect(screen.getByLabelText("Board Size")).toHaveValue("7");

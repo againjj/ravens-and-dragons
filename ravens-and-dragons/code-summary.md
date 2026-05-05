@@ -99,7 +99,7 @@ Server-only undo history stores compact restore-state entries instead of full sn
 ## Current Gameplay And UI Behavior
 
 - The create screen sends its drafted setup to `POST /api/games`.
-- The create and active game screens show `Ravens and Dragons` inside the content area, place their information panel left of the board on wide screens, and span their rules panel below the main panels.
+- The create and active game screens show `Ravens and Dragons` inside the content area. The create screen splits its configuration and board panels evenly on wide screens, while the active game screen places its information panel left of the board and spans its rules panel below the main panels.
 - Live games open at `/g/{gameId}`.
 - Active games send mutations to `POST /api/games/{gameId}/commands`.
 - Active games subscribe to `GET /api/games/{gameId}/stream`.
