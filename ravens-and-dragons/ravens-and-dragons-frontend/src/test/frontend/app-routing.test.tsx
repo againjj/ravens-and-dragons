@@ -146,7 +146,9 @@ describe("App routing", () => {
 
         await screen.findByRole("heading", { name: "Game Lobby" });
         expect(window.location.pathname).toBe("/lobby");
+        expect(screen.getByRole("heading", { name: "Ayazian Games", level: 1 })).toBeInTheDocument();
         expect(screen.getByText("Dragon Player")).toBeInTheDocument();
+        expect(screen.getByText("© 2026 Johnathon Ayazian")).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "Lobby" })).not.toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Profile" })).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Log Out" })).toBeInTheDocument();

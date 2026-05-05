@@ -48,7 +48,7 @@ The parent project has two child projects:
 - `src/main/resources/bots/machine-trained/*.json`
   - Bundled per-ruleset machine-trained artifacts. The Sherwood artifact for `Michelle` uses schema version 5.
 - `src/main/resources/static/styles.css`
-  - Layout, board sizing variables, responsive behavior, fullscreen styling, and board highlight color.
+  - App shell layout, header/footer styling, board sizing variables, responsive behavior, fullscreen styling, and board highlight color.
 
 ## Frontend Project
 
@@ -58,6 +58,7 @@ The parent project has two child projects:
   - Frontend HTML entry for the Vite build.
 - `src/main/frontend/App.tsx`
   - Top-level React layout and shell composition.
+  - Renders the shared `Ayazian Games` header, scrollable page content area, and footer.
   - Handles auth bootstrap plus switching between login, lobby, create, profile, and active game screens.
 - `src/main/frontend/game-types.ts`
   - Frontend wire types, auth/game DTOs, local create-draft state, and create-game request payload.
@@ -98,6 +99,7 @@ Server-only undo history stores compact restore-state entries instead of full sn
 ## Current Gameplay And UI Behavior
 
 - The create screen sends its drafted setup to `POST /api/games`.
+- The create and active game screens show `Ravens and Dragons` inside the content area, place their information panel left of the board on wide screens, and span their rules panel below the main panels.
 - Live games open at `/g/{gameId}`.
 - Active games send mutations to `POST /api/games/{gameId}/commands`.
 - Active games subscribe to `GET /api/games/{gameId}/stream`.

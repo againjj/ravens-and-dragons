@@ -65,10 +65,10 @@ export const App = () => {
 
     return (
         <main className="page" ref={pageRef}>
-            <section className="hero">
+            <header className="hero app-header">
                 <div className="hero-header">
                     <div className="hero-copy">
-                        <h1>Ravens and Dragons</h1>
+                        <h1>Ayazian Games</h1>
                     </div>
                     <div className="hero-actions">
                         {isAuthenticated && currentUser ? <span>{currentUser.displayName}</span> : null}
@@ -115,43 +115,49 @@ export const App = () => {
                         </button>
                     </div>
                 </div>
+            </header>
+
+            <section className="page-content">
+                {page === "loading" ? (
+                    <section className="panel">
+                        <StatusBanner text="Loading..." />
+                    </section>
+                ) : page === "login" ? (
+                    <AuthPanel
+                        onContinueAsGuest={() => {
+                            void dispatch(continueAsGuest());
+                        }}
+                        onLogin={(request) => {
+                            void dispatch(login(request));
+                        }}
+                        onSignup={(request) => {
+                            void dispatch(signup(request));
+                        }}
+                        onLogout={handleLogout}
+                    />
+                ) : page === "lobby" ? (
+                    <LobbyScreen
+                        feedbackMessage={feedbackMessage}
+                        isLoading={isLoadingGame}
+                        onCreateGame={handleCreateGame}
+                        onOpenGame={(gameId) => {
+                            navigateToGame(gameId);
+                        }}
+                    />
+                ) : page === "create" ? (
+                    <CreateGameScreen onStartGame={handleStartGameFromCreate} />
+                ) : page === "profile" ? (
+                    <section className="auth-layout">
+                        <ProfileScreen />
+                    </section>
+                ) : (
+                    <GameScreen />
+                )}
             </section>
 
-            {page === "loading" ? (
-                <section className="panel">
-                    <StatusBanner text="Loading..." />
-                </section>
-            ) : page === "login" ? (
-                <AuthPanel
-                    onContinueAsGuest={() => {
-                        void dispatch(continueAsGuest());
-                    }}
-                    onLogin={(request) => {
-                        void dispatch(login(request));
-                    }}
-                    onSignup={(request) => {
-                        void dispatch(signup(request));
-                    }}
-                    onLogout={handleLogout}
-                />
-            ) : page === "lobby" ? (
-                <LobbyScreen
-                    feedbackMessage={feedbackMessage}
-                    isLoading={isLoadingGame}
-                    onCreateGame={handleCreateGame}
-                    onOpenGame={(gameId) => {
-                        navigateToGame(gameId);
-                    }}
-                />
-            ) : page === "create" ? (
-                <CreateGameScreen onStartGame={handleStartGameFromCreate} />
-            ) : page === "profile" ? (
-                <section className="auth-layout">
-                    <ProfileScreen />
-                </section>
-            ) : (
-                <GameScreen />
-            )}
+            <footer className="app-footer">
+                <small>&copy; 2026 Johnathon Ayazian</small>
+            </footer>
         </main>
     );
 };

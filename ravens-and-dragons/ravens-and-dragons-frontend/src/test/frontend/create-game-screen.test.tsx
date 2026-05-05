@@ -18,6 +18,7 @@ describe("CreateGameScreen", () => {
 
         renderWithStore(<CreateGameScreen />, { store });
 
+        expect(screen.getByRole("heading", { name: "Ravens and Dragons", level: 1 })).toBeInTheDocument();
         expect(screen.getByRole("heading", { name: "Create Game", level: 2 })).toBeInTheDocument();
         expect(screen.getByRole("heading", { name: "Configuration" })).toBeInTheDocument();
         expect(screen.getByRole("heading", { name: "Rules" })).toBeInTheDocument();

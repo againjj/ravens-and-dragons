@@ -42,14 +42,16 @@ export const CreateGameScreen = ({ onStartGame }: CreateGameScreenProps = {}) =>
 
     return (
         <section className="game-page create-game-page">
-            <section className="panel page-header-panel game-header-panel create-header-panel">
-                <div className="page-header-copy">
-                    <h2>Create Game</h2>
-                    <p>Configure and start your game.</p>
-                </div>
-            </section>
+            <h1 className="content-title">Ravens and Dragons</h1>
 
             <section className="game-layout create-layout">
+                <section className="panel page-header-panel game-header-panel create-header-panel layout-info-panel">
+                    <div className="page-header-copy">
+                        <h2>Create Game</h2>
+                        <p>Configure and start your game.</p>
+                    </div>
+                </section>
+
                 <section className="panel board-panel">
                     <div className="board-shell" ref={boardShellRef}>
                         <BoardView
@@ -104,7 +106,7 @@ export const CreateGameScreen = ({ onStartGame }: CreateGameScreenProps = {}) =>
                     </p>
                 </section>
 
-                <section className="panel side-panel top-panel create-rules-panel">
+                <section className="panel side-panel top-panel create-rules-panel rules-bottom-panel">
                     <RulesPanel title="Rules" sections={currentRuleConfiguration?.descriptionSections ?? []} />
                 </section>
             </section>

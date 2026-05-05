@@ -41,25 +41,27 @@ export const GameScreen = () => {
 
     return (
         <section className="game-page">
-            <section className="panel page-header-panel game-header-panel">
-                <div className="page-header-copy">
-                    <h2>{currentGameId ? `Game ${currentGameId}` : "Current Game"}</h2>
-                    <SeatPanel
-                        onAssignBotOpponent={(botId) => {
-                            void dispatch(assignBotOpponent(botId));
-                        }}
-                        onClaimDragons={() => {
-                            void dispatch(claimSide("dragons"));
-                        }}
-                        onClaimRavens={() => {
-                            void dispatch(claimSide("ravens"));
-                        }}
-                    />
-                    <StatusBanner text={statusText} />
-                </div>
-            </section>
+            <h1 className="content-title">Ravens and Dragons</h1>
 
             <section className="game-layout">
+                <section className="panel page-header-panel game-header-panel layout-info-panel">
+                    <div className="page-header-copy">
+                        <h2>{currentGameId ? `Game ${currentGameId}` : "Current Game"}</h2>
+                        <SeatPanel
+                            onAssignBotOpponent={(botId) => {
+                                void dispatch(assignBotOpponent(botId));
+                            }}
+                            onClaimDragons={() => {
+                                void dispatch(claimSide("dragons"));
+                            }}
+                            onClaimRavens={() => {
+                                void dispatch(claimSide("ravens"));
+                            }}
+                        />
+                        <StatusBanner text={statusText} />
+                    </div>
+                </section>
+
                 <section className="panel board-panel">
                     <div className="board-shell" ref={boardShellRef}>
                         <Board />
@@ -93,7 +95,7 @@ export const GameScreen = () => {
                     <MoveList />
                 </section>
 
-                <section className="panel side-panel top-panel">
+                <section className="panel side-panel top-panel rules-bottom-panel">
                     <RulesPanel sections={currentRuleConfiguration?.descriptionSections ?? []} />
                 </section>
             </section>
