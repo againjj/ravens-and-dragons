@@ -12,6 +12,8 @@ The backend supports multiple persisted game sessions addressed by game id and b
 
 The runnable app now assembles Ravens and Dragons through a platform-owned game module contract. That contract records current browser/API route ownership, the Ravens and Dragons migration namespace, and the boundary between platform-owned session metadata and game-owned opaque payloads.
 
+The React app shell renders Ravens and Dragons through a frontend game entry contract that supplies display metadata, create/play route helpers, create/play components, and lifecycle actions for the current single-game bundle.
+
 ## Project Files
 
 - `settings.gradle.kts`

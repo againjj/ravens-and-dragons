@@ -2,8 +2,6 @@ import { useEffect, useRef } from "react";
 
 import { useAppDispatch, useAppSelector } from "./app/hooks.js";
 import { AuthPanel } from "./components/AuthPanel.js";
-import { CreateGameScreen } from "./components/CreateGameScreen.js";
-import { GameScreen } from "./components/GameScreen.js";
 import { LobbyScreen } from "./components/LobbyScreen.js";
 import { ProfileScreen } from "./components/ProfileScreen.js";
 import { StatusBanner } from "./components/StatusBanner.js";
@@ -13,13 +11,17 @@ import {
 } from "./features/game/gameSelectors.js";
 import { gameActions } from "./features/game/gameSlice.js";
 import { continueAsGuest, loadAuthSession, login, logout, signup } from "./features/auth/authThunks.js";
-import { useGameSession } from "./features/game/useGameSession.js";
-import { createGame } from "./features/game/gameThunks.js";
+import type { GameEntry } from "./game-entry.js";
 import { useFullscreen } from "./hooks/useFullscreen.js";
 import { useGameRoute } from "./hooks/useGameRoute.js";
 import { selectCurrentUser, selectIsAuthenticated } from "./features/auth/authSelectors.js";
+import { ravensAndDragonsGameEntry } from "./ravens-and-dragons-entry.js";
 
-export const App = () => {
+interface AppProps {
+    gameEntry?: GameEntry;
+}
+
+export const App = ({ gameEntry = ravensAndDragonsGameEntry }: AppProps) => {
     const dispatch = useAppDispatch();
     const isAuthenticated = useAppSelector(selectIsAuthenticated);
     const currentUser = useAppSelector(selectCurrentUser);
@@ -28,11 +30,13 @@ export const App = () => {
     const pageRef = useRef<HTMLElement | null>(null);
     const { toggleFullscreen } = useFullscreen(pageRef);
 
-    const { page, navigateToCreate, navigateToGame, navigateToLobby, navigateToProfile } = useGameRoute();
+    const { CreateScreen, PlayScreen } = gameEntry.components;
+    const useGameSessionLifecycle = gameEntry.lifecycle.useSession;
+    const { page, navigateToCreate, navigateToGame, navigateToLobby, navigateToProfile } = useGameRoute(gameEntry);
     const showProfileButton = isAuthenticated && currentUser?.authType === "local" && page !== "profile";
     const showLobbyButton = isAuthenticated && page !== "lobby";
     const showLogoutButton = isAuthenticated && currentUser != null;
-    useGameSession();
+    useGameSessionLifecycle();
 
     useEffect(() => {
         void dispatch(loadAuthSession());
@@ -56,7 +60,7 @@ export const App = () => {
 
     const handleStartGameFromCreate = () => {
         void (async () => {
-            const gameId = await dispatch(createGame());
+            const gameId = await gameEntry.lifecycle.startGame(dispatch);
             if (gameId) {
                 navigateToGame(gameId);
             }
@@ -145,13 +149,13 @@ export const App = () => {
                         }}
                     />
                 ) : page === "create" ? (
-                    <CreateGameScreen onStartGame={handleStartGameFromCreate} />
+                    <CreateScreen onStartGame={handleStartGameFromCreate} />
                 ) : page === "profile" ? (
                     <section className="auth-layout">
                         <ProfileScreen />
                     </section>
                 ) : (
-                    <GameScreen />
+                    <PlayScreen />
                 )}
             </section>
 

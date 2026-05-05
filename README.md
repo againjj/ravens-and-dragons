@@ -18,6 +18,7 @@ Ravens and Dragons is a Spring Boot and Kotlin web app for playing a browser-bas
 - Undo against a bot reverses one full exchange, still works after a game-ending human move or bot reply when that last exchange is undoable, and can now be repeated across multiple consecutive undo steps
 - Streamed move updates now avoid an extra full game-view refresh unless seat, bot, or ruleset metadata changed
 - The runnable app assembles Ravens and Dragons through a code-enforced game module contract that records current route ownership and separates platform-owned session metadata from game-owned opaque payloads
+- The React shell renders Ravens and Dragons through a frontend game entry contract that owns the current create/play routes, game screens, and game lifecycle wiring
 - Logging out while a game stream is open lets the SSE teardown finish without noisy Spring Security access-denied stack traces
 
 ## Requirements

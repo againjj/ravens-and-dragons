@@ -2,12 +2,6 @@
 
 This file is the canonical list of planned work that is not being implemented immediately. Keep each item issue-tracker-like, link any backing plan files, and remove completed items plus obsolete backing plan files when the work is done.
 
-## Define Frontend Game Entry Contract
-
-- **Goal:** Define how the app shell discovers and renders a game module's frontend entry metadata.
-- **Why:** The backend module contract can enforce server-side identity, routes, persistence ownership, and smoke wiring first, but multiple game UIs will need an explicit frontend entry boundary before the shell can host more than Ravens and Dragons cleanly.
-- **Notes:** Keep current routes unchanged until `Add Game Identity To Routes And Persistence`. Use the existing Ravens and Dragons frontend as the first concrete source of requirements instead of designing around hypothetical games.
-
 ## Always Load Local Environment For Boot Run
 
 - **Goal:** Make local app startup automatically load `.env.local` when running `bootRun`.

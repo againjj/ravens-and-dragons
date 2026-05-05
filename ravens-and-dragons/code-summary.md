@@ -59,7 +59,13 @@ The parent project has two child projects:
 - `src/main/frontend/App.tsx`
   - Top-level React layout and shell composition.
   - Renders the shared `Ayazian Games` header, scrollable page content area, and footer.
-  - Handles auth bootstrap plus switching between login, lobby, create, profile, and active game screens.
+  - Handles auth bootstrap plus switching between login, lobby, profile, and the registered game entry's create/active screens.
+- `src/main/frontend/game-entry.ts`
+  - Defines the frontend game entry contract used by the app shell.
+  - Records game display metadata, create/play route helpers, create/play components, and lifecycle actions needed to open and run a game UI.
+- `src/main/frontend/ravens-and-dragons-entry.ts`
+  - Registers the current Ravens and Dragons frontend entry.
+  - Wires `/create`, `/g/{gameId}`, `CreateGameScreen`, `GameScreen`, create-game submission, open-game loading, lobby return cleanup, create-draft state, and SSE lifecycle behavior into the shell contract.
 - `src/main/frontend/game-types.ts`
   - Frontend wire types, auth/game DTOs, local create-draft state, and create-game request payload.
 - `src/main/frontend/board-geometry.ts`
@@ -79,7 +85,7 @@ The parent project has two child projects:
 - `src/main/frontend/features/ui/*.ts`
   - Browser-local UI state such as selected square.
 - `src/main/frontend/hooks/*.ts`
-  - Browser hooks for responsive board sizing, fullscreen behavior, and URL route parsing.
+  - Browser hooks for responsive board sizing, fullscreen behavior, and game-entry-aware URL route parsing.
 
 ## Game Model
 
@@ -99,6 +105,7 @@ Server-only undo history stores compact restore-state entries instead of full sn
 ## Current Gameplay And UI Behavior
 
 - The create screen sends its drafted setup to `POST /api/games`.
+- The app shell renders Ravens and Dragons through the registered frontend game entry while keeping auth, lobby, profile, header/footer, and fullscreen wiring in the shell.
 - The create and active game screens show `Ravens and Dragons` inside the content area. The create screen splits its configuration and board panels evenly on wide screens, while the active game screen places its information panel left of the board and spans its rules panel below the main panels.
 - Live games open at `/g/{gameId}`.
 - Active games send mutations to `POST /api/games/{gameId}/commands`.

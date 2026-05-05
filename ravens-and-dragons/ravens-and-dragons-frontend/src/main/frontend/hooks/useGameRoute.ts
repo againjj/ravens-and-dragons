@@ -2,12 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useAppDispatch, useAppSelector } from "../app/hooks.js";
 import { selectAuthLoadState, selectCurrentUser, selectIsAuthenticated } from "../features/auth/authSelectors.js";
-import { createGameDraftActions } from "../features/game/createGameSlice.js";
 import { selectGameView } from "../features/game/gameSelectors.js";
-import { openGame, returnToLobby } from "../features/game/gameThunks.js";
-import { generatedGameIdPattern } from "../game-types.js";
-
-const gameRoutePattern = /^\/g\/([23456789CFGHJMPQRVWX]{7})$/;
+import type { GameEntry } from "../game-entry.js";
 
 export type AppPage = "login" | "lobby" | "create" | "game" | "profile" | "loading";
 
@@ -19,12 +15,6 @@ interface ParsedRoute {
     fullPath: string;
     gameId: string | null;
 }
-
-const getRouteGameId = (pathname: string): string | null => {
-    const match = pathname.match(gameRoutePattern);
-    const routeGameId = match?.[1] ?? null;
-    return routeGameId && generatedGameIdPattern.test(routeGameId) ? routeGameId : null;
-};
 
 const getLoginRedirectPath = (): string => {
     const next = new URLSearchParams(window.location.search).get("next");
@@ -49,9 +39,9 @@ const writeHistory = (path: string, mode: NavigationMode) => {
 
 const getCurrentLocationPath = (): string => `${window.location.pathname}${window.location.search}`;
 
-const parseRoute = (fullPath: string): ParsedRoute => {
+const parseRoute = (gameEntry: GameEntry, fullPath: string): ParsedRoute => {
     const pathname = fullPath.split("?")[0] ?? fullPath;
-    const gameId = getRouteGameId(pathname);
+    const gameId = gameEntry.routes.matchPlayPath(pathname);
 
     if (pathname === "/") {
         return { kind: "root", fullPath, gameId: null };
@@ -62,7 +52,7 @@ const parseRoute = (fullPath: string): ParsedRoute => {
     if (pathname === "/lobby") {
         return { kind: "lobby", fullPath, gameId: null };
     }
-    if (pathname === "/create") {
+    if (pathname === gameEntry.routes.createPath) {
         return { kind: "create", fullPath, gameId: null };
     }
     if (pathname === "/profile") {
@@ -74,7 +64,7 @@ const parseRoute = (fullPath: string): ParsedRoute => {
     return { kind: "unknown", fullPath, gameId: null };
 };
 
-export const useGameRoute = (): {
+export const useGameRoute = (gameEntry: GameEntry): {
     page: AppPage;
     navigateToLobby: (mode?: NavigationMode) => void;
     navigateToCreate: (mode?: NavigationMode) => void;
@@ -89,15 +79,15 @@ export const useGameRoute = (): {
     const [locationPath, setLocationPath] = useState(getCurrentLocationPath);
 
     const clearActiveGameView = () => {
-        dispatch(returnToLobby());
+        gameEntry.lifecycle.returnToLobby(dispatch);
     };
 
     const clearCreateDraft = () => {
-        dispatch(createGameDraftActions.createModeCleared());
+        gameEntry.lifecycle.clearCreateMode(dispatch);
     };
 
     const enterCreateDraft = () => {
-        dispatch(createGameDraftActions.createModeEntered());
+        gameEntry.lifecycle.enterCreateMode(dispatch);
     };
 
     const updateRoutePath = (path: string, mode: NavigationMode) => {
@@ -115,7 +105,7 @@ export const useGameRoute = (): {
         clearActiveGameView();
         clearCreateDraft();
         enterCreateDraft();
-        updateRoutePath("/create", mode);
+        updateRoutePath(gameEntry.routes.createPath, mode);
     };
 
     const navigateToProfile = (mode: NavigationMode = "push") => {
@@ -129,11 +119,11 @@ export const useGameRoute = (): {
         options: { mode?: NavigationMode; loadGame?: boolean } = {}
     ) => {
         const trimmedGameId = gameId.trim();
-        const targetPath = `/g/${encodeURIComponent(trimmedGameId)}`;
+        const targetPath = gameEntry.routes.buildPlayPath(trimmedGameId);
         clearCreateDraft();
         updateRoutePath(targetPath, options.mode ?? "push");
         if (options.loadGame ?? true) {
-            void dispatch(openGame(trimmedGameId));
+            gameEntry.lifecycle.openGame(dispatch, trimmedGameId);
         }
     };
 
@@ -144,7 +134,7 @@ export const useGameRoute = (): {
 
         const syncFromLocation = () => {
             const currentLocationPath = getCurrentLocationPath();
-            const route = parseRoute(currentLocationPath);
+            const route = parseRoute(gameEntry, currentLocationPath);
             setLocationPath(currentLocationPath);
 
             if (!isAuthenticated) {
@@ -159,7 +149,7 @@ export const useGameRoute = (): {
 
             if (route.kind === "login") {
                 const targetPath = getLoginRedirectPath();
-                const targetRoute = parseRoute(targetPath);
+                const targetRoute = parseRoute(gameEntry, targetPath);
                 if (targetRoute.kind === "game" && targetRoute.gameId) {
                     navigateToGame(targetRoute.gameId, { mode: "push" });
                 } else if (targetRoute.kind === "create") {
@@ -183,7 +173,7 @@ export const useGameRoute = (): {
                 case "game":
                     clearCreateDraft();
                     if (route.gameId) {
-                        void dispatch(openGame(route.gameId));
+                        gameEntry.lifecycle.openGame(dispatch, route.gameId);
                     }
                     return;
                 case "lobby":
@@ -209,7 +199,7 @@ export const useGameRoute = (): {
         return () => {
             window.removeEventListener("popstate", syncFromLocation);
         };
-    }, [authLoadState, currentUser?.authType, dispatch, isAuthenticated]);
+    }, [authLoadState, currentUser?.authType, dispatch, gameEntry, isAuthenticated]);
 
     const page = useMemo<AppPage>(() => {
         if (authLoadState === "idle" || authLoadState === "loading") {
@@ -224,11 +214,11 @@ export const useGameRoute = (): {
         if (locationPath === "/profile") {
             return "profile";
         }
-        if (locationPath === "/create") {
+        if (locationPath === gameEntry.routes.createPath) {
             return "create";
         }
         return view === "game" ? "game" : "lobby";
-    }, [authLoadState, isAuthenticated, locationPath, view]);
+    }, [authLoadState, gameEntry.routes.createPath, isAuthenticated, locationPath, view]);
 
     return { page, navigateToLobby, navigateToCreate, navigateToProfile, navigateToGame };
 };
