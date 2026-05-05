@@ -4,7 +4,7 @@
 
 `app/` owns the runnable Spring Boot application that assembles the platform project and the included game modules into one deployable service. It produces the executable jar used locally and on Railway.
 
-The app keeps the included-game list declarative by registering each game module through the shared platform contract and letting the game module provide its own slug-derived routes and metadata.
+The app keeps the included-game list declarative by registering each game module through the shared platform contract and letting the game module provide its own slug-derived routes and metadata. Each game is expected to live in its own sub-project.
 
 ## Key Files
 

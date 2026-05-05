@@ -11,6 +11,7 @@ This file contains instructions for work inside the `ravens-and-dragons/` game m
 ## Ownership
 
 - `ravens-and-dragons/` owns canonical Ravens and Dragons gameplay rules, state transitions, game-specific REST/SSE APIs, game-specific persistence payloads, frontend components, board helpers, bots, machine training, static assets, and tests.
+- `ravens-and-dragons/` is a single-game sub-project; keep the Ravens and Dragons game isolated from other game modules.
 - `ravens-and-dragons/ravens-and-dragons-backend/src/main/kotlin/com/ravensanddragons/game` is the home for canonical game rules, state transitions, and shared session behavior.
 - Frontend helper modules under `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend` should keep wire types, board helpers, move formatting, and local-only selection helpers out of React components.
 - `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/App.tsx` should stay focused on shell composition and top-level wiring until frontend shell code is split by a future frontend game-entry contract.

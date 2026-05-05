@@ -3,6 +3,7 @@
 ## Overview
 
 `ravens-and-dragons/` is the Ravens and Dragons game module. It owns the game's backend rules and APIs, React frontend, static assets, bots, machine-training pipeline, and game-specific tests.
+It is intentionally a single-game sub-project rather than a shared home for multiple games.
 
 The parent project has two child projects:
 
