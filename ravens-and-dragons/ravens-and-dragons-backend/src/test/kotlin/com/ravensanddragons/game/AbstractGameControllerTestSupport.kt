@@ -7,12 +7,10 @@ import com.ravensanddragons.game.model.*
 import com.ravensanddragons.game.persistence.*
 import com.ravensanddragons.game.rules.*
 import com.ravensanddragons.game.session.*
-import com.ravensanddragons.game.web.*
-
-
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.ravensanddragons.auth.AuthSessionSupport
 import com.ravensanddragons.auth.AuthType
+import com.ravensanddragons.platform.game.runtime.GameStore
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
@@ -96,7 +94,7 @@ abstract class AbstractGameControllerTestSupport {
             ravensBotId = ravensBotId,
             createdByUserId = createdByUserId
         )
-        assertTrue(gameStore.putIfAbsent(storedGame))
+        assertTrue(gameStore.putIfAbsent(storedGame.toGameRecord(GameJsonCodec(objectMapper))))
         return storedGame.session
     }
 
@@ -220,35 +218,55 @@ abstract class AbstractGameControllerTestSupport {
         }
 
     protected fun claimSide(gameId: String, side: Side, userId: String = defaultTestUserId) =
-        mockMvc.post("/api/games/$gameId/claim-side") {
+        mockMvc.post("/api/games/$gameId/commands") {
             with(authenticated(gameId, userId))
             contentType = MediaType.APPLICATION_JSON
-            content = objectMapper.writeValueAsString(ClaimSideRequest(side))
+            val current = gameStore.getRavensSession(gameId, GameJsonCodec(objectMapper))
+            content = objectMapper.writeValueAsString(
+                GameCommandRequest(
+                    expectedVersion = current?.version ?: 0,
+                    type = "claim-side",
+                    side = side
+                )
+            )
         }
 
     protected fun assignBotOpponent(gameId: String, botId: String, userId: String = defaultTestUserId) =
-        mockMvc.post("/api/games/$gameId/assign-bot-opponent") {
+        mockMvc.post("/api/games/$gameId/commands") {
             with(authenticated(gameId, userId))
             contentType = MediaType.APPLICATION_JSON
-            content = objectMapper.writeValueAsString(AssignBotOpponentRequest(botId))
+            val current = gameStore.getRavensSession(gameId, GameJsonCodec(objectMapper))
+            content = objectMapper.writeValueAsString(
+                mapOf(
+                    "expectedVersion" to (current?.version ?: 0),
+                    "type" to "assign-bot-opponent",
+                    "botId" to botId
+                )
+            )
         }
 
     protected fun assignSides(gameId: String, dragonsUserId: String?, ravensUserId: String?) {
+        val gameJsonCodec = GameJsonCodec(objectMapper)
+        val current = gameStore.get(gameId) ?: return
+        val session = gameJsonCodec.convert(current.publicState, GameSession::class.java)
         jdbcTemplate.update(
             """
             update games
-            set dragons_player_user_id = ?,
-                ravens_player_user_id = ?
+            set public_state_json = ?
             where id = ?
             """.trimIndent(),
-            dragonsUserId,
-            ravensUserId,
+            gameJsonCodec.writeSession(
+                session.copy(
+                    dragonsPlayerUserId = dragonsUserId,
+                    ravensPlayerUserId = ravensUserId
+                )
+            ),
             gameId
         )
     }
 
     protected fun currentActorFor(gameId: String, commandType: String? = null): String {
-        val current = gameStore.get(gameId)?.session ?: return defaultTestUserId
+        val current = gameStore.getRavensSession(gameId, GameJsonCodec(objectMapper)) ?: return defaultTestUserId
         if (commandType == "undo") {
             return when (current.undoOwnerSide) {
                 Side.dragons -> current.dragonsPlayerUserId
@@ -267,6 +285,9 @@ abstract class AbstractGameControllerTestSupport {
     }
 
     protected fun currentGame(gameId: String): GameSession = getGame(gameId)
+
+    protected fun storedGameSession(gameId: String): GameSession? =
+        gameStore.getRavensSession(gameId, GameJsonCodec(objectMapper))
 
     protected fun currentVersion(gameId: String): Long = currentGame(gameId).version
 

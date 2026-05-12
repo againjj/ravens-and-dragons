@@ -1,9 +1,6 @@
 package com.ravensanddragons.game.persistence
 
-import com.ravensanddragons.game.session.*
 import com.ravensanddragons.game.model.*
-
-
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.stereotype.Component
@@ -17,6 +14,21 @@ class GameJsonCodec(
 
     fun readSnapshot(json: String): GameSnapshot =
         objectMapper.readValue(json, GameSnapshot::class.java)
+
+    fun writeSession(session: GameSession): String =
+        objectMapper.writeValueAsString(session)
+
+    fun readSession(json: String): GameSession =
+        objectMapper.readValue(json, GameSession::class.java)
+
+    fun <T> convert(value: Any, type: Class<T>): T =
+        objectMapper.convertValue(value, type)
+
+    fun valueToTree(value: Any) =
+        objectMapper.valueToTree<com.fasterxml.jackson.databind.JsonNode>(value)
+
+    fun writeJson(value: com.fasterxml.jackson.databind.JsonNode): String =
+        objectMapper.writeValueAsString(value)
 
     fun writeUndoEntries(undoEntries: List<UndoEntry>): String =
         objectMapper.writeValueAsString(undoEntries)

@@ -20,6 +20,7 @@ val buildFrontend by tasks.registering(NpmTask::class) {
 
     inputs.files(
         fileTree("src/main/frontend"),
+        fileTree("../../platform/frontend"),
         file("package.json"),
         file("tsconfig.json"),
         file("vite.config.ts")
@@ -37,6 +38,7 @@ tasks.register<NpmTask>("test") {
     inputs.files(
         fileTree("src/main/frontend"),
         fileTree("src/test/frontend"),
+        fileTree("../../platform/frontend"),
         file("package.json"),
         file("tsconfig.json"),
         file("vite.config.ts")

@@ -5,16 +5,16 @@
 This repository is a Spring Boot 3.3 + Kotlin 2.1 service that hosts a browser-based Ravens and Dragons board game. It is organized as a Gradle multi-project build with three top-level projects:
 
 - `app/`: runnable Spring Boot application and deployable jar assembly.
-- `platform/`: shared service infrastructure such as auth, web error handling, route fallback, and the game module contract.
+- `platform/`: shared service infrastructure such as auth, web error handling, route fallback, the game module contract, and shared frontend package code.
 - `ravens-and-dragons/`: the Ravens and Dragons game module, including backend rules/APIs, frontend UI, bots, machine training, assets, and tests.
 
 The backend supports multiple persisted game sessions addressed by game id and broadcasts live updates over server-sent events per game. The frontend opens on a lobby, can route into `/{gameSlug}/create` for a local draft setup flow, and opens live games at `/g/{gameId}`. Game creation now posts through a slugged API path so the hosting service can distinguish the game type from the session id.
 
-The runnable app now assembles Ravens and Dragons through a platform-owned game module contract. That contract records current browser/API route ownership, the Ravens and Dragons migration namespace, and the boundary between platform-owned session metadata and game-owned opaque payloads.
+The runnable app now assembles Ravens and Dragons through a platform-owned game module contract and opaque game runtime. Platform owns generic game ids, persistence, REST/SSE routing, stale cleanup, and handler dispatch. Ravens and Dragons owns every Ravens-shaped concept, including board pieces, sides, snapshots, command semantics, undo payloads, bot turns, and game-view metadata.
 
 The repository is structured so each game lives in its own sub-project. The current checkout contains one game module, Ravens and Dragons, and the app registers that module explicitly.
 
-The React app shell renders Ravens and Dragons through a frontend game entry contract that supplies display metadata, create/play route helpers, create/play components, and lifecycle actions for the current single-game bundle.
+The React app shell renders Ravens and Dragons through a frontend game entry contract supplied by the shared `@ravensanddragons/platform-frontend` package. The package also owns shared auth wire types, auth API helpers, and browser shell hooks that future frontend game bundles can reuse.
 
 ## Project Files
 
@@ -69,7 +69,7 @@ The Gradle wrapper is pinned to Gradle 9.4.1. Java 21 is the project toolchain. 
 - Game creation uses `POST /api/games/{gameSlug}`.
 - Game reads use `GET /api/games/{gameId}` and `GET /api/games/{gameId}/view`.
 - Game commands use `POST /api/games/{gameId}/commands`.
-- Seat and bot actions use dedicated game endpoints.
+- Seat and bot actions are Ravens command types sent through the command endpoint.
 - Live updates use `GET /api/games/{gameId}/stream`.
 
 Games persist in the configured database, so clients can reopen the same game after server restart. SSE fanout remains in memory per app instance.
@@ -79,7 +79,7 @@ Games persist in the configured database, so clients can reopen the same game af
 - `server.port` reads `${PORT:8080}`.
 - `spring.datasource.*` defaults to a local H2 file database and may be overridden for PostgreSQL deploys.
 - `server.servlet.session.timeout` defaults to `2h`.
-- `ravens-and-dragons.games.stale-threshold` defaults to `1008h`.
+- `platform.games.stale-threshold` defaults to `1008h`; the previous `ravens-and-dragons.games.stale-threshold` property is still accepted as a fallback.
 - The stale cleanup delay is derived as one tenth of the stale threshold.
 - Optional Google OAuth appears only when Spring OAuth Google client registration environment variables are configured.
 - Railway deploys run the Spring Boot fat jar named `ravens-and-dragons.jar`.

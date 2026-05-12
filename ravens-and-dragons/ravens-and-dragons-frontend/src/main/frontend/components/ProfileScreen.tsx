@@ -4,7 +4,7 @@ import { useAppDispatch, useAppSelector } from "../app/hooks.js";
 import { deleteLocalAccount, loadLocalProfile, updateLocalProfile } from "../features/auth/authThunks.js";
 import { selectAuthFeedbackMessage, selectCurrentUser, selectIsAuthSubmitting, selectLocalProfile, selectLocalProfileLoadState } from "../features/auth/authSelectors.js";
 import { authActions } from "../features/auth/authSlice.js";
-import type { DeleteAccountRequest, UpdateProfileRequest } from "../game-types.js";
+import type { DeleteAccountRequest, UpdateProfileRequest } from "@ravensanddragons/platform-frontend/auth-types";
 
 export const ProfileScreen = () => {
     const dispatch = useAppDispatch();

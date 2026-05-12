@@ -3,7 +3,7 @@ import { useState } from "react";
 import { useAppDispatch, useAppSelector } from "../app/hooks.js";
 import { authActions } from "../features/auth/authSlice.js";
 import { selectAuthFeedbackMessage, selectCurrentUser, selectIsAuthSubmitting, selectIsAuthenticated, selectOAuthProviders } from "../features/auth/authSelectors.js";
-import { getOAuthLoginUrl } from "../game-client.js";
+import { getOAuthLoginUrl } from "@ravensanddragons/platform-frontend/api-client";
 
 interface AuthPanelProps {
     onContinueAsGuest: () => void;

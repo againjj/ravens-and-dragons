@@ -25,17 +25,17 @@ The parent project has two child projects:
   - Declares the `ravens-and-dragons` migration namespace.
   - Draws the persistence line between platform-owned session metadata fields and game-owned opaque payloads.
 - `src/main/kotlin/com/ravensanddragons/game/model/*.kt`
-  - Shared game/session DTOs, rule summaries, turn records, undo restore-state models, and game exceptions.
+  - Ravens and Dragons game/session DTOs, board pieces, sides, phases, rule summaries, turn records, undo restore-state models, and Ravens command/view request models.
+- `src/main/kotlin/com/ravensanddragons/game/RavensAndDragonsGameHandler.kt`
+  - Implements the platform `GameHandler` port for Ravens and Dragons.
+  - Converts opaque platform JSON records into Ravens `GameSession` plus undo state, delegates create/command/view behavior to Ravens services, runs bot replies, and serializes Ravens-owned public/private state back into the platform record.
 - `src/main/kotlin/com/ravensanddragons/game/rules/*.kt`
   - Canonical board coordinates, rule metadata, snapshot creation, rule-engine contracts, and free-play/trivial/original-style rule execution.
 - `src/main/kotlin/com/ravensanddragons/game/session/*.kt`
-  - `GameSessionService.kt` owns persisted-game loading, create-payload seeding, broadcasting, emitter lifecycle, and stale cleanup coordination.
   - `GameCommandService.kt` owns command authorization, validation, undo handling, and seat-claim transitions.
   - `GameUserReferenceCleanup.kt` implements the platform cleanup port for account deletion.
 - `src/main/kotlin/com/ravensanddragons/game/persistence/*.kt`
-  - Game store contracts, JDBC persistence, and game JSON encoding/decoding.
-- `src/main/kotlin/com/ravensanddragons/game/web/*.kt`
-  - REST/SSE game controller endpoints.
+  - Ravens-owned stored-game state envelope and Ravens JSON encoding/decoding.
 - `src/main/kotlin/com/ravensanddragons/game/bot/*.kt`
   - Bot value types, bot registry, random-index source, and synchronous bot-turn execution plus grouped human-plus-bot undo handling.
 - `src/main/kotlin/com/ravensanddragons/game/bot/strategy/*.kt`
@@ -44,8 +44,6 @@ The parent project has two child projects:
   - Machine-trained runtime scaffolding for `Michelle`, including artifact loading, registry support, feature encoding, move scoring, and strategy integration.
 - `src/train/kotlin/com/ravensanddragons/training`
   - Offline Sherwood self-play, dataset generation, ranking trainer, artifact read/write, evolution loop, and CLI.
-- `src/main/resources/db/migration/*.sql`
-  - Flyway migrations for the current persistent game and auth schema.
 - `src/main/resources/bots/machine-trained/*.json`
   - Bundled per-ruleset machine-trained artifacts. The Sherwood artifact for `Michelle` uses schema version 5.
 - `src/main/resources/static/styles.css`
@@ -55,20 +53,18 @@ The parent project has two child projects:
 
 - `ravens-and-dragons/ravens-and-dragons-frontend/build.gradle.kts`
   - Frontend build and test project using Gradle-managed Node/npm.
+  - Depends on the local `@ravensanddragons/platform-frontend` package for shared frontend contracts and auth/browser helpers.
 - `src/main/frontend/index.html`
   - Frontend HTML entry for the Vite build.
 - `src/main/frontend/App.tsx`
   - Top-level React layout and shell composition.
   - Renders the shared `Ayazian Games` header, scrollable page content area, and footer.
   - Handles auth bootstrap plus switching between login, lobby, profile, and the registered game entry's create/active screens.
-- `src/main/frontend/game-entry.ts`
-  - Defines the frontend game entry contract used by the app shell.
-  - Records game display metadata, create/play route helpers, create/play components, and lifecycle actions needed to open and run a game UI.
 - `src/main/frontend/ravens-and-dragons-entry.ts`
   - Registers the current Ravens and Dragons frontend entry.
   - Wires `/{gameSlug}/create`, `/g/{gameId}`, `CreateGameScreen`, `GameScreen`, create-game submission, open-game loading, lobby return cleanup, create-draft state, and SSE lifecycle behavior into the shell contract.
 - `src/main/frontend/game-types.ts`
-  - Frontend wire types, auth/game DTOs, local create-draft state, and create-game request payload.
+  - Ravens and Dragons frontend wire types, game DTOs, local create-draft state, and create-game request payload.
 - `src/main/frontend/board-geometry.ts`
   - Board coordinate helpers, dimension helpers, center-square helpers, and highlighted-square helpers.
 - `src/main/frontend/game-rules-client.ts`
@@ -76,7 +72,7 @@ The parent project has two child projects:
 - `src/main/frontend/move-history.ts`
   - Turn notation and grouped move-history row helpers.
 - `src/main/frontend/game-client.ts`
-  - REST command helpers, create-game submission, bot assignment, auth requests, and SSE subscription setup.
+  - Ravens and Dragons game REST command helpers, create-game submission, bot assignment, SSE subscription setup, and compatibility re-exports for shared auth API helpers.
 - `src/main/frontend/components/*.tsx`
   - React components for the lobby, auth panel, local profile screen, active game screen, create screen, seat panel, board, controls, rules panel, move list, and status text.
 - `src/main/frontend/features/game/*.ts`
@@ -86,7 +82,7 @@ The parent project has two child projects:
 - `src/main/frontend/features/ui/*.ts`
   - Browser-local UI state such as selected square.
 - `src/main/frontend/hooks/*.ts`
-  - Browser hooks for responsive board sizing, fullscreen behavior, and game-entry-aware URL route parsing.
+  - Ravens frontend hooks for responsive board sizing and game-entry-aware URL route parsing. Shared browser hooks such as fullscreen live in `@ravensanddragons/platform-frontend`.
 
 ## Game Model
 
@@ -106,11 +102,12 @@ Server-only undo history stores compact restore-state entries instead of full sn
 ## Current Gameplay And UI Behavior
 
 - The create screen sends its drafted setup to `POST /api/games/ravens-and-dragons`.
-- The app shell renders Ravens and Dragons through the registered frontend game entry while keeping auth, lobby, profile, header/footer, and fullscreen wiring in the shell.
+- The app shell renders Ravens and Dragons through the registered frontend game entry while using shared platform frontend contracts/helpers for auth, game-entry typing, and fullscreen wiring.
 - The create and active game screens show `Ravens and Dragons` inside the content area. The create screen splits its configuration and board panels evenly on wide screens, while the active game screen places its information panel left of the board and spans its rules panel below the main panels.
 - Live games open at `/g/{gameId}`.
 - Create flows open at `/ravens-and-dragons/create`.
 - Active games send mutations to `POST /api/games/{gameId}/commands`.
+- Seat claiming and bot assignment are Ravens command types sent through the same command endpoint.
 - Active games subscribe to `GET /api/games/{gameId}/stream`.
 - Request-scoped auth-aware game metadata is loaded from `GET /api/games/{gameId}/view`.
 - Seat ownership gates gameplay actions by claimed side and active turn.

@@ -9,7 +9,7 @@ Ravens and Dragons is a Spring Boot and Kotlin web app for playing a browser-bas
 - Play in the browser with live updates shared across tabs and clients
 - Persist games in the configured database so they survive app restarts
 - Sign in as a guest or local user, with optional Google OAuth support
-- Claim the ravens or dragons side in a live game
+- Claim the ravens or dragons side in a live game through the game command flow
 - In `Free Play`, setup clicks now cycle `raven -> dragon -> gold -> empty`, and the starting-side picker lists Ravens first and defaults to Ravens
 - In a fresh supported preset game, choose a server-driven bot from the live-game seat panel and assign it to the opposite open seat for `Original Game`, `Sherwood Rules`, `Square One`, `Sherwood x 9`, or `Square One x 9`
 - `Michelle` appears for `Sherwood Rules` from an evolved schema-5 ruleset-scoped artifact with side-specific dragon/raven weight vectors, compact tactical board features, and a lower-allocation runtime scoring path
@@ -17,8 +17,8 @@ Ravens and Dragons is a Spring Boot and Kotlin web app for playing a browser-bas
 - `Maxine` stays on the existing minimax search, while `Alphie` uses a deeper optimized alpha-beta search with subtree caching and reused child snapshots
 - Undo against a bot reverses one full exchange, still works after a game-ending human move or bot reply when that last exchange is undoable, and can now be repeated across multiple consecutive undo steps
 - Streamed move updates now avoid an extra full game-view refresh unless seat, bot, or ruleset metadata changed
-- The runnable app assembles Ravens and Dragons through a code-enforced game module contract that records current route ownership and separates platform-owned session metadata from game-owned opaque payloads
-- The React shell renders Ravens and Dragons through a frontend game entry contract that owns the current create/play routes, game screens, and game lifecycle wiring
+- The runnable app assembles Ravens and Dragons through a code-enforced game module contract and platform runtime that route and persist opaque game-owned JSON without owning Ravens board, side, bot, or undo semantics
+- The React shell renders Ravens and Dragons through a shared frontend package contract that owns reusable auth helpers, browser shell hooks, and game entry typing while Ravens keeps its own create/play screens and lifecycle wiring
 - Logging out while a game stream is open lets the SSE teardown finish without noisy Spring Security access-denied stack traces
 
 ## Requirements
@@ -160,11 +160,11 @@ The stale-game eviction threshold defaults to six weeks, and the cleanup schedul
 ## Project Layout
 
 - `app`: runnable Spring Boot application project that assembles the deployed jar
-- `platform`: shared-service backend project for auth, OAuth provider metadata, route fallback, generic web exception handling, and the game module contract
+- `platform`: shared-service backend project for auth, OAuth provider metadata, route fallback, generic web exception handling, the game module contract, and opaque game runtime
 - `ravens-and-dragons`: parent game module that aggregates backend and frontend child projects
 - `ravens-and-dragons/ravens-and-dragons-backend`: Ravens and Dragons gameplay, game APIs, resources, JVM tests, and training code
 - `ravens-and-dragons/ravens-and-dragons-frontend`: React frontend, Redux state, browser-side helpers, and frontend tests
-- `ravens-and-dragons/ravens-and-dragons-backend/src/main/kotlin/com/ravensanddragons/game`: backend game rules, bot strategies/orchestration, session handling, and game APIs
+- `ravens-and-dragons/ravens-and-dragons-backend/src/main/kotlin/com/ravensanddragons/game`: backend game rules, bot strategies/orchestration, Ravens session semantics, and the game handler adapter
 - `platform/src/main/kotlin/com/ravensanddragons/auth`: authentication and account management
 - `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend`: React frontend, Redux state, and browser-side helpers
 - `code-summary.md`: service-wide architecture and implementation summary

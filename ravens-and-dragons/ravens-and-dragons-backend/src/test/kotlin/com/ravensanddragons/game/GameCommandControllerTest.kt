@@ -7,9 +7,6 @@ import com.ravensanddragons.game.model.*
 import com.ravensanddragons.game.persistence.*
 import com.ravensanddragons.game.rules.*
 import com.ravensanddragons.game.session.*
-import com.ravensanddragons.game.web.*
-
-
 import org.hamcrest.Matchers.equalTo
 import org.junit.jupiter.api.Test
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
@@ -146,7 +143,7 @@ class GameCommandControllerTest : AbstractGameControllerTestSupport() {
             ravensPlayerUserId = defaultTestUserId,
             createdByUserId = defaultTestUserId
         )
-        gameStore.putIfAbsent(storedGame)
+        gameStore.putIfAbsent(storedGame.toGameRecord(GameJsonCodec(objectMapper)))
         return storedGame.session.id
     }
 }

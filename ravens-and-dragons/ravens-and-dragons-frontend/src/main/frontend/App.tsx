@@ -11,14 +11,15 @@ import {
 } from "./features/game/gameSelectors.js";
 import { gameActions } from "./features/game/gameSlice.js";
 import { continueAsGuest, loadAuthSession, login, logout, signup } from "./features/auth/authThunks.js";
-import type { GameEntry } from "./game-entry.js";
-import { useFullscreen } from "./hooks/useFullscreen.js";
+import type { GameEntry } from "@ravensanddragons/platform-frontend/game-entry";
+import { useFullscreen } from "@ravensanddragons/platform-frontend/hooks/useFullscreen";
+import type { AppDispatch } from "./app/store.js";
 import { useGameRoute } from "./hooks/useGameRoute.js";
 import { selectCurrentUser, selectIsAuthenticated } from "./features/auth/authSelectors.js";
 import { ravensAndDragonsGameEntry } from "./ravens-and-dragons-entry.js";
 
 interface AppProps {
-    gameEntry?: GameEntry;
+    gameEntry?: GameEntry<AppDispatch>;
 }
 
 export const App = ({ gameEntry = ravensAndDragonsGameEntry }: AppProps) => {

@@ -7,9 +7,6 @@ import com.ravensanddragons.game.model.*
 import com.ravensanddragons.game.persistence.*
 import com.ravensanddragons.game.rules.*
 import com.ravensanddragons.game.session.*
-import com.ravensanddragons.game.web.*
-
-
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -31,6 +28,8 @@ class JdbcGameStoreTest {
     }
 
     @Autowired
+    lateinit var platformGameStore: com.ravensanddragons.platform.game.runtime.JdbcGameStore
+
     lateinit var gameStore: JdbcGameStore
 
     @Autowired
@@ -41,6 +40,7 @@ class JdbcGameStoreTest {
 
     @BeforeEach
     fun resetGames() {
+        gameStore = JdbcGameStore(platformGameStore, gameJsonCodec)
         jdbcTemplate.update("delete from games")
     }
 
@@ -215,6 +215,19 @@ class JdbcGameStoreTest {
     fun `legacy snapshot only undo history still reloads as undo entries`() {
         val snapshot = GameRules.startGame(initialBoard = mapOf("a1" to Piece.dragon))
         val legacyUndoSnapshot = snapshot.copy(board = mapOf("a1" to Piece.dragon))
+        val publicSession = GameSessionFactory.createStoredGame(
+            gameId = "legacy-undo-game",
+            snapshot = snapshot,
+            undoEntries = emptyList(),
+            version = 2L,
+            createdAt = createdAt,
+            updatedAt = createdAt.plusSeconds(30),
+            lastAccessedAt = createdAt.plusSeconds(30),
+            lifecycle = GameLifecycle.active,
+            selectedRuleConfigurationId = GameRules.freePlayRuleConfigurationId,
+            selectedStartingSide = Side.dragons,
+            selectedBoardSize = GameRules.defaultBoardSize
+        ).session
 
         jdbcTemplate.update(
             """
@@ -226,17 +239,10 @@ class JdbcGameStoreTest {
                 updated_at,
                 last_accessed_at,
                 lifecycle,
-                selected_rule_configuration_id,
-                selected_starting_side,
-                selected_board_size,
-                dragons_player_user_id,
-                ravens_player_user_id,
-                dragons_bot_id,
-                ravens_bot_id,
                 created_by_user_id,
-                snapshot_json,
-                undo_snapshots_json
-            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                public_state_json,
+                private_state_json
+            ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """.trimIndent(),
             "legacy-undo-game",
             "ravens-and-dragons",
@@ -245,15 +251,8 @@ class JdbcGameStoreTest {
             java.sql.Timestamp.from(createdAt.plusSeconds(30)),
             java.sql.Timestamp.from(createdAt.plusSeconds(30)),
             GameLifecycle.active.name,
-            GameRules.freePlayRuleConfigurationId,
-            Side.dragons.name,
-            GameRules.defaultBoardSize,
             null,
-            null,
-            null,
-            null,
-            null,
-            gameJsonCodec.writeSnapshot(snapshot),
+            gameJsonCodec.writeSession(publicSession),
             """[${gameJsonCodec.writeSnapshot(legacyUndoSnapshot)}]"""
         )
 

@@ -25,18 +25,21 @@ const {
 }));
 
 vi.mock("../../main/frontend/game-client.js", () => ({
-    fetchAuthSession: fetchAuthSessionMock,
     createGameSession: createGameSessionMock,
     fetchGameView: fetchGameViewMock,
+    sendGameCommandRequest: sendGameCommandRequestMock,
+    openGameStream: vi.fn(),
+    isSameServerGame: vi.fn()
+}));
+
+vi.mock("@ravensanddragons/platform-frontend/api-client", () => ({
+    fetchAuthSession: fetchAuthSessionMock,
     fetchLocalProfile: fetchLocalProfileMock,
     getOAuthLoginUrl: (provider: string) => `/oauth2/authorization/${provider}`,
     loginAsGuest: loginAsGuestMock,
     loginRequest: vi.fn(),
     logoutRequest: logoutRequestMock,
-    sendGameCommandRequest: sendGameCommandRequestMock,
-    signupRequest: vi.fn(),
-    openGameStream: vi.fn(),
-    isSameServerGame: vi.fn()
+    signupRequest: vi.fn()
 }));
 
 vi.mock("../../main/frontend/features/game/useGameSession.js", () => ({
@@ -47,7 +50,7 @@ vi.mock("../../main/frontend/hooks/useBoardSizing.js", () => ({
     useBoardSizing: () => undefined
 }));
 
-vi.mock("../../main/frontend/hooks/useFullscreen.js", () => ({
+vi.mock("@ravensanddragons/platform-frontend/hooks/useFullscreen", () => ({
     useFullscreen: () => ({
         toggleFullscreen: async () => ({ message: null })
     })

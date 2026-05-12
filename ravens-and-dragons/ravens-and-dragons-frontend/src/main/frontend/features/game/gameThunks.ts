@@ -1,4 +1,4 @@
-import { assignBotOpponent as assignBotOpponentRequest, claimGameSide, createGameSession, fetchGameView, sendGameCommandRequest } from "../../game-client.js";
+import { createGameSession, fetchGameView, sendGameCommandRequest } from "../../game-client.js";
 import type { AppThunk, RootState } from "../../app/store.js";
 import { normalizeSelectedSquare } from "../../game-rules-client.js";
 import type { GameCommandRequest, GameViewResponse, ServerGameSession, Side } from "../../game-types.js";
@@ -108,33 +108,6 @@ const sendSelectionClearingCommand = (
     await dispatch(sendCommand(partialCommand));
 };
 
-const runSeatManagementRequest = (
-    runRequest: () => Promise<{ data?: ServerGameSession; errorMessage?: string; status?: number }>,
-    fallbackMessage: string
-): AppThunk<Promise<void>> => async (dispatch, getState) => {
-    const gameId = getState().game.currentGameId;
-    if (!gameId || getState().game.isSubmitting) {
-        return;
-    }
-
-    dispatch(gameActions.commandStarted());
-    try {
-        const result = await runRequest();
-        if (result.data) {
-            dispatch(applyServerSession(result.data));
-            await dispatch(refreshCurrentGameView());
-            return;
-        }
-
-        dispatch(gameActions.feedbackMessageSet(result.errorMessage ?? fallbackMessage));
-        await dispatch(handleCommandAuthFailure(result.status));
-    } catch (error) {
-        dispatch(gameActions.feedbackMessageSet(getUserActionErrorMessage(error, fallbackMessage)));
-    } finally {
-        dispatch(gameActions.commandFinished());
-    }
-};
-
 export const createGame = (gameSlug: string): AppThunk<Promise<string | null>> => async (dispatch, getState) => {
     dispatch(gameActions.commandStarted());
 
@@ -208,7 +181,11 @@ export const sendCommand = (
     try {
         const result = await sendGameCommandRequest(currentGame, partialCommand);
         if (result.game) {
+            const shouldRefreshMetadata = requiresMetadataRefresh(currentGame, result.game);
             dispatch(applyServerSession(result.game));
+            if (shouldRefreshMetadata) {
+                await dispatch(refreshCurrentGameView());
+            }
             return;
         }
 
@@ -222,22 +199,15 @@ export const sendCommand = (
 };
 
 export const claimSide = (side: Side): AppThunk<Promise<void>> => async (dispatch, getState) => {
-    const gameId = getState().game.currentGameId;
-    if (!gameId) {
+    if (!getState().game.session) {
         return;
     }
 
-    await dispatch(
-        runSeatManagementRequest(
-            () => claimGameSide(gameId, { side }),
-            "Unable to claim that side right now."
-        )
-    );
+    await dispatch(sendCommand({ type: "claim-side", side }));
 };
 
 export const assignBotOpponent = (botId: string): AppThunk<Promise<void>> => async (dispatch, getState) => {
-    const gameId = getState().game.currentGameId;
-    if (!gameId || !getState().game.session) {
+    if (!getState().game.session) {
         return;
     }
 
@@ -247,12 +217,7 @@ export const assignBotOpponent = (botId: string): AppThunk<Promise<void>> => asy
         dispatch(gameActions.pendingBotAssignmentSet({ side: targetSide, botId }));
     }
 
-    await dispatch(
-        runSeatManagementRequest(
-            () => assignBotOpponentRequest(gameId, { botId }),
-            "Unable to assign that bot opponent right now."
-        )
-    );
+    await dispatch(sendCommand({ type: "assign-bot-opponent", botId }));
 };
 
 const createCommandThunk = (

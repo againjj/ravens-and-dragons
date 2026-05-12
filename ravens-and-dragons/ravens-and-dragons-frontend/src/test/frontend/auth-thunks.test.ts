@@ -25,7 +25,7 @@ const {
     fetchGameViewMock: vi.fn()
 }));
 
-vi.mock("../../main/frontend/game-client.js", () => ({
+vi.mock("@ravensanddragons/platform-frontend/api-client", () => ({
     deleteLocalAccountRequest: deleteLocalAccountRequestMock,
     fetchAuthSession: fetchAuthSessionMock,
     fetchLocalProfile: fetchLocalProfileMock,
@@ -33,7 +33,10 @@ vi.mock("../../main/frontend/game-client.js", () => ({
     loginRequest: loginRequestMock,
     logoutRequest: logoutRequestMock,
     signupRequest: signupRequestMock,
-    updateLocalProfileRequest: updateLocalProfileRequestMock,
+    updateLocalProfileRequest: updateLocalProfileRequestMock
+}));
+
+vi.mock("../../main/frontend/game-client.js", () => ({
     fetchGameView: fetchGameViewMock
 }));
 

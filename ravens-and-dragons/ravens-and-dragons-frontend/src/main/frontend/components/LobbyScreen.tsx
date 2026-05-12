@@ -1,6 +1,6 @@
 import { useState } from "react";
 
-import type { GameEntryIdentity } from "../game-entry.js";
+import type { GameEntryIdentity } from "@ravensanddragons/platform-frontend/game-entry";
 
 interface LobbyScreenProps {
     games: GameEntryIdentity[];

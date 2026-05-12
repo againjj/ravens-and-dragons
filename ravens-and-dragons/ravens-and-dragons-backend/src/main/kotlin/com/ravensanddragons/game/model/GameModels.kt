@@ -131,10 +131,6 @@ data class GameCommandRequest(
     val boardSize: Int? = null
 )
 
-data class ErrorResponse(
-    val message: String
-)
-
 enum class ViewerRole {
     anonymous,
     spectator,
@@ -172,8 +168,6 @@ data class GameViewResponse(
 )
 
 class InvalidCommandException(message: String) : RuntimeException(message)
-
-class GameNotFoundException(gameId: String) : RuntimeException("Game $gameId was not found.")
 
 class VersionConflictException(
     val latestGame: GameSession

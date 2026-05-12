@@ -2,8 +2,6 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-    assignBotOpponent,
-    claimGameSide,
     createGameSession,
     fetchAuthSession,
     fetchGameView,
@@ -132,22 +130,26 @@ test("fetchGameView returns auth-aware game metadata for a game id", async () =>
     assert.equal(calls[0], "/api/games/game-123/view");
 });
 
-test("assignBotOpponent posts to the dedicated bot-assignment endpoint", async () => {
+test("sendGameCommandRequest posts bot assignment through the command endpoint", async () => {
     let requestUrl = null;
     let requestBody = null;
 
-    const result = await assignBotOpponent("game-123", { botId: "random" }, async (url, init) => {
-        requestUrl = url;
-        requestBody = JSON.parse(init.body);
-        return {
-            ok: true,
-            json: async () => createGame(2)
-        };
-    });
+    const result = await sendGameCommandRequest(
+        { ...createGame(1), id: "game-123" },
+        { type: "assign-bot-opponent", botId: "random" },
+        async (url, init) => {
+            requestUrl = url;
+            requestBody = JSON.parse(init.body);
+            return {
+                ok: true,
+                json: async () => createGame(2)
+            };
+        }
+    );
 
-    assert.equal(requestUrl, "/api/games/game-123/assign-bot-opponent");
-    assert.deepEqual(requestBody, { botId: "random" });
-    assert.equal(result.data.version, 2);
+    assert.equal(requestUrl, "/api/games/game-123/commands");
+    assert.deepEqual(requestBody, { expectedVersion: 1, type: "assign-bot-opponent", botId: "random" });
+    assert.equal(result.game.version, 2);
 });
 
 test("fetchAuthSession returns the current auth session", async () => {
@@ -294,23 +296,27 @@ test("sendGameCommandRequest returns a fallback message for non-json failures", 
     assert.equal(result.errorMessage, defaultCommandErrorMessage);
 });
 
-test("claimGameSide posts the selected side to the claim endpoint", async () => {
+test("sendGameCommandRequest posts side claims through the command endpoint", async () => {
     let requestBody = null;
     let requestUrl = null;
 
-    const result = await claimGameSide("game-77", { side: "dragons" }, async (url, init) => {
-        requestUrl = url;
-        requestBody = JSON.parse(init.body);
-        return {
-            ok: true,
-            status: 200,
-            json: async () => createGame(8)
-        };
-    });
+    const result = await sendGameCommandRequest(
+        { ...createGame(7), id: "game-77" },
+        { type: "claim-side", side: "dragons" },
+        async (url, init) => {
+            requestUrl = url;
+            requestBody = JSON.parse(init.body);
+            return {
+                ok: true,
+                status: 200,
+                json: async () => createGame(8)
+            };
+        }
+    );
 
-    assert.equal(requestUrl, "/api/games/game-77/claim-side");
-    assert.deepEqual(requestBody, { side: "dragons" });
-    assert.equal(result.data.version, 8);
+    assert.equal(requestUrl, "/api/games/game-77/commands");
+    assert.deepEqual(requestBody, { expectedVersion: 7, type: "claim-side", side: "dragons" });
+    assert.equal(result.game.version, 8);
 });
 
 test("isSameServerGame only matches identical version and updatedAt values", () => {

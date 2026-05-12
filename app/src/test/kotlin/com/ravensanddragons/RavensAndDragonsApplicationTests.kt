@@ -49,10 +49,6 @@ class RavensAndDragonsApplicationTests(
                         "updated_at",
                         "last_accessed_at",
                         "lifecycle",
-                        "dragons_player_user_id",
-                        "ravens_player_user_id",
-                        "dragons_bot_id",
-                        "ravens_bot_id",
                         "created_by_user_id"
                     ),
                     module.persistence.platformMetadataFields
@@ -61,11 +57,8 @@ class RavensAndDragonsApplicationTests(
             {
                 assertEquals(
                     setOf(
-                        "snapshot_json",
-                        "undo_snapshots_json",
-                        "selected_rule_configuration_id",
-                        "selected_starting_side",
-                        "selected_board_size"
+                        "public_state_json",
+                        "private_state_json"
                     ),
                     module.persistence.opaquePayloadNames
                 )

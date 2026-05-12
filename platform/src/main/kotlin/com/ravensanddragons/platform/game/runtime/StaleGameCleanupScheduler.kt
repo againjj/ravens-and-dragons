@@ -1,10 +1,4 @@
-package com.ravensanddragons.game.session
-
-import com.ravensanddragons.game.bot.*
-import com.ravensanddragons.game.model.*
-import com.ravensanddragons.game.persistence.*
-import com.ravensanddragons.game.rules.*
-
+package com.ravensanddragons.platform.game.runtime
 
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component

@@ -212,7 +212,7 @@ class AuthControllerTest : AbstractGameControllerTestSupport() {
             jdbcTemplate.queryForObject("select count(*) from users where id = ?", Int::class.java, defaultTestUserId)
         )
 
-        val updatedGame = gameStore.get(game.id)?.session
+        val updatedGame = storedGameSession(game.id)
         assertNull(updatedGame?.dragonsPlayerUserId)
         assertEquals(alternateTestUserId, updatedGame?.ravensPlayerUserId)
         assertNull(updatedGame?.createdByUserId)

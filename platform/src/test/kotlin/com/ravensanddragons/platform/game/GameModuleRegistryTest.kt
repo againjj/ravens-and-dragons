@@ -46,7 +46,7 @@ class GameModuleRegistryTest {
             override val persistence: GameModulePersistenceContract = GameModulePersistenceContract(
                 migrationNamespace = slug,
                 platformMetadataFields = setOf("id"),
-                opaquePayloadNames = setOf("snapshot_json")
+                opaquePayloadNames = setOf("public_state_json")
             )
             override val smokeCheck: GameModuleSmokeCheck = GameModuleSmokeCheck(
                 browserEntryPath = "/$slug/create",

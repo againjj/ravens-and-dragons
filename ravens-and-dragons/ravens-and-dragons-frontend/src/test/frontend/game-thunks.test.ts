@@ -5,22 +5,16 @@ import { createGameDraftActions } from "../../main/frontend/features/game/create
 import { createAuthSession, createGameView, createSession } from "./fixtures.js";
 
 const {
-    assignBotOpponentMock,
-    claimGameSideMock,
     createGameSessionMock,
     fetchGameViewMock,
     sendGameCommandRequestMock
 } = vi.hoisted(() => ({
-    assignBotOpponentMock: vi.fn(),
-    claimGameSideMock: vi.fn(),
     createGameSessionMock: vi.fn(),
     fetchGameViewMock: vi.fn(),
     sendGameCommandRequestMock: vi.fn()
 }));
 
 vi.mock("../../main/frontend/game-client.js", () => ({
-    assignBotOpponent: assignBotOpponentMock,
-    claimGameSide: claimGameSideMock,
     createGameSession: createGameSessionMock,
     fetchGameView: fetchGameViewMock,
     sendGameCommandRequest: sendGameCommandRequestMock
@@ -30,8 +24,6 @@ import { assignBotOpponent, claimSide, createGame, openGame, returnToLobby, send
 
 describe("gameThunks", () => {
     beforeEach(() => {
-        assignBotOpponentMock.mockReset();
-        claimGameSideMock.mockReset();
         createGameSessionMock.mockReset();
         fetchGameViewMock.mockReset();
         sendGameCommandRequestMock.mockReset();
@@ -111,8 +103,8 @@ describe("gameThunks", () => {
     });
 
     test("claimSide refreshes the current game view after a successful claim", async () => {
-        claimGameSideMock.mockResolvedValue({
-            data: createSession({ id: "game-404", dragonsPlayerUserId: "player-dragons", ravensPlayerUserId: null })
+        sendGameCommandRequestMock.mockResolvedValue({
+            game: createSession({ id: "game-404", dragonsPlayerUserId: "player-dragons", ravensPlayerUserId: "player-ravens" })
         });
         fetchGameViewMock.mockResolvedValue(
             createGameView(
@@ -139,7 +131,10 @@ describe("gameThunks", () => {
 
         await store.dispatch(claimSide("ravens"));
 
-        expect(claimGameSideMock).toHaveBeenCalledWith("game-404", { side: "ravens" });
+        expect(sendGameCommandRequestMock).toHaveBeenCalledWith(
+            expect.objectContaining({ id: "game-404" }),
+            { type: "claim-side", side: "ravens" }
+        );
         expect(fetchGameViewMock).toHaveBeenCalledWith("game-404");
     });
 
@@ -182,8 +177,8 @@ describe("gameThunks", () => {
     });
 
     test("assignBotOpponent refreshes the current game view after a successful assignment", async () => {
-        assignBotOpponentMock.mockResolvedValue({
-            data: createSession({ id: "game-515", ravensBotId: "minimax", canUndo: false })
+        sendGameCommandRequestMock.mockResolvedValue({
+            game: createSession({ id: "game-515", ravensBotId: "minimax", canUndo: false })
         });
         fetchGameViewMock.mockResolvedValue(
             createGameView(
@@ -223,16 +218,19 @@ describe("gameThunks", () => {
 
         await store.dispatch(assignBotOpponent("minimax"));
 
-        expect(assignBotOpponentMock).toHaveBeenCalledWith("game-515", { botId: "minimax" });
+        expect(sendGameCommandRequestMock).toHaveBeenCalledWith(
+            expect.objectContaining({ id: "game-515" }),
+            { type: "assign-bot-opponent", botId: "minimax" }
+        );
         expect(fetchGameViewMock).toHaveBeenCalledWith("game-515");
     });
 
     test("assignBotOpponent marks the pending bot seat while the request is in flight", async () => {
         let resolveRequest: ((value: { data: ReturnType<typeof createSession> }) => void) | null = null;
-        assignBotOpponentMock.mockImplementation(
+        sendGameCommandRequestMock.mockImplementation(
             () =>
                 new Promise((resolve) => {
-                    resolveRequest = resolve as typeof resolveRequest;
+                    resolveRequest = resolve as unknown as typeof resolveRequest;
                 })
         );
         fetchGameViewMock.mockResolvedValue(
@@ -272,15 +270,15 @@ describe("gameThunks", () => {
         expect(store.getState().game.pendingBotAssignment).toEqual({ side: "ravens", botId: "simple" });
 
         resolveRequest?.({
-            data: createSession({ id: "game-516", ravensBotId: "simple", canUndo: false })
-        });
+            game: createSession({ id: "game-516", ravensBotId: "simple", canUndo: false })
+        } as unknown as { data: ReturnType<typeof createSession> });
         await pendingDispatch;
 
         expect(store.getState().game.pendingBotAssignment).toBeNull();
     });
 
     test("claimSide refreshes the game view after a 403 response without clearing OAuth providers", async () => {
-        claimGameSideMock.mockResolvedValue({
+        sendGameCommandRequestMock.mockResolvedValue({
             status: 403,
             errorMessage: "Seat already taken."
         });
@@ -334,7 +332,7 @@ describe("gameThunks", () => {
     });
 
     test("claimSide shows a server-down message when the claim request fails to reach the server", async () => {
-        claimGameSideMock.mockRejectedValue(new TypeError("Failed to fetch"));
+        sendGameCommandRequestMock.mockRejectedValue(new TypeError("Failed to fetch"));
         const store = createAppStore({
             game: {
                 view: "game",

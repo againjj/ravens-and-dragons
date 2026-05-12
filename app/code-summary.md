@@ -19,7 +19,7 @@ The app keeps the included-game list declarative by registering each game module
   - Enables scheduling.
   - Provides the UTC `Clock` bean.
   - Provides the `GameModuleRegistry` bean that currently registers `RavensAndDragonsGameModuleDefinition`.
-  - Derives `staleGameCleanupDelay` from `ravens-and-dragons.games.stale-threshold`.
+  - Derives `staleGameCleanupDelay` from `platform.games.stale-threshold`, with the previous Ravens-branded property still accepted by the platform runtime as a fallback.
 - `app/src/test/kotlin/com/ravensanddragons/RavensAndDragonsApplicationTests.kt`
   - Verifies the Spring application context loads.
   - Verifies default servlet session timeout and stale cleanup delay.

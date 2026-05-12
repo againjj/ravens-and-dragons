@@ -7,9 +7,9 @@ import {
     logoutRequest,
     signupRequest,
     updateLocalProfileRequest
-} from "../../game-client.js";
+} from "@ravensanddragons/platform-frontend/api-client";
 import type { AppThunk } from "../../app/store.js";
-import type { AuthSessionResponse, DeleteAccountRequest, LoginRequest, SignupRequest, UpdateProfileRequest } from "../../game-types.js";
+import type { AuthSessionResponse, DeleteAccountRequest, LoginRequest, SignupRequest, UpdateProfileRequest } from "@ravensanddragons/platform-frontend/auth-types";
 import { authActions } from "./authSlice.js";
 import { refreshCurrentGameView } from "../game/gameThunks.js";
 

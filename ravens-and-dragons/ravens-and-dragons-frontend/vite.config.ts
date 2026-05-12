@@ -2,6 +2,9 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
     root: "src/main/frontend",
+    resolve: {
+        dedupe: ["react", "react-dom"]
+    },
     build: {
         outDir: "../../../build/generated/frontend",
         emptyOutDir: true

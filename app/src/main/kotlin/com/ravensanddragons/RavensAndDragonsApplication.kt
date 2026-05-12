@@ -26,7 +26,7 @@ class RavensAndDragonsApplication {
 
     @Bean("staleGameCleanupDelay")
     fun staleGameCleanupDelay(
-        @Value("\${ravens-and-dragons.games.stale-threshold:1008h}")
+        @Value("\${platform.games.stale-threshold:\${ravens-and-dragons.games.stale-threshold:1008h}}")
         staleGameThreshold: Duration
     ): Duration =
         staleGameThreshold.dividedBy(10).takeIf { !it.isZero } ?: Duration.ofMillis(1)

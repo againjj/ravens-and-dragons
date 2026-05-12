@@ -1,7 +1,5 @@
 import type { ComponentType } from "react";
 
-import type { AppDispatch } from "./app/store.js";
-
 export interface GameEntryIdentity {
     slug: string;
     displayName: string;
@@ -18,7 +16,7 @@ export interface GameEntryComponents {
     PlayScreen: ComponentType;
 }
 
-export interface GameEntryLifecycle {
+export interface GameEntryLifecycle<AppDispatch = unknown> {
     useSession: () => void;
     startGame: (dispatch: AppDispatch, gameSlug: string) => Promise<string | null>;
     openGame: (dispatch: AppDispatch, gameId: string) => void;
@@ -27,11 +25,11 @@ export interface GameEntryLifecycle {
     clearCreateMode: (dispatch: AppDispatch) => void;
 }
 
-export interface GameEntry {
+export interface GameEntry<AppDispatch = unknown> {
     identity: GameEntryIdentity;
     routes: GameEntryRoutes;
     components: GameEntryComponents;
-    lifecycle: GameEntryLifecycle;
+    lifecycle: GameEntryLifecycle<AppDispatch>;
 }
 
-export const buildGameCreatePath = (gameSlug: string): string => `/${gameSlug}/create`;
+export declare const buildGameCreatePath: (gameSlug: string) => string;

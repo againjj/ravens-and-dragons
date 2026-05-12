@@ -3,7 +3,8 @@ import { useEffect, useMemo, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../app/hooks.js";
 import { selectAuthLoadState, selectCurrentUser, selectIsAuthenticated } from "../features/auth/authSelectors.js";
 import { selectGameView } from "../features/game/gameSelectors.js";
-import type { GameEntry } from "../game-entry.js";
+import type { GameEntry } from "@ravensanddragons/platform-frontend/game-entry";
+import type { AppDispatch } from "../app/store.js";
 
 export type AppPage = "login" | "lobby" | "create" | "game" | "profile" | "loading";
 
@@ -71,7 +72,7 @@ const parseRoute = (fullPath: string): ParsedRoute => {
     return { kind: "unknown", fullPath, gameId: null, gameSlug: null };
 };
 
-export const useGameRoute = (gameEntry: GameEntry): {
+export const useGameRoute = (gameEntry: GameEntry<AppDispatch>): {
     page: AppPage;
     navigateToLobby: (mode?: NavigationMode) => void;
     navigateToCreate: (gameSlug: string, mode?: NavigationMode) => void;

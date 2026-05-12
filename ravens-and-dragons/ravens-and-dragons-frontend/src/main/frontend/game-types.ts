@@ -1,9 +1,10 @@
+import type { AuthUserSummary } from "@ravensanddragons/platform-frontend/auth-types";
+
 export type Piece = "dragon" | "raven" | "gold";
 export type Side = "dragons" | "ravens";
 export type Phase = "none" | "move" | "capture";
 export type TurnType = "move" | "gameOver";
 export type GameLifecycle = "new" | "active" | "finished";
-export type AuthType = "guest" | "local" | "oauth";
 export type ViewerRole = "anonymous" | "spectator" | "dragons" | "ravens";
 
 export interface RuleDescriptionSection {
@@ -71,44 +72,6 @@ export interface ServerGameSession {
     createdByUserId?: string | null;
 }
 
-export interface AuthUserSummary {
-    id: string;
-    displayName: string;
-    authType: AuthType;
-}
-
-export interface AuthSessionResponse {
-    authenticated: boolean;
-    user: AuthUserSummary | null;
-    oauthProviders: string[];
-}
-
-export interface LocalProfileResponse {
-    id: string;
-    username: string;
-    displayName: string;
-}
-
-export interface LoginRequest {
-    username: string;
-    password: string;
-}
-
-export interface SignupRequest {
-    username: string;
-    password: string;
-    displayName: string;
-    email?: string;
-}
-
-export interface UpdateProfileRequest {
-    displayName: string;
-}
-
-export interface DeleteAccountRequest {
-    password: string;
-}
-
 export interface GamePlayerSummary {
     id: string;
     displayName: string;
@@ -158,19 +121,14 @@ export interface GameCommandRequest {
         | "capture-piece"
         | "skip-capture"
         | "undo"
-        | "end-game";
+        | "end-game"
+        | "claim-side"
+        | "assign-bot-opponent";
     square?: string;
     origin?: string;
     destination?: string;
     ruleConfigurationId?: string;
     side?: Side;
     boardSize?: number;
-}
-
-export interface ClaimSideRequest {
-    side: Side;
-}
-
-export interface AssignBotOpponentRequest {
-    botId: string;
+    botId?: string;
 }
