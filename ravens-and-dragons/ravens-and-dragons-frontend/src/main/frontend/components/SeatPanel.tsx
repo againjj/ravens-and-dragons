@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 
-import { useAppSelector } from "../app/hooks.js";
+import { useRavensAndDragonsSelector } from "../frontend-state.js";
 import {
     selectBotAssignmentModel,
     selectCanClaimDragons,
@@ -16,11 +16,11 @@ interface SeatPanelProps {
 }
 
 export const SeatPanel = ({ onAssignBotOpponent, onClaimDragons, onClaimRavens }: SeatPanelProps) => {
-    const dragonsPlayer = useAppSelector(selectDragonsPlayer);
-    const ravensPlayer = useAppSelector(selectRavensPlayer);
-    const { dragonsBot, ravensBot, availableBots, canAssign, targetSide } = useAppSelector(selectBotAssignmentModel);
-    const canClaimDragons = useAppSelector(selectCanClaimDragons);
-    const canClaimRavens = useAppSelector(selectCanClaimRavens);
+    const dragonsPlayer = useRavensAndDragonsSelector(selectDragonsPlayer);
+    const ravensPlayer = useRavensAndDragonsSelector(selectRavensPlayer);
+    const { dragonsBot, ravensBot, availableBots, canAssign, targetSide } = useRavensAndDragonsSelector(selectBotAssignmentModel);
+    const canClaimDragons = useRavensAndDragonsSelector(selectCanClaimDragons);
+    const canClaimRavens = useRavensAndDragonsSelector(selectCanClaimRavens);
     const [selectedBotId, setSelectedBotId] = useState<string>(availableBots[0]?.id ?? "");
 
     useEffect(() => {

@@ -1,7 +1,7 @@
 import { useRef, type CSSProperties } from "react";
 
 import { getBoardDimension, getColumnLetters } from "../board-geometry.js";
-import { useAppDispatch, useAppSelector } from "../app/hooks.js";
+import { useRavensAndDragonsDispatch, useRavensAndDragonsSelector } from "../frontend-state.js";
 import {
     selectCurrentGameId,
     selectCurrentRuleConfiguration,
@@ -26,12 +26,12 @@ import { RulesPanel } from "./RulesPanel.js";
 import { StatusBanner } from "./StatusBanner.js";
 
 export const GameScreen = () => {
-    const dispatch = useAppDispatch();
-    const currentGameId = useAppSelector(selectCurrentGameId);
-    const currentRuleConfiguration = useAppSelector(selectCurrentRuleConfiguration);
-    const feedbackMessage = useAppSelector(selectFeedbackMessage);
-    const snapshot = useAppSelector(selectSnapshot);
-    const statusText = useAppSelector(selectStatusText);
+    const dispatch = useRavensAndDragonsDispatch();
+    const currentGameId = useRavensAndDragonsSelector(selectCurrentGameId);
+    const currentRuleConfiguration = useRavensAndDragonsSelector(selectCurrentRuleConfiguration);
+    const feedbackMessage = useRavensAndDragonsSelector(selectFeedbackMessage);
+    const snapshot = useRavensAndDragonsSelector(selectSnapshot);
+    const statusText = useRavensAndDragonsSelector(selectStatusText);
     const boardShellRef = useRef<HTMLDivElement | null>(null);
     const boardDimension = getBoardDimension(snapshot);
     const columnLetters = getColumnLetters(boardDimension);

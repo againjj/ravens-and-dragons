@@ -1,6 +1,6 @@
 import type { CSSProperties } from "react";
 
-import { useAppDispatch, useAppSelector } from "../app/hooks.js";
+import { useRavensAndDragonsDispatch, useRavensAndDragonsSelector } from "../frontend-state.js";
 import { getBoardDimension, getRowNumbers, getSquareName, isHighlightedBoardSquare } from "../board-geometry.js";
 import { selectCanViewerAct, selectCapturableSquares, selectSelectedSquare, selectSnapshot, selectTargetableSquares } from "../features/game/gameSelectors.js";
 import { capturePiece, movePiece } from "../features/game/gameThunks.js";
@@ -215,12 +215,12 @@ export const BoardView = ({
 };
 
 export const Board = () => {
-    const dispatch = useAppDispatch();
-    const snapshot = useAppSelector(selectSnapshot);
-    const selectedSquare = useAppSelector(selectSelectedSquare);
-    const canViewerAct = useAppSelector(selectCanViewerAct);
-    const capturableSquares = useAppSelector(selectCapturableSquares);
-    const targetableSquares = useAppSelector(selectTargetableSquares);
+    const dispatch = useRavensAndDragonsDispatch();
+    const snapshot = useRavensAndDragonsSelector(selectSnapshot);
+    const selectedSquare = useRavensAndDragonsSelector(selectSelectedSquare);
+    const canViewerAct = useRavensAndDragonsSelector(selectCanViewerAct);
+    const capturableSquares = useRavensAndDragonsSelector(selectCapturableSquares);
+    const targetableSquares = useRavensAndDragonsSelector(selectTargetableSquares);
 
     return (
         <BoardView

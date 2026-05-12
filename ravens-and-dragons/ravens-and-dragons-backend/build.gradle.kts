@@ -132,13 +132,3 @@ val runMachineTraining by tasks.registering(JavaExec::class) {
         )
     }
 }
-
-val frontendProject = project(":ravens-and-dragons:ravens-and-dragons-frontend")
-val generatedFrontendDir = frontendProject.layout.buildDirectory.dir("generated/frontend")
-
-tasks.processResources {
-    dependsOn(":ravens-and-dragons:ravens-and-dragons-frontend:buildFrontend")
-    from(generatedFrontendDir) {
-        into("static")
-    }
-}

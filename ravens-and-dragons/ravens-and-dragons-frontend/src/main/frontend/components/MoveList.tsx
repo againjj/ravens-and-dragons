@@ -1,11 +1,11 @@
 import { useEffect, useRef } from "react";
 
-import { useAppSelector } from "../app/hooks.js";
+import { useRavensAndDragonsSelector } from "../frontend-state.js";
 import { selectSnapshot } from "../features/game/gameSelectors.js";
 import { getGroupedMoveHistoryRows, getGameOverHistoryLabel, getLatestGameOverTurn, getTurnHistoryRows } from "../move-history.js";
 
 export const MoveList = () => {
-    const snapshot = useAppSelector(selectSnapshot);
+    const snapshot = useRavensAndDragonsSelector(selectSnapshot);
     const turnHistoryRows = getTurnHistoryRows(snapshot?.turns ?? []);
     const moveRows = getGroupedMoveHistoryRows(turnHistoryRows);
     const gameOverTurn = snapshot ? getLatestGameOverTurn(snapshot.turns) : null;

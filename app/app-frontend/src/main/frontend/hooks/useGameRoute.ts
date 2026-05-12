@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { useAppDispatch, useAppSelector } from "../app/hooks.js";
 import { selectAuthLoadState, selectCurrentUser, selectIsAuthenticated } from "../features/auth/authSelectors.js";
-import { selectGameView } from "../features/game/gameSelectors.js";
+import { selectGameView } from "../../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/game/gameSelectors.js";
 import type { GameEntry } from "@ravensanddragons/platform-frontend/game-entry";
 import type { AppDispatch } from "../app/store.js";
 

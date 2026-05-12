@@ -2,6 +2,11 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
     root: "src/main/frontend",
+    server: {
+        fs: {
+            allow: ["../../.."]
+        }
+    },
     resolve: {
         dedupe: ["react", "react-dom"]
     },

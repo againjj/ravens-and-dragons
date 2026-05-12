@@ -24,7 +24,7 @@ const {
     sendGameCommandRequestMock: vi.fn()
 }));
 
-vi.mock("../../main/frontend/game-client.js", () => ({
+vi.mock("../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/game-client.js", () => ({
     createGameSession: createGameSessionMock,
     fetchGameView: fetchGameViewMock,
     sendGameCommandRequest: sendGameCommandRequestMock,
@@ -42,11 +42,11 @@ vi.mock("@ravensanddragons/platform-frontend/api-client", () => ({
     signupRequest: vi.fn()
 }));
 
-vi.mock("../../main/frontend/features/game/useGameSession.js", () => ({
+vi.mock("../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/game/useGameSession.js", () => ({
     useGameSession: () => undefined
 }));
 
-vi.mock("../../main/frontend/hooks/useBoardSizing.js", () => ({
+vi.mock("../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/hooks/useBoardSizing.js", () => ({
     useBoardSizing: () => undefined
 }));
 

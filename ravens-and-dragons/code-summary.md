@@ -18,7 +18,7 @@ The parent project has two child projects:
   - Uses Spring web/JDBC, Jackson Kotlin, Flyway, H2, and PostgreSQL.
   - Defines the `train` source set and `runMachineTraining` task.
   - Disables executable `bootJar`/`bootRun` because the runnable app lives in `app/`.
-  - Copies generated frontend assets into backend static resources during `processResources`.
+  - Leaves deployed frontend asset packaging to `app/`; this backend jar contains Ravens backend code and resources only.
 - `src/main/kotlin/com/ravensanddragons/game/RavensAndDragonsGameModuleDefinition.kt`
   - Ravens and Dragons implementation of the platform game module contract.
   - Records current `/ravens-and-dragons/create`, `/g/{gameId}`, and `/api/games/{gameSlug}` ownership.
@@ -54,15 +54,12 @@ The parent project has two child projects:
 - `ravens-and-dragons/ravens-and-dragons-frontend/build.gradle.kts`
   - Frontend build and test project using Gradle-managed Node/npm.
   - Depends on the local `@ravensanddragons/platform-frontend` package for shared frontend contracts and auth/browser helpers.
-- `src/main/frontend/index.html`
-  - Frontend HTML entry for the Vite build.
-- `src/main/frontend/App.tsx`
-  - Top-level React layout and shell composition.
-  - Renders the shared `Ayazian Games` header, scrollable page content area, and footer.
-  - Handles auth bootstrap plus switching between login, lobby, profile, and the registered game entry's create/active screens.
+  - Typechecks the Ravens frontend package; the deployed browser shell and Vite bundle now live under `app/app-frontend`.
 - `src/main/frontend/ravens-and-dragons-entry.ts`
   - Registers the current Ravens and Dragons frontend entry.
   - Wires `/{gameSlug}/create`, `/g/{gameId}`, `CreateGameScreen`, `GameScreen`, create-game submission, open-game loading, lobby return cleanup, create-draft state, and SSE lifecycle behavior into the shell contract.
+- `src/main/frontend/frontend-state.ts`
+  - Defines the host state and typed hooks needed by Ravens components without importing the app shell back into the game package.
 - `src/main/frontend/game-types.ts`
   - Ravens and Dragons frontend wire types, game DTOs, local create-draft state, and create-game request payload.
 - `src/main/frontend/board-geometry.ts`
@@ -74,15 +71,15 @@ The parent project has two child projects:
 - `src/main/frontend/game-client.ts`
   - Ravens and Dragons game REST command helpers, create-game submission, bot assignment, SSE subscription setup, and compatibility re-exports for shared auth API helpers.
 - `src/main/frontend/components/*.tsx`
-  - React components for the lobby, auth panel, local profile screen, active game screen, create screen, seat panel, board, controls, rules panel, move list, and status text.
+  - React components for Ravens game create/play UI, including board, controls, rules panel, seat panel, move list, and status text.
 - `src/main/frontend/features/game/*.ts`
   - Game Redux slice, selectors, thunks, create-draft state, bot-assignment derivation, and stream lifecycle wiring.
-- `src/main/frontend/features/auth/*.ts`
-  - Auth session slice, selectors, profile state, and guest/local auth thunks.
+- `src/main/frontend/features/host/*.ts`
+  - Small host integration adapters for generic auth state/actions needed by Ravens game metadata refreshes.
 - `src/main/frontend/features/ui/*.ts`
   - Browser-local UI state such as selected square.
 - `src/main/frontend/hooks/*.ts`
-  - Ravens frontend hooks for responsive board sizing and game-entry-aware URL route parsing. Shared browser hooks such as fullscreen live in `@ravensanddragons/platform-frontend`.
+  - Ravens frontend hooks for responsive board sizing. Shared browser hooks such as fullscreen live in `@ravensanddragons/platform-frontend`.
 
 ## Game Model
 

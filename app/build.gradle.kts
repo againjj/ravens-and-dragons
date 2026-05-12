@@ -58,3 +58,13 @@ tasks.withType<Test>().configureEach {
 tasks.withType<BootJar>().configureEach {
     archiveFileName.set("ravens-and-dragons.jar")
 }
+
+val appFrontendProject = project(":app:app-frontend")
+val generatedAppFrontendDir = appFrontendProject.layout.buildDirectory.dir("generated/frontend")
+
+tasks.processResources {
+    dependsOn(":app:app-frontend:buildFrontend")
+    from(generatedAppFrontendDir) {
+        into("static")
+    }
+}

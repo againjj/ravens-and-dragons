@@ -31,6 +31,7 @@ tasks.named("assemble") {
 tasks.named("check") {
     dependsOn(":platform:check")
     dependsOn(":ravens-and-dragons:check")
+    dependsOn(":app:app-frontend:check")
     dependsOn(":app:check")
 }
 
@@ -45,6 +46,7 @@ val testBackend by tasks.registering {
 val testFrontend by tasks.registering {
     group = LifecycleBasePlugin.VERIFICATION_GROUP
     description = "Runs frontend test suites for all service subprojects."
+    dependsOn(":app:app-frontend:test")
     dependsOn(":ravens-and-dragons:testFrontend")
 }
 

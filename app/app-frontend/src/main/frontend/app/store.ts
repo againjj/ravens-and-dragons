@@ -3,12 +3,12 @@ import type { ThunkAction, UnknownAction } from "@reduxjs/toolkit";
 
 import type { AuthState } from "../features/auth/authSlice.js";
 import { authReducer, initialAuthState } from "../features/auth/authSlice.js";
-import type { GameState } from "../features/game/gameSlice.js";
-import { gameReducer, initialGameState } from "../features/game/gameSlice.js";
-import type { CreateGameDraftState } from "../game-types.js";
-import { createGameDraftReducer, initialCreateGameDraftState } from "../features/game/createGameSlice.js";
-import type { UiState } from "../features/ui/uiSlice.js";
-import { initialUiState, uiReducer } from "../features/ui/uiSlice.js";
+import type { GameState } from "../../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/game/gameSlice.js";
+import { gameReducer, initialGameState } from "../../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/game/gameSlice.js";
+import type { CreateGameDraftState } from "../../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/game-types.js";
+import { createGameDraftReducer, initialCreateGameDraftState } from "../../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/game/createGameSlice.js";
+import type { UiState } from "../../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/ui/uiSlice.js";
+import { initialUiState, uiReducer } from "../../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/ui/uiSlice.js";
 
 const rootReducer = combineReducers({
     auth: authReducer,

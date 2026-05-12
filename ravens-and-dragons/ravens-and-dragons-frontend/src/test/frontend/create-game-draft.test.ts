@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { createAppStore } from "../../main/frontend/app/store.js";
+import { createAppStore } from "../../../../../app/app-frontend/src/main/frontend/app/store.js";
 import { createGameDraftActions } from "../../main/frontend/features/game/createGameSlice.js";
 import {
     selectCreateGameAvailableRuleConfigurations,

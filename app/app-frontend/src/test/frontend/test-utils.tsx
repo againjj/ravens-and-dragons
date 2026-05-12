@@ -2,7 +2,7 @@ import type { ReactElement } from "react";
 import { Provider } from "react-redux";
 import { render } from "@testing-library/react";
 
-import { createAppStore, type AppStore, type PreloadedAppState } from "../../../../../app/app-frontend/src/main/frontend/app/store.js";
+import { createAppStore, type AppStore, type PreloadedAppState } from "../../main/frontend/app/store.js";
 
 interface RenderWithStoreOptions {
     preloadedState?: PreloadedAppState;

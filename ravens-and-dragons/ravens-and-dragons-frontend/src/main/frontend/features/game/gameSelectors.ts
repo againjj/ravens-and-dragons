@@ -1,40 +1,40 @@
 import { createSelector } from "@reduxjs/toolkit";
 
-import type { RootState } from "../../app/store.js";
+import type { RavensAndDragonsHostState } from "../../frontend-state.js";
 import { getCapturableSquares, getTargetableSquares, normalizeSelectedSquare } from "../../game-rules-client.js";
 import type { BotSummary, RuleConfigurationSummary, Side } from "../../game-types.js";
 import { getGameOverStatusText, getLatestGameOverTurn } from "../../move-history.js";
-import { selectCurrentUser, selectIsAuthenticated } from "../auth/authSelectors.js";
+import { selectCurrentUser, selectIsAuthenticated } from "../host/hostAuthSelectors.js";
 
 const emptyRuleConfigurations: RuleConfigurationSummary[] = [];
 const emptyBots: BotSummary[] = [];
 const emptySquares: string[] = [];
 
-export const selectGameState = (state: RootState) => state.game;
-export const selectGameView = (state: RootState) => state.game.view;
-export const selectCurrentGameId = (state: RootState) => state.game.currentGameId;
-export const selectSnapshot = (state: RootState) => state.game.session?.snapshot ?? null;
-export const selectLifecycle = (state: RootState) => state.game.session?.lifecycle ?? null;
-export const selectViewerRole = (state: RootState) => state.game.viewerRole ?? "anonymous";
-export const selectDragonsPlayer = (state: RootState) => state.game.dragonsPlayer;
-export const selectRavensPlayer = (state: RootState) => state.game.ravensPlayer;
-export const selectDragonsBot = (state: RootState) => state.game.dragonsBot;
-export const selectRavensBot = (state: RootState) => state.game.ravensBot;
-export const selectAvailableBots = (state: RootState) => state.game.availableBots ?? emptyBots;
-const selectPendingBotAssignment = (state: RootState) => state.game.pendingBotAssignment;
-const selectDragonsPlayerUserId = (state: RootState) => state.game.session?.dragonsPlayerUserId ?? null;
-const selectRavensPlayerUserId = (state: RootState) => state.game.session?.ravensPlayerUserId ?? null;
-const selectDragonsBotId = (state: RootState) => state.game.session?.dragonsBotId ?? null;
-const selectRavensBotId = (state: RootState) => state.game.session?.ravensBotId ?? null;
-export const selectCanUndo = (state: RootState) => state.game.session?.canUndo ?? false;
-export const selectUndoOwnerSide = (state: RootState) => state.game.session?.undoOwnerSide ?? null;
-export const selectSelectedSquare = (state: RootState) => state.ui.selectedSquare;
-export const selectIsSubmitting = (state: RootState) => state.game.isSubmitting;
-export const selectIsLoadingGame = (state: RootState) => state.game.loadState === "loading";
-export const selectFeedbackMessage = (state: RootState) => state.game.feedbackMessage;
-const selectAvailableRuleConfigurations = (state: RootState) =>
+export const selectGameState = (state: RavensAndDragonsHostState) => state.game;
+export const selectGameView = (state: RavensAndDragonsHostState) => state.game.view;
+export const selectCurrentGameId = (state: RavensAndDragonsHostState) => state.game.currentGameId;
+export const selectSnapshot = (state: RavensAndDragonsHostState) => state.game.session?.snapshot ?? null;
+export const selectLifecycle = (state: RavensAndDragonsHostState) => state.game.session?.lifecycle ?? null;
+export const selectViewerRole = (state: RavensAndDragonsHostState) => state.game.viewerRole ?? "anonymous";
+export const selectDragonsPlayer = (state: RavensAndDragonsHostState) => state.game.dragonsPlayer;
+export const selectRavensPlayer = (state: RavensAndDragonsHostState) => state.game.ravensPlayer;
+export const selectDragonsBot = (state: RavensAndDragonsHostState) => state.game.dragonsBot;
+export const selectRavensBot = (state: RavensAndDragonsHostState) => state.game.ravensBot;
+export const selectAvailableBots = (state: RavensAndDragonsHostState) => state.game.availableBots ?? emptyBots;
+const selectPendingBotAssignment = (state: RavensAndDragonsHostState) => state.game.pendingBotAssignment;
+const selectDragonsPlayerUserId = (state: RavensAndDragonsHostState) => state.game.session?.dragonsPlayerUserId ?? null;
+const selectRavensPlayerUserId = (state: RavensAndDragonsHostState) => state.game.session?.ravensPlayerUserId ?? null;
+const selectDragonsBotId = (state: RavensAndDragonsHostState) => state.game.session?.dragonsBotId ?? null;
+const selectRavensBotId = (state: RavensAndDragonsHostState) => state.game.session?.ravensBotId ?? null;
+export const selectCanUndo = (state: RavensAndDragonsHostState) => state.game.session?.canUndo ?? false;
+export const selectUndoOwnerSide = (state: RavensAndDragonsHostState) => state.game.session?.undoOwnerSide ?? null;
+export const selectSelectedSquare = (state: RavensAndDragonsHostState) => state.ui.selectedSquare;
+export const selectIsSubmitting = (state: RavensAndDragonsHostState) => state.game.isSubmitting;
+export const selectIsLoadingGame = (state: RavensAndDragonsHostState) => state.game.loadState === "loading";
+export const selectFeedbackMessage = (state: RavensAndDragonsHostState) => state.game.feedbackMessage;
+const selectAvailableRuleConfigurations = (state: RavensAndDragonsHostState) =>
     state.game.session?.availableRuleConfigurations ?? emptyRuleConfigurations;
-const selectSelectedRuleConfigurationId = (state: RootState) =>
+const selectSelectedRuleConfigurationId = (state: RavensAndDragonsHostState) =>
     state.game.session?.selectedRuleConfigurationId ?? null;
 export const selectCurrentRuleConfiguration = createSelector(
     selectAvailableRuleConfigurations,

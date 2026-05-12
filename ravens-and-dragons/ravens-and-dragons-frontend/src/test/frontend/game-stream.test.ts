@@ -1,7 +1,7 @@
 import { waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, test, vi } from "vitest";
 
-import { createAppStore } from "../../main/frontend/app/store.js";
+import { createAppStore } from "../../../../../app/app-frontend/src/main/frontend/app/store.js";
 import { connectGameStream } from "../../main/frontend/features/game/gameStream.js";
 import { createAuthSession, createGameView, createSession } from "./fixtures.js";
 

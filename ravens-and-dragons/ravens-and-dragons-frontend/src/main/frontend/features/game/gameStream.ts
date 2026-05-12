@@ -1,9 +1,9 @@
 import { openGameStream } from "../../game-client.js";
-import type { AppDispatch } from "../../app/store.js";
+import type { RavensAndDragonsDispatch } from "../../frontend-state.js";
 import { gameActions } from "./gameSlice.js";
 import { applyServerSessionFromStream } from "./gameThunks.js";
 
-export const connectGameStream = (dispatch: AppDispatch, gameId: string): (() => void) =>
+export const connectGameStream = (dispatch: RavensAndDragonsDispatch, gameId: string): (() => void) =>
     openGameStream(
         (url) => new EventSource(url),
         gameId,

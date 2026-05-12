@@ -2,7 +2,7 @@ import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 
-import { createAppStore } from "../../main/frontend/app/store.js";
+import { createAppStore } from "../../../../../app/app-frontend/src/main/frontend/app/store.js";
 import { CreateGameScreen } from "../../main/frontend/components/CreateGameScreen.js";
 import { createGameDraftActions } from "../../main/frontend/features/game/createGameSlice.js";
 import { renderWithStore } from "./test-utils.js";

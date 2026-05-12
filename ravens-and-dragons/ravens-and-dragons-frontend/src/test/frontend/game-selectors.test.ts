@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { createAppStore } from "../../main/frontend/app/store.js";
+import { createAppStore } from "../../../../../app/app-frontend/src/main/frontend/app/store.js";
 import { gameActions } from "../../main/frontend/features/game/gameSlice.js";
 import {
     selectBotAssignmentModel,

@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "lib": ["DOM", "ES2020"],
+    "strict": true,
+    "outDir": "build/generated/frontend-test",
+    "allowSyntheticDefaultImports": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/main/frontend/**/*.ts",
+    "src/main/frontend/**/*.tsx",
+    "../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/**/*.ts",
+    "../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/**/*.tsx"
+  ]
+}

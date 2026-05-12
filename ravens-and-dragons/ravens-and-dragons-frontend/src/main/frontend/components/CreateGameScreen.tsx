@@ -1,7 +1,7 @@
 import { useRef, type CSSProperties } from "react";
 
 import { getBoardDimension, getColumnLetters } from "../board-geometry.js";
-import { useAppDispatch, useAppSelector } from "../app/hooks.js";
+import { useRavensAndDragonsDispatch, useRavensAndDragonsSelector } from "../frontend-state.js";
 import { BoardView } from "./Board.js";
 import { GameSetupControls } from "./GameSetupControls.js";
 import { RulesPanel } from "./RulesPanel.js";
@@ -24,16 +24,16 @@ interface CreateGameScreenProps {
 }
 
 export const CreateGameScreen = ({ gameName, onStartGame }: CreateGameScreenProps) => {
-    const dispatch = useAppDispatch();
-    const feedbackMessage = useAppSelector(selectFeedbackMessage);
-    const isSubmitting = useAppSelector(selectIsSubmitting);
-    const currentRuleConfiguration = useAppSelector(selectCreateGameCurrentRuleConfiguration);
-    const availableRuleConfigurations = useAppSelector(selectCreateGameAvailableRuleConfigurations);
-    const selectedRuleConfigurationId = useAppSelector(selectCreateGameSelectedRuleConfigurationId);
-    const selectedStartingSide = useAppSelector(selectCreateGameSelectedStartingSide);
-    const selectedBoardSize = useAppSelector(selectCreateGameSelectedBoardSize);
-    const snapshot = useAppSelector(selectCreateGameSnapshot);
-    const canEditBoard = useAppSelector(selectCreateGameCanEditBoard);
+    const dispatch = useRavensAndDragonsDispatch();
+    const feedbackMessage = useRavensAndDragonsSelector(selectFeedbackMessage);
+    const isSubmitting = useRavensAndDragonsSelector(selectIsSubmitting);
+    const currentRuleConfiguration = useRavensAndDragonsSelector(selectCreateGameCurrentRuleConfiguration);
+    const availableRuleConfigurations = useRavensAndDragonsSelector(selectCreateGameAvailableRuleConfigurations);
+    const selectedRuleConfigurationId = useRavensAndDragonsSelector(selectCreateGameSelectedRuleConfigurationId);
+    const selectedStartingSide = useRavensAndDragonsSelector(selectCreateGameSelectedStartingSide);
+    const selectedBoardSize = useRavensAndDragonsSelector(selectCreateGameSelectedBoardSize);
+    const snapshot = useRavensAndDragonsSelector(selectCreateGameSnapshot);
+    const canEditBoard = useRavensAndDragonsSelector(selectCreateGameCanEditBoard);
     const boardShellRef = useRef<HTMLDivElement | null>(null);
     const boardDimension = getBoardDimension(snapshot);
     const columnLetters = getColumnLetters(boardDimension);

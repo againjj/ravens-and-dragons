@@ -1,16 +1,16 @@
 import { createGameSession, fetchGameView, sendGameCommandRequest } from "../../game-client.js";
-import type { AppThunk, RootState } from "../../app/store.js";
+import type { RavensAndDragonsHostState, RavensAndDragonsThunk } from "../../frontend-state.js";
 import { normalizeSelectedSquare } from "../../game-rules-client.js";
 import type { GameCommandRequest, GameViewResponse, ServerGameSession, Side } from "../../game-types.js";
 import { buildCreateGameRequest } from "./createGameState.js";
 import { gameActions } from "./gameSlice.js";
 import { uiActions } from "../ui/uiSlice.js";
-import { authActions } from "../auth/authSlice.js";
+import { hostAuthSessionSet } from "../host/hostAuthActions.js";
 import { selectBotAssignmentModel } from "./gameSelectors.js";
 
 const serverUnavailableMessage = "The server is down. Please wait and try again later.";
 
-const resetSessionScopedUiState = (): AppThunk => (dispatch) => {
+const resetSessionScopedUiState = (): RavensAndDragonsThunk => (dispatch) => {
     dispatch(uiActions.selectedSquareSet(null));
 };
 
@@ -31,12 +31,12 @@ const getCreateGameErrorMessage = (error: unknown): string =>
             ? error.message
             : "Unable to create a new game right now.";
 
-const getOauthProviders = (getState: () => RootState): string[] => getState().auth.session.oauthProviders;
+const getOauthProviders = (getState: () => RavensAndDragonsHostState): string[] => getState().auth.session.oauthProviders;
 
-const applyFetchedGameView = (view: GameViewResponse): AppThunk => (dispatch, getState) => {
+const applyFetchedGameView = (view: GameViewResponse): RavensAndDragonsThunk => (dispatch, getState) => {
     dispatch(gameActions.gameViewUpdated(view));
     dispatch(
-        authActions.authSessionSet({
+        hostAuthSessionSet({
             authenticated: view.currentUser != null,
             user: view.currentUser,
             oauthProviders: getOauthProviders(getState)
@@ -45,7 +45,7 @@ const applyFetchedGameView = (view: GameViewResponse): AppThunk => (dispatch, ge
     dispatch(syncSelectedSquare());
 };
 
-const loadAndApplyGameView = (gameId: string): AppThunk<Promise<void>> => async (dispatch) => {
+const loadAndApplyGameView = (gameId: string): RavensAndDragonsThunk<Promise<void>> => async (dispatch) => {
     const view = await fetchGameView(gameId);
     dispatch(applyFetchedGameView(view));
 };
@@ -64,7 +64,7 @@ const requiresMetadataRefresh = (
 const loadGameViewForUserAction = (
     gameId: string,
     fallbackMessage: string
-): AppThunk<Promise<boolean>> => async (dispatch) => {
+): RavensAndDragonsThunk<Promise<boolean>> => async (dispatch) => {
     try {
         await dispatch(loadAndApplyGameView(gameId));
         return true;
@@ -75,10 +75,10 @@ const loadGameViewForUserAction = (
     }
 };
 
-const handleCommandAuthFailure = (status?: number): AppThunk<Promise<void>> => async (dispatch, getState) => {
+const handleCommandAuthFailure = (status?: number): RavensAndDragonsThunk<Promise<void>> => async (dispatch, getState) => {
     if (status === 401) {
         dispatch(
-            authActions.authSessionSet({
+            hostAuthSessionSet({
                 authenticated: false,
                 user: null,
                 oauthProviders: getOauthProviders(getState)
@@ -91,7 +91,7 @@ const handleCommandAuthFailure = (status?: number): AppThunk<Promise<void>> => a
     }
 };
 
-const syncSelectedSquare = (): AppThunk => (dispatch, getState) => {
+const syncSelectedSquare = (): RavensAndDragonsThunk => (dispatch, getState) => {
     const snapshot = getState().game.session?.snapshot;
     if (!snapshot) {
         dispatch(resetSessionScopedUiState());
@@ -103,12 +103,12 @@ const syncSelectedSquare = (): AppThunk => (dispatch, getState) => {
 
 const sendSelectionClearingCommand = (
     partialCommand: Omit<GameCommandRequest, "expectedVersion">
-): AppThunk<Promise<void>> => async (dispatch) => {
+): RavensAndDragonsThunk<Promise<void>> => async (dispatch) => {
     dispatch(resetSessionScopedUiState());
     await dispatch(sendCommand(partialCommand));
 };
 
-export const createGame = (gameSlug: string): AppThunk<Promise<string | null>> => async (dispatch, getState) => {
+export const createGame = (gameSlug: string): RavensAndDragonsThunk<Promise<string | null>> => async (dispatch, getState) => {
     dispatch(gameActions.commandStarted());
 
     try {
@@ -123,7 +123,7 @@ export const createGame = (gameSlug: string): AppThunk<Promise<string | null>> =
     }
 };
 
-export const openGame = (gameId: string): AppThunk<Promise<boolean>> => async (dispatch) => {
+export const openGame = (gameId: string): RavensAndDragonsThunk<Promise<boolean>> => async (dispatch) => {
     const trimmedGameId = gameId.trim();
     if (!trimmedGameId) {
         dispatch(gameActions.feedbackMessageSet("Enter a game ID to open a game."));
@@ -136,17 +136,17 @@ export const openGame = (gameId: string): AppThunk<Promise<boolean>> => async (d
     return dispatch(loadGameViewForUserAction(trimmedGameId, `Unable to open game "${trimmedGameId}".`));
 };
 
-export const returnToLobby = (): AppThunk => (dispatch) => {
+export const returnToLobby = (): RavensAndDragonsThunk => (dispatch) => {
     dispatch(resetSessionScopedUiState());
     dispatch(gameActions.returnedToLobby());
 };
 
-export const applyServerSession = (session: ServerGameSession): AppThunk => (dispatch) => {
+export const applyServerSession = (session: ServerGameSession): RavensAndDragonsThunk => (dispatch) => {
     dispatch(gameActions.sessionUpdated(session));
     dispatch(syncSelectedSquare());
 };
 
-export const applyServerSessionFromStream = (session: ServerGameSession): AppThunk<Promise<void>> => async (dispatch, getState) => {
+export const applyServerSessionFromStream = (session: ServerGameSession): RavensAndDragonsThunk<Promise<void>> => async (dispatch, getState) => {
     const previousSession = getState().game.session;
     dispatch(applyServerSession(session));
 
@@ -155,7 +155,7 @@ export const applyServerSessionFromStream = (session: ServerGameSession): AppThu
     }
 };
 
-export const refreshCurrentGameView = (): AppThunk<Promise<void>> => async (dispatch, getState) => {
+export const refreshCurrentGameView = (): RavensAndDragonsThunk<Promise<void>> => async (dispatch, getState) => {
     const currentGameId = getState().game.currentGameId;
     if (!currentGameId || getState().game.view !== "game") {
         return;
@@ -170,7 +170,7 @@ export const refreshCurrentGameView = (): AppThunk<Promise<void>> => async (disp
 
 export const sendCommand = (
     partialCommand: Omit<GameCommandRequest, "expectedVersion">
-): AppThunk<Promise<void>> => async (dispatch, getState) => {
+): RavensAndDragonsThunk<Promise<void>> => async (dispatch, getState) => {
     const currentGame = getState().game.session;
     if (!currentGame || getState().game.isSubmitting) {
         return;
@@ -198,7 +198,7 @@ export const sendCommand = (
     }
 };
 
-export const claimSide = (side: Side): AppThunk<Promise<void>> => async (dispatch, getState) => {
+export const claimSide = (side: Side): RavensAndDragonsThunk<Promise<void>> => async (dispatch, getState) => {
     if (!getState().game.session) {
         return;
     }
@@ -206,7 +206,7 @@ export const claimSide = (side: Side): AppThunk<Promise<void>> => async (dispatc
     await dispatch(sendCommand({ type: "claim-side", side }));
 };
 
-export const assignBotOpponent = (botId: string): AppThunk<Promise<void>> => async (dispatch, getState) => {
+export const assignBotOpponent = (botId: string): RavensAndDragonsThunk<Promise<void>> => async (dispatch, getState) => {
     if (!getState().game.session) {
         return;
     }
@@ -223,7 +223,7 @@ export const assignBotOpponent = (botId: string): AppThunk<Promise<void>> => asy
 const createCommandThunk = (
     partialCommand: Omit<GameCommandRequest, "expectedVersion">,
     options: { clearSelection?: boolean } = {}
-): AppThunk<Promise<void>> => async (dispatch) => {
+): RavensAndDragonsThunk<Promise<void>> => async (dispatch) => {
     if (options.clearSelection) {
         await dispatch(sendSelectionClearingCommand(partialCommand));
         return;
@@ -232,17 +232,17 @@ const createCommandThunk = (
     await dispatch(sendCommand(partialCommand));
 };
 
-export const endGame = (): AppThunk<Promise<void>> =>
+export const endGame = (): RavensAndDragonsThunk<Promise<void>> =>
     createCommandThunk({ type: "end-game" }, { clearSelection: true });
 
-export const skipCapture = (): AppThunk<Promise<void>> =>
+export const skipCapture = (): RavensAndDragonsThunk<Promise<void>> =>
     createCommandThunk({ type: "skip-capture" });
 
-export const undoMove = (): AppThunk<Promise<void>> =>
+export const undoMove = (): RavensAndDragonsThunk<Promise<void>> =>
     createCommandThunk({ type: "undo" }, { clearSelection: true });
 
-export const capturePiece = (square: string): AppThunk<Promise<void>> =>
+export const capturePiece = (square: string): RavensAndDragonsThunk<Promise<void>> =>
     createCommandThunk({ type: "capture-piece", square });
 
-export const movePiece = (origin: string, destination: string): AppThunk<Promise<void>> =>
+export const movePiece = (origin: string, destination: string): RavensAndDragonsThunk<Promise<void>> =>
     createCommandThunk({ type: "move-piece", origin, destination });

@@ -1,6 +1,6 @@
 import { createSelector } from "@reduxjs/toolkit";
 
-import type { RootState } from "../../app/store.js";
+import type { RavensAndDragonsHostState } from "../../frontend-state.js";
 import type { ServerGameSnapshot, Side } from "../../game-types.js";
 import {
     buildDraftSnapshot,
@@ -9,17 +9,17 @@ import {
     isDraftBoardEditable
 } from "./createGameState.js";
 
-export const selectCreateGameState = (state: RootState) => state.createGame;
-export const selectCreateGameIsActive = (state: RootState) => state.createGame.isActive;
+export const selectCreateGameState = (state: RavensAndDragonsHostState) => state.createGame;
+export const selectCreateGameIsActive = (state: RavensAndDragonsHostState) => state.createGame.isActive;
 export const selectCreateGameAvailableRuleConfigurations = createSelector(
     selectCreateGameState,
     () => createRuleConfigurations.map((ruleConfiguration) => ruleConfiguration.summary)
 );
-export const selectCreateGameSelectedRuleConfigurationId = (state: RootState) =>
+export const selectCreateGameSelectedRuleConfigurationId = (state: RavensAndDragonsHostState) =>
     state.createGame.selectedRuleConfigurationId;
-export const selectCreateGameSelectedStartingSide = (state: RootState): Side =>
+export const selectCreateGameSelectedStartingSide = (state: RavensAndDragonsHostState): Side =>
     state.createGame.selectedStartingSide;
-export const selectCreateGameSelectedBoardSize = (state: RootState) => state.createGame.selectedBoardSize;
+export const selectCreateGameSelectedBoardSize = (state: RavensAndDragonsHostState) => state.createGame.selectedBoardSize;
 export const selectCreateGameCanEditBoard = createSelector(
     selectCreateGameState,
     (createGameState) => isDraftBoardEditable(createGameState)

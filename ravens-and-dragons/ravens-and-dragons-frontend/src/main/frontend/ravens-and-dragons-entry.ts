@@ -4,7 +4,7 @@ import { createGameDraftActions } from "./features/game/createGameSlice.js";
 import { createGame, openGame, returnToLobby } from "./features/game/gameThunks.js";
 import { useGameSession } from "./features/game/useGameSession.js";
 import { buildGameCreatePath, type GameEntry } from "@ravensanddragons/platform-frontend/game-entry";
-import type { AppDispatch } from "./app/store.js";
+import type { RavensAndDragonsDispatch } from "./frontend-state.js";
 import { generatedGameIdPattern } from "./game-types.js";
 
 const playRoutePattern = /^\/g\/([^/]+)$/;
@@ -19,7 +19,7 @@ const matchPlayPath = (pathname: string): string | null => {
     return generatedGameIdPattern.test(gameId) ? gameId : null;
 };
 
-export const ravensAndDragonsGameEntry: GameEntry<AppDispatch> = {
+export const ravensAndDragonsGameEntry: GameEntry<RavensAndDragonsDispatch> = {
     identity: {
         slug: "ravens-and-dragons",
         displayName: "Ravens and Dragons"

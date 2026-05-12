@@ -1,11 +1,11 @@
 {
-  "name": "ravens-and-dragons-frontend",
+  "name": "app-frontend",
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && vite build",
     "dev": "vite",
-    "test": "node --test src/test/frontend/**/*.test.js && vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@ravensanddragons/platform-frontend": "file:../../platform/frontend",

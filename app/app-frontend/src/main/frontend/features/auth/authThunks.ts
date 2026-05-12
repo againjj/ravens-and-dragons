@@ -11,7 +11,7 @@ import {
 import type { AppThunk } from "../../app/store.js";
 import type { AuthSessionResponse, DeleteAccountRequest, LoginRequest, SignupRequest, UpdateProfileRequest } from "@ravensanddragons/platform-frontend/auth-types";
 import { authActions } from "./authSlice.js";
-import { refreshCurrentGameView } from "../game/gameThunks.js";
+import { refreshCurrentGameView } from "../../../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/game/gameThunks.js";
 
 const signedOutSession = (oauthProviders: string[]): AuthSessionResponse => ({
     authenticated: false,

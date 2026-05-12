@@ -8,21 +8,23 @@ import { StatusBanner } from "./components/StatusBanner.js";
 import {
     selectFeedbackMessage,
     selectIsLoadingGame
-} from "./features/game/gameSelectors.js";
-import { gameActions } from "./features/game/gameSlice.js";
+} from "../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/game/gameSelectors.js";
+import { gameActions } from "../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/game/gameSlice.js";
 import { continueAsGuest, loadAuthSession, login, logout, signup } from "./features/auth/authThunks.js";
 import type { GameEntry } from "@ravensanddragons/platform-frontend/game-entry";
 import { useFullscreen } from "@ravensanddragons/platform-frontend/hooks/useFullscreen";
 import type { AppDispatch } from "./app/store.js";
 import { useGameRoute } from "./hooks/useGameRoute.js";
 import { selectCurrentUser, selectIsAuthenticated } from "./features/auth/authSelectors.js";
-import { ravensAndDragonsGameEntry } from "./ravens-and-dragons-entry.js";
+import { ravensAndDragonsGameEntry } from "../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/ravens-and-dragons-entry.js";
 
 interface AppProps {
-    gameEntry?: GameEntry<AppDispatch>;
+    gameEntries?: GameEntry<AppDispatch>[];
 }
 
-export const App = ({ gameEntry = ravensAndDragonsGameEntry }: AppProps) => {
+const registeredGameEntries: GameEntry<AppDispatch>[] = [ravensAndDragonsGameEntry];
+
+export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
     const dispatch = useAppDispatch();
     const isAuthenticated = useAppSelector(selectIsAuthenticated);
     const currentUser = useAppSelector(selectCurrentUser);
@@ -30,22 +32,23 @@ export const App = ({ gameEntry = ravensAndDragonsGameEntry }: AppProps) => {
     const isLoadingGame = useAppSelector(selectIsLoadingGame);
     const pageRef = useRef<HTMLElement | null>(null);
     const { toggleFullscreen } = useFullscreen(pageRef);
-    const [selectedGameSlug, setSelectedGameSlug] = useState(gameEntry.identity.slug);
-    const gameEntries = useMemo(() => [gameEntry], [gameEntry]);
+    const activeGameEntry = gameEntries[0];
+    const [selectedGameSlug, setSelectedGameSlug] = useState(activeGameEntry.identity.slug);
     const gameEntriesBySlug = useMemo(
         () => new Map(gameEntries.map((entry) => [entry.identity.slug, entry])),
         [gameEntries]
     );
 
-    const { CreateScreen, PlayScreen } = gameEntry.components;
-    const useGameSessionLifecycle = gameEntry.lifecycle.useSession;
-    const { page, navigateToCreate, navigateToGame, navigateToLobby, navigateToProfile, createGameSlug } = useGameRoute(gameEntry);
+    const { PlayScreen } = activeGameEntry.components;
+    const useGameSessionLifecycle = activeGameEntry.lifecycle.useSession;
+    const { page, navigateToCreate, navigateToGame, navigateToLobby, navigateToProfile, createGameSlug } = useGameRoute(activeGameEntry);
     const showProfileButton = isAuthenticated && currentUser?.authType === "local" && page !== "profile";
     const showLobbyButton = isAuthenticated && page !== "lobby";
     const showLogoutButton = isAuthenticated && currentUser != null;
     useGameSessionLifecycle();
 
     const currentCreateGameEntry = createGameSlug ? gameEntriesBySlug.get(createGameSlug) ?? null : null;
+    const CurrentCreateScreen = currentCreateGameEntry?.components.CreateScreen ?? null;
     const selectedLobbyGameEntry = gameEntriesBySlug.get(selectedGameSlug) ?? gameEntries[0];
 
     useEffect(() => {
@@ -78,7 +81,7 @@ export const App = ({ gameEntry = ravensAndDragonsGameEntry }: AppProps) => {
 
     const handleStartGameFromCreate = (gameSlug: string) => {
         void (async () => {
-            const gameId = await gameEntry.lifecycle.startGame(dispatch, gameSlug);
+            const gameId = await (gameEntriesBySlug.get(gameSlug) ?? activeGameEntry).lifecycle.startGame(dispatch, gameSlug);
             if (gameId) {
                 navigateToGame(gameId);
             }
@@ -175,8 +178,8 @@ export const App = ({ gameEntry = ravensAndDragonsGameEntry }: AppProps) => {
                         }}
                     />
                 ) : page === "create" ? (
-                    currentCreateGameEntry ? (
-                        <CreateScreen
+                    currentCreateGameEntry && CurrentCreateScreen ? (
+                        <CurrentCreateScreen
                             gameName={currentCreateGameEntry.identity.displayName}
                             onStartGame={() => {
                                 handleStartGameFromCreate(currentCreateGameEntry.identity.slug);

@@ -1,4 +1,4 @@
-import { useAppSelector } from "../app/hooks.js";
+import { useRavensAndDragonsSelector } from "../frontend-state.js";
 import {
     selectCanViewerAct,
     selectCanViewerUndo,
@@ -20,13 +20,13 @@ export const ControlsPanel = ({
     onUndo,
     onSkipCapture
 }: ControlsPanelProps) => {
-    const snapshot = useAppSelector(selectSnapshot);
-    const canViewerAct = useAppSelector(selectCanViewerAct);
-    const canViewerUndo = useAppSelector(selectCanViewerUndo);
-    const hasBotSeat = useAppSelector(selectHasBotSeat);
-    const isSubmitting = useAppSelector(selectIsSubmitting);
-    const isFinishedGame = useAppSelector(selectIsFinishedGame);
-    const currentRuleConfiguration = useAppSelector(selectCurrentRuleConfiguration);
+    const snapshot = useRavensAndDragonsSelector(selectSnapshot);
+    const canViewerAct = useRavensAndDragonsSelector(selectCanViewerAct);
+    const canViewerUndo = useRavensAndDragonsSelector(selectCanViewerUndo);
+    const hasBotSeat = useRavensAndDragonsSelector(selectHasBotSeat);
+    const isSubmitting = useRavensAndDragonsSelector(selectIsSubmitting);
+    const isFinishedGame = useRavensAndDragonsSelector(selectIsFinishedGame);
+    const currentRuleConfiguration = useRavensAndDragonsSelector(selectCurrentRuleConfiguration);
     const disabled = !snapshot || isSubmitting || !canViewerAct;
     const phase = snapshot?.phase;
     const isActivePlay = phase === "move" || phase === "capture";

@@ -4,7 +4,7 @@
 
 This repository is a Spring Boot 3.3 + Kotlin 2.1 service that hosts a browser-based Ravens and Dragons board game. It is organized as a Gradle multi-project build with three top-level projects:
 
-- `app/`: runnable Spring Boot application and deployable jar assembly.
+- `app/`: runnable Spring Boot application, deployed frontend shell, and deployable jar assembly.
 - `platform/`: shared service infrastructure such as auth, web error handling, route fallback, the game module contract, and shared frontend package code.
 - `ravens-and-dragons/`: the Ravens and Dragons game module, including backend rules/APIs, frontend UI, bots, machine training, assets, and tests.
 
@@ -14,12 +14,12 @@ The runnable app now assembles Ravens and Dragons through a platform-owned game 
 
 The repository is structured so each game lives in its own sub-project. The current checkout contains one game module, Ravens and Dragons, and the app registers that module explicitly.
 
-The React app shell renders Ravens and Dragons through a frontend game entry contract supplied by the shared `@ravensanddragons/platform-frontend` package. The package also owns shared auth wire types, auth API helpers, and browser shell hooks that future frontend game bundles can reuse.
+The React app shell now lives under `app/app-frontend` and renders Ravens and Dragons through a frontend game entry contract supplied by the shared `@ravensanddragons/platform-frontend` package. The package also owns shared auth wire types, auth API helpers, and browser shell hooks that future frontend game bundles can reuse.
 
 ## Project Files
 
 - `settings.gradle.kts`
-  - Includes `:platform`, `:ravens-and-dragons`, `:ravens-and-dragons:ravens-and-dragons-backend`, `:ravens-and-dragons:ravens-and-dragons-frontend`, and `:app`.
+  - Includes `:platform`, `:ravens-and-dragons`, `:ravens-and-dragons:ravens-and-dragons-backend`, `:ravens-and-dragons:ravens-and-dragons-frontend`, `:app`, and `:app:app-frontend`.
 - `build.gradle.kts`
   - Owns shared plugin versions, repositories, aggregate lifecycle tasks, root convenience tasks, and deployment-facing jar copy behavior.
 - `AGENTS.md`

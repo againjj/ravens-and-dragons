@@ -36,7 +36,7 @@ vi.mock("@ravensanddragons/platform-frontend/api-client", () => ({
     updateLocalProfileRequest: updateLocalProfileRequestMock
 }));
 
-vi.mock("../../main/frontend/game-client.js", () => ({
+vi.mock("../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/game-client.js", () => ({
     fetchGameView: fetchGameViewMock
 }));
 
