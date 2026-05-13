@@ -21,6 +21,7 @@ kotlin {
 
 dependencies {
     implementation(project(":platform"))
+    implementation(project(":clicker:clicker-backend"))
     implementation(project(":ravens-and-dragons:ravens-and-dragons-backend"))
 
     implementation("org.springframework.boot:spring-boot-starter-web")

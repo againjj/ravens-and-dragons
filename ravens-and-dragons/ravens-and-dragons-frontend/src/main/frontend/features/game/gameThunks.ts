@@ -15,11 +15,8 @@ const resetSessionScopedUiState = (): RavensAndDragonsThunk => (dispatch) => {
 };
 
 const isServerUnavailableError = (error: unknown): boolean =>
-    error instanceof TypeError ||
-    (
-        error instanceof Error &&
-        /failed to fetch|networkerror|network request failed|load failed/i.test(error.message)
-    );
+    error instanceof Error &&
+    /failed to fetch|networkerror|network request failed|load failed/i.test(error.message);
 
 const getUserActionErrorMessage = (error: unknown, fallbackMessage: string): string =>
     isServerUnavailableError(error) ? serverUnavailableMessage : fallbackMessage;

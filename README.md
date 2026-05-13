@@ -1,10 +1,11 @@
 # Ravens and Dragons
 
-Ravens and Dragons is a Spring Boot and Kotlin web app for playing a browser-based board game with a React and Redux frontend. Games are stored in the app database, each game has its own URL, and connected players stay in sync through server-sent events.
+Ravens and Dragons is a Spring Boot and Kotlin web app for playing browser-based games with a React and Redux frontend. Games are stored in the app database, each game has its own URL, and connected players stay in sync through server-sent events.
 
 ## Highlights
 
 - Create a new game from a draft setup or open an existing game by ID
+- Play the included Clicker game, where a shared counter starts at `0` and the game ends at `10`
 - Use a shared `Ayazian Games` app shell with fixed header/footer chrome and scrollable page content
 - Play in the browser with live updates shared across tabs and clients
 - Persist games in the configured database so they survive app restarts
@@ -161,6 +162,9 @@ The stale-game eviction threshold defaults to six weeks, and the cleanup schedul
 
 - `app`: runnable Spring Boot application project that assembles the deployed jar and browser shell
 - `app/app-frontend`: app-owned React shell for auth, lobby, profile, routing, and game-entry registration
+- `clicker`: parent game module for the Clicker counter game
+- `clicker/clicker-backend`: Clicker game module definition, counter command handling, and JVM tests
+- `clicker/clicker-frontend`: Clicker frontend game entry, create/play UI, and frontend tests
 - `platform`: shared-service backend project for auth, OAuth provider metadata, route fallback, generic web exception handling, the game module contract, and opaque game runtime
 - `ravens-and-dragons`: parent game module that aggregates backend and frontend child projects
 - `ravens-and-dragons/ravens-and-dragons-backend`: Ravens and Dragons gameplay, game APIs, resources, JVM tests, and training code

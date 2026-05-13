@@ -1,5 +1,6 @@
 package com.ravensanddragons
 
+import com.ravensanddragons.clicker.ClickerGameModuleDefinition
 import com.ravensanddragons.game.RavensAndDragonsGameModuleDefinition
 import com.ravensanddragons.platform.game.GameModuleRegistry
 import org.springframework.beans.factory.annotation.Value
@@ -20,6 +21,7 @@ class RavensAndDragonsApplication {
     fun gameModuleRegistry(): GameModuleRegistry =
         GameModuleRegistry(
             listOf(
+                ClickerGameModuleDefinition,
                 RavensAndDragonsGameModuleDefinition
             )
         )

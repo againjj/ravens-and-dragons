@@ -1,15 +1,19 @@
+import { useState } from "react";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { App } from "../../main/frontend/App.js";
+import type { AppDispatch } from "../../main/frontend/app/store.js";
 import { createGameView } from "./fixtures.js";
 import { renderWithStore } from "./test-utils.js";
+import type { GameEntry } from "@ravensanddragons/platform-frontend/game-entry";
 
 const {
     fetchAuthSessionMock,
     createGameSessionMock,
     fetchGameViewMock,
+    fetchGameMetadataMock,
     fetchLocalProfileMock,
     loginAsGuestMock,
     logoutRequestMock,
@@ -18,6 +22,7 @@ const {
     fetchAuthSessionMock: vi.fn(),
     createGameSessionMock: vi.fn(),
     fetchGameViewMock: vi.fn(),
+    fetchGameMetadataMock: vi.fn(),
     fetchLocalProfileMock: vi.fn(),
     loginAsGuestMock: vi.fn(),
     logoutRequestMock: vi.fn(),
@@ -56,11 +61,48 @@ vi.mock("@ravensanddragons/platform-frontend/hooks/useFullscreen", () => ({
     })
 }));
 
+const makeTestGameEntry = (
+    slug: string,
+    displayName: string,
+    useSession: () => void
+): GameEntry<AppDispatch> => ({
+    identity: {
+        slug,
+        displayName
+    },
+    routes: {
+        createPath: `/${slug}/create`,
+        buildPlayPath: (gameId) => `/g/${encodeURIComponent(gameId)}`,
+        matchPlayPath: () => null
+    },
+    components: {
+        CreateScreen: ({ gameName }) => (
+            <section>
+                <h1>{gameName}</h1>
+            </section>
+        ),
+        PlayScreen: () => (
+            <section>
+                <h1>{displayName} game</h1>
+            </section>
+        )
+    },
+    lifecycle: {
+        useSession,
+        startGame: async () => null,
+        openGame: () => undefined,
+        returnToLobby: () => undefined,
+        enterCreateMode: () => undefined,
+        clearCreateMode: () => undefined
+    }
+});
+
 describe("App routing", () => {
     beforeEach(() => {
         fetchAuthSessionMock.mockReset();
         createGameSessionMock.mockReset();
         fetchGameViewMock.mockReset();
+        fetchGameMetadataMock.mockReset();
         fetchLocalProfileMock.mockReset();
         loginAsGuestMock.mockReset();
         logoutRequestMock.mockReset();
@@ -83,10 +125,16 @@ describe("App routing", () => {
             username: "player-dragons",
             displayName: "Dragon Player"
         });
+        fetchGameMetadataMock.mockResolvedValue({
+            ok: true,
+            json: async () => ({ gameSlug: "ravens-and-dragons" })
+        });
+        vi.stubGlobal("fetch", fetchGameMetadataMock);
         window.history.pushState({}, "", "/");
     });
 
     afterEach(() => {
+        vi.unstubAllGlobals();
         window.history.pushState({}, "", "/");
     });
 
@@ -116,6 +164,72 @@ describe("App routing", () => {
         expect(window.location.pathname).toBe("/g/CFGHJMP");
         expect(pushStateSpy).toHaveBeenCalledWith({}, "", "/g/CFGHJMP");
         pushStateSpy.mockRestore();
+    });
+
+    test("login redirects to a Clicker game by resolving the game route before opening it", async () => {
+        const user = userEvent.setup();
+        const ravensOpenGame = vi.fn();
+        const clickerOpenGame = vi.fn();
+        const ravensGame = makeTestGameEntry("ravens-and-dragons", "Ravens and Dragons", () => undefined);
+        const clickerGame = makeTestGameEntry("clicker", "Clicker", () => undefined);
+        ravensGame.lifecycle.openGame = ravensOpenGame;
+        clickerGame.lifecycle.openGame = clickerOpenGame;
+        fetchGameMetadataMock.mockResolvedValue({
+            ok: true,
+            json: async () => ({ gameSlug: "clicker" })
+        });
+        window.history.pushState({}, "", "/g/9W5RJHQ");
+
+        renderWithStore(<App gameEntries={[ravensGame, clickerGame]} />);
+
+        await screen.findByRole("button", { name: "Continue as Guest" });
+        expect(window.location.pathname).toBe("/login");
+
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "guest-1",
+                displayName: "Guest 1",
+                authType: "guest"
+            }
+        });
+
+        await user.click(screen.getByRole("button", { name: "Continue as Guest" }));
+
+        await waitFor(() => {
+            expect(clickerOpenGame).toHaveBeenCalledWith(expect.anything(), "9W5RJHQ");
+        });
+        expect(clickerOpenGame).toHaveBeenCalledTimes(1);
+        expect(ravensOpenGame).not.toHaveBeenCalled();
+        expect(window.location.pathname).toBe("/g/9W5RJHQ");
+        expect(screen.getByRole("heading", { name: "Clicker game" })).toBeInTheDocument();
+    });
+
+    test("unknown game routes return to the lobby without opening the default game", async () => {
+        const ravensOpenGame = vi.fn();
+        const ravensGame = makeTestGameEntry("ravens-and-dragons", "Ravens and Dragons", () => undefined);
+        ravensGame.lifecycle.openGame = ravensOpenGame;
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "player-dragons",
+                displayName: "Dragon Player",
+                authType: "local"
+            }
+        });
+        fetchGameMetadataMock.mockResolvedValue({
+            ok: false,
+            status: 404,
+            json: async () => ({ message: "Game not found." })
+        });
+        window.history.pushState({}, "", "/g/MISSING");
+
+        renderWithStore(<App gameEntries={[ravensGame]} />);
+
+        await screen.findByRole("heading", { name: "Game Lobby" });
+        expect(window.location.pathname).toBe("/lobby");
+        expect(ravensOpenGame).not.toHaveBeenCalled();
+        expect(screen.queryByRole("heading", { name: "Ravens and Dragons game" })).not.toBeInTheDocument();
     });
 
     test("unauthenticated users loading /ravens-and-dragons/create are redirected to /login and then back after login", async () => {
@@ -490,6 +604,57 @@ describe("App routing", () => {
             expect(window.location.pathname).toBe("/ravens-and-dragons/create");
         });
         expect(await screen.findByRole("heading", { name: "Create game: Ravens and Dragons", level: 1 })).toBeInTheDocument();
+    });
+
+    test("selecting Clicker from the lobby opens the Clicker create route", async () => {
+        const user = userEvent.setup();
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "player-dragons",
+                displayName: "Dragon Player",
+                authType: "local"
+            }
+        });
+        window.history.pushState({}, "", "/lobby");
+
+        renderWithStore(<App />);
+
+        await screen.findByRole("heading", { name: "Game Lobby" });
+        await user.selectOptions(screen.getByLabelText("Game"), "clicker");
+        await user.click(screen.getByRole("button", { name: "Create Game" }));
+
+        await waitFor(() => {
+            expect(window.location.pathname).toBe("/clicker/create");
+        });
+        expect(screen.getByRole("button", { name: "Start" })).toBeInTheDocument();
+    });
+
+    test("selecting a game with a different session lifecycle keeps the lobby mounted", async () => {
+        const user = userEvent.setup();
+        const statefulGame = makeTestGameEntry("stateful-game", "Stateful Game", () => {
+            useState(0);
+        });
+        const noHookGame = makeTestGameEntry("no-hook-game", "No Hook Game", () => undefined);
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "player-dragons",
+                displayName: "Dragon Player",
+                authType: "local"
+            }
+        });
+        window.history.pushState({}, "", "/lobby");
+
+        renderWithStore(<App gameEntries={[statefulGame, noHookGame]} />);
+
+        await screen.findByRole("heading", { name: "Game Lobby" });
+        expect(screen.getByLabelText("Game")).toHaveValue("stateful-game");
+        await user.selectOptions(screen.getByLabelText("Game"), "no-hook-game");
+
+        expect(screen.getByRole("heading", { name: "Game Lobby" })).toBeInTheDocument();
+        expect(screen.getByLabelText("Game")).toHaveValue("no-hook-game");
+        expect(screen.getByRole("button", { name: "Create Game" })).toBeEnabled();
     });
 
     test("browser back from a lobby-opened game returns to /lobby", async () => {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { useAppDispatch, useAppSelector } from "../app/hooks.js";
 import { selectAuthLoadState, selectCurrentUser, selectIsAuthenticated } from "../features/auth/authSelectors.js";
@@ -16,6 +16,10 @@ interface ParsedRoute {
     fullPath: string;
     gameId: string | null;
     gameSlug: string | null;
+}
+
+interface RouteGameMetadata {
+    gameSlug?: string;
 }
 
 const createRoutePattern = /^\/([a-z0-9]+(?:-[a-z0-9]+)*)\/create$/;
@@ -72,7 +76,11 @@ const parseRoute = (fullPath: string): ParsedRoute => {
     return { kind: "unknown", fullPath, gameId: null, gameSlug: null };
 };
 
-export const useGameRoute = (gameEntry: GameEntry<AppDispatch>): {
+export const useGameRoute = (
+    gameEntries: GameEntry<AppDispatch>[],
+    gameEntry: GameEntry<AppDispatch>,
+    setActiveGameSlug: (gameSlug: string) => void
+): {
     page: AppPage;
     navigateToLobby: (mode?: NavigationMode) => void;
     navigateToCreate: (gameSlug: string, mode?: NavigationMode) => void;
@@ -86,7 +94,13 @@ export const useGameRoute = (gameEntry: GameEntry<AppDispatch>): {
     const currentUser = useAppSelector(selectCurrentUser);
     const view = useAppSelector(selectGameView);
     const [locationPath, setLocationPath] = useState(getCurrentLocationPath);
+    const [resolvingGameRouteId, setResolvingGameRouteId] = useState<string | null>(null);
+    const openedRouteGameIdRef = useRef<string | null>(null);
     const currentRoute = useMemo(() => parseRoute(locationPath), [locationPath]);
+    const gameEntriesBySlug = useMemo(
+        () => new Map(gameEntries.map((entry) => [entry.identity.slug, entry])),
+        [gameEntries]
+    );
 
     const clearActiveGameView = () => {
         gameEntry.lifecycle.returnToLobby(dispatch);
@@ -106,12 +120,16 @@ export const useGameRoute = (gameEntry: GameEntry<AppDispatch>): {
     };
 
     const navigateToLobby = (mode: NavigationMode = "push") => {
+        openedRouteGameIdRef.current = null;
+        setResolvingGameRouteId(null);
         clearCreateDraft();
         clearActiveGameView();
         updateRoutePath("/lobby", mode);
     };
 
     const navigateToCreate = (gameSlug: string, mode: NavigationMode = "push") => {
+        openedRouteGameIdRef.current = null;
+        setResolvingGameRouteId(null);
         clearActiveGameView();
         clearCreateDraft();
         enterCreateDraft();
@@ -119,6 +137,8 @@ export const useGameRoute = (gameEntry: GameEntry<AppDispatch>): {
     };
 
     const navigateToProfile = (mode: NavigationMode = "push") => {
+        openedRouteGameIdRef.current = null;
+        setResolvingGameRouteId(null);
         clearCreateDraft();
         clearActiveGameView();
         updateRoutePath("/profile", mode);
@@ -130,11 +150,54 @@ export const useGameRoute = (gameEntry: GameEntry<AppDispatch>): {
     ) => {
         const trimmedGameId = gameId.trim();
         const targetPath = gameEntry.routes.buildPlayPath(trimmedGameId);
+        openedRouteGameIdRef.current = trimmedGameId;
+        setResolvingGameRouteId(null);
         clearCreateDraft();
         updateRoutePath(targetPath, options.mode ?? "push");
         if (options.loadGame ?? true) {
             gameEntry.lifecycle.openGame(dispatch, trimmedGameId);
         }
+    };
+
+    const resolveGameEntryForGameId = async (gameId: string): Promise<GameEntry<AppDispatch> | null> => {
+        try {
+            const response = await fetch(`/api/games/${encodeURIComponent(gameId)}`);
+            if (response.ok) {
+                const game = await response.json() as RouteGameMetadata;
+                const resolvedEntry = game.gameSlug ? gameEntriesBySlug.get(game.gameSlug) : null;
+                if (resolvedEntry) {
+                    return resolvedEntry;
+                }
+            }
+        } catch {
+            // Treat metadata fetch failures as an unresolved game route.
+        }
+        return null;
+    };
+
+    const openRouteGame = (gameId: string, mode?: NavigationMode) => {
+        const trimmedGameId = gameId.trim();
+        if (openedRouteGameIdRef.current === trimmedGameId) {
+            return;
+        }
+        const targetPath = gameEntry.routes.buildPlayPath(trimmedGameId);
+        clearCreateDraft();
+        if (mode) {
+            updateRoutePath(targetPath, mode);
+        }
+        setResolvingGameRouteId(trimmedGameId);
+        void resolveGameEntryForGameId(gameId).then((entry) => {
+            if (!entry) {
+                clearActiveGameView();
+                setResolvingGameRouteId(null);
+                updateRoutePath("/lobby", "replace");
+                return;
+            }
+            setActiveGameSlug(entry.identity.slug);
+            entry.lifecycle.openGame(dispatch, gameId);
+            openedRouteGameIdRef.current = trimmedGameId;
+            setResolvingGameRouteId(null);
+        });
     };
 
     useEffect(() => {
@@ -161,7 +224,7 @@ export const useGameRoute = (gameEntry: GameEntry<AppDispatch>): {
                 const targetPath = getLoginRedirectPath();
                 const targetRoute = parseRoute(targetPath);
                 if (targetRoute.kind === "game" && targetRoute.gameId) {
-                    navigateToGame(targetRoute.gameId, { mode: "push" });
+                    openRouteGame(targetRoute.gameId, "push");
                 } else if (targetRoute.kind === "create") {
                     navigateToCreate(targetRoute.gameSlug ?? "ravens-and-dragons", "push");
                 } else if (targetRoute.kind === "profile") {
@@ -183,7 +246,7 @@ export const useGameRoute = (gameEntry: GameEntry<AppDispatch>): {
                 case "game":
                     clearCreateDraft();
                     if (route.gameId) {
-                        gameEntry.lifecycle.openGame(dispatch, route.gameId);
+                        openRouteGame(route.gameId);
                     }
                     return;
                 case "lobby":
@@ -209,7 +272,7 @@ export const useGameRoute = (gameEntry: GameEntry<AppDispatch>): {
         return () => {
             window.removeEventListener("popstate", syncFromLocation);
         };
-    }, [authLoadState, currentUser?.authType, dispatch, gameEntry, isAuthenticated]);
+    }, [authLoadState, currentUser?.authType, dispatch, gameEntry, gameEntriesBySlug, isAuthenticated]);
 
     const page = useMemo<AppPage>(() => {
         if (authLoadState === "idle" || authLoadState === "loading") {
@@ -221,14 +284,20 @@ export const useGameRoute = (gameEntry: GameEntry<AppDispatch>): {
         if (locationPath.startsWith("/login")) {
             return "loading";
         }
+        if (currentRoute.kind === "game" && currentRoute.gameId === resolvingGameRouteId) {
+            return "loading";
+        }
         if (locationPath === "/profile") {
             return "profile";
         }
         if (currentRoute.kind === "create") {
             return "create";
         }
+        if (currentRoute.kind === "game") {
+            return "game";
+        }
         return view === "game" ? "game" : "lobby";
-    }, [authLoadState, currentRoute.kind, isAuthenticated, locationPath, view]);
+    }, [authLoadState, currentRoute.gameId, currentRoute.kind, isAuthenticated, locationPath, resolvingGameRouteId, view]);
 
     return {
         page,

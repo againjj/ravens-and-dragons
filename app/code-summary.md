@@ -10,7 +10,7 @@ The app keeps the included-game list declarative by registering each game module
 
 - `app/build.gradle.kts`
   - Applies Spring Boot and Kotlin plugins.
-  - Depends directly on `:platform` and `:ravens-and-dragons:ravens-and-dragons-backend`.
+  - Depends directly on `:platform`, `:clicker:clicker-backend`, and `:ravens-and-dragons:ravens-and-dragons-backend`.
   - Configures Java 21 for Kotlin, JavaExec, and tests.
   - Copies the app-owned Vite frontend bundle from `:app:app-frontend` into Spring Boot static resources during `processResources`.
   - Keeps `bootRun` working from the repository root.
@@ -20,6 +20,7 @@ The app keeps the included-game list declarative by registering each game module
   - Produces the static frontend bundle consumed by `app:processResources`.
 - `app/app-frontend/src/main/frontend/App.tsx`
   - Owns the shared browser shell, auth bootstrap, lobby/profile/login routing, fullscreen action, and game-entry selection for create/play screens.
+  - Registers the Clicker and Ravens and Dragons frontend entries for the lobby.
 - `app/app-frontend/src/main/frontend/app/store.ts`
   - Assembles the Redux store from app-owned auth state plus the registered game frontend reducers.
 - `app/app-frontend/src/main/frontend/features/auth/*.ts`
@@ -28,12 +29,12 @@ The app keeps the included-game list declarative by registering each game module
   - Spring Boot entrypoint.
   - Enables scheduling.
   - Provides the UTC `Clock` bean.
-  - Provides the `GameModuleRegistry` bean that currently registers `RavensAndDragonsGameModuleDefinition`.
+  - Provides the `GameModuleRegistry` bean that currently registers `ClickerGameModuleDefinition` and `RavensAndDragonsGameModuleDefinition`.
   - Derives `staleGameCleanupDelay` from `platform.games.stale-threshold`, with the previous Ravens-branded property still accepted by the platform runtime as a fallback.
 - `app/src/test/kotlin/com/ravensanddragons/RavensAndDragonsApplicationTests.kt`
   - Verifies the Spring application context loads.
   - Verifies default servlet session timeout and stale cleanup delay.
-  - Verifies the assembled app registers the Ravens and Dragons game module with the expected routes and persistence boundary metadata.
+  - Verifies the assembled app registers the Clicker and Ravens and Dragons game modules with the expected routes and persistence boundary metadata.
 
 ## Responsibilities
 

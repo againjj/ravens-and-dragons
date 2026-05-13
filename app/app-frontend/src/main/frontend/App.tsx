@@ -16,13 +16,20 @@ import { useFullscreen } from "@ravensanddragons/platform-frontend/hooks/useFull
 import type { AppDispatch } from "./app/store.js";
 import { useGameRoute } from "./hooks/useGameRoute.js";
 import { selectCurrentUser, selectIsAuthenticated } from "./features/auth/authSelectors.js";
+import { clickerGameEntry } from "../../../../../clicker/clicker-frontend/src/main/frontend/clicker-entry.js";
 import { ravensAndDragonsGameEntry } from "../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/ravens-and-dragons-entry.js";
 
 interface AppProps {
     gameEntries?: GameEntry<AppDispatch>[];
 }
 
-const registeredGameEntries: GameEntry<AppDispatch>[] = [ravensAndDragonsGameEntry];
+const registeredGameEntries: GameEntry<AppDispatch>[] = [ravensAndDragonsGameEntry, clickerGameEntry];
+
+const useGameSessionLifecycles = (gameEntries: GameEntry<AppDispatch>[]) => {
+    gameEntries.forEach((entry) => {
+        entry.lifecycle.useSession();
+    });
+};
 
 export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
     const dispatch = useAppDispatch();
@@ -32,20 +39,23 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
     const isLoadingGame = useAppSelector(selectIsLoadingGame);
     const pageRef = useRef<HTMLElement | null>(null);
     const { toggleFullscreen } = useFullscreen(pageRef);
-    const activeGameEntry = gameEntries[0];
-    const [selectedGameSlug, setSelectedGameSlug] = useState(activeGameEntry.identity.slug);
+    const [selectedGameSlug, setSelectedGameSlug] = useState(gameEntries[0].identity.slug);
     const gameEntriesBySlug = useMemo(
         () => new Map(gameEntries.map((entry) => [entry.identity.slug, entry])),
         [gameEntries]
     );
+    const activeGameEntry = gameEntriesBySlug.get(selectedGameSlug) ?? gameEntries[0];
 
     const { PlayScreen } = activeGameEntry.components;
-    const useGameSessionLifecycle = activeGameEntry.lifecycle.useSession;
-    const { page, navigateToCreate, navigateToGame, navigateToLobby, navigateToProfile, createGameSlug } = useGameRoute(activeGameEntry);
+    const { page, navigateToCreate, navigateToGame, navigateToLobby, navigateToProfile, createGameSlug } = useGameRoute(
+        gameEntries,
+        activeGameEntry,
+        setSelectedGameSlug
+    );
     const showProfileButton = isAuthenticated && currentUser?.authType === "local" && page !== "profile";
     const showLobbyButton = isAuthenticated && page !== "lobby";
     const showLogoutButton = isAuthenticated && currentUser != null;
-    useGameSessionLifecycle();
+    useGameSessionLifecycles(gameEntries);
 
     const currentCreateGameEntry = createGameSlug ? gameEntriesBySlug.get(createGameSlug) ?? null : null;
     const CurrentCreateScreen = currentCreateGameEntry?.components.CreateScreen ?? null;

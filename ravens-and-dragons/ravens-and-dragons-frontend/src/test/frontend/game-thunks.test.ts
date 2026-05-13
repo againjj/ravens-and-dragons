@@ -102,6 +102,16 @@ describe("gameThunks", () => {
         expect(store.getState().game.feedbackMessage).toBe("The server is down. Please wait and try again later.");
     });
 
+    test("openGame does not label non-network type errors as server downtime", async () => {
+        fetchGameViewMock.mockRejectedValue(new TypeError("Cannot read properties of undefined (reading 'id')"));
+        const store = createAppStore();
+
+        const loaded = await store.dispatch(openGame("clicker-game"));
+
+        expect(loaded).toBe(false);
+        expect(store.getState().game.feedbackMessage).toBe('Unable to open game "clicker-game".');
+    });
+
     test("claimSide refreshes the current game view after a successful claim", async () => {
         sendGameCommandRequestMock.mockResolvedValue({
             game: createSession({ id: "game-404", dragonsPlayerUserId: "player-dragons", ravensPlayerUserId: "player-ravens" })

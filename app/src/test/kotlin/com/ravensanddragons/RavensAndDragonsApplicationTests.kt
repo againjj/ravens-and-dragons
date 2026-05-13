@@ -33,7 +33,7 @@ class RavensAndDragonsApplicationTests(
         val module = gameModuleRegistry.requireModule("ravens-and-dragons")
 
         assertAll(
-            { assertEquals(listOf("ravens-and-dragons"), gameModuleRegistry.modules.map { it.identity.slug }) },
+            { assertEquals(listOf("clicker", "ravens-and-dragons"), gameModuleRegistry.modules.map { it.identity.slug }) },
             { assertEquals("Ravens and Dragons", module.identity.displayName) },
             { assertEquals("/ravens-and-dragons/create", module.routes.browserCreatePath) },
             { assertEquals("/g/{gameId}", module.routes.browserPlayPathPattern) },
@@ -65,6 +65,45 @@ class RavensAndDragonsApplicationTests(
             },
             { assertEquals("/ravens-and-dragons/create", module.smokeCheck.browserEntryPath) },
             { assertEquals("/api/games/ravens-and-dragons", module.smokeCheck.apiEntryPath) }
+        )
+    }
+
+    @Test
+    fun assemblesClickerGameModule() {
+        val module = gameModuleRegistry.requireModule("clicker")
+
+        assertAll(
+            { assertEquals("Clicker", module.identity.displayName) },
+            { assertEquals("/clicker/create", module.routes.browserCreatePath) },
+            { assertEquals("/g/{gameId}", module.routes.browserPlayPathPattern) },
+            { assertEquals("/api/games/{gameSlug}", module.routes.apiBasePath) },
+            { assertEquals("clicker", module.persistence.migrationNamespace) },
+            {
+                assertEquals(
+                    setOf(
+                        "id",
+                        "game_slug",
+                        "version",
+                        "created_at",
+                        "updated_at",
+                        "last_accessed_at",
+                        "lifecycle",
+                        "created_by_user_id"
+                    ),
+                    module.persistence.platformMetadataFields
+                )
+            },
+            {
+                assertEquals(
+                    setOf(
+                        "public_state_json",
+                        "private_state_json"
+                    ),
+                    module.persistence.opaquePayloadNames
+                )
+            },
+            { assertEquals("/clicker/create", module.smokeCheck.browserEntryPath) },
+            { assertEquals("/api/games/clicker", module.smokeCheck.apiEntryPath) }
         )
     }
 }
