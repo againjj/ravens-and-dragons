@@ -331,6 +331,7 @@ describe("App routing", () => {
             ruleConfigurationId: "free-play",
             startingSide: "dragons",
             boardSize: 7,
+            publiclyListed: true,
             board: {
                 a1: "dragon"
             }
@@ -432,6 +433,35 @@ describe("App routing", () => {
 
         await screen.findByRole("heading", { name: "Game QRVWXC2" });
         expect(window.location.pathname).toBe("/g/QRVWXC2");
+    });
+
+    test("opening a missing game from the lobby shows feedback without navigating", async () => {
+        const user = userEvent.setup();
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "player-dragons",
+                displayName: "Dragon Player",
+                authType: "local"
+            }
+        });
+        fetchGameMetadataMock.mockResolvedValue({
+            ok: false,
+            status: 404,
+            json: async () => ({ message: "Game not found." })
+        });
+        window.history.pushState({}, "", "/lobby");
+
+        renderWithStore(<App />);
+
+        await screen.findByRole("heading", { name: "Game Lobby" });
+        await user.type(screen.getByLabelText("Game ID"), "MISSING");
+        await user.click(screen.getByRole("button", { name: "Open Game" }));
+
+        expect(await screen.findByRole("dialog", { name: "Open Game Error" })).toBeInTheDocument();
+        expect(screen.getByText('Unable to open game "MISSING".')).toBeInTheDocument();
+        expect(window.location.pathname).toBe("/lobby");
+        expect(fetchGameViewMock).not.toHaveBeenCalled();
     });
 
     test("back to lobby returns the app to /lobby", async () => {

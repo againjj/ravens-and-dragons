@@ -35,9 +35,9 @@ export const ravensAndDragonsGameEntry: GameEntry<RavensAndDragonsDispatch> = {
     },
     lifecycle: {
         useSession: useGameSession,
-        startGame: (dispatch, gameSlug) => dispatch(createGame(gameSlug)),
+        startGame: (dispatch, gameSlug, options) => dispatch(createGame(gameSlug, options)),
         openGame: (dispatch, gameId) => {
-            void dispatch(openGame(gameId));
+            return dispatch(openGame(gameId));
         },
         returnToLobby: (dispatch) => {
             dispatch(returnToLobby());

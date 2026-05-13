@@ -15,7 +15,7 @@ class JdbcGameStore(
 ) : GameStore {
     companion object {
         private val selectStoredGameColumns = """
-            select id, game_slug, version, created_at, updated_at, last_accessed_at, lifecycle,
+            select id, game_slug, version, created_at, updated_at, last_accessed_at, lifecycle, publicly_listed,
                    created_by_user_id, public_state_json, private_state_json
             from games
         """.trimIndent()
@@ -41,6 +41,7 @@ class JdbcGameStore(
                 lifecycle = ?,
                 game_slug = ?,
                 created_by_user_id = ?,
+                publicly_listed = ?,
                 public_state_json = ?,
                 private_state_json = ?
             where id = ?
@@ -52,6 +53,7 @@ class JdbcGameStore(
             game.lifecycle,
             game.gameSlug,
             game.createdByUserId,
+            game.publiclyListed,
             gameJsonCodec.writeJson(game.publicState),
             gameJsonCodec.writeJson(game.privateState),
             game.id,
@@ -75,9 +77,10 @@ class JdbcGameStore(
                     lifecycle,
                     game_slug,
                     created_by_user_id,
+                    publicly_listed,
                     public_state_json,
                     private_state_json
-                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """.trimIndent(),
                 game.id,
                 game.version,
@@ -87,6 +90,7 @@ class JdbcGameStore(
                 game.lifecycle,
                 game.gameSlug,
                 game.createdByUserId,
+                game.publiclyListed,
                 gameJsonCodec.writeJson(game.publicState),
                 gameJsonCodec.writeJson(game.privateState)
             )
@@ -147,7 +151,8 @@ class JdbcGameStore(
             lifecycle = resultSet.getString("lifecycle"),
             publicState = gameJsonCodec.readJson(resultSet.getString("public_state_json")),
             privateState = gameJsonCodec.readJson(resultSet.getString("private_state_json")),
-            createdByUserId = resultSet.getString("created_by_user_id")
+            createdByUserId = resultSet.getString("created_by_user_id"),
+            publiclyListed = resultSet.getBoolean("publicly_listed")
         )
     }
 }

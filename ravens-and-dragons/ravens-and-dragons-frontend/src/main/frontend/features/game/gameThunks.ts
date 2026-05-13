@@ -105,11 +105,17 @@ const sendSelectionClearingCommand = (
     await dispatch(sendCommand(partialCommand));
 };
 
-export const createGame = (gameSlug: string): RavensAndDragonsThunk<Promise<string | null>> => async (dispatch, getState) => {
+export const createGame = (
+    gameSlug: string,
+    options: { publiclyListed?: boolean } = {}
+): RavensAndDragonsThunk<Promise<string | null>> => async (dispatch, getState) => {
     dispatch(gameActions.commandStarted());
 
     try {
-        const session = await createGameSession(gameSlug, buildCreateGameRequest(getState().createGame));
+        const session = await createGameSession(
+            gameSlug,
+            buildCreateGameRequest(getState().createGame, options.publiclyListed ?? true)
+        );
         dispatch(gameActions.sessionUpdated(session));
         return session.id;
     } catch (error) {

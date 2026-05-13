@@ -49,7 +49,8 @@ class RavensAndDragonsApplicationTests(
                         "updated_at",
                         "last_accessed_at",
                         "lifecycle",
-                        "created_by_user_id"
+                        "created_by_user_id",
+                        "publicly_listed"
                     ),
                     module.persistence.platformMetadataFields
                 )
@@ -88,7 +89,8 @@ class RavensAndDragonsApplicationTests(
                         "updated_at",
                         "last_accessed_at",
                         "lifecycle",
-                        "created_by_user_id"
+                        "created_by_user_id",
+                        "publicly_listed"
                     ),
                     module.persistence.platformMetadataFields
                 )

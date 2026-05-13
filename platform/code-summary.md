@@ -30,7 +30,8 @@
 - `platform/src/main/kotlin/com/ravensanddragons/platform/game/runtime/*.kt`
   - Shared opaque game runtime infrastructure.
   - Defines the `GameHandler` port implemented by game modules.
-  - Owns generated game ids, persisted game records, JDBC storage, session locking, stale cleanup, REST/SSE game routing, and generic JSON request/response delegation.
+  - Owns generated game ids, persisted game records, public listing metadata, JDBC storage, session locking, stale cleanup, REST/SSE game routing, and generic JSON request/response delegation.
+  - Exposes the public unfinished game listing endpoint and lets game handlers supply display names and open-seat counts without moving game-specific seat rules into platform.
   - Stores game-owned public/private state as JSON without understanding board pieces, sides, captures, rule configurations, bot turns, or undo semantics.
 - `platform/src/main/resources/db/migration/*.sql`
   - Flyway migrations for shared auth tables and the game record table used by the platform runtime.
@@ -48,6 +49,7 @@
 - Own reusable web exception and route fallback behavior.
 - Own the platform side of game module registration.
 - Own shared game runtime mechanics that can operate on opaque game-owned JSON state stored as `public_state_json` and `private_state_json`.
+- Own platform-level public listing metadata while delegating game-specific listing details to the registered game handler.
 - Own frontend shell/auth contracts that are not tied to a specific game's pieces, rules, or UI.
 - Define small ports for game-owned cleanup or adapter behavior where shared services need to call into game modules.
 

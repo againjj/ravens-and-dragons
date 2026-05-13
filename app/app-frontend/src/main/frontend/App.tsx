@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAppDispatch, useAppSelector } from "./app/hooks.js";
 import { AuthPanel } from "./components/AuthPanel.js";
-import { LobbyScreen } from "./components/LobbyScreen.js";
+import { LobbyScreen, type PublicGameListing } from "./components/LobbyScreen.js";
 import { ProfileScreen } from "./components/ProfileScreen.js";
 import { StatusBanner } from "./components/StatusBanner.js";
 import {
@@ -25,6 +25,15 @@ interface AppProps {
 
 const registeredGameEntries: GameEntry<AppDispatch>[] = [ravensAndDragonsGameEntry, clickerGameEntry];
 
+const fetchPublicGames = async (): Promise<PublicGameListing[]> => {
+    const response = await fetch("/api/games/public");
+    if (!response.ok) {
+        throw new Error("Unable to load public games.");
+    }
+    const payload = await response.json() as unknown;
+    return Array.isArray(payload) ? payload as PublicGameListing[] : [];
+};
+
 const useGameSessionLifecycles = (gameEntries: GameEntry<AppDispatch>[]) => {
     gameEntries.forEach((entry) => {
         entry.lifecycle.useSession();
@@ -40,6 +49,8 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
     const pageRef = useRef<HTMLElement | null>(null);
     const { toggleFullscreen } = useFullscreen(pageRef);
     const [selectedGameSlug, setSelectedGameSlug] = useState(gameEntries[0].identity.slug);
+    const [publicGames, setPublicGames] = useState<PublicGameListing[]>([]);
+    const [lobbyOpenErrorMessage, setLobbyOpenErrorMessage] = useState<string | null>(null);
     const gameEntriesBySlug = useMemo(
         () => new Map(gameEntries.map((entry) => [entry.identity.slug, entry])),
         [gameEntries]
@@ -47,7 +58,7 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
     const activeGameEntry = gameEntriesBySlug.get(selectedGameSlug) ?? gameEntries[0];
 
     const { PlayScreen } = activeGameEntry.components;
-    const { page, navigateToCreate, navigateToGame, navigateToLobby, navigateToProfile, createGameSlug } = useGameRoute(
+    const { page, navigateToCreate, navigateToGame, navigateToLobby, navigateToProfile, openGameFromLobby, createGameSlug } = useGameRoute(
         gameEntries,
         activeGameEntry,
         setSelectedGameSlug
@@ -77,6 +88,20 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
         }
     }, [createGameSlug, currentCreateGameEntry, navigateToLobby, page]);
 
+    const loadPublicGames = useCallback(() => {
+        void fetchPublicGames()
+            .then(setPublicGames)
+            .catch(() => {
+                setPublicGames([]);
+            });
+    }, []);
+
+    useEffect(() => {
+        if (page === "lobby") {
+            loadPublicGames();
+        }
+    }, [loadPublicGames, page]);
+
     const handleFullscreen = (): void => {
         void toggleFullscreen().then(({ message }) => {
             if (message) {
@@ -89,9 +114,11 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
         void dispatch(logout());
     };
 
-    const handleStartGameFromCreate = (gameSlug: string) => {
+    const handleStartGameFromCreate = (gameSlug: string, publiclyListed = true) => {
         void (async () => {
-            const gameId = await (gameEntriesBySlug.get(gameSlug) ?? activeGameEntry).lifecycle.startGame(dispatch, gameSlug);
+            const gameId = await (gameEntriesBySlug.get(gameSlug) ?? activeGameEntry).lifecycle.startGame(dispatch, gameSlug, {
+                publiclyListed
+            });
             if (gameId) {
                 navigateToGame(gameId);
             }
@@ -173,15 +200,23 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
                 ) : page === "lobby" ? (
                     <LobbyScreen
                         games={gameEntries.map((entry) => entry.identity)}
+                        publicGames={publicGames}
                         selectedGameSlug={selectedLobbyGameEntry.identity.slug}
                         feedbackMessage={feedbackMessage}
+                        openErrorMessage={lobbyOpenErrorMessage}
                         isLoading={isLoadingGame}
                         onCreateGame={(gameSlug) => {
+                            setLobbyOpenErrorMessage(null);
                             setSelectedGameSlug(gameSlug);
                             navigateToCreate(gameSlug);
                         }}
+                        onDismissOpenError={() => {
+                            setLobbyOpenErrorMessage(null);
+                        }}
                         onOpenGame={(gameId) => {
-                            navigateToGame(gameId);
+                            void openGameFromLobby(gameId).then((result) => {
+                                setLobbyOpenErrorMessage(result.errorMessage ?? null);
+                            });
                         }}
                         onSelectGame={(gameSlug) => {
                             setSelectedGameSlug(gameSlug);
@@ -191,8 +226,8 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
                     currentCreateGameEntry && CurrentCreateScreen ? (
                         <CurrentCreateScreen
                             gameName={currentCreateGameEntry.identity.displayName}
-                            onStartGame={() => {
-                                handleStartGameFromCreate(currentCreateGameEntry.identity.slug);
+                            onStartGame={(publiclyListed) => {
+                                handleStartGameFromCreate(currentCreateGameEntry.identity.slug, publiclyListed);
                             }}
                         />
                     ) : (

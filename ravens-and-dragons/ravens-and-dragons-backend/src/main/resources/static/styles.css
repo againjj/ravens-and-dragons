@@ -246,6 +246,38 @@ h3 {
     line-height: 1.5;
 }
 
+.public-game-list {
+    display: grid;
+    gap: 6px;
+    max-height: 180px;
+    overflow: auto;
+    padding: 8px;
+    border: 1px solid rgba(58, 46, 32, 0.14);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.42);
+}
+
+.public-game-option {
+    width: 100%;
+    text-align: left;
+    padding: 8px 10px;
+    border-radius: 6px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--ink);
+    font-weight: 400;
+}
+
+.public-game-option[aria-selected="true"] {
+    border-color: rgba(123, 50, 35, 0.38);
+    background: rgba(123, 50, 35, 0.12);
+}
+
+.public-game-empty {
+    margin: 0;
+    color: var(--muted);
+}
+
 .lobby-actions {
     display: grid;
     gap: 14px;
@@ -535,6 +567,13 @@ h3 {
     grid-template-columns: auto minmax(0, 1fr);
     align-items: center;
     gap: 12px;
+}
+
+.checkbox-row {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
 }
 
 .profile-inline-actions {

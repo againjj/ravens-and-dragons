@@ -98,6 +98,7 @@ export interface CreateGameRequest {
     startingSide?: Side;
     boardSize?: number;
     board?: Record<string, Piece>;
+    publiclyListed?: boolean;
 }
 
 export interface CreateGameDraftState {

@@ -382,11 +382,12 @@ export const buildDraftSnapshot = (draftState: CreateGameDraftState): ServerGame
     };
 };
 
-export const buildCreateGameRequest = (draftState: CreateGameDraftState): CreateGameRequest => {
+export const buildCreateGameRequest = (draftState: CreateGameDraftState, publiclyListed = true): CreateGameRequest => {
     const request: CreateGameRequest = {
         ruleConfigurationId: draftState.selectedRuleConfigurationId,
         startingSide: draftState.selectedStartingSide,
-        boardSize: draftState.selectedBoardSize
+        boardSize: draftState.selectedBoardSize,
+        publiclyListed
     };
 
     if (draftState.selectedRuleConfigurationId === defaultRuleConfigurationId) {

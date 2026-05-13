@@ -20,6 +20,7 @@ The parent project has two child projects:
 - `src/main/kotlin/com/ravensanddragons/clicker/ClickerGameHandler.kt`
   - Implements the platform `GameHandler` port for Clicker.
   - Creates counter state, handles click commands, and marks the game finished at `10`.
+  - Supplies Clicker public-listing display data and preserves platform-owned listing flags on game updates.
 
 ## Frontend Project
 
@@ -27,7 +28,7 @@ The parent project has two child projects:
   - Typechecks the Clicker frontend package with Gradle-managed Node/npm.
 - `src/main/frontend/clicker-entry.tsx`
   - Exports `clickerGameEntry` for the app-owned frontend shell.
-  - Owns the Clicker create and play screens plus Clicker-specific REST/SSE behavior.
+  - Owns the Clicker create and play screens, the public-listing checkbox for Clicker creation, plus Clicker-specific REST/SSE behavior.
 
 ## Boundaries
 

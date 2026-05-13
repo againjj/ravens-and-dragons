@@ -26,6 +26,7 @@ describe("CreateGameScreen", () => {
         expect(screen.getByLabelText("Play Style")).toHaveValue("free-play");
         expect(screen.getByLabelText("Board Size")).toHaveValue("7");
         expect(screen.getByLabelText("Starting Side")).toHaveValue("ravens");
+        expect(screen.getByLabelText("Publicly list game")).toBeChecked();
         expect(
             screen
                 .getAllByRole("option")
@@ -33,6 +34,29 @@ describe("CreateGameScreen", () => {
                 .map((option) => option.textContent)
         ).toEqual(["Ravens", "Dragons"]);
         expect(screen.getByRole("button", { name: "Start Game" })).toBeDisabled();
+    });
+
+    test("passes the public listing choice when starting the game", async () => {
+        const user = userEvent.setup();
+        const store = createAppStore({
+            createGame: {
+                isActive: true,
+                selectedRuleConfigurationId: "free-play",
+                selectedStartingSide: "ravens",
+                selectedBoardSize: 7,
+                draftBoard: {
+                    a1: "dragon"
+                }
+            }
+        });
+        const onStartGame = vi.fn();
+
+        renderWithStore(<CreateGameScreen gameName="Ravens and Dragons" onStartGame={onStartGame} />, { store });
+
+        await user.click(screen.getByLabelText("Publicly list game"));
+        await user.click(screen.getByRole("button", { name: "Start Game" }));
+
+        expect(onStartGame).toHaveBeenCalledWith(false);
     });
 
     test("keeps the board editable in free play and swaps to preset rules when selected", async () => {

@@ -37,9 +37,11 @@ describe("clickerGameEntry", () => {
         const CreateScreen = clickerGameEntry.components.CreateScreen;
 
         render(<CreateScreen gameName="Clicker" onStartGame={onStartGame} />);
+        expect(screen.getByLabelText("Publicly list game")).toBeChecked();
+        await user.click(screen.getByLabelText("Publicly list game"));
         await user.click(screen.getByRole("button", { name: "Start" }));
 
-        expect(onStartGame).toHaveBeenCalled();
+        expect(onStartGame).toHaveBeenCalledWith(false);
     });
 
     test("play screen loads and clicks until game over", async () => {

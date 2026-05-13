@@ -29,6 +29,7 @@ The parent project has two child projects:
 - `src/main/kotlin/com/ravensanddragons/game/RavensAndDragonsGameHandler.kt`
   - Implements the platform `GameHandler` port for Ravens and Dragons.
   - Converts opaque platform JSON records into Ravens `GameSession` plus undo state, delegates create/command/view behavior to Ravens services, runs bot replies, and serializes Ravens-owned public/private state back into the platform record.
+  - Supplies public-listing display data, including open Ravens/Dragons seat counts, while preserving platform-owned listing flags on game updates.
 - `src/main/kotlin/com/ravensanddragons/game/rules/*.kt`
   - Canonical board coordinates, rule metadata, snapshot creation, rule-engine contracts, and free-play/trivial/original-style rule execution.
 - `src/main/kotlin/com/ravensanddragons/game/session/*.kt`
@@ -99,6 +100,7 @@ Server-only undo history stores compact restore-state entries instead of full sn
 ## Current Gameplay And UI Behavior
 
 - The create screen sends its drafted setup to `POST /api/games/ravens-and-dragons`.
+- The create screen defaults to publicly listing new games and includes the selected public/private choice in the create request.
 - The app shell renders Ravens and Dragons through the registered frontend game entry while using shared platform frontend contracts/helpers for auth, game-entry typing, and fullscreen wiring.
 - The create and active game screens show `Ravens and Dragons` inside the content area. The create screen splits its configuration and board panels evenly on wide screens, while the active game screen places its information panel left of the board and spans its rules panel below the main panels.
 - Live games open at `/g/{gameId}`.

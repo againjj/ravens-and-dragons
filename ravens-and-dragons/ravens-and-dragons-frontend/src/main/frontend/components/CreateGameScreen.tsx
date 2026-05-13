@@ -1,4 +1,4 @@
-import { useRef, type CSSProperties } from "react";
+import { useRef, useState, type CSSProperties } from "react";
 
 import { getBoardDimension, getColumnLetters } from "../board-geometry.js";
 import { useRavensAndDragonsDispatch, useRavensAndDragonsSelector } from "../frontend-state.js";
@@ -20,7 +20,7 @@ import { useBoardSizing } from "../hooks/useBoardSizing.js";
 
 interface CreateGameScreenProps {
     gameName: string;
-    onStartGame?: () => void | Promise<void>;
+    onStartGame?: (publiclyListed?: boolean) => void | Promise<void>;
 }
 
 export const CreateGameScreen = ({ gameName, onStartGame }: CreateGameScreenProps) => {
@@ -34,6 +34,7 @@ export const CreateGameScreen = ({ gameName, onStartGame }: CreateGameScreenProp
     const selectedBoardSize = useRavensAndDragonsSelector(selectCreateGameSelectedBoardSize);
     const snapshot = useRavensAndDragonsSelector(selectCreateGameSnapshot);
     const canEditBoard = useRavensAndDragonsSelector(selectCreateGameCanEditBoard);
+    const [publiclyListed, setPubliclyListed] = useState(true);
     const boardShellRef = useRef<HTMLDivElement | null>(null);
     const boardDimension = getBoardDimension(snapshot);
     const columnLetters = getColumnLetters(boardDimension);
@@ -70,7 +71,9 @@ export const CreateGameScreen = ({ gameName, onStartGame }: CreateGameScreenProp
                                 <p className="create-draft-note">Place the pieces before starting the game.</p>
                             ) : null
                         }
-                        onStartGame={onStartGame}
+                        publiclyListed={publiclyListed}
+                        onPubliclyListedChange={setPubliclyListed}
+                        onStartGame={onStartGame ? () => onStartGame(publiclyListed) : undefined}
                     />
                     <p className="create-feedback" aria-live="polite">
                         {feedbackMessage ?? " "}

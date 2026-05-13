@@ -20,5 +20,10 @@ interface GameHandler {
 
     fun gameView(current: GameRecord, currentUserId: String?): JsonNode
 
+    fun publicGameDetails(current: GameRecord): PublicGameDetails = PublicGameDetails(
+        gameName = current.gameSlug,
+        openSeats = 0
+    )
+
     fun clearUserReferences(current: GameRecord, userId: String): GameRecord? = null
 }

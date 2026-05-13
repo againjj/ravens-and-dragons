@@ -24,6 +24,7 @@ import com.ravensanddragons.game.rules.GameRules
 import com.ravensanddragons.game.session.GameCommandService
 import com.ravensanddragons.game.session.GameSessionFactory
 import com.ravensanddragons.platform.game.runtime.GameHandler
+import com.ravensanddragons.platform.game.runtime.PublicGameDetails
 import com.ravensanddragons.platform.game.runtime.GameRecord as PlatformGameRecord
 import com.ravensanddragons.platform.game.runtime.InvalidCommandException as PlatformInvalidCommandException
 import com.ravensanddragons.platform.game.runtime.VersionConflictException as PlatformVersionConflictException
@@ -106,7 +107,7 @@ class RavensAndDragonsGameHandler(
                     gameCommandService.applyCommand(storedGame, request, actingUserId)
                 }
             }
-            updated.toGameRecord()
+            updated.toGameRecord(publiclyListed = current.publiclyListed)
         }
 
     override fun afterCommandPersisted(
@@ -114,7 +115,9 @@ class RavensAndDragonsGameHandler(
         persist: (PlatformGameRecord) -> PlatformGameRecord
     ): PlatformGameRecord {
         val storedGame = persisted.toStoredGame()
-        return botTurnRunner.runBotTurns(storedGame) { game -> persist(game.toGameRecord()).toStoredGame() }.toGameRecord()
+        return botTurnRunner.runBotTurns(storedGame) { game ->
+            persist(game.toGameRecord(publiclyListed = persisted.publiclyListed)).toStoredGame()
+        }.toGameRecord(publiclyListed = persisted.publiclyListed)
     }
 
     override fun gameView(current: PlatformGameRecord, currentUserId: String?): JsonNode {
@@ -140,6 +143,17 @@ class RavensAndDragonsGameHandler(
         )
     }
 
+    override fun publicGameDetails(current: PlatformGameRecord): PublicGameDetails {
+        val game = current.toStoredGame().session
+        return PublicGameDetails(
+            gameName = RavensAndDragonsGameModuleDefinition.identity.displayName,
+            openSeats = listOf(
+                game.dragonsPlayerUserId to game.dragonsBotId,
+                game.ravensPlayerUserId to game.ravensBotId
+            ).count { (playerUserId, botId) -> playerUserId == null && botId == null }
+        )
+    }
+
     override fun clearUserReferences(current: PlatformGameRecord, userId: String): PlatformGameRecord? {
         val storedGame = current.toStoredGame()
         val session = storedGame.session
@@ -154,7 +168,7 @@ class RavensAndDragonsGameHandler(
                 ravensPlayerUserId = session.ravensPlayerUserId.takeUnless { it == userId },
                 createdByUserId = session.createdByUserId.takeUnless { it == userId }
             )
-        ).toGameRecord()
+        ).toGameRecord(publiclyListed = current.publiclyListed)
     }
 
     private fun requireExpectedVersion(session: GameSession, command: JsonNode) {
@@ -194,7 +208,7 @@ class RavensAndDragonsGameHandler(
             ).session
         }
 
-    private fun StoredGame.toGameRecord(): PlatformGameRecord =
+    private fun StoredGame.toGameRecord(publiclyListed: Boolean = true): PlatformGameRecord =
         PlatformGameRecord(
             id = session.id,
             gameSlug = session.gameSlug,
@@ -205,7 +219,8 @@ class RavensAndDragonsGameHandler(
             publicState = gameJsonCodec.valueToTree(session),
             privateState = gameJsonCodec.valueToTree(undoEntries),
             createdByUserId = session.createdByUserId,
-            lastAccessedAt = lastAccessedAt
+            lastAccessedAt = lastAccessedAt,
+            publiclyListed = publiclyListed
         )
 
     private fun validateDraftBoard(board: Map<String, Piece>?, boardSize: Int) {

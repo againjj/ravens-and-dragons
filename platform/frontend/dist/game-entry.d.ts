@@ -12,14 +12,14 @@ export interface GameEntryRoutes {
 }
 
 export interface GameEntryComponents {
-    CreateScreen: ComponentType<{ gameName: string; onStartGame: () => void }>;
+    CreateScreen: ComponentType<{ gameName: string; onStartGame: (publiclyListed?: boolean) => void }>;
     PlayScreen: ComponentType;
 }
 
 export interface GameEntryLifecycle<AppDispatch = unknown> {
     useSession: () => void;
-    startGame: (dispatch: AppDispatch, gameSlug: string) => Promise<string | null>;
-    openGame: (dispatch: AppDispatch, gameId: string) => void;
+    startGame: (dispatch: AppDispatch, gameSlug: string, options?: { publiclyListed?: boolean }) => Promise<string | null>;
+    openGame: (dispatch: AppDispatch, gameId: string) => void | Promise<boolean>;
     returnToLobby: (dispatch: AppDispatch) => void;
     enterCreateMode: (dispatch: AppDispatch) => void;
     clearCreateMode: (dispatch: AppDispatch) => void;

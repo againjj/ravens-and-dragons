@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAppDispatch, useAppSelector } from "../app/hooks.js";
 import { selectAuthLoadState, selectCurrentUser, selectIsAuthenticated } from "../features/auth/authSelectors.js";
 import { selectGameView } from "../../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/game/gameSelectors.js";
+import { gameActions } from "../../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/game/gameSlice.js";
 import type { GameEntry } from "@ravensanddragons/platform-frontend/game-entry";
 import type { AppDispatch } from "../app/store.js";
 
@@ -86,6 +87,7 @@ export const useGameRoute = (
     navigateToCreate: (gameSlug: string, mode?: NavigationMode) => void;
     navigateToProfile: (mode?: NavigationMode) => void;
     navigateToGame: (gameId: string, options?: { mode?: NavigationMode; loadGame?: boolean }) => void;
+    openGameFromLobby: (gameId: string) => Promise<{ opened: boolean; errorMessage?: string }>;
     createGameSlug: string | null;
 } => {
     const dispatch = useAppDispatch();
@@ -157,6 +159,41 @@ export const useGameRoute = (
         if (options.loadGame ?? true) {
             gameEntry.lifecycle.openGame(dispatch, trimmedGameId);
         }
+    };
+
+    const openGameFromLobby = async (gameId: string): Promise<{ opened: boolean; errorMessage?: string }> => {
+        const trimmedGameId = gameId.trim();
+        if (!trimmedGameId) {
+            return {
+                opened: false,
+                errorMessage: "Enter a game ID to open a game."
+            };
+        }
+
+        const entry = await resolveGameEntryForGameId(trimmedGameId);
+        if (!entry) {
+            clearActiveGameView();
+            return {
+                opened: false,
+                errorMessage: `Unable to open game "${trimmedGameId}".`
+            };
+        }
+
+        setActiveGameSlug(entry.identity.slug);
+        clearCreateDraft();
+        const opened = await entry.lifecycle.openGame(dispatch, trimmedGameId);
+        if (opened === false) {
+            dispatch(gameActions.feedbackMessageSet(null));
+            return {
+                opened: false,
+                errorMessage: `Unable to open game "${trimmedGameId}".`
+            };
+        }
+
+        openedRouteGameIdRef.current = trimmedGameId;
+        setResolvingGameRouteId(null);
+        updateRoutePath(entry.routes.buildPlayPath(trimmedGameId), "push");
+        return { opened: true };
     };
 
     const resolveGameEntryForGameId = async (gameId: string): Promise<GameEntry<AppDispatch> | null> => {
@@ -305,6 +342,7 @@ export const useGameRoute = (
         navigateToCreate,
         navigateToProfile,
         navigateToGame,
+        openGameFromLobby,
         createGameSlug: currentRoute.kind === "create" ? currentRoute.gameSlug : null
     };
 };

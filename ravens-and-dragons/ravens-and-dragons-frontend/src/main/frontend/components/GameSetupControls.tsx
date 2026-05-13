@@ -12,6 +12,8 @@ interface GameSetupControlsProps {
     onSelectStartingSide: (side: Side) => void;
     onSelectBoardSize: (boardSize: number) => void;
     startGameHint?: ReactNode;
+    publiclyListed: boolean;
+    onPubliclyListedChange: (publiclyListed: boolean) => void;
     onStartGame?: () => void | Promise<void>;
 }
 
@@ -25,6 +27,8 @@ export const GameSetupControls = ({
     onSelectStartingSide,
     onSelectBoardSize,
     startGameHint,
+    publiclyListed,
+    onPubliclyListedChange,
     onStartGame
 }: GameSetupControlsProps) => {
     const showSizeAndSideSelectors = selectedRuleConfigurationId === "free-play";
@@ -97,6 +101,17 @@ export const GameSetupControls = ({
                 </>
             ) : null}
             {startGameHint}
+            <label className="checkbox-row">
+                <input
+                    type="checkbox"
+                    checked={publiclyListed}
+                    disabled={isDisabled}
+                    onChange={(event) => {
+                        onPubliclyListedChange(event.target.checked);
+                    }}
+                />
+                <span>Publicly list game</span>
+            </label>
             <button
                 id="start-button"
                 type="button"

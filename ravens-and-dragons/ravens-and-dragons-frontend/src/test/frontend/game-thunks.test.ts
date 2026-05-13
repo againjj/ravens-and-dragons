@@ -43,6 +43,7 @@ describe("gameThunks", () => {
             ruleConfigurationId: "free-play",
             startingSide: "ravens",
             boardSize: 7,
+            publiclyListed: true,
             board: {
                 a1: "raven"
             }

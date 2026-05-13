@@ -36,6 +36,9 @@ class GameController(
         return objectMapper.createObjectNode().set<JsonNode>("game", game)
     }
 
+    @GetMapping("/api/games/public")
+    fun listPublicGames(): List<PublicGameListing> = gameSessionService.listPublicGames()
+
     @GetMapping("/api/games/{gameId}")
     fun getGame(@PathVariable gameId: String): JsonNode = gameSessionService.getGame(gameId)
 

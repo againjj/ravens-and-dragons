@@ -13,12 +13,25 @@ data class GameRecord(
     val publicState: JsonNode,
     val privateState: JsonNode,
     val createdByUserId: String? = null,
-    val lastAccessedAt: Instant = updatedAt
+    val lastAccessedAt: Instant = updatedAt,
+    val publiclyListed: Boolean = true
 )
 
 data class StoredGameAccess(
     val gameId: String,
     val lastAccessedAt: Instant
+)
+
+data class PublicGameDetails(
+    val gameName: String,
+    val openSeats: Int
+)
+
+data class PublicGameListing(
+    val gameId: String,
+    val gameSlug: String,
+    val gameName: String,
+    val openSeats: Int
 )
 
 data class ErrorResponse(

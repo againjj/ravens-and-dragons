@@ -177,6 +177,79 @@ class GameControllerTest : AbstractGameControllerTestSupport() {
     }
 
     @Test
+    fun `public games list includes listed unfinished games sorted by name and id`() {
+        seedGame(
+            gameId = "listed-b",
+            dragonsPlayerUserId = defaultTestUserId,
+            ravensPlayerUserId = null
+        )
+        seedGame(
+            gameId = "listed-a",
+            dragonsPlayerUserId = null,
+            ravensPlayerUserId = null
+        )
+        seedGame(
+            gameId = "finished-game",
+            snapshot = GameRules.startGame(initialBoard = mapOf("a1" to Piece.dragon)).copy(
+                turns = listOf(TurnRecord(type = TurnType.gameOver, outcome = "Done"))
+            ),
+            lifecycle = GameLifecycle.finished,
+            dragonsPlayerUserId = null,
+            ravensPlayerUserId = null
+        )
+        seedGame(
+            gameId = "private-game",
+            dragonsPlayerUserId = null,
+            ravensPlayerUserId = null
+        )
+        jdbcTemplate.update("update games set publicly_listed = false where id = ?", "private-game")
+
+        mockMvc.get("/api/games/public") {
+            with(authenticated("public-games"))
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$[0].gameId", equalTo("listed-a"))
+            jsonPath("$[0].gameName", equalTo("Ravens and Dragons"))
+            jsonPath("$[0].openSeats", equalTo(2))
+            jsonPath("$[1].gameId", equalTo("listed-b"))
+            jsonPath("$[1].openSeats", equalTo(1))
+            jsonPath("$.length()", equalTo(2))
+        }
+    }
+
+    @Test
+    fun `create game can opt out of public listing`() {
+        val created = objectMapper.readValue(
+            mockMvc.post("/api/games/ravens-and-dragons") {
+                with(authenticated("create-private-game"))
+                contentType = MediaType.APPLICATION_JSON
+                content = objectMapper.writeValueAsString(
+                    mapOf(
+                        "publiclyListed" to false,
+                        "board" to mapOf("a1" to "dragon")
+                    )
+                )
+            }
+                .andExpect {
+                    status { isOk() }
+                }
+                .andReturn()
+                .response
+                .contentAsString,
+            CreateGameResponse::class.java
+        ).game
+
+        org.junit.jupiter.api.Assertions.assertFalse(gameStore.get(created.id)?.publiclyListed ?: true)
+
+        mockMvc.get("/api/games/public") {
+            with(authenticated("public-games"))
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.length()", equalTo(0))
+        }
+    }
+
+    @Test
     fun `missing game stream returns not found for sse requests`() {
         mockMvc.get("/api/games/missing-game/stream") {
             with(authenticated("missing-game"))

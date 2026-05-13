@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.ravensanddragons.platform.game.runtime.GameHandler
 import com.ravensanddragons.platform.game.runtime.GameRecord
 import com.ravensanddragons.platform.game.runtime.InvalidCommandException
+import com.ravensanddragons.platform.game.runtime.PublicGameDetails
 import com.ravensanddragons.platform.game.runtime.VersionConflictException
 import org.springframework.stereotype.Component
 import java.time.Clock
@@ -66,10 +67,15 @@ class ClickerGameHandler(
             updatedAt = now,
             lifecycle = if (nextCounter >= finishCounter) finishedLifecycle else activeLifecycle,
             counter = nextCounter
-        ).toRecord(lastAccessedAt = current.lastAccessedAt)
+        ).toRecord(lastAccessedAt = current.lastAccessedAt, publiclyListed = current.publiclyListed)
     }
 
     override fun gameView(current: GameRecord, currentUserId: String?): JsonNode = current.publicState
+
+    override fun publicGameDetails(current: GameRecord): PublicGameDetails = PublicGameDetails(
+        gameName = ClickerGameModuleDefinition.identity.displayName,
+        openSeats = 0
+    )
 
     private fun requireExpectedVersion(state: ClickerGameState, command: JsonNode) {
         val expectedVersion = command.get("expectedVersion")?.asLong()
@@ -82,7 +88,7 @@ class ClickerGameHandler(
     private fun GameRecord.toClickerState(): ClickerGameState =
         objectMapper.treeToValue(publicState, ClickerGameState::class.java)
 
-    private fun ClickerGameState.toRecord(lastAccessedAt: Instant): GameRecord =
+    private fun ClickerGameState.toRecord(lastAccessedAt: Instant, publiclyListed: Boolean = true): GameRecord =
         GameRecord(
             id = id,
             gameSlug = gameSlug,
@@ -93,7 +99,8 @@ class ClickerGameHandler(
             publicState = objectMapper.valueToTree(this),
             privateState = objectMapper.createObjectNode(),
             createdByUserId = createdByUserId,
-            lastAccessedAt = lastAccessedAt
+            lastAccessedAt = lastAccessedAt,
+            publiclyListed = publiclyListed
         )
 
     private companion object {

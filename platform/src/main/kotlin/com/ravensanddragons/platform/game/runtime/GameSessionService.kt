@@ -1,6 +1,7 @@
 package com.ravensanddragons.platform.game.runtime
 
 import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.node.ObjectNode
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
@@ -20,6 +21,7 @@ class GameSessionService(
 ) {
     companion object {
         val defaultStaleGameThreshold: Duration = Duration.ofDays(42)
+        private const val finishedLifecycle = "finished"
     }
 
     private val emittersByGame = ConcurrentHashMap<String, CopyOnWriteArrayList<SseEmitter>>()
@@ -28,8 +30,12 @@ class GameSessionService(
 
     fun createGame(gameSlug: String, request: JsonNode, createdByUserId: String? = null): JsonNode {
         val handler = requireHandler(gameSlug)
+        val publiclyListed = request.get("publiclyListed")?.asBoolean(true) ?: true
+        val gameRequest = request.withoutPlatformFields()
         while (true) {
-            val game = handler.createGame(GameIdGenerator.nextId(), request, createdByUserId)
+            val game = handler.createGame(GameIdGenerator.nextId(), gameRequest, createdByUserId).copy(
+                publiclyListed = publiclyListed
+            )
             if (gameStore.putIfAbsent(game)) {
                 return game.publicState
             }
@@ -47,6 +53,23 @@ class GameSessionService(
         touchGame(gameId)
         requireHandler(current.gameSlug).gameView(current, currentUserId)
     }
+
+    fun listPublicGames(): List<PublicGameListing> =
+        gameStore.entries()
+            .asSequence()
+            .filter { it.publiclyListed && it.lifecycle != finishedLifecycle }
+            .mapNotNull { game ->
+                val handler = gameHandlersBySlug[game.gameSlug] ?: return@mapNotNull null
+                val details = handler.publicGameDetails(game)
+                PublicGameListing(
+                    gameId = game.id,
+                    gameSlug = game.gameSlug,
+                    gameName = details.gameName,
+                    openSeats = details.openSeats
+                )
+            }
+            .sortedWith(compareBy<PublicGameListing> { it.gameName }.thenBy { it.gameId })
+            .toList()
 
     fun applyCommand(gameId: String, command: JsonNode, actingUserId: String?): JsonNode = withGameLock(gameId) {
         val current = getStoredGame(gameId)
@@ -146,6 +169,13 @@ class GameSessionService(
     private fun requireHandler(gameSlug: String): GameHandler =
         gameHandlersBySlug[gameSlug] ?: throw IllegalArgumentException("Game module '$gameSlug' is not registered.")
 
+    private fun JsonNode.withoutPlatformFields(): JsonNode =
+        if (this is ObjectNode) {
+            deepCopy<ObjectNode>().also { it.remove("publiclyListed") }
+        } else {
+            this
+        }
+
     private fun touchGame(gameId: String, accessedAt: Instant = Instant.now(clock)) {
         gameStore.touch(gameId, accessedAt) ?: throw GameNotFoundException(gameId)
     }
@@ -195,4 +225,5 @@ class GameSessionService(
         }
         return false
     }
+
 }

@@ -19,7 +19,7 @@ The app keeps the included-game list declarative by registering each game module
   - Builds and tests the deployed React shell with Gradle-managed Node/npm.
   - Produces the static frontend bundle consumed by `app:processResources`.
 - `app/app-frontend/src/main/frontend/App.tsx`
-  - Owns the shared browser shell, auth bootstrap, lobby/profile/login routing, fullscreen action, and game-entry selection for create/play screens.
+  - Owns the shared browser shell, auth bootstrap, lobby/profile/login routing, public game list loading, fullscreen action, and game-entry selection for create/play screens.
   - Registers the Clicker and Ravens and Dragons frontend entries for the lobby.
 - `app/app-frontend/src/main/frontend/app/store.ts`
   - Assembles the Redux store from app-owned auth state plus the registered game frontend reducers.
@@ -51,3 +51,4 @@ The app keeps the included-game list declarative by registering each game module
 - Running `./gradlew bootRun` serves the Vite-built frontend bundle plus static CSS through Spring Boot.
 - `server.port` defaults to `8080` unless overridden by `PORT`.
 - Railway deployment starts `ravens-and-dragons.jar`.
+- The lobby can open a selected public game or a typed game id; missing typed ids report feedback without navigating away from the lobby.

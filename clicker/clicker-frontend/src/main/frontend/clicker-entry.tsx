@@ -39,13 +39,13 @@ const fetchClickerGame = async (gameId: string): Promise<ClickerGameState> => {
     return game;
 };
 
-const createClickerGame = async (): Promise<ClickerGameState> => {
+const createClickerGame = async (publiclyListed = true): Promise<ClickerGameState> => {
     const response = await fetch("/api/games/clicker", {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
         },
-        body: "{}"
+        body: JSON.stringify({ publiclyListed })
     });
     if (!response.ok) {
         throw new Error("Unable to start Clicker right now.");
@@ -72,13 +72,33 @@ const sendClick = async (game: ClickerGameState): Promise<ClickerGameState> => {
     return await response.json() as ClickerGameState;
 };
 
-const CreateClickerScreen = ({ onStartGame }: { gameName: string; onStartGame: () => void }) => (
-    <section className="panel">
-        <button id="start-clicker-button" type="button" onClick={onStartGame}>
-            Start
-        </button>
-    </section>
-);
+const CreateClickerScreen = ({ onStartGame }: { gameName: string; onStartGame: (publiclyListed?: boolean) => void }) => {
+    const [publiclyListed, setPubliclyListed] = useState(true);
+
+    return (
+        <section className="panel clicker-create-panel">
+            <label className="checkbox-row">
+                <input
+                    type="checkbox"
+                    checked={publiclyListed}
+                    onChange={(event) => {
+                        setPubliclyListed(event.target.checked);
+                    }}
+                />
+                <span>Publicly list game</span>
+            </label>
+            <button
+                id="start-clicker-button"
+                type="button"
+                onClick={() => {
+                    onStartGame(publiclyListed);
+                }}
+            >
+                Start
+            </button>
+        </section>
+    );
+};
 
 const ClickerPlayScreen = () => {
     const gameId = useMemo(readGameIdFromLocation, []);
@@ -179,8 +199,8 @@ export const clickerGameEntry: GameEntry = {
     },
     lifecycle: {
         useSession: emptyLifecycle,
-        startGame: async () => {
-            const game = await createClickerGame();
+        startGame: async (_dispatch, _gameSlug, options) => {
+            const game = await createClickerGame(options?.publiclyListed ?? true);
             return game.id;
         },
         openGame: emptyLifecycle,
