@@ -488,6 +488,30 @@ describe("App routing", () => {
         expect(screen.getByRole("heading", { name: "Game Lobby" })).toBeInTheDocument();
     });
 
+    test("header title returns the app to /lobby", async () => {
+        const user = userEvent.setup();
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "player-dragons",
+                displayName: "Dragon Player",
+                authType: "local"
+            }
+        });
+        fetchGameViewMock.mockResolvedValue(createGameView({ id: "MPQRVWX" }));
+        window.history.pushState({}, "", "/g/MPQRVWX");
+
+        renderWithStore(<App />);
+
+        await screen.findByRole("heading", { name: "Game MPQRVWX" });
+        await user.click(screen.getByRole("link", { name: "Ayazian Games" }));
+
+        await waitFor(() => {
+            expect(window.location.pathname).toBe("/lobby");
+        });
+        expect(screen.getByRole("heading", { name: "Game Lobby" })).toBeInTheDocument();
+    });
+
     test("game header shows actions in the shared order and hides profile destination buttons only on that page", async () => {
         fetchAuthSessionMock.mockResolvedValue({
             authenticated: true,

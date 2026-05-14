@@ -52,3 +52,4 @@ The app keeps the included-game list declarative by registering each game module
 - `server.port` defaults to `8080` unless overridden by `PORT`.
 - Railway deployment starts `ravens-and-dragons.jar`.
 - The lobby can open a selected public game or a typed game id; missing typed ids report feedback without navigating away from the lobby.
+- The shared app header keeps the `Ayazian Games` title visually unchanged while linking it back to `/lobby`.

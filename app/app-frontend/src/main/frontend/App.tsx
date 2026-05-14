@@ -130,7 +130,18 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
             <header className="hero app-header">
                 <div className="hero-header">
                     <div className="hero-copy">
-                        <h1>Ayazian Games</h1>
+                        <h1>
+                            <a
+                                className="header-home-link"
+                                href="/lobby"
+                                onClick={(event) => {
+                                    event.preventDefault();
+                                    navigateToLobby();
+                                }}
+                            >
+                                Ayazian Games
+                            </a>
+                        </h1>
                     </div>
                     <div className="hero-actions">
                         {isAuthenticated && currentUser ? <span>{currentUser.displayName}</span> : null}

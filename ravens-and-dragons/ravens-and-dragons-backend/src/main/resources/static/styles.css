@@ -139,6 +139,11 @@ h1 {
     font-size: 2.15rem;
 }
 
+.header-home-link {
+    color: inherit;
+    text-decoration: none;
+}
+
 h2 {
     font-size: 1.25rem;
 }
@@ -248,10 +253,10 @@ h3 {
 
 .public-game-list {
     display: grid;
-    gap: 6px;
+    gap: 0;
     max-height: 180px;
     overflow: auto;
-    padding: 8px;
+    padding: 0;
     border: 1px solid rgba(58, 46, 32, 0.14);
     border-radius: 8px;
     background: rgba(255, 255, 255, 0.42);
@@ -260,7 +265,7 @@ h3 {
 .public-game-option {
     width: 100%;
     text-align: left;
-    padding: 8px 10px;
+    padding: 0;
     border-radius: 6px;
     border: 1px solid transparent;
     background: transparent;
@@ -611,7 +616,7 @@ select,
     width: 100%;
     border: 1px solid rgba(46, 48, 78, 0.14);
     border-radius: 16px;
-    padding: 11px 42px 11px 14px;
+    padding: 6px 42px 6px 14px;
     font: inherit;
     color: var(--text);
     background: rgba(255, 255, 255, 0.92);
@@ -639,7 +644,7 @@ button {
     appearance: none;
     border: 0;
     border-radius: 999px;
-    padding: 11px 18px;
+    padding: 6px 18px;
     font: inherit;
     font-weight: 700;
     cursor: pointer;
@@ -668,8 +673,8 @@ button:disabled {
 }
 
 .icon-button {
-    width: 44px;
-    height: 44px;
+    width: 33px;
+    height: 33px;
     padding: 0;
     display: grid;
     place-items: center;
@@ -881,16 +886,16 @@ button:disabled {
 }
 
 .page:fullscreen button {
-    padding: 10px 16px;
+    padding: 5px 16px;
 }
 
 .page:fullscreen .icon-button {
-    width: 42px;
-    height: 42px;
+    width: 32px;
+    height: 32px;
     padding: 0;
 }
 
-@media (max-width: 900px), (max-aspect-ratio: 4 / 5) {
+@media (max-width: 500px) {
     :root {
         --page-pad-x: 12px;
         --page-pad-y: 12px;
@@ -967,7 +972,7 @@ button:disabled {
     }
 }
 
-@media (max-width: 700px) {
+@media (max-width: 500px) {
     :root {
         --label-col-width: 24px;
         --label-row-height: 24px;

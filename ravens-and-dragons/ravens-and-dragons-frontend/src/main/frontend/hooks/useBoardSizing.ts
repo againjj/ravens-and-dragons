@@ -28,7 +28,7 @@ export const useBoardSizing = (
             const verticalPadding =
                 (Number.parseFloat(containerStyles.paddingTop) || 0) +
                 (Number.parseFloat(containerStyles.paddingBottom) || 0);
-            const narrowLayout = window.matchMedia("(max-width: 900px), (max-aspect-ratio: 4 / 5)").matches;
+            const narrowLayout = window.matchMedia("(max-width: 500px)").matches;
 
             const availableWidth = sizingContainer.clientWidth - horizontalPadding - labelColumnWidth - boardLabelGap;
             const availableHeight = narrowLayout

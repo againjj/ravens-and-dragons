@@ -103,6 +103,7 @@ Server-only undo history stores compact restore-state entries instead of full sn
 - The create screen defaults to publicly listing new games and includes the selected public/private choice in the create request.
 - The app shell renders Ravens and Dragons through the registered frontend game entry while using shared platform frontend contracts/helpers for auth, game-entry typing, and fullscreen wiring.
 - The create and active game screens show `Ravens and Dragons` inside the content area. The create screen splits its configuration and board panels evenly on wide screens, while the active game screen places its information panel left of the board and spans its rules panel below the main panels.
+- Shared static styles keep buttons and dropdowns compact without changing their content size, remove spacing around public lobby game-list entries, and switch the phone layout breakpoint to 500px.
 - Live games open at `/g/{gameId}`.
 - Create flows open at `/ravens-and-dragons/create`.
 - Active games send mutations to `POST /api/games/{gameId}/commands`.
