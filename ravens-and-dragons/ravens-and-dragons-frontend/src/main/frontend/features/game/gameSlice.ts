@@ -107,6 +107,9 @@ const gameSlice = createSlice({
             state.currentGameId = action.payload.id;
             state.session = action.payload;
             state.loadState = "ready";
+            if (state.view === "game" && state.connectionState === "reconnecting") {
+                state.connectionState = "connecting";
+            }
             state.feedbackMessage = null;
             const pendingAssignment = state.pendingBotAssignment;
             if (
@@ -129,6 +132,9 @@ const gameSlice = createSlice({
             state.ravensBot = action.payload.ravensBot;
             state.availableBots = action.payload.availableBots;
             state.loadState = "ready";
+            if (state.view === "game" && state.connectionState === "reconnecting") {
+                state.connectionState = "connecting";
+            }
             state.feedbackMessage = null;
             const pendingAssignment = state.pendingBotAssignment;
             if (

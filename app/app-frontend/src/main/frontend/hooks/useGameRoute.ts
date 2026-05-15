@@ -5,7 +5,9 @@ import { selectAuthLoadState, selectCurrentUser, selectIsAuthenticated } from ".
 import { selectGameView } from "../../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/game/gameSelectors.js";
 import { gameActions } from "../../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/game/gameSlice.js";
 import type { GameEntry } from "@ravensanddragons/platform-frontend/game-entry";
+import { createResponseError, isServerUnavailableError, isUnauthorizedError, notifyAuthSessionExpired, notifyServerUnavailable } from "@ravensanddragons/platform-frontend/api-client";
 import type { AppDispatch } from "../app/store.js";
+import { loadAuthSession } from "../features/auth/authThunks.js";
 
 export type AppPage = "login" | "lobby" | "create" | "game" | "profile" | "loading";
 
@@ -22,6 +24,12 @@ interface ParsedRoute {
 interface RouteGameMetadata {
     gameSlug?: string;
 }
+
+type RouteGameResolution =
+    | { kind: "resolved"; entry: GameEntry<AppDispatch> }
+    | { kind: "not-found" }
+    | { kind: "unauthorized" }
+    | { kind: "server-unavailable" };
 
 const createRoutePattern = /^\/([a-z0-9]+(?:-[a-z0-9]+)*)\/create$/;
 const playRoutePattern = /^\/g\/([^/]+)$/;
@@ -128,6 +136,7 @@ export const useGameRoute = (
         clearCreateDraft();
         clearActiveGameView();
         updateRoutePath("/lobby", mode);
+        void dispatch(loadAuthSession());
     };
 
     const navigateToCreate = (gameSlug: string, mode: NavigationMode = "push") => {
@@ -171,8 +180,20 @@ export const useGameRoute = (
             };
         }
 
-        const entry = await resolveGameEntryForGameId(trimmedGameId);
-        if (!entry) {
+        const resolution = await resolveGameEntryForGameId(trimmedGameId);
+        if (resolution.kind === "unauthorized") {
+            notifyAuthSessionExpired();
+            return {
+                opened: false
+            };
+        }
+        if (resolution.kind === "server-unavailable") {
+            notifyServerUnavailable();
+            return {
+                opened: false
+            };
+        }
+        if (resolution.kind === "not-found") {
             clearActiveGameView();
             return {
                 opened: false,
@@ -180,6 +201,7 @@ export const useGameRoute = (
             };
         }
 
+        const entry = resolution.entry;
         setActiveGameSlug(entry.identity.slug);
         clearCreateDraft();
         const opened = await entry.lifecycle.openGame(dispatch, trimmedGameId);
@@ -197,20 +219,29 @@ export const useGameRoute = (
         return { opened: true };
     };
 
-    const resolveGameEntryForGameId = async (gameId: string): Promise<GameEntry<AppDispatch> | null> => {
+    const resolveGameEntryForGameId = async (gameId: string): Promise<RouteGameResolution> => {
         try {
             const response = await fetch(`/api/games/${encodeURIComponent(gameId)}`);
             if (response.ok) {
                 const game = await response.json() as RouteGameMetadata;
                 const resolvedEntry = game.gameSlug ? gameEntriesBySlug.get(game.gameSlug) : null;
                 if (resolvedEntry) {
-                    return resolvedEntry;
+                    return { kind: "resolved", entry: resolvedEntry };
                 }
             }
-        } catch {
-            // Treat metadata fetch failures as an unresolved game route.
+            if (response.status === 401) {
+                return { kind: "unauthorized" };
+            }
+            throw await createResponseError(response, "Unable to resolve that game.");
+        } catch (error) {
+            if (isUnauthorizedError(error)) {
+                return { kind: "unauthorized" };
+            }
+            if (isServerUnavailableError(error)) {
+                return { kind: "server-unavailable" };
+            }
         }
-        return null;
+        return { kind: "not-found" };
     };
 
     const openRouteGame = (gameId: string, mode?: NavigationMode) => {
@@ -224,13 +255,25 @@ export const useGameRoute = (
             updateRoutePath(targetPath, mode);
         }
         setResolvingGameRouteId(trimmedGameId);
-        void resolveGameEntryForGameId(gameId).then((entry) => {
-            if (!entry) {
+        void resolveGameEntryForGameId(gameId).then((resolution) => {
+            if (resolution.kind === "unauthorized") {
+                notifyAuthSessionExpired();
+                clearActiveGameView();
+                setResolvingGameRouteId(null);
+                return;
+            }
+            if (resolution.kind === "server-unavailable") {
+                notifyServerUnavailable();
+                setResolvingGameRouteId(null);
+                return;
+            }
+            if (resolution.kind === "not-found") {
                 clearActiveGameView();
                 setResolvingGameRouteId(null);
                 updateRoutePath("/lobby", "replace");
                 return;
             }
+            const entry = resolution.entry;
             setActiveGameSlug(entry.identity.slug);
             entry.lifecycle.openGame(dispatch, gameId);
             openedRouteGameIdRef.current = trimmedGameId;

@@ -30,6 +30,7 @@ The parent project has two child projects:
 - `src/main/frontend/clicker-entry.tsx`
   - Exports `clickerGameEntry` for the app-owned frontend shell.
   - Owns the Clicker create and play screens, the public-listing checkbox for Clicker creation, plus Clicker-specific REST/SSE behavior.
+  - Uses shared frontend API failure classification so expired sessions and server-down states surface consistently, and closes the Clicker SSE stream on errors.
 
 ## Boundaries
 

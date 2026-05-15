@@ -20,9 +20,11 @@ The app keeps the included-game list declarative by registering each game module
   - Produces the static frontend bundle consumed by `app:processResources`.
 - `app/app-frontend/src/main/frontend/App.tsx`
   - Owns the shared browser shell, auth bootstrap, lobby/profile/login routing, public game list loading, signed-in user menu/player-game stream wiring, fullscreen action, and game-entry selection for create/play screens.
+  - Classifies shell-level async failures so expired sessions redirect to login, server/network failures show a server-unavailable dialog, and failed lobby/menu loads are not silently rendered as empty lists.
   - Registers the Clicker and Ravens and Dragons frontend entries for the lobby.
 - `app/app-frontend/src/main/frontend/features/playerGames/playerGamesClient.ts`
-  - Loads the signed-in user's unfinished seated games and opens the player-game SSE stream used by the header menu turn badges.
+  - Loads the signed-in user's unfinished seated games and opens the player-game SSE stream used by the header menu turn badges after the initial list load succeeds.
+  - Closes the player-game stream on errors so the browser does not keep retrying while the server is down; the stream is reopened only by a later user action or auth/session change.
 - `app/app-frontend/src/main/frontend/app/store.ts`
   - Assembles the Redux store from app-owned auth state plus the registered game frontend reducers.
 - `app/app-frontend/src/main/frontend/features/auth/*.ts`
@@ -55,3 +57,4 @@ The app keeps the included-game list declarative by registering each game module
 - Railway deployment starts `ravens-and-dragons.jar`.
 - The lobby can open a selected public game or a typed game id; public game rows use per-row gradients with a darker selected state, and missing typed ids report feedback without navigating away from the lobby.
 - The shared app header keeps the `Ayazian Games` title visually unchanged while linking it back to `/lobby` after login, leaves it inert on the login page, and turns the signed-in username into a menu containing profile/lobby/game/logout navigation plus live turn badges.
+- Navigating to the lobby from the header/menu rechecks auth so stale client sessions redirect to login instead of showing an empty lobby.

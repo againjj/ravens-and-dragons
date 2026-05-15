@@ -29,9 +29,12 @@ vi.mock("@ravensanddragons/platform-frontend/api-client", () => ({
     deleteLocalAccountRequest: deleteLocalAccountRequestMock,
     fetchAuthSession: fetchAuthSessionMock,
     fetchLocalProfile: fetchLocalProfileMock,
+    isServerUnavailableError: (error: unknown) => error instanceof Error && /failed to fetch/i.test(error.message),
     loginAsGuest: loginAsGuestMock,
     loginRequest: loginRequestMock,
     logoutRequest: logoutRequestMock,
+    notifyServerUnavailable: vi.fn(),
+    serverUnavailableMessage: "The server is down. Please wait and try again later.",
     signupRequest: signupRequestMock,
     updateLocalProfileRequest: updateLocalProfileRequestMock
 }));

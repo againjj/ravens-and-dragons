@@ -42,6 +42,7 @@
 - `platform/frontend`
   - Local npm package `@ravensanddragons/platform-frontend`.
   - Exports shared auth wire types, auth API helpers, frontend game-entry contracts, the shared player picker, route helpers, and reusable browser shell hooks.
+  - Classifies frontend API failures with status-aware request errors plus shared session-expired and server-unavailable browser events used by the shell and game modules.
 - `platform/src/test/kotlin/com/ravensanddragons/platform/game/GameModuleRegistryTest.kt`
   - Verifies registry validation, duplicate slug rejection, and lookup behavior.
 - `platform/src/test/kotlin/com/ravensanddragons/web/DisconnectedClientExceptionHandlerTest.kt`
@@ -56,7 +57,7 @@
 - Own shared game runtime mechanics that can operate on opaque game-owned JSON state stored as `public_state_json` and `private_state_json`.
 - Own platform-level public listing metadata while delegating game-specific listing details to the registered game handler.
 - Delegate client-facing public game payload normalization to the registered game handler before generic game reads and initial stream snapshots leave the runtime.
-- Own frontend shell/auth contracts that are not tied to a specific game's pieces, rules, or UI.
+- Own frontend shell/auth contracts and status-aware API helpers that are not tied to a specific game's pieces, rules, or UI.
 - Define small ports for game-owned cleanup or adapter behavior where shared services need to call into game modules.
 
 ## Boundaries

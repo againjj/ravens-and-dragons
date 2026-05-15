@@ -1,5 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 
+import {
+    createResponseError,
+    isServerUnavailableError,
+    isUnauthorizedError,
+    notifyAuthSessionExpired,
+    notifyServerUnavailable,
+    serverUnavailableMessage,
+    sessionExpiredMessage
+} from "@ravensanddragons/platform-frontend/api-client";
 import { buildGameCreatePath, type GameEntry } from "@ravensanddragons/platform-frontend/game-entry";
 
 interface ClickerGameState {
@@ -14,11 +23,6 @@ interface CreateGameResponse {
     game: ClickerGameState;
 }
 
-interface CommandResponse {
-    game?: ClickerGameState;
-    message?: string;
-}
-
 const playRoutePattern = /^\/g\/([^/]+)$/;
 const emptyLifecycle = () => undefined;
 
@@ -30,7 +34,7 @@ const readGameIdFromLocation = (): string | null => {
 const fetchClickerGame = async (gameId: string): Promise<ClickerGameState> => {
     const response = await fetch(`/api/games/${encodeURIComponent(gameId)}`);
     if (!response.ok) {
-        throw new Error(`Unable to load game "${gameId}".`);
+        throw await createResponseError(response, `Unable to load game "${gameId}".`);
     }
     const game = await response.json() as ClickerGameState;
     if (game.gameSlug !== "clicker") {
@@ -48,7 +52,7 @@ const createClickerGame = async (publiclyListed = true): Promise<ClickerGameStat
         body: JSON.stringify({ publiclyListed })
     });
     if (!response.ok) {
-        throw new Error("Unable to start Clicker right now.");
+        throw await createResponseError(response, "Unable to start Clicker right now.");
     }
     const payload = await response.json() as CreateGameResponse;
     return payload.game;
@@ -66,8 +70,7 @@ const sendClick = async (game: ClickerGameState): Promise<ClickerGameState> => {
         })
     });
     if (!response.ok) {
-        const payload = await response.json().catch(() => null) as CommandResponse | null;
-        throw new Error(payload?.message ?? "Unable to click right now.");
+        throw await createResponseError(response, "Unable to click right now.");
     }
     return await response.json() as ClickerGameState;
 };
@@ -123,7 +126,15 @@ const ClickerPlayScreen = () => {
             })
             .catch((error: unknown) => {
                 if (isActive) {
-                    setMessage(error instanceof Error ? error.message : "Unable to load Clicker.");
+                    if (isUnauthorizedError(error)) {
+                        notifyAuthSessionExpired();
+                        setMessage(sessionExpiredMessage);
+                    } else if (isServerUnavailableError(error)) {
+                        notifyServerUnavailable();
+                        setMessage(serverUnavailableMessage);
+                    } else {
+                        setMessage(error instanceof Error ? error.message : "Unable to load Clicker.");
+                    }
                 }
             });
 
@@ -136,6 +147,7 @@ const ClickerPlayScreen = () => {
             }
         });
         stream.onerror = () => {
+            notifyServerUnavailable();
             stream.close();
         };
 
@@ -155,7 +167,15 @@ const ClickerPlayScreen = () => {
         void sendClick(game)
             .then(setGame)
             .catch((error: unknown) => {
-                setMessage(error instanceof Error ? error.message : "Unable to click right now.");
+                if (isUnauthorizedError(error)) {
+                    notifyAuthSessionExpired();
+                    setMessage(sessionExpiredMessage);
+                } else if (isServerUnavailableError(error)) {
+                    notifyServerUnavailable();
+                    setMessage(serverUnavailableMessage);
+                } else {
+                    setMessage(error instanceof Error ? error.message : "Unable to click right now.");
+                }
             })
             .finally(() => {
                 setIsSubmitting(false);

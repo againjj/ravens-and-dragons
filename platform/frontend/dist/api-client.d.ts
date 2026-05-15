@@ -1,5 +1,6 @@
 import type {
     AuthSessionResponse,
+    AuthUserSummary,
     DeleteAccountRequest,
     LocalProfileResponse,
     LoginRequest,
@@ -28,6 +29,22 @@ export type FetchLike = typeof fetch;
 export type EventSourceFactory = (url: string) => EventSourceLike;
 
 export declare const defaultCommandErrorMessage: string;
+export declare const serverUnavailableMessage: string;
+export declare const sessionExpiredMessage: string;
+export declare const authSessionExpiredEventType: string;
+export declare const serverUnavailableEventType: string;
+export declare class ApiRequestError extends Error {
+    status?: number;
+    constructor(message: string, status?: number, cause?: unknown);
+}
+export declare const isUnauthorizedError: (error: unknown) => boolean;
+export declare const isServerUnavailableError: (error: unknown) => boolean;
+export declare const notifyAuthSessionExpired: () => void;
+export declare const notifyServerUnavailable: () => void;
+export declare const createResponseError: (
+    response: Response,
+    fallbackMessage?: string
+) => Promise<ApiRequestError>;
 export declare const getOAuthLoginUrl: (provider: string, nextPath?: string) => string;
 export declare const parseJson: <T>(response: { json(): Promise<unknown> }) => Promise<T>;
 export declare const parseErrorMessage: (response: { json(): Promise<unknown> }) => Promise<string>;

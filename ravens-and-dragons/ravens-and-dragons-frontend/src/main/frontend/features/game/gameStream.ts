@@ -2,6 +2,7 @@ import { openGameStream } from "../../game-client.js";
 import type { RavensAndDragonsDispatch } from "../../frontend-state.js";
 import { gameActions } from "./gameSlice.js";
 import { applyServerSessionFromStream } from "./gameThunks.js";
+import { notifyServerUnavailable } from "@ravensanddragons/platform-frontend/api-client";
 
 export const connectGameStream = (dispatch: RavensAndDragonsDispatch, gameId: string): (() => void) =>
     openGameStream(
@@ -15,5 +16,6 @@ export const connectGameStream = (dispatch: RavensAndDragonsDispatch, gameId: st
         },
         () => {
             dispatch(gameActions.streamDisconnected());
+            notifyServerUnavailable();
         }
     );

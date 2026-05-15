@@ -10,15 +10,27 @@ import {
     selectIsLoadingGame
 } from "../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/game/gameSelectors.js";
 import { gameActions } from "../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/game/gameSlice.js";
-import { continueAsGuest, loadAuthSession, login, logout, signup } from "./features/auth/authThunks.js";
+import { continueAsGuest, loadAuthSession, login, logout, signup, signedOutSession } from "./features/auth/authThunks.js";
 import type { GameEntry } from "@ravensanddragons/platform-frontend/game-entry";
 import { useFullscreen } from "@ravensanddragons/platform-frontend/hooks/useFullscreen";
 import type { AppDispatch } from "./app/store.js";
 import { useGameRoute } from "./hooks/useGameRoute.js";
-import { selectCurrentUser, selectIsAuthenticated } from "./features/auth/authSelectors.js";
+import { selectCurrentUser, selectIsAuthenticated, selectOAuthProviders } from "./features/auth/authSelectors.js";
+import { authActions } from "./features/auth/authSlice.js";
 import { fetchPlayerGames, openPlayerGamesStream, type PlayerGameListing } from "./features/playerGames/playerGamesClient.js";
 import { clickerGameEntry } from "../../../../../clicker/clicker-frontend/src/main/frontend/clicker-entry.js";
 import { ravensAndDragonsGameEntry } from "../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/ravens-and-dragons-entry.js";
+import {
+    authSessionExpiredEventType,
+    createResponseError,
+    isServerUnavailableError,
+    isUnauthorizedError,
+    notifyAuthSessionExpired,
+    notifyServerUnavailable,
+    serverUnavailableEventType,
+    serverUnavailableMessage,
+    sessionExpiredMessage
+} from "@ravensanddragons/platform-frontend/api-client";
 
 interface AppProps {
     gameEntries?: GameEntry<AppDispatch>[];
@@ -29,7 +41,7 @@ const registeredGameEntries: GameEntry<AppDispatch>[] = [ravensAndDragonsGameEnt
 const fetchPublicGames = async (): Promise<PublicGameListing[]> => {
     const response = await fetch("/api/games/public");
     if (!response.ok) {
-        throw new Error("Unable to load public games.");
+        throw await createResponseError(response, "Unable to load public games.");
     }
     const payload = await response.json() as unknown;
     return Array.isArray(payload) ? payload as PublicGameListing[] : [];
@@ -45,6 +57,7 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
     const dispatch = useAppDispatch();
     const isAuthenticated = useAppSelector(selectIsAuthenticated);
     const currentUser = useAppSelector(selectCurrentUser);
+    const oauthProviders = useAppSelector(selectOAuthProviders);
     const feedbackMessage = useAppSelector(selectFeedbackMessage);
     const isLoadingGame = useAppSelector(selectIsLoadingGame);
     const pageRef = useRef<HTMLElement | null>(null);
@@ -53,8 +66,10 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
     const [selectedGameSlug, setSelectedGameSlug] = useState(gameEntries[0].identity.slug);
     const [publicGames, setPublicGames] = useState<PublicGameListing[]>([]);
     const [playerGames, setPlayerGames] = useState<PlayerGameListing[]>([]);
+    const [isPlayerGamesStreamPaused, setIsPlayerGamesStreamPaused] = useState(false);
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
     const [lobbyOpenErrorMessage, setLobbyOpenErrorMessage] = useState<string | null>(null);
+    const [serverErrorMessage, setServerErrorMessage] = useState<string | null>(null);
     const gameEntriesBySlug = useMemo(
         () => new Map(gameEntries.map((entry) => [entry.identity.slug, entry])),
         [gameEntries]
@@ -62,6 +77,14 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
     const activeGameEntry = gameEntriesBySlug.get(selectedGameSlug) ?? gameEntries[0];
 
     const { PlayScreen } = activeGameEntry.components;
+    const handleAuthExpired = useCallback(() => {
+        setIsUserMenuOpen(false);
+        dispatch(authActions.authSessionSet(signedOutSession(oauthProviders)));
+        dispatch(authActions.authFeedbackMessageSet(sessionExpiredMessage));
+    }, [dispatch, oauthProviders]);
+    const handleServerUnavailable = useCallback(() => {
+        setServerErrorMessage(serverUnavailableMessage);
+    }, []);
     const { page, navigateToCreate, navigateToGame, navigateToLobby, navigateToProfile, openGameFromLobby, createGameSlug, currentGameId } = useGameRoute(
         gameEntries,
         activeGameEntry,
@@ -81,34 +104,69 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
     }, [dispatch]);
 
     useEffect(() => {
+        const onAuthExpired = () => {
+            handleAuthExpired();
+        };
+        const onServerUnavailable = () => {
+            handleServerUnavailable();
+        };
+        window.addEventListener(authSessionExpiredEventType, onAuthExpired);
+        window.addEventListener(serverUnavailableEventType, onServerUnavailable);
+        return () => {
+            window.removeEventListener(authSessionExpiredEventType, onAuthExpired);
+            window.removeEventListener(serverUnavailableEventType, onServerUnavailable);
+        };
+    }, [handleAuthExpired, handleServerUnavailable]);
+
+    useEffect(() => {
         if (!isAuthenticated || !currentUserId) {
             setPlayerGames([]);
             setIsUserMenuOpen(false);
+            setIsPlayerGamesStreamPaused(false);
+            return;
+        }
+    }, [currentUserId, isAuthenticated]);
+
+    useEffect(() => {
+        if (!isAuthenticated || !currentUserId || isPlayerGamesStreamPaused) {
             return;
         }
 
         let isMounted = true;
+        let closeStream = () => {};
         void fetchPlayerGames()
             .then((games) => {
                 if (isMounted) {
                     setPlayerGames(games);
+                    closeStream = openPlayerGamesStream((updatedGames) => {
+                        if (isMounted) {
+                            setPlayerGames(updatedGames);
+                        }
+                    }, () => {
+                        if (isMounted) {
+                            setIsPlayerGamesStreamPaused(true);
+                            notifyServerUnavailable();
+                        }
+                    });
                 }
             })
-            .catch(() => {
+            .catch((error) => {
                 if (isMounted) {
-                    setPlayerGames([]);
+                    if (isUnauthorizedError(error)) {
+                        notifyAuthSessionExpired();
+                    } else if (isServerUnavailableError(error)) {
+                        setIsPlayerGamesStreamPaused(true);
+                        notifyServerUnavailable();
+                    } else {
+                        setLobbyOpenErrorMessage(error instanceof Error ? error.message : "Unable to load your games.");
+                    }
                 }
             });
-        const closeStream = openPlayerGamesStream((games) => {
-            if (isMounted) {
-                setPlayerGames(games);
-            }
-        });
         return () => {
             isMounted = false;
             closeStream();
         };
-    }, [currentUserId, isAuthenticated]);
+    }, [currentUserId, isAuthenticated, isPlayerGamesStreamPaused]);
 
     useEffect(() => {
         if (currentCreateGameEntry) {
@@ -144,8 +202,16 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
     const loadPublicGames = useCallback(() => {
         void fetchPublicGames()
             .then(setPublicGames)
-            .catch(() => {
-                setPublicGames([]);
+            .catch((error) => {
+                if (isUnauthorizedError(error)) {
+                    notifyAuthSessionExpired();
+                    return;
+                }
+                if (isServerUnavailableError(error)) {
+                    notifyServerUnavailable();
+                    return;
+                }
+                setLobbyOpenErrorMessage(error instanceof Error ? error.message : "Unable to load public games.");
             });
     }, []);
 
@@ -170,11 +236,23 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
 
     const handleStartGameFromCreate = (gameSlug: string, publiclyListed = true) => {
         void (async () => {
-            const gameId = await (gameEntriesBySlug.get(gameSlug) ?? activeGameEntry).lifecycle.startGame(dispatch, gameSlug, {
-                publiclyListed
-            });
-            if (gameId) {
-                navigateToGame(gameId);
+            try {
+                const gameId = await (gameEntriesBySlug.get(gameSlug) ?? activeGameEntry).lifecycle.startGame(dispatch, gameSlug, {
+                    publiclyListed
+                });
+                if (gameId) {
+                    navigateToGame(gameId);
+                }
+            } catch (error) {
+                if (isUnauthorizedError(error)) {
+                    notifyAuthSessionExpired();
+                    return;
+                }
+                if (isServerUnavailableError(error)) {
+                    notifyServerUnavailable();
+                    return;
+                }
+                setLobbyOpenErrorMessage(error instanceof Error ? error.message : "Unable to start a game right now.");
             }
         })();
     };
@@ -211,6 +289,9 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
                                         aria-haspopup="menu"
                                         aria-expanded={isUserMenuOpen}
                                         onClick={() => {
+                                            if (isPlayerGamesStreamPaused) {
+                                                setIsPlayerGamesStreamPaused(false);
+                                            }
                                             setIsUserMenuOpen((open) => !open);
                                         }}
                                     >
@@ -368,6 +449,36 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
             <footer className="app-footer">
                 <small>&copy; 2026 Johnathon Ayazian</small>
             </footer>
+            {serverErrorMessage ? (
+                <div
+                    className="modal-backdrop"
+                    role="presentation"
+                    onClick={() => {
+                        setServerErrorMessage(null);
+                    }}
+                >
+                    <section
+                        className="panel modal-dialog"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-labelledby="server-error-title"
+                        onClick={(event) => {
+                            event.stopPropagation();
+                        }}
+                    >
+                        <h2 id="server-error-title">Server Unavailable</h2>
+                        <p>{serverErrorMessage}</p>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setServerErrorMessage(null);
+                            }}
+                        >
+                            OK
+                        </button>
+                    </section>
+                </div>
+            ) : null}
         </main>
     );
 };

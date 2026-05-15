@@ -73,6 +73,7 @@ The parent project has two child projects:
   - Turn notation and grouped move-history row helpers.
 - `src/main/frontend/game-client.ts`
   - Ravens and Dragons game REST command helpers, create-game submission, player and bot assignment, SSE subscription setup, and compatibility re-exports for shared auth API helpers.
+  - Preserves HTTP status information for load/create/view failures and closes SSE streams on errors so the browser does not auto-retry while the server is unavailable.
 - `src/main/frontend/components/*.tsx`
   - React components for Ravens game create/play UI, including board, controls, rules panel, seat panel, move list, and status text.
 - `src/main/frontend/features/game/*.ts`
@@ -112,6 +113,7 @@ Server-only undo history stores compact restore-state entries instead of full sn
 - Active games send mutations to `POST /api/games/{gameId}/commands`.
 - Seat claiming, explicit player-seat assignment, and bot assignment are Ravens command types sent through the same command endpoint.
 - Active games subscribe to `GET /api/games/{gameId}/stream`.
+- Active-game streams close on connection errors and stay disconnected until a later user action or reload refreshes game state, rather than polling while the server is down.
 - Request-scoped auth-aware game metadata is loaded from `GET /api/games/{gameId}/view`.
 - Legacy Ravens games stored with snapshot-only public state are converted to full session-shaped responses when loaded or streamed.
 - Seat ownership gates gameplay actions by claimed side and active turn.

@@ -61,6 +61,7 @@ This file contains repository-wide instructions for AI-assisted work in this pro
 - Keep tests as independent as possible so they remain safe to run in parallel.
 - Avoid shared mutable state, order dependencies, and shared database rows between tests unless the test explicitly owns and resets that state.
 - When any build, test, npm, dependency, or audit command reports vulnerabilities, prominently tell the user as soon as they are noticed, including the reported count and severity when available.
+- Frontend async failures must preserve the difference between authentication/session expiry and server/network failure. A `401` from an API request should invalidate the client auth state and redirect the user to login with the current page as `next`; a network/server-unavailable failure should show a server-down notice; expected domain failures such as `404`, `403`, validation errors, and version conflicts should show their specific user-facing message. Do not silently turn failed loads into empty lists or no-op stream errors.
 - When fixing a bug, start by writing or updating a test that reproduces the failure before fixing the implementation.
 - When logic is extracted or refactored, keep tests focused on behavior rather than implementation details.
 - Run `./gradlew test` before finishing code changes whenever practical.

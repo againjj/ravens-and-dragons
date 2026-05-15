@@ -1,5 +1,6 @@
 import { PlayerPicker } from "@ravensanddragons/platform-frontend/player-picker";
 import type { AuthUserSummary } from "@ravensanddragons/platform-frontend/auth-types";
+import { isServerUnavailableError, isUnauthorizedError, notifyAuthSessionExpired, notifyServerUnavailable } from "@ravensanddragons/platform-frontend/api-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -46,8 +47,14 @@ export const SeatPanel = ({ onAssignBotOpponent, onAssignPlayerSeat = () => {}, 
         try {
             const users = await fetchUsers();
             setPlayers(users.filter((user) => user.id !== currentUser.id));
-        } catch {
-            setPlayers([]);
+        } catch (error) {
+            if (isUnauthorizedError(error)) {
+                notifyAuthSessionExpired();
+            } else if (isServerUnavailableError(error)) {
+                notifyServerUnavailable();
+            } else {
+                setPlayers([]);
+            }
         }
     }, [currentUser]);
 

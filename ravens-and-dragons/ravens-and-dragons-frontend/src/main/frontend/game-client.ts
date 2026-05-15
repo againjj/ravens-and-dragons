@@ -7,6 +7,7 @@ import type {
 } from "./game-types.js";
 import {
     defaultCommandErrorMessage,
+    createResponseError,
     parseErrorMessage,
     parseJson
 } from "@ravensanddragons/platform-frontend/api-client";
@@ -52,12 +53,7 @@ export const createGameSession = async (
         body: JSON.stringify(request)
     });
     if (!response.ok) {
-        const errorMessage = await parseErrorMessage(response);
-        throw new Error(
-            errorMessage === defaultCommandErrorMessage
-                ? "Unable to create a new game right now."
-                : errorMessage
-        );
+        throw await createResponseError(response, "Unable to create a new game right now.");
     }
 
     const result = await parseJson<CreateGameResponse>(response);
@@ -67,7 +63,7 @@ export const createGameSession = async (
 export const fetchGameSession = async (gameId: string, fetchImpl: FetchLike = fetch): Promise<ServerGameSession> => {
     const response = await fetchImpl(getGameUrl(gameId));
     if (!response.ok) {
-        throw new Error(`Failed to load game: ${response.status}`);
+        throw await createResponseError(response, `Failed to load game: ${response.status}`);
     }
 
     return parseJson<ServerGameSession>(response);
@@ -76,7 +72,7 @@ export const fetchGameSession = async (gameId: string, fetchImpl: FetchLike = fe
 export const fetchGameView = async (gameId: string, fetchImpl: FetchLike = fetch): Promise<GameViewResponse> => {
     const response = await fetchImpl(`${getGameUrl(gameId)}/view`);
     if (!response.ok) {
-        throw new Error(`Failed to load game view: ${response.status}`);
+        throw await createResponseError(response, `Failed to load game view: ${response.status}`);
     }
 
     return parseJson<GameViewResponse>(response);
@@ -131,6 +127,13 @@ export const openGameStream = (
     onError: () => void
 ): (() => void) => {
     const eventSource = createEventSource(`${getGameUrl(gameId)}/stream`);
+    let isClosed = false;
+    const closeStream = () => {
+        if (!isClosed) {
+            isClosed = true;
+            eventSource.close();
+        }
+    };
 
     eventSource.addEventListener("game", (event) => {
         if (!isGameMessageEvent(event)) {
@@ -146,9 +149,8 @@ export const openGameStream = (
 
     eventSource.onerror = () => {
         onError();
+        closeStream();
     };
 
-    return () => {
-        eventSource.close();
-    };
+    return closeStream;
 };

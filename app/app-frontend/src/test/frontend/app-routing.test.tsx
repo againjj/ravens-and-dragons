@@ -43,12 +43,25 @@ vi.mock("../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/
 }));
 
 vi.mock("@ravensanddragons/platform-frontend/api-client", () => ({
+    authSessionExpiredEventType: "ravensanddragons:auth-session-expired",
+    serverUnavailableEventType: "ravensanddragons:server-unavailable",
+    serverUnavailableMessage: "The server is down. Please wait and try again later.",
+    sessionExpiredMessage: "Your session expired. Please sign in again.",
+    createResponseError: async (response: Response, fallbackMessage = "Request failed.") => {
+        const error = new Error(fallbackMessage) as Error & { status?: number };
+        error.status = response.status;
+        return error;
+    },
     fetchAuthSession: fetchAuthSessionMock,
     fetchLocalProfile: fetchLocalProfileMock,
     getOAuthLoginUrl: (provider: string) => `/oauth2/authorization/${provider}`,
+    isServerUnavailableError: (error: unknown) => error instanceof Error && /failed to fetch/i.test(error.message),
+    isUnauthorizedError: (error: unknown) => error instanceof Error && (error as Error & { status?: number }).status === 401,
     loginAsGuest: loginAsGuestMock,
     loginRequest: vi.fn(),
     logoutRequest: logoutRequestMock,
+    notifyAuthSessionExpired: () => window.dispatchEvent(new CustomEvent("ravensanddragons:auth-session-expired")),
+    notifyServerUnavailable: () => window.dispatchEvent(new CustomEvent("ravensanddragons:server-unavailable")),
     signupRequest: vi.fn()
 }));
 
@@ -679,6 +692,111 @@ describe("App routing", () => {
 
         expect(closeStream).not.toHaveBeenCalled();
         expect(openPlayerGamesStreamMock).toHaveBeenCalledTimes(1);
+    });
+
+    test("player game stream errors show server unavailable without pinging auth again", async () => {
+        let streamError: (() => void) | null = null;
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "guest-1",
+                displayName: "Guest 1",
+                authType: "guest"
+            }
+        });
+        openPlayerGamesStreamMock.mockImplementation((_onUpdate: (games: unknown[]) => void, onError: () => void) => {
+            streamError = onError;
+            return () => undefined;
+        });
+        window.history.pushState({}, "", "/lobby");
+
+        renderWithStore(<App />);
+
+        await screen.findByRole("heading", { name: "Game Lobby" });
+        expect(fetchAuthSessionMock).toHaveBeenCalledTimes(1);
+
+        act(() => {
+            streamError?.();
+        });
+
+        expect(fetchAuthSessionMock).toHaveBeenCalledTimes(1);
+        expect(screen.getByRole("dialog", { name: "Server Unavailable" })).toBeInTheDocument();
+    });
+
+    test("player game stream is not opened when the initial menu game load cannot reach the server", async () => {
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "guest-1",
+                displayName: "Guest 1",
+                authType: "guest"
+            }
+        });
+        fetchPlayerGamesMock.mockRejectedValue(new TypeError("Failed to fetch"));
+        window.history.pushState({}, "", "/lobby");
+
+        renderWithStore(<App />);
+
+        await screen.findByRole("heading", { name: "Game Lobby" });
+        await waitFor(() => {
+            expect(screen.getByRole("dialog", { name: "Server Unavailable" })).toBeInTheDocument();
+        });
+        expect(openPlayerGamesStreamMock).not.toHaveBeenCalled();
+    });
+
+    test("lobby menu navigation rechecks auth and redirects to login when the session expired", async () => {
+        const user = userEvent.setup();
+        fetchAuthSessionMock
+            .mockResolvedValueOnce({
+                authenticated: true,
+                user: {
+                    id: "guest-1",
+                    displayName: "Guest 1",
+                    authType: "guest"
+                }
+            })
+            .mockResolvedValueOnce({
+                authenticated: false,
+                user: null,
+                oauthProviders: []
+            });
+        fetchGameViewMock.mockResolvedValue(createGameView({ id: "MPQRVWX" }));
+        window.history.pushState({}, "", "/g/MPQRVWX");
+
+        renderWithStore(<App />);
+
+        await screen.findByRole("heading", { name: "Game MPQRVWX" });
+        await user.click(screen.getByRole("button", { name: "Dragon Player" }));
+        await user.click(screen.getByRole("menuitem", { name: "Lobby" }));
+
+        await waitFor(() => {
+            expect(window.location.pathname).toBe("/login");
+        });
+        expect(new URLSearchParams(window.location.search).get("next")).toBe("/lobby");
+    });
+
+    test("public game list 401 redirects to login instead of showing an empty lobby", async () => {
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "guest-1",
+                displayName: "Guest 1",
+                authType: "guest"
+            }
+        });
+        fetchGameMetadataMock.mockResolvedValue({
+            ok: false,
+            status: 401,
+            json: async () => ({ message: "Unauthorized." })
+        });
+        window.history.pushState({}, "", "/lobby");
+
+        renderWithStore(<App />);
+
+        await waitFor(() => {
+            expect(window.location.pathname).toBe("/login");
+        });
+        expect(new URLSearchParams(window.location.search).get("next")).toBe("/lobby");
     });
 
     test("loading /lobby while signed out redirects to /login with a return target", async () => {

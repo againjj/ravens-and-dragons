@@ -18,6 +18,7 @@ The runnable app now assembles Ravens and Dragons through a platform-owned game 
 The repository is structured so each game lives in its own sub-project. The current checkout contains two game modules, Clicker and Ravens and Dragons, and the app registers each module explicitly.
 
 The React app shell now lives under `app/app-frontend` and renders Clicker and Ravens and Dragons through a frontend game entry contract supplied by the shared `@ravensanddragons/platform-frontend` package. The package also owns shared auth wire types, auth API helpers, and browser shell hooks that future frontend game bundles can reuse.
+Frontend API helpers classify unauthorized, domain, and network/server failures so shell and game surfaces can redirect expired sessions to login, show server-down notices, and avoid silently replacing failed loads with empty lists. Live SSE streams are closed on errors; menu and game streams wait for a later user action or reload before reconnecting instead of polling the server while it is down.
 
 ## Project Files
 
@@ -78,7 +79,7 @@ The Gradle wrapper is pinned to Gradle 9.4.1. Java 21 is the project toolchain. 
 - Seat and bot actions are Ravens command types sent through the command endpoint. Ravens uses a platform-owned player picker to add the current user, another existing player, or a legal bot opponent to open seats.
 - Live updates use `GET /api/games/{gameId}/stream`.
 
-Games persist in the configured database, so clients can reopen the same game after server restart. SSE fanout remains in memory per app instance.
+Games persist in the configured database, so clients can reopen the same game after server restart. SSE fanout remains in memory per app instance, and frontend streams close on connection errors rather than retrying automatically.
 
 The shared browser chrome keeps the `Ayazian Games` header title linked back to the lobby after login, renders the signed-in username as a turn-aware menu, uses compact button/dropdown styling, styles public lobby game-list rows with per-row gradients and a darker selected row, and switches the phone layout breakpoint at 500px.
 

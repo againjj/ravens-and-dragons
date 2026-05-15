@@ -7,17 +7,20 @@ import { gameActions } from "./gameSlice.js";
 import { uiActions } from "../ui/uiSlice.js";
 import { hostAuthSessionSet } from "../host/hostAuthActions.js";
 import { selectBotAssignmentModel } from "./gameSelectors.js";
+import {
+    isServerUnavailableError,
+    isUnauthorizedError,
+    notifyAuthSessionExpired,
+    notifyServerUnavailable,
+    serverUnavailableMessage,
+    sessionExpiredMessage
+} from "@ravensanddragons/platform-frontend/api-client";
 
-const serverUnavailableMessage = "The server is down. Please wait and try again later.";
 export const playerAccountMissingMessage = "The chosen player account no longer exists.";
 
 const resetSessionScopedUiState = (): RavensAndDragonsThunk => (dispatch) => {
     dispatch(uiActions.selectedSquareSet(null));
 };
-
-const isServerUnavailableError = (error: unknown): boolean =>
-    error instanceof Error &&
-    /failed to fetch|networkerror|network request failed|load failed/i.test(error.message);
 
 const getUserActionErrorMessage = (error: unknown, fallbackMessage: string): string =>
     isServerUnavailableError(error) ? serverUnavailableMessage : fallbackMessage;
@@ -48,6 +51,16 @@ const loadAndApplyGameView = (gameId: string): RavensAndDragonsThunk<Promise<voi
     dispatch(applyFetchedGameView(view));
 };
 
+const applySignedOutSession = (): RavensAndDragonsThunk => (dispatch, getState) => {
+    dispatch(
+        hostAuthSessionSet({
+            authenticated: false,
+            user: null,
+            oauthProviders: getOauthProviders(getState)
+        })
+    );
+};
+
 const requiresMetadataRefresh = (
     previousSession: ServerGameSession | null,
     nextSession: ServerGameSession
@@ -67,21 +80,26 @@ const loadGameViewForUserAction = (
         await dispatch(loadAndApplyGameView(gameId));
         return true;
     } catch (error) {
+        if (isUnauthorizedError(error)) {
+            dispatch(applySignedOutSession());
+            dispatch(gameActions.feedbackMessageSet(sessionExpiredMessage));
+            notifyAuthSessionExpired();
+            return false;
+        }
+        if (isServerUnavailableError(error)) {
+            notifyServerUnavailable();
+        }
         dispatch(gameActions.loadFailed());
         dispatch(gameActions.feedbackMessageSet(getUserActionErrorMessage(error, fallbackMessage)));
         return false;
     }
 };
 
-const handleCommandAuthFailure = (status?: number): RavensAndDragonsThunk<Promise<void>> => async (dispatch, getState) => {
+const handleCommandAuthFailure = (status?: number): RavensAndDragonsThunk<Promise<void>> => async (dispatch) => {
     if (status === 401) {
-        dispatch(
-            hostAuthSessionSet({
-                authenticated: false,
-                user: null,
-                oauthProviders: getOauthProviders(getState)
-            })
-        );
+        dispatch(applySignedOutSession());
+        dispatch(gameActions.feedbackMessageSet(sessionExpiredMessage));
+        notifyAuthSessionExpired();
     }
 
     if (status === 401 || status === 403) {
@@ -120,6 +138,15 @@ export const createGame = (
         dispatch(gameActions.sessionUpdated(session));
         return session.id;
     } catch (error) {
+        if (isUnauthorizedError(error)) {
+            dispatch(applySignedOutSession());
+            dispatch(gameActions.feedbackMessageSet(sessionExpiredMessage));
+            notifyAuthSessionExpired();
+            return null;
+        }
+        if (isServerUnavailableError(error)) {
+            notifyServerUnavailable();
+        }
         dispatch(gameActions.feedbackMessageSet(getCreateGameErrorMessage(error)));
         return null;
     } finally {
@@ -167,8 +194,17 @@ export const refreshCurrentGameView = (): RavensAndDragonsThunk<Promise<void>> =
 
     try {
         await dispatch(loadAndApplyGameView(currentGameId));
-    } catch {
-        // Keep the current board visible if metadata refresh fails.
+    } catch (error) {
+        if (isUnauthorizedError(error)) {
+            dispatch(applySignedOutSession());
+            dispatch(gameActions.feedbackMessageSet(sessionExpiredMessage));
+            notifyAuthSessionExpired();
+            return;
+        }
+        if (isServerUnavailableError(error)) {
+            dispatch(gameActions.feedbackMessageSet(serverUnavailableMessage));
+            notifyServerUnavailable();
+        }
     }
 };
 
@@ -196,6 +232,15 @@ export const sendCommand = (
         dispatch(gameActions.feedbackMessageSet(result.errorMessage ?? "Unable to apply that action right now."));
         await dispatch(handleCommandAuthFailure(result.status));
     } catch (error) {
+        if (isUnauthorizedError(error)) {
+            dispatch(applySignedOutSession());
+            dispatch(gameActions.feedbackMessageSet(sessionExpiredMessage));
+            notifyAuthSessionExpired();
+            return;
+        }
+        if (isServerUnavailableError(error)) {
+            notifyServerUnavailable();
+        }
         dispatch(gameActions.feedbackMessageSet(getUserActionErrorMessage(error, "Unable to apply that action right now.")));
     } finally {
         dispatch(gameActions.commandFinished());

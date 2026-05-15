@@ -31,6 +31,7 @@ export const selectUndoOwnerSide = (state: RavensAndDragonsHostState) => state.g
 export const selectSelectedSquare = (state: RavensAndDragonsHostState) => state.ui.selectedSquare;
 export const selectIsSubmitting = (state: RavensAndDragonsHostState) => state.game.isSubmitting;
 export const selectIsLoadingGame = (state: RavensAndDragonsHostState) => state.game.loadState === "loading";
+export const selectConnectionState = (state: RavensAndDragonsHostState) => state.game.connectionState;
 export const selectFeedbackMessage = (state: RavensAndDragonsHostState) => state.game.feedbackMessage;
 const selectAvailableRuleConfigurations = (state: RavensAndDragonsHostState) =>
     state.game.session?.availableRuleConfigurations ?? emptyRuleConfigurations;
@@ -296,7 +297,7 @@ export const selectStatusText = createSelector(
             }
 
             return gameState.connectionState === "reconnecting"
-                ? "Connection lost. Trying to reconnect..."
+                ? "Connection lost. Use an action or reload the page to reconnect."
                 : "Loading game...";
         }
 
