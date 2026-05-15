@@ -24,6 +24,7 @@ import com.ravensanddragons.game.rules.GameRules
 import com.ravensanddragons.game.session.GameCommandService
 import com.ravensanddragons.game.session.GameSessionFactory
 import com.ravensanddragons.platform.game.runtime.GameHandler
+import com.ravensanddragons.platform.game.runtime.PlayerGameDetails
 import com.ravensanddragons.platform.game.runtime.PublicGameDetails
 import com.ravensanddragons.platform.game.runtime.GameRecord as PlatformGameRecord
 import com.ravensanddragons.platform.game.runtime.InvalidCommandException as PlatformInvalidCommandException
@@ -152,6 +153,26 @@ class RavensAndDragonsGameHandler(
                 game.ravensPlayerUserId to game.ravensBotId
             ).count { (playerUserId, botId) -> playerUserId == null && botId == null }
         )
+    }
+
+    override fun playerGameDetails(current: PlatformGameRecord, currentUserId: String): PlayerGameDetails? {
+        val game = current.toStoredGame().session
+        val playerSides = listOfNotNull(
+            Side.dragons.takeIf { game.dragonsPlayerUserId == currentUserId },
+            Side.ravens.takeIf { game.ravensPlayerUserId == currentUserId }
+        )
+        if (playerSides.isEmpty()) {
+            return null
+        }
+        return PlayerGameDetails(
+            gameName = RavensAndDragonsGameModuleDefinition.identity.displayName,
+            isCurrentUserTurn = game.lifecycle != GameLifecycle.finished && game.snapshot.activeSide in playerSides
+        )
+    }
+
+    override fun playerUserIds(current: PlatformGameRecord): Set<String> {
+        val game = current.toStoredGame().session
+        return setOfNotNull(game.dragonsPlayerUserId, game.ravensPlayerUserId)
     }
 
     override fun clearUserReferences(current: PlatformGameRecord, userId: String): PlatformGameRecord? {

@@ -70,11 +70,7 @@ class GameSessionServiceTest {
     @Test
     fun `broken sse emitter does not prevent a valid command from succeeding for its game`() {
         val service = createService()
-        val failingEmitter = object : SseEmitter(0L) {
-            override fun send(builder: SseEventBuilder) {
-                throw IllegalStateException("stale emitter")
-            }
-        }
+        val failingEmitter = FailingEmitter()
         val recordingEmitter = RecordingEmitter()
         val game = service.createGame(CreateGameRequest(board = mapOf("a1" to Piece.dragon)))
 
@@ -94,7 +90,62 @@ class GameSessionServiceTest {
         assertEquals(1, updated.version)
         assertEquals(GameLifecycle.active, updated.lifecycle)
         assertEquals(Phase.move, updated.snapshot.phase)
+        assertEquals(1, failingEmitter.completed)
         assertEquals(2, recordingEmitter.eventsSent)
+    }
+
+    @Test
+    fun `player games include unfinished seated games in shared list order with turn markers`() {
+        val store = InMemoryGameStore()
+        val service = createService(store)
+        val currentTurnGame = service.createGame(CreateGameRequest(board = mapOf("a1" to Piece.dragon)))
+        val waitingGame = service.createGame(CreateGameRequest(startingSide = Side.ravens, board = mapOf("a1" to Piece.dragon)))
+        val spectatorGame = service.createGame(CreateGameRequest(board = mapOf("a1" to Piece.dragon)))
+
+        store.put(store.get(currentTurnGame.id)!!.copy(session = currentTurnGame.copy(dragonsPlayerUserId = "player-one")))
+        store.put(store.get(waitingGame.id)!!.copy(session = waitingGame.copy(dragonsPlayerUserId = "player-one")))
+        store.put(store.get(spectatorGame.id)!!.copy(session = spectatorGame.copy(ravensPlayerUserId = "other-player")))
+
+        val games = service.listPlayerGames("player-one")
+
+        assertEquals(listOf(currentTurnGame.id, waitingGame.id).sorted(), games.map { it.gameId })
+        assertEquals(
+            mapOf(
+                currentTurnGame.id to true,
+                waitingGame.id to false
+            ),
+            games.associate { it.gameId to it.isCurrentUserTurn }
+        )
+    }
+
+    @Test
+    fun `player games stream sends initial list and updates after turn changes`() {
+        val store = InMemoryGameStore()
+        val service = createService(store)
+        val emitter = RecordingEmitter()
+        val game = service.createGame(CreateGameRequest(board = mapOf("a1" to Piece.dragon, "a2" to Piece.raven)))
+        store.put(
+            store.get(game.id)!!.copy(
+                session = game.copy(
+                    dragonsPlayerUserId = "player-one",
+                    ravensPlayerUserId = "other-player"
+                )
+            )
+        )
+
+        service.createPlayerGamesEmitter("player-one", emitter)
+        service.applyCommand(
+            game.id,
+            GameCommandRequest(
+                expectedVersion = 0,
+                type = "move-piece",
+                origin = "a1",
+                destination = "b1"
+            ),
+            "player-one"
+        )
+
+        assertEquals(2, emitter.eventsSent)
     }
 
     @Test
@@ -557,6 +608,18 @@ class GameSessionServiceTest {
 
         override fun send(builder: SseEventBuilder) {
             eventsSent += 1
+        }
+    }
+
+    private class FailingEmitter : SseEmitter(0L) {
+        var completed: Int = 0
+
+        override fun send(builder: SseEventBuilder) {
+            throw IllegalStateException("stale emitter")
+        }
+
+        override fun complete() {
+            completed += 1
         }
     }
 

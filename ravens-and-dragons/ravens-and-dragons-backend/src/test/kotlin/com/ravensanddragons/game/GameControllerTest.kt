@@ -218,6 +218,48 @@ class GameControllerTest : AbstractGameControllerTestSupport() {
     }
 
     @Test
+    fun `player games list includes unfinished seated games sorted like public games`() {
+        seedGame(
+            gameId = "player-game-b",
+            snapshot = GameRules.startGame(initialBoard = mapOf("a1" to Piece.dragon)),
+            dragonsPlayerUserId = defaultTestUserId,
+            ravensPlayerUserId = alternateTestUserId
+        )
+        seedGame(
+            gameId = "player-game-a",
+            snapshot = GameRules.startGame(initialBoard = mapOf("a1" to Piece.dragon), selectedStartingSide = Side.ravens),
+            dragonsPlayerUserId = defaultTestUserId,
+            ravensPlayerUserId = alternateTestUserId
+        )
+        seedGame(
+            gameId = "spectator-game",
+            dragonsPlayerUserId = alternateTestUserId,
+            ravensPlayerUserId = alternateTestUserId
+        )
+        seedGame(
+            gameId = "finished-player-game",
+            snapshot = GameRules.startGame(initialBoard = mapOf("a1" to Piece.dragon)).copy(
+                turns = listOf(TurnRecord(type = TurnType.gameOver, outcome = "Done"))
+            ),
+            lifecycle = GameLifecycle.finished,
+            dragonsPlayerUserId = defaultTestUserId,
+            ravensPlayerUserId = alternateTestUserId
+        )
+
+        mockMvc.get("/api/games/mine") {
+            with(authenticated("player-games"))
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$[0].gameId", equalTo("player-game-a"))
+            jsonPath("$[0].gameName", equalTo("Ravens and Dragons"))
+            jsonPath("$[0].isCurrentUserTurn", equalTo(false))
+            jsonPath("$[1].gameId", equalTo("player-game-b"))
+            jsonPath("$[1].isCurrentUserTurn", equalTo(true))
+            jsonPath("$.length()", equalTo(2))
+        }
+    }
+
+    @Test
     fun `create game can opt out of public listing`() {
         val created = objectMapper.readValue(
             mockMvc.post("/api/games/ravens-and-dragons") {

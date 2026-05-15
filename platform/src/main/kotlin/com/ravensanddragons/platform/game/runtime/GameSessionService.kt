@@ -25,6 +25,7 @@ class GameSessionService(
     }
 
     private val emittersByGame = ConcurrentHashMap<String, CopyOnWriteArrayList<SseEmitter>>()
+    private val emittersByUser = ConcurrentHashMap<String, CopyOnWriteArrayList<SseEmitter>>()
     private val gameLocks = ConcurrentHashMap<String, Any>()
     private val gameHandlersBySlug: Map<String, GameHandler> = gameHandlers.associateBy { it.gameSlug }
 
@@ -68,7 +69,24 @@ class GameSessionService(
                     openSeats = details.openSeats
                 )
             }
-            .sortedWith(compareBy<PublicGameListing> { it.gameName }.thenBy { it.gameId })
+            .sortedByGameListOrder({ it.gameName }, { it.gameId })
+            .toList()
+
+    fun listPlayerGames(currentUserId: String): List<PlayerGameListing> =
+        gameStore.entries()
+            .asSequence()
+            .filter { it.lifecycle != finishedLifecycle }
+            .mapNotNull { game ->
+                val handler = gameHandlersBySlug[game.gameSlug] ?: return@mapNotNull null
+                val details = handler.playerGameDetails(game, currentUserId) ?: return@mapNotNull null
+                PlayerGameListing(
+                    gameId = game.id,
+                    gameSlug = game.gameSlug,
+                    gameName = details.gameName,
+                    isCurrentUserTurn = details.isCurrentUserTurn
+                )
+            }
+            .sortedByGameListOrder({ it.gameName }, { it.gameId })
             .toList()
 
     fun applyCommand(gameId: String, command: JsonNode, actingUserId: String?): JsonNode = withGameLock(gameId) {
@@ -76,7 +94,9 @@ class GameSessionService(
         val handler = requireHandler(current.gameSlug)
         val nextState = handler.applyCommand(current, command, actingUserId)
         val persisted = persistAndBroadcast(gameId, nextState)
-        handler.afterCommandPersisted(persisted) { game -> persistAndBroadcast(gameId, game) }.publicState
+        val finalState = handler.afterCommandPersisted(persisted) { game -> persistAndBroadcast(gameId, game) }
+        broadcastPlayerGamesFor(current, finalState)
+        finalState.publicState
     }
 
     fun clearUserReferences(userId: String) {
@@ -89,6 +109,7 @@ class GameSessionService(
                 null
             }
             persisted?.let { broadcast(it.id, it.publicState) }
+            persisted?.let { broadcastPlayerGamesFor(game, it) }
         }
     }
 
@@ -108,6 +129,28 @@ class GameSessionService(
         val delivered = sendSnapshot(emitter, getStoredGame(gameId).publicState)
         if (!delivered) {
             removeEmitter()
+            completeEmitter(emitter)
+        }
+        return emitter
+    }
+
+    fun createPlayerGamesEmitter(currentUserId: String): SseEmitter =
+        createPlayerGamesEmitter(currentUserId, SseEmitter(0L))
+
+    fun createPlayerGamesEmitter(currentUserId: String, emitter: SseEmitter): SseEmitter {
+        val emitters = emittersByUser.computeIfAbsent(currentUserId) { CopyOnWriteArrayList() }.also { it.add(emitter) }
+        val removeEmitter = {
+            unregisterPlayerGamesEmitter(currentUserId, emitters, emitter)
+            Unit
+        }
+        emitter.onCompletion(removeEmitter)
+        emitter.onTimeout(removeEmitter)
+        emitter.onError { removeEmitter() }
+
+        val delivered = sendPlayerGames(currentUserId, emitter)
+        if (!delivered) {
+            removeEmitter()
+            completeEmitter(emitter)
         }
         return emitter
     }
@@ -142,6 +185,17 @@ class GameSessionService(
         }
     }
 
+    private fun broadcastPlayerGamesFor(before: GameRecord, after: GameRecord) {
+        val users = playerUserIds(before) + playerUserIds(after)
+        users.forEach(::broadcastPlayerGames)
+    }
+
+    private fun broadcastPlayerGames(currentUserId: String) {
+        emittersByUser[currentUserId]?.let { emitters ->
+            pruneUndeliveredPlayerGamesEmitters(currentUserId, emitters)
+        }
+    }
+
     private fun persistAndBroadcast(gameId: String, game: GameRecord): GameRecord {
         try {
             gameStore.put(game)
@@ -165,6 +219,22 @@ class GameSessionService(
             return false
         }
     }
+
+    private fun sendPlayerGames(currentUserId: String, emitter: SseEmitter): Boolean {
+        try {
+            emitter.send(
+                SseEmitter.event()
+                    .name("player-games")
+                    .data(listPlayerGames(currentUserId))
+            )
+            return true
+        } catch (_: Exception) {
+            return false
+        }
+    }
+
+    private fun playerUserIds(game: GameRecord): Set<String> =
+        gameHandlersBySlug[game.gameSlug]?.playerUserIds(game).orEmpty()
 
     private fun requireHandler(gameSlug: String): GameHandler =
         gameHandlersBySlug[gameSlug] ?: throw IllegalArgumentException("Game module '$gameSlug' is not registered.")
@@ -206,6 +276,17 @@ class GameSessionService(
         }
     }
 
+    private fun unregisterPlayerGamesEmitter(
+        currentUserId: String,
+        emitters: CopyOnWriteArrayList<SseEmitter>,
+        emitter: SseEmitter
+    ) {
+        emitters.remove(emitter)
+        if (emitters.isEmpty()) {
+            emittersByUser.remove(currentUserId, emitters)
+        }
+    }
+
     private fun hasActiveEmitters(gameId: String): Boolean =
         emittersByGame[gameId]?.isNotEmpty() == true
 
@@ -213,9 +294,22 @@ class GameSessionService(
         emitters.forEach { emitter ->
             if (!sendSnapshot(emitter, publicState)) {
                 emitters.remove(emitter)
+                completeEmitter(emitter)
             }
         }
         cleanupEmitters(gameId, emitters)
+    }
+
+    private fun pruneUndeliveredPlayerGamesEmitters(currentUserId: String, emitters: CopyOnWriteArrayList<SseEmitter>) {
+        emitters.forEach { emitter ->
+            if (!sendPlayerGames(currentUserId, emitter)) {
+                emitters.remove(emitter)
+                completeEmitter(emitter)
+            }
+        }
+        if (emitters.isEmpty()) {
+            emittersByUser.remove(currentUserId, emitters)
+        }
     }
 
     private fun cleanupEmitters(gameId: String, emitters: CopyOnWriteArrayList<SseEmitter>): Boolean {
@@ -224,6 +318,14 @@ class GameSessionService(
             return true
         }
         return false
+    }
+
+    private fun completeEmitter(emitter: SseEmitter) {
+        try {
+            emitter.complete()
+        } catch (_: Exception) {
+            // The client may already have disconnected; completing is best-effort cleanup.
+        }
     }
 
 }

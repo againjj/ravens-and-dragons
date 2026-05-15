@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { screen, waitFor } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
@@ -15,6 +15,8 @@ const {
     fetchGameViewMock,
     fetchGameMetadataMock,
     fetchLocalProfileMock,
+    fetchPlayerGamesMock,
+    openPlayerGamesStreamMock,
     loginAsGuestMock,
     logoutRequestMock,
     sendGameCommandRequestMock
@@ -24,6 +26,8 @@ const {
     fetchGameViewMock: vi.fn(),
     fetchGameMetadataMock: vi.fn(),
     fetchLocalProfileMock: vi.fn(),
+    fetchPlayerGamesMock: vi.fn(),
+    openPlayerGamesStreamMock: vi.fn(),
     loginAsGuestMock: vi.fn(),
     logoutRequestMock: vi.fn(),
     sendGameCommandRequestMock: vi.fn()
@@ -45,6 +49,11 @@ vi.mock("@ravensanddragons/platform-frontend/api-client", () => ({
     loginRequest: vi.fn(),
     logoutRequest: logoutRequestMock,
     signupRequest: vi.fn()
+}));
+
+vi.mock("../../main/frontend/features/playerGames/playerGamesClient.js", () => ({
+    fetchPlayerGames: fetchPlayerGamesMock,
+    openPlayerGamesStream: openPlayerGamesStreamMock
 }));
 
 vi.mock("../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/features/game/useGameSession.js", () => ({
@@ -104,6 +113,8 @@ describe("App routing", () => {
         fetchGameViewMock.mockReset();
         fetchGameMetadataMock.mockReset();
         fetchLocalProfileMock.mockReset();
+        fetchPlayerGamesMock.mockReset();
+        openPlayerGamesStreamMock.mockReset();
         loginAsGuestMock.mockReset();
         logoutRequestMock.mockReset();
         sendGameCommandRequestMock.mockReset();
@@ -119,6 +130,8 @@ describe("App routing", () => {
                 authType: "guest"
             }
         });
+        fetchPlayerGamesMock.mockResolvedValue([]);
+        openPlayerGamesStreamMock.mockReturnValue(() => undefined);
         logoutRequestMock.mockResolvedValue(undefined);
         fetchLocalProfileMock.mockResolvedValue({
             id: "player-dragons",
@@ -264,11 +277,10 @@ describe("App routing", () => {
         await screen.findByRole("heading", { name: "Game Lobby" });
         expect(window.location.pathname).toBe("/lobby");
         expect(screen.getByRole("heading", { name: "Ayazian Games", level: 1 })).toBeInTheDocument();
-        expect(screen.getByText("Dragon Player")).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Dragon Player" })).toBeInTheDocument();
         expect(screen.getByText("© 2026 Johnathon Ayazian")).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "Lobby" })).not.toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Profile" })).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Log Out" })).toBeInTheDocument();
+        expect(screen.queryByRole("menuitem", { name: "Profile" })).not.toBeInTheDocument();
     });
 
     test("logged in users loading /ravens-and-dragons/create can start a game from the draft", async () => {
@@ -480,7 +492,8 @@ describe("App routing", () => {
         renderWithStore(<App />);
 
         await screen.findByRole("heading", { name: "Game MPQRVWX" });
-        await user.click(screen.getByRole("button", { name: "Lobby" }));
+        await user.click(screen.getByRole("button", { name: "Dragon Player" }));
+        await user.click(screen.getByRole("menuitem", { name: "Lobby" }));
 
         await waitFor(() => {
             expect(window.location.pathname).toBe("/lobby");
@@ -513,6 +526,7 @@ describe("App routing", () => {
     });
 
     test("game header shows actions in the shared order and hides profile destination buttons only on that page", async () => {
+        const user = userEvent.setup();
         fetchAuthSessionMock.mockResolvedValue({
             authenticated: true,
             user: {
@@ -529,8 +543,105 @@ describe("App routing", () => {
         await screen.findByRole("heading", { name: "Game MPQRVWX" });
 
         const heroActions = container.querySelector(".hero-actions");
-        const labels = Array.from(heroActions?.children ?? []).map((element) => element.textContent?.trim());
-        expect(labels).toEqual(["Dragon Player", "Profile", "Lobby", "Log Out", ""]);
+        expect(heroActions?.children.length).toBe(2);
+        expect(screen.getByRole("button", { name: "Dragon Player" })).toBeInTheDocument();
+        await user.click(screen.getByRole("button", { name: "Dragon Player" }));
+        expect(Array.from(screen.getAllByRole("menuitem")).map((element) => element.textContent?.trim())).toEqual([
+            "Profile",
+            "Lobby",
+            "Log Out"
+        ]);
+    });
+
+    test("user menu closes when clicking the trigger again or clicking outside", async () => {
+        const user = userEvent.setup();
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "player-dragons",
+                displayName: "Dragon Player",
+                authType: "local"
+            }
+        });
+        window.history.pushState({}, "", "/lobby");
+
+        renderWithStore(<App />);
+
+        await screen.findByRole("heading", { name: "Game Lobby" });
+        const trigger = screen.getByRole("button", { name: "Dragon Player" });
+
+        await user.click(trigger);
+        expect(screen.getByRole("menuitem", { name: "Lobby" })).toBeInTheDocument();
+        await user.click(trigger);
+        expect(screen.queryByRole("menuitem", { name: "Lobby" })).not.toBeInTheDocument();
+
+        await user.click(trigger);
+        expect(screen.getByRole("menuitem", { name: "Lobby" })).toBeInTheDocument();
+        await user.click(document.body);
+        expect(screen.queryByRole("menuitem", { name: "Lobby" })).not.toBeInTheDocument();
+    });
+
+    test("user menu lists active seated games with turn badges and bolds the current game", async () => {
+        const user = userEvent.setup();
+        let streamUpdate: ((games: unknown[]) => void) | null = null;
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "player-dragons",
+                displayName: "Dragon Player",
+                authType: "local"
+            }
+        });
+        fetchPlayerGamesMock.mockResolvedValue([
+            {
+                gameId: "AAAAAAA",
+                gameSlug: "ravens-and-dragons",
+                gameName: "Ravens and Dragons",
+                isCurrentUserTurn: true
+            },
+            {
+                gameId: "MPQRVWX",
+                gameSlug: "ravens-and-dragons",
+                gameName: "Ravens and Dragons",
+                isCurrentUserTurn: false
+            }
+        ]);
+        openPlayerGamesStreamMock.mockImplementation((onUpdate: (games: unknown[]) => void) => {
+            streamUpdate = onUpdate;
+            return () => undefined;
+        });
+        fetchGameViewMock.mockResolvedValue(createGameView({ id: "MPQRVWX" }));
+        window.history.pushState({}, "", "/g/MPQRVWX");
+
+        const { container } = renderWithStore(<App />);
+
+        await screen.findByRole("heading", { name: "Game MPQRVWX" });
+        expect(screen.getByRole("button", { name: "Dragon Player" }).querySelector(".turn-count-badge")?.textContent).toBe("1");
+
+        act(() => {
+            streamUpdate?.([
+                {
+                    gameId: "AAAAAAA",
+                    gameSlug: "ravens-and-dragons",
+                    gameName: "Ravens and Dragons",
+                    isCurrentUserTurn: false
+                },
+                {
+                    gameId: "MPQRVWX",
+                    gameSlug: "ravens-and-dragons",
+                    gameName: "Ravens and Dragons",
+                    isCurrentUserTurn: true
+                }
+            ]);
+        });
+        expect(screen.getByRole("button", { name: "Dragon Player" }).querySelector(".turn-count-badge")?.textContent).toBe("1");
+
+        await user.click(screen.getByRole("button", { name: "Dragon Player" }));
+
+        const currentGameLink = screen.getByRole("menuitem", { name: /MPQRVWX/ });
+        expect(currentGameLink).toHaveClass("is-current-page");
+        expect(screen.getByRole("menuitem", { name: "Your Turn Ravens and Dragons: MPQRVWX" })).toBeInTheDocument();
+        expect(container.querySelector(".your-turn-badge")?.textContent).toBe("YourTurn");
     });
 
     test("loading /lobby while signed out redirects to /login with a return target", async () => {
@@ -541,6 +652,16 @@ describe("App routing", () => {
         await screen.findByRole("button", { name: "Continue as Guest" });
         expect(window.location.pathname).toBe("/login");
         expect(new URLSearchParams(window.location.search).get("next")).toBe("/lobby");
+    });
+
+    test("header title is not a lobby link on the login screen", async () => {
+        window.history.pushState({}, "", "/login");
+
+        renderWithStore(<App />);
+
+        await screen.findByRole("button", { name: "Continue as Guest" });
+        expect(screen.getByRole("heading", { name: "Ayazian Games", level: 1 })).toBeInTheDocument();
+        expect(screen.queryByRole("link", { name: "Ayazian Games" })).not.toBeInTheDocument();
     });
 
     test("loading /profile while signed out redirects to /login with a return target", async () => {
@@ -569,7 +690,8 @@ describe("App routing", () => {
         renderWithStore(<App />);
 
         await screen.findByRole("heading", { name: "Game MPQRVWX" });
-        await user.click(screen.getByRole("button", { name: "Log Out" }));
+        await user.click(screen.getByRole("button", { name: "Dragon Player" }));
+        await user.click(screen.getByRole("menuitem", { name: "Log Out" }));
 
         await waitFor(() => {
             expect(window.location.pathname).toBe("/login");
@@ -591,15 +713,17 @@ describe("App routing", () => {
 
         renderWithStore(<App />);
 
-        await screen.findByRole("button", { name: "Profile" });
-        await user.click(screen.getByRole("button", { name: "Profile" }));
+        await screen.findByRole("button", { name: "Dragon Player" });
+        await user.click(screen.getByRole("button", { name: "Dragon Player" }));
+        await user.click(screen.getByRole("menuitem", { name: "Profile" }));
 
         expect(window.location.pathname).toBe("/profile");
         expect(await screen.findByRole("heading", { name: "Profile" })).toBeInTheDocument();
         expect(fetchLocalProfileMock).toHaveBeenCalled();
-        expect(screen.queryByRole("button", { name: "Profile" })).not.toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Lobby" })).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Log Out" })).toBeInTheDocument();
+        expect(screen.queryByRole("menuitem", { name: "Profile" })).not.toBeInTheDocument();
+        await user.click(screen.getByRole("button", { name: "Dragon Player" }));
+        expect(screen.getByRole("menuitem", { name: "Lobby" })).toBeInTheDocument();
+        expect(screen.getByRole("menuitem", { name: "Log Out" })).toBeInTheDocument();
     });
 
     test("guest users do not see the profile button", async () => {

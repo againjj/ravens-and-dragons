@@ -77,6 +77,8 @@ class ClickerGameHandler(
         openSeats = 0
     )
 
+    override fun playerUserIds(current: GameRecord): Set<String> = emptySet()
+
     private fun requireExpectedVersion(state: ClickerGameState, command: JsonNode) {
         val expectedVersion = command.get("expectedVersion")?.asLong()
             ?: throw InvalidCommandException("Click command requires expectedVersion.")

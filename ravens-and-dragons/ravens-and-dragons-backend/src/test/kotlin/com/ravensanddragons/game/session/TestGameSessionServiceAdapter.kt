@@ -17,6 +17,7 @@ import com.ravensanddragons.game.model.InvalidCommandException
 import com.ravensanddragons.game.model.GameSession
 import com.ravensanddragons.game.model.VersionConflictException
 import com.ravensanddragons.game.model.Side
+import com.ravensanddragons.platform.game.runtime.PlayerGameListing
 import com.ravensanddragons.game.persistence.InMemoryGameStore
 import com.ravensanddragons.game.persistence.TestGameStoreAdapter
 import com.ravensanddragons.game.persistence.defaultGameJsonCodec
@@ -112,6 +113,12 @@ class GameSessionService(
     fun createEmitter(gameId: String, emitter: SseEmitter): SseEmitter {
         return delegate.createEmitter(gameId, emitter)
     }
+
+    fun listPlayerGames(currentUserId: String): List<PlayerGameListing> =
+        delegate.listPlayerGames(currentUserId)
+
+    fun createPlayerGamesEmitter(currentUserId: String, emitter: SseEmitter): SseEmitter =
+        delegate.createPlayerGamesEmitter(currentUserId, emitter)
 
     fun removeStaleGames(now: Instant) {
         delegate.removeStaleGames(now)

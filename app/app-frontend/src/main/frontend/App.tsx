@@ -16,6 +16,7 @@ import { useFullscreen } from "@ravensanddragons/platform-frontend/hooks/useFull
 import type { AppDispatch } from "./app/store.js";
 import { useGameRoute } from "./hooks/useGameRoute.js";
 import { selectCurrentUser, selectIsAuthenticated } from "./features/auth/authSelectors.js";
+import { fetchPlayerGames, openPlayerGamesStream, type PlayerGameListing } from "./features/playerGames/playerGamesClient.js";
 import { clickerGameEntry } from "../../../../../clicker/clicker-frontend/src/main/frontend/clicker-entry.js";
 import { ravensAndDragonsGameEntry } from "../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/ravens-and-dragons-entry.js";
 
@@ -47,9 +48,12 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
     const feedbackMessage = useAppSelector(selectFeedbackMessage);
     const isLoadingGame = useAppSelector(selectIsLoadingGame);
     const pageRef = useRef<HTMLElement | null>(null);
+    const userMenuRef = useRef<HTMLDivElement | null>(null);
     const { toggleFullscreen } = useFullscreen(pageRef);
     const [selectedGameSlug, setSelectedGameSlug] = useState(gameEntries[0].identity.slug);
     const [publicGames, setPublicGames] = useState<PublicGameListing[]>([]);
+    const [playerGames, setPlayerGames] = useState<PlayerGameListing[]>([]);
+    const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
     const [lobbyOpenErrorMessage, setLobbyOpenErrorMessage] = useState<string | null>(null);
     const gameEntriesBySlug = useMemo(
         () => new Map(gameEntries.map((entry) => [entry.identity.slug, entry])),
@@ -58,14 +62,13 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
     const activeGameEntry = gameEntriesBySlug.get(selectedGameSlug) ?? gameEntries[0];
 
     const { PlayScreen } = activeGameEntry.components;
-    const { page, navigateToCreate, navigateToGame, navigateToLobby, navigateToProfile, openGameFromLobby, createGameSlug } = useGameRoute(
+    const { page, navigateToCreate, navigateToGame, navigateToLobby, navigateToProfile, openGameFromLobby, createGameSlug, currentGameId } = useGameRoute(
         gameEntries,
         activeGameEntry,
         setSelectedGameSlug
     );
-    const showProfileButton = isAuthenticated && currentUser?.authType === "local" && page !== "profile";
-    const showLobbyButton = isAuthenticated && page !== "lobby";
-    const showLogoutButton = isAuthenticated && currentUser != null;
+    const showProfileLink = isAuthenticated && currentUser?.authType === "local";
+    const userTurnCount = playerGames.filter((game) => game.isCurrentUserTurn).length;
     useGameSessionLifecycles(gameEntries);
 
     const currentCreateGameEntry = createGameSlug ? gameEntriesBySlug.get(createGameSlug) ?? null : null;
@@ -77,10 +80,59 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
     }, [dispatch]);
 
     useEffect(() => {
+        if (!isAuthenticated || !currentUser) {
+            setPlayerGames([]);
+            setIsUserMenuOpen(false);
+            return;
+        }
+
+        let isMounted = true;
+        void fetchPlayerGames()
+            .then((games) => {
+                if (isMounted) {
+                    setPlayerGames(games);
+                }
+            })
+            .catch(() => {
+                if (isMounted) {
+                    setPlayerGames([]);
+                }
+            });
+        const closeStream = openPlayerGamesStream((games) => {
+            if (isMounted) {
+                setPlayerGames(games);
+            }
+        });
+        return () => {
+            isMounted = false;
+            closeStream();
+        };
+    }, [currentUser, isAuthenticated]);
+
+    useEffect(() => {
         if (currentCreateGameEntry) {
             setSelectedGameSlug(currentCreateGameEntry.identity.slug);
         }
     }, [currentCreateGameEntry]);
+
+    useEffect(() => {
+        if (!isUserMenuOpen) {
+            return;
+        }
+
+        const closeOnOutsidePointerDown = (event: PointerEvent) => {
+            const target = event.target;
+            if (target instanceof Node && userMenuRef.current?.contains(target)) {
+                return;
+            }
+            setIsUserMenuOpen(false);
+        };
+
+        document.addEventListener("pointerdown", closeOnOutsidePointerDown);
+        return () => {
+            document.removeEventListener("pointerdown", closeOnOutsidePointerDown);
+        };
+    }, [isUserMenuOpen]);
 
     useEffect(() => {
         if (page === "create" && createGameSlug && !currentCreateGameEntry) {
@@ -111,6 +163,7 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
     };
 
     const handleLogout = () => {
+        setIsUserMenuOpen(false);
         void dispatch(logout());
     };
 
@@ -131,48 +184,104 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
                 <div className="hero-header">
                     <div className="hero-copy">
                         <h1>
-                            <a
-                                className="header-home-link"
-                                href="/lobby"
-                                onClick={(event) => {
-                                    event.preventDefault();
-                                    navigateToLobby();
-                                }}
-                            >
-                                Ayazian Games
-                            </a>
+                            {page === "login" ? (
+                                <span className="header-home-link">Ayazian Games</span>
+                            ) : (
+                                <a
+                                    className="header-home-link"
+                                    href="/lobby"
+                                    onClick={(event) => {
+                                        event.preventDefault();
+                                        navigateToLobby();
+                                    }}
+                                >
+                                    Ayazian Games
+                                </a>
+                            )}
                         </h1>
                     </div>
                     <div className="hero-actions">
-                        {isAuthenticated && currentUser ? <span>{currentUser.displayName}</span> : null}
-                        {showProfileButton ? (
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    navigateToProfile();
-                                }}
-                            >
-                                Profile
-                            </button>
-                        ) : null}
-                        {showLobbyButton ? (
-                            <button
-                                id="back-to-lobby-button"
-                                type="button"
-                                onClick={() => {
-                                    navigateToLobby();
-                                }}
-                            >
-                                Lobby
-                            </button>
-                        ) : null}
-                        {showLogoutButton ? (
-                            <button
-                                type="button"
-                                onClick={handleLogout}
-                            >
-                                Log Out
-                            </button>
+                        {isAuthenticated && currentUser ? (
+                            <div className="user-menu-shell" ref={userMenuRef}>
+                                <div className="user-menu">
+                                    <button
+                                        type="button"
+                                        className="user-menu-trigger"
+                                        aria-haspopup="menu"
+                                        aria-expanded={isUserMenuOpen}
+                                        onClick={() => {
+                                            setIsUserMenuOpen((open) => !open);
+                                        }}
+                                    >
+                                        <span className="user-menu-name">{currentUser.displayName}</span>
+                                        {userTurnCount > 0 ? (
+                                            <span className="turn-count-badge" aria-hidden="true">{userTurnCount}</span>
+                                        ) : null}
+                                        <span className="user-menu-caret" aria-hidden="true" />
+                                    </button>
+                                    {isUserMenuOpen ? (
+                                        <div className="user-menu-panel" role="menu">
+                                            {showProfileLink ? (
+                                                <a
+                                                    className={page === "profile" ? "is-current-page" : undefined}
+                                                    href="/profile"
+                                                    role="menuitem"
+                                                    onClick={(event) => {
+                                                        event.preventDefault();
+                                                        setIsUserMenuOpen(false);
+                                                        navigateToProfile();
+                                                    }}
+                                                >
+                                                    Profile
+                                                </a>
+                                            ) : null}
+                                            <a
+                                                className={page === "lobby" ? "is-current-page" : undefined}
+                                                href="/lobby"
+                                                role="menuitem"
+                                                onClick={(event) => {
+                                                    event.preventDefault();
+                                                    setIsUserMenuOpen(false);
+                                                    navigateToLobby();
+                                                }}
+                                            >
+                                                Lobby
+                                            </a>
+                                            <div className="user-menu-separator" role="separator" />
+                                            {playerGames.map((game) => (
+                                                <a
+                                                    key={game.gameId}
+                                                    className={page === "game" && currentGameId === game.gameId ? "is-current-page" : undefined}
+                                                    href={`/g/${encodeURIComponent(game.gameId)}`}
+                                                    role="menuitem"
+                                                    onClick={(event) => {
+                                                        event.preventDefault();
+                                                        setIsUserMenuOpen(false);
+                                                        void openGameFromLobby(game.gameId);
+                                                    }}
+                                                >
+                                                    {game.isCurrentUserTurn ? (
+                                                        <span className="your-turn-badge">
+                                                            <span>Your</span>
+                                                            <span>Turn</span>
+                                                        </span>
+                                                    ) : null}
+                                                    <span>{game.gameName}: {game.gameId}</span>
+                                                </a>
+                                            ))}
+                                            {playerGames.length > 0 ? <div className="user-menu-separator" role="separator" /> : null}
+                                            <button
+                                                type="button"
+                                                role="menuitem"
+                                                className="user-menu-action"
+                                                onClick={handleLogout}
+                                            >
+                                                Log Out
+                                            </button>
+                                        </div>
+                                    ) : null}
+                                </div>
+                            </div>
                         ) : null}
                         <button
                             id="fullscreen-button"

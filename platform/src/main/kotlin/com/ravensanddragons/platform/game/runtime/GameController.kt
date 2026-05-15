@@ -39,6 +39,24 @@ class GameController(
     @GetMapping("/api/games/public")
     fun listPublicGames(): List<PublicGameListing> = gameSessionService.listPublicGames()
 
+    @GetMapping("/api/games/mine")
+    fun listPlayerGames(request: HttpServletRequest): List<PlayerGameListing> =
+        gameSessionService.listPlayerGames(
+            authSessionSupport.currentUserId(request.getSession(false))
+                ?: throw ForbiddenActionException("You must sign in before loading your games.")
+        )
+
+    @GetMapping("/api/games/mine/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
+    fun streamPlayerGames(request: HttpServletRequest): ResponseEntity<SseEmitter> =
+        ResponseEntity.ok()
+            .contentType(MediaType.TEXT_EVENT_STREAM)
+            .body(
+                gameSessionService.createPlayerGamesEmitter(
+                    authSessionSupport.currentUserId(request.getSession(false))
+                        ?: throw ForbiddenActionException("You must sign in before loading your games.")
+                )
+            )
+
     @GetMapping("/api/games/{gameId}")
     fun getGame(@PathVariable gameId: String): JsonNode = gameSessionService.getGame(gameId)
 

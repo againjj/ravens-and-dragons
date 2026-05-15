@@ -31,7 +31,8 @@
   - Shared opaque game runtime infrastructure.
   - Defines the `GameHandler` port implemented by game modules.
   - Owns generated game ids, persisted game records, public listing metadata, JDBC storage, session locking, stale cleanup, REST/SSE game routing, and generic JSON request/response delegation.
-  - Exposes the public unfinished game listing endpoint and lets game handlers supply display names and open-seat counts without moving game-specific seat rules into platform.
+  - Exposes public unfinished game listings and signed-in player-game listings/streams, with shared sorting for both list surfaces.
+  - Lets game handlers supply display names, open-seat counts, player-seat user ids, and current-user turn flags without moving game-specific seat rules into platform.
   - Stores game-owned public/private state as JSON without understanding board pieces, sides, captures, rule configurations, bot turns, or undo semantics.
 - `platform/src/main/resources/db/migration/*.sql`
   - Flyway migrations for shared auth tables and the game record table used by the platform runtime.

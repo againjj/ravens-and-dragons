@@ -89,6 +89,7 @@ export const useGameRoute = (
     navigateToGame: (gameId: string, options?: { mode?: NavigationMode; loadGame?: boolean }) => void;
     openGameFromLobby: (gameId: string) => Promise<{ opened: boolean; errorMessage?: string }>;
     createGameSlug: string | null;
+    currentGameId: string | null;
 } => {
     const dispatch = useAppDispatch();
     const authLoadState = useAppSelector(selectAuthLoadState);
@@ -343,6 +344,7 @@ export const useGameRoute = (
         navigateToProfile,
         navigateToGame,
         openGameFromLobby,
-        createGameSlug: currentRoute.kind === "create" ? currentRoute.gameSlug : null
+        createGameSlug: currentRoute.kind === "create" ? currentRoute.gameSlug : null,
+        currentGameId: currentRoute.kind === "game" ? currentRoute.gameId : null
     };
 };

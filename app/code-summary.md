@@ -19,8 +19,10 @@ The app keeps the included-game list declarative by registering each game module
   - Builds and tests the deployed React shell with Gradle-managed Node/npm.
   - Produces the static frontend bundle consumed by `app:processResources`.
 - `app/app-frontend/src/main/frontend/App.tsx`
-  - Owns the shared browser shell, auth bootstrap, lobby/profile/login routing, public game list loading, fullscreen action, and game-entry selection for create/play screens.
+  - Owns the shared browser shell, auth bootstrap, lobby/profile/login routing, public game list loading, signed-in user menu/player-game stream wiring, fullscreen action, and game-entry selection for create/play screens.
   - Registers the Clicker and Ravens and Dragons frontend entries for the lobby.
+- `app/app-frontend/src/main/frontend/features/playerGames/playerGamesClient.ts`
+  - Loads the signed-in user's unfinished seated games and opens the player-game SSE stream used by the header menu turn badges.
 - `app/app-frontend/src/main/frontend/app/store.ts`
   - Assembles the Redux store from app-owned auth state plus the registered game frontend reducers.
 - `app/app-frontend/src/main/frontend/features/auth/*.ts`
@@ -52,4 +54,4 @@ The app keeps the included-game list declarative by registering each game module
 - `server.port` defaults to `8080` unless overridden by `PORT`.
 - Railway deployment starts `ravens-and-dragons.jar`.
 - The lobby can open a selected public game or a typed game id; missing typed ids report feedback without navigating away from the lobby.
-- The shared app header keeps the `Ayazian Games` title visually unchanged while linking it back to `/lobby`.
+- The shared app header keeps the `Ayazian Games` title visually unchanged while linking it back to `/lobby` after login, leaves it inert on the login page, and turns the signed-in username into a menu containing profile/lobby/game/logout navigation plus live turn badges.

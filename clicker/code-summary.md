@@ -21,6 +21,7 @@ The parent project has two child projects:
   - Implements the platform `GameHandler` port for Clicker.
   - Creates counter state, handles click commands, and marks the game finished at `10`.
   - Supplies Clicker public-listing display data and preserves platform-owned listing flags on game updates.
+  - Reports no player seats for the shared player-game menu because Clicker has no seat ownership.
 
 ## Frontend Project
 

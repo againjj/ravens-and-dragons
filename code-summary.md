@@ -10,7 +10,7 @@ This repository is a Spring Boot 3.3 + Kotlin 2.1 service that hosts browser-bas
 - `ravens-and-dragons/`: the Ravens and Dragons game module, including backend rules/APIs, frontend UI, bots, machine training, assets, and tests.
 
 The backend supports multiple persisted game sessions addressed by game id and broadcasts live updates over server-sent events per game. The frontend opens on a lobby, can route into `/{gameSlug}/create` for a local draft setup flow, and opens live games at `/g/{gameId}`. Game creation now posts through a slugged API path so the hosting service can distinguish the game type from the session id.
-Games can be marked as publicly listed at creation time. Publicly listed unfinished games appear in the lobby join panel through a shared platform listing endpoint.
+Games can be marked as publicly listed at creation time. Publicly listed unfinished games appear in the lobby join panel through a shared platform listing endpoint. Signed-in users can also load and stream the unfinished games where they have a seat so the app header can show turn-aware navigation across browser windows.
 
 The runnable app now assembles Ravens and Dragons through a platform-owned game module contract and opaque game runtime. Platform owns generic game ids, persistence, REST/SSE routing, stale cleanup, and handler dispatch. Ravens and Dragons owns every Ravens-shaped concept, including board pieces, sides, snapshots, command semantics, undo payloads, bot turns, and game-view metadata.
 
@@ -71,6 +71,7 @@ The Gradle wrapper is pinned to Gradle 9.4.1. Java 21 is the project toolchain. 
 - Game creation uses `POST /api/games/{gameSlug}`.
 - Game reads use `GET /api/games/{gameId}` and `GET /api/games/{gameId}/view`.
 - Public unfinished games use `GET /api/games/public`.
+- Signed-in player game navigation uses `GET /api/games/mine` and live menu updates use `GET /api/games/mine/stream`.
 - Game commands use `POST /api/games/{gameId}/commands`.
 - Clicker commands increment the shared counter until the game reaches `10`.
 - Seat and bot actions are Ravens command types sent through the command endpoint.
@@ -78,7 +79,7 @@ The Gradle wrapper is pinned to Gradle 9.4.1. Java 21 is the project toolchain. 
 
 Games persist in the configured database, so clients can reopen the same game after server restart. SSE fanout remains in memory per app instance.
 
-The shared browser chrome keeps the `Ayazian Games` header title linked back to the lobby, uses compact button/dropdown styling, removes extra spacing around public lobby game-list entries, and switches the phone layout breakpoint at 500px.
+The shared browser chrome keeps the `Ayazian Games` header title linked back to the lobby after login, renders the signed-in username as a turn-aware menu, uses compact button/dropdown styling, removes extra spacing around public lobby game-list entries, and switches the phone layout breakpoint at 500px.
 
 ## Runtime Configuration
 

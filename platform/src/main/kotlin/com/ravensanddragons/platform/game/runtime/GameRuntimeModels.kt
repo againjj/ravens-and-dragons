@@ -34,9 +34,31 @@ data class PublicGameListing(
     val openSeats: Int
 )
 
+data class PlayerGameDetails(
+    val gameName: String,
+    val isCurrentUserTurn: Boolean
+)
+
+data class PlayerGameListing(
+    val gameId: String,
+    val gameSlug: String,
+    val gameName: String,
+    val isCurrentUserTurn: Boolean
+)
+
 data class ErrorResponse(
     val message: String
 )
+
+internal fun <T> Iterable<T>.sortedByGameListOrder(
+    gameName: (T) -> String,
+    gameId: (T) -> String
+): List<T> = sortedWith(compareBy<T> { gameName(it) }.thenBy { gameId(it) })
+
+internal fun <T> Sequence<T>.sortedByGameListOrder(
+    gameName: (T) -> String,
+    gameId: (T) -> String
+): Sequence<T> = sortedWith(compareBy<T> { gameName(it) }.thenBy { gameId(it) })
 
 class InvalidCommandException(message: String) : RuntimeException(message)
 

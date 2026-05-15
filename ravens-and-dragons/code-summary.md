@@ -30,6 +30,7 @@ The parent project has two child projects:
   - Implements the platform `GameHandler` port for Ravens and Dragons.
   - Converts opaque platform JSON records into Ravens `GameSession` plus undo state, delegates create/command/view behavior to Ravens services, runs bot replies, and serializes Ravens-owned public/private state back into the platform record.
   - Supplies public-listing display data, including open Ravens/Dragons seat counts, while preserving platform-owned listing flags on game updates.
+  - Supplies player-game menu data for signed-in users by reporting seated users and whether the active side belongs to the current user.
 - `src/main/kotlin/com/ravensanddragons/game/rules/*.kt`
   - Canonical board coordinates, rule metadata, snapshot creation, rule-engine contracts, and free-play/trivial/original-style rule execution.
 - `src/main/kotlin/com/ravensanddragons/game/session/*.kt`
@@ -48,7 +49,7 @@ The parent project has two child projects:
 - `src/main/resources/bots/machine-trained/*.json`
   - Bundled per-ruleset machine-trained artifacts. The Sherwood artifact for `Michelle` uses schema version 5.
 - `src/main/resources/static/styles.css`
-  - App shell layout, header/footer styling, board sizing variables, responsive behavior, fullscreen styling, and board highlight color.
+  - App shell layout, header/footer and user-menu styling, board sizing variables, responsive behavior, fullscreen styling, and board highlight color.
 
 ## Frontend Project
 
@@ -104,6 +105,7 @@ Server-only undo history stores compact restore-state entries instead of full sn
 - The app shell renders Ravens and Dragons through the registered frontend game entry while using shared platform frontend contracts/helpers for auth, game-entry typing, and fullscreen wiring.
 - The create and active game screens show `Ravens and Dragons` inside the content area. The create screen splits its configuration and board panels evenly on wide screens, while the active game screen places its information panel left of the board and spans its rules panel below the main panels.
 - Shared static styles keep buttons and dropdowns compact without changing their content size, remove spacing around public lobby game-list entries, and switch the phone layout breakpoint to 500px.
+- The app header username menu shows unfinished games where the signed-in user has a Ravens or Dragons seat, marks the current page in bold, and displays live red turn badges fed by the platform player-game stream.
 - Live games open at `/g/{gameId}`.
 - Create flows open at `/ravens-and-dragons/create`.
 - Active games send mutations to `POST /api/games/{gameId}/commands`.

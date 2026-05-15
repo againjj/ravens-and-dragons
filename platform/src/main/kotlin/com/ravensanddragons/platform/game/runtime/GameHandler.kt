@@ -25,5 +25,9 @@ interface GameHandler {
         openSeats = 0
     )
 
+    fun playerGameDetails(current: GameRecord, currentUserId: String): PlayerGameDetails? = null
+
+    fun playerUserIds(current: GameRecord): Set<String> = emptySet()
+
     fun clearUserReferences(current: GameRecord, userId: String): GameRecord? = null
 }
