@@ -16,6 +16,10 @@
       "types": "./dist/game-entry.d.ts",
       "default": "./dist/game-entry.js"
     },
+    "./player-picker": {
+      "types": "./dist/player-picker.d.ts",
+      "default": "./dist/player-picker.js"
+    },
     "./hooks/useFullscreen": {
       "types": "./dist/hooks/useFullscreen.d.ts",
       "default": "./dist/hooks/useFullscreen.js"

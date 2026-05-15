@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.ObjectNode
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.time.Clock
 import java.time.Duration
@@ -17,7 +18,8 @@ class GameSessionService(
     private val clock: Clock,
     @Value("\${platform.games.stale-threshold:\${ravens-and-dragons.games.stale-threshold:1008h}}")
     private val staleGameThreshold: Duration,
-    gameHandlers: List<GameHandler>
+    gameHandlers: List<GameHandler>,
+    private val playerAccountValidator: PlayerAccountValidator
 ) {
     companion object {
         val defaultStaleGameThreshold: Duration = Duration.ofDays(42)
@@ -89,10 +91,12 @@ class GameSessionService(
             .sortedByGameListOrder({ it.gameName }, { it.gameId })
             .toList()
 
+    @Transactional
     fun applyCommand(gameId: String, command: JsonNode, actingUserId: String?): JsonNode = withGameLock(gameId) {
         val current = getStoredGame(gameId)
         val handler = requireHandler(current.gameSlug)
         val nextState = handler.applyCommand(current, command, actingUserId)
+        playerAccountValidator.requirePlayerAccountsExist(newPlayerUserIds(handler, current, nextState))
         val persisted = persistAndBroadcast(gameId, nextState)
         val finalState = handler.afterCommandPersisted(persisted) { game -> persistAndBroadcast(gameId, game) }
         broadcastPlayerGamesFor(current, finalState)
@@ -155,7 +159,11 @@ class GameSessionService(
         return emitter
     }
 
-    fun removeStaleGames(now: Instant = Instant.now(clock)) {
+    fun removeStaleGames() {
+        removeStaleGames(Instant.now(clock))
+    }
+
+    fun removeStaleGames(now: Instant) {
         val staleBefore = now.minus(staleGameThreshold)
 
         gameStore.staleEntries().forEach { storedGame ->
@@ -235,6 +243,9 @@ class GameSessionService(
 
     private fun playerUserIds(game: GameRecord): Set<String> =
         gameHandlersBySlug[game.gameSlug]?.playerUserIds(game).orEmpty()
+
+    private fun newPlayerUserIds(handler: GameHandler, before: GameRecord, after: GameRecord): Set<String> =
+        handler.playerUserIds(after) - handler.playerUserIds(before)
 
     private fun requireHandler(gameSlug: String): GameHandler =
         gameHandlersBySlug[gameSlug] ?: throw IllegalArgumentException("Game module '$gameSlug' is not registered.")

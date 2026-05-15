@@ -245,6 +245,21 @@ abstract class AbstractGameControllerTestSupport {
             )
         }
 
+    protected fun assignPlayerSeat(gameId: String, side: Side, playerUserId: String, userId: String = defaultTestUserId) =
+        mockMvc.post("/api/games/$gameId/commands") {
+            with(authenticated(gameId, userId))
+            contentType = MediaType.APPLICATION_JSON
+            val current = gameStore.getRavensSession(gameId, GameJsonCodec(objectMapper))
+            content = objectMapper.writeValueAsString(
+                mapOf(
+                    "expectedVersion" to (current?.version ?: 0),
+                    "type" to "assign-player-seat",
+                    "side" to side,
+                    "playerUserId" to playerUserId
+                )
+            )
+        }
+
     protected fun assignSides(gameId: String, dragonsUserId: String?, ravensUserId: String?) {
         val gameJsonCodec = GameJsonCodec(objectMapper)
         val current = gameStore.get(gameId) ?: return

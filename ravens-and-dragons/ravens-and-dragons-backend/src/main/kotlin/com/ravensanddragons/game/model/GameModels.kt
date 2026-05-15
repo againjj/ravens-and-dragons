@@ -128,7 +128,8 @@ data class GameCommandRequest(
     val destination: String? = null,
     val ruleConfigurationId: String? = null,
     val side: Side? = null,
-    val boardSize: Int? = null
+    val boardSize: Int? = null,
+    val playerUserId: String? = null
 )
 
 enum class ViewerRole {
@@ -150,6 +151,11 @@ data class BotSummary(
 
 data class ClaimSideRequest(
     val side: Side
+)
+
+data class AssignPlayerSeatRequest(
+    val side: Side,
+    val playerUserId: String
 )
 
 data class AssignBotOpponentRequest(

@@ -96,6 +96,10 @@ class GameController(
     fun handleGameNotFound(exception: GameNotFoundException): ResponseEntity<ErrorResponse> =
         ResponseEntity.status(HttpStatus.NOT_FOUND).body(ErrorResponse(exception.message ?: "Game not found."))
 
+    @ExceptionHandler(PlayerAccountMissingException::class)
+    fun handlePlayerAccountMissing(exception: PlayerAccountMissingException): ResponseEntity<ErrorResponse> =
+        ResponseEntity.status(HttpStatus.CONFLICT).body(ErrorResponse(exception.message ?: "The chosen player account no longer exists."))
+
     @ExceptionHandler(InvalidCommandException::class, IllegalArgumentException::class)
     fun handleInvalidCommand(exception: RuntimeException): ResponseEntity<ErrorResponse> =
         ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ErrorResponse(exception.message ?: "Invalid command."))

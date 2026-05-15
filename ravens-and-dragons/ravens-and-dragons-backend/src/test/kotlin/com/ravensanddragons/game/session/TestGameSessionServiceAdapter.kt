@@ -18,6 +18,7 @@ import com.ravensanddragons.game.model.GameSession
 import com.ravensanddragons.game.model.VersionConflictException
 import com.ravensanddragons.game.model.Side
 import com.ravensanddragons.platform.game.runtime.PlayerGameListing
+import com.ravensanddragons.platform.game.runtime.PlayerAccountValidator
 import com.ravensanddragons.game.persistence.InMemoryGameStore
 import com.ravensanddragons.game.persistence.TestGameStoreAdapter
 import com.ravensanddragons.game.persistence.defaultGameJsonCodec
@@ -56,7 +57,8 @@ class GameSessionService(
                 userAccountServiceProvider = EmptyUserAccountServiceProvider,
                 clock = clock
             )
-        )
+        ),
+        playerAccountValidator = NoopPlayerAccountValidator
     )
 
     fun createGame(request: CreateGameRequest = CreateGameRequest(), createdByUserId: String? = null): GameSession =
@@ -151,4 +153,8 @@ private object EmptyUserAccountServiceProvider : ObjectProvider<UserAccountServi
 
     override fun getObject(): UserAccountService =
         throw UnsupportedOperationException("UserAccountService is not available in this test adapter.")
+}
+
+private object NoopPlayerAccountValidator : PlayerAccountValidator {
+    override fun requirePlayerAccountsExist(userIds: Set<String>) = Unit
 }

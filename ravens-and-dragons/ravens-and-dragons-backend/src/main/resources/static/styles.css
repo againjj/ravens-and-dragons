@@ -847,16 +847,39 @@ button:disabled {
     display: inline-flex;
     align-items: baseline;
     gap: 4px;
+    position: relative;
 }
 
 .seat-summary-item strong {
     color: var(--line);
 }
 
-.seat-summary-actions {
-    display: inline-flex;
-    flex-wrap: wrap;
-    gap: 10px;
+.seat-player-picker-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(25, 20, 14, 0.58);
+}
+
+.seat-player-picker-modal {
+    width: min(100%, 300px);
+    padding: 16px;
+    background: rgba(255, 252, 244, 0.98);
+    box-shadow: 0 24px 60px rgba(20, 15, 9, 0.32);
+}
+
+.player-picker {
+    display: grid;
+    gap: 8px;
+}
+
+.player-picker button,
+.player-picker .select-shell,
+.player-picker select {
+    width: 100%;
 }
 
 .create-draft-note {

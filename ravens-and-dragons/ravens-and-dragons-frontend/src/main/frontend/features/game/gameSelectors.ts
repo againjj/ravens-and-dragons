@@ -219,7 +219,6 @@ export const selectCanAssignBotOpponent = createSelector(
         !currentUserOwnsBothSeats &&
         !isFinishedGame &&
         snapshot != null &&
-        snapshot.turns.length === 0 &&
         dragonsBotId == null &&
         ravensBotId == null &&
         isBotAssignmentSupported &&

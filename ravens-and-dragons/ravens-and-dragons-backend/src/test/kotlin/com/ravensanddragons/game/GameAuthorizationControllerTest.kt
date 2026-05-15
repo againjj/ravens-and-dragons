@@ -106,6 +106,33 @@ class GameAuthorizationControllerTest : AbstractGameControllerTestSupport() {
     }
 
     @Test
+    fun `authenticated user can add another existing player to an open side`() {
+        val game = createGame()
+        assignSides(game.id, defaultTestUserId, null)
+
+        assignPlayerSeat(game.id, Side.ravens, alternateTestUserId, defaultTestUserId).andExpect {
+            status { isOk() }
+            jsonPath("$.ravensPlayerUserId", equalTo(alternateTestUserId))
+        }
+    }
+
+    @Test
+    fun `adding a deleted player account is rejected without changing the seat`() {
+        val game = createGame()
+        assignSides(game.id, defaultTestUserId, null)
+        jdbcTemplate.update("delete from users where id = ?", alternateTestUserId)
+
+        assignPlayerSeat(game.id, Side.ravens, alternateTestUserId, defaultTestUserId).andExpect {
+            status { isConflict() }
+            jsonPath("$.message", equalTo("The chosen player account no longer exists."))
+        }
+
+        getGame(game.id, defaultTestUserId).also {
+            org.junit.jupiter.api.Assertions.assertNull(it.ravensPlayerUserId)
+        }
+    }
+
+    @Test
     fun `with one seat claimed backend rejects assigning a bot to the claimed seat but allows the open seat`() {
         val game = createGame(CreateGameRequest(ruleConfigurationId = "sherwood-rules"))
         assignSides(game.id, defaultTestUserId, null)

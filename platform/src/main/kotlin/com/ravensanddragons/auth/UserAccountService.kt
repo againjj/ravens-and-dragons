@@ -26,6 +26,9 @@ class UserAccountService(
 
     fun findUser(userId: String): UserRecord? = userRepository.findById(userId)
 
+    fun listUsers(): List<AuthUserSummary> =
+        userRepository.findAll().map { it.toSummary() }
+
     @Transactional
     fun createGuestUser(): UserRecord =
         userRepository.createUser(

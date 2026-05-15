@@ -32,6 +32,7 @@ export declare const getOAuthLoginUrl: (provider: string, nextPath?: string) => 
 export declare const parseJson: <T>(response: { json(): Promise<unknown> }) => Promise<T>;
 export declare const parseErrorMessage: (response: { json(): Promise<unknown> }) => Promise<string>;
 export declare const fetchAuthSession: (fetchImpl?: FetchLike) => Promise<AuthSessionResponse>;
+export declare const fetchUsers: (fetchImpl?: FetchLike) => Promise<AuthUserSummary[]>;
 export declare const loginAsGuest: (fetchImpl?: FetchLike) => Promise<AuthSessionResponse>;
 export declare const signupRequest: (
     request: SignupRequest,

@@ -15,8 +15,10 @@
   - JDBC-backed user persistence.
   - Guest and local login flows.
   - Optional OAuth login integration.
+  - Signed-in user listing for shared player-picking UI.
   - Local-account profile management.
   - Temporary guest-user cleanup hooks.
+  - `PlayerAccountValidator` implementation that locks newly added player account rows before game command persistence.
   - `UserReferenceCleanup` port used by game modules to release game-owned references during account deletion.
 - `platform/src/main/kotlin/com/ravensanddragons/web/*.kt`
   - Shared web-layer exception handling.
@@ -31,6 +33,7 @@
   - Shared opaque game runtime infrastructure.
   - Defines the `GameHandler` port implemented by game modules.
   - Owns generated game ids, persisted game records, public listing metadata, JDBC storage, session locking, stale cleanup, REST/SSE game routing, and generic JSON request/response delegation.
+  - Rechecks newly added player-seat user ids through `PlayerAccountValidator` in the command transaction before writing opaque game JSON, so deleted accounts cannot be seated by stale picker data.
   - Exposes public unfinished game listings and signed-in player-game listings/streams, with shared sorting for both list surfaces.
   - Lets game handlers supply display names, open-seat counts, player-seat user ids, current-user turn flags, and normalized client-facing public state without moving game-specific seat rules or legacy payload conversion into platform.
   - Stores game-owned public/private state as JSON without understanding board pieces, sides, captures, rule configurations, bot turns, or undo semantics.
@@ -38,7 +41,7 @@
   - Flyway migrations for shared auth tables and the game record table used by the platform runtime.
 - `platform/frontend`
   - Local npm package `@ravensanddragons/platform-frontend`.
-  - Exports shared auth wire types, auth API helpers, frontend game-entry contracts, route helpers, and reusable browser shell hooks.
+  - Exports shared auth wire types, auth API helpers, frontend game-entry contracts, the shared player picker, route helpers, and reusable browser shell hooks.
 - `platform/src/test/kotlin/com/ravensanddragons/platform/game/GameModuleRegistryTest.kt`
   - Verifies registry validation, duplicate slug rejection, and lookup behavior.
 - `platform/src/test/kotlin/com/ravensanddragons/web/DisconnectedClientExceptionHandlerTest.kt`
@@ -47,6 +50,7 @@
 ## Responsibilities
 
 - Own shared auth/session/account infrastructure.
+- Own signed-in user listing and player account existence validation used by game-seat assignment flows.
 - Own reusable web exception and route fallback behavior.
 - Own the platform side of game module registration.
 - Own shared game runtime mechanics that can operate on opaque game-owned JSON state stored as `public_state_json` and `private_state_json`.

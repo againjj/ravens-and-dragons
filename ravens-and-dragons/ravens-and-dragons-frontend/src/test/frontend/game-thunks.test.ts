@@ -20,7 +20,7 @@ vi.mock("../../main/frontend/game-client.js", () => ({
     sendGameCommandRequest: sendGameCommandRequestMock
 }));
 
-import { assignBotOpponent, claimSide, createGame, openGame, returnToLobby, sendCommand } from "../../main/frontend/features/game/gameThunks.js";
+import { assignBotOpponent, assignPlayerSeat, claimSide, createGame, openGame, returnToLobby, sendCommand } from "../../main/frontend/features/game/gameThunks.js";
 
 describe("gameThunks", () => {
     beforeEach(() => {
@@ -147,6 +147,39 @@ describe("gameThunks", () => {
             { type: "claim-side", side: "ravens" }
         );
         expect(fetchGameViewMock).toHaveBeenCalledWith("game-404");
+    });
+
+    test("assignPlayerSeat sends the selected player and target side", async () => {
+        sendGameCommandRequestMock.mockResolvedValue({
+            game: createSession({ id: "game-414", ravensPlayerUserId: "other-player" })
+        });
+        fetchGameViewMock.mockResolvedValue(
+            createGameView(
+                { id: "game-414", ravensPlayerUserId: "other-player" },
+                {},
+                {
+                    ravensPlayer: { id: "other-player", displayName: "Other Player" }
+                }
+            )
+        );
+        const store = createAppStore({
+            game: {
+                view: "game",
+                currentGameId: "game-414",
+                session: createSession({ id: "game-414", ravensPlayerUserId: null }),
+                viewerRole: "dragons",
+                dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
+                ravensPlayer: null
+            }
+        });
+
+        await store.dispatch(assignPlayerSeat("ravens", "other-player"));
+
+        expect(sendGameCommandRequestMock).toHaveBeenCalledWith(
+            expect.objectContaining({ id: "game-414" }),
+            { type: "assign-player-seat", side: "ravens", playerUserId: "other-player" }
+        );
+        expect(fetchGameViewMock).toHaveBeenCalledWith("game-414");
     });
 
     test("sendCommand signs the viewer out and refreshes the game view after a 401 response", async () => {

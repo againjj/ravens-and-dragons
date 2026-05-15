@@ -9,6 +9,7 @@ import { hostAuthSessionSet } from "../host/hostAuthActions.js";
 import { selectBotAssignmentModel } from "./gameSelectors.js";
 
 const serverUnavailableMessage = "The server is down. Please wait and try again later.";
+export const playerAccountMissingMessage = "The chosen player account no longer exists.";
 
 const resetSessionScopedUiState = (): RavensAndDragonsThunk => (dispatch) => {
     dispatch(uiActions.selectedSquareSet(null));
@@ -207,6 +208,14 @@ export const claimSide = (side: Side): RavensAndDragonsThunk<Promise<void>> => a
     }
 
     await dispatch(sendCommand({ type: "claim-side", side }));
+};
+
+export const assignPlayerSeat = (side: Side, playerUserId: string): RavensAndDragonsThunk<Promise<void>> => async (dispatch, getState) => {
+    if (!getState().game.session) {
+        return;
+    }
+
+    await dispatch(sendCommand({ type: "assign-player-seat", side, playerUserId }));
 };
 
 export const assignBotOpponent = (botId: string): RavensAndDragonsThunk<Promise<void>> => async (dispatch, getState) => {

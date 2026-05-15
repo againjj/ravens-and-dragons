@@ -61,6 +61,33 @@ class UserRepository(
             userId
         ).firstOrNull()
 
+    fun findAll(): List<UserRecord> =
+        jdbcTemplate.query(
+            """
+            select id, display_name, username, email, password_hash, auth_type, created_at
+            from users
+            order by lower(display_name), id
+            """.trimIndent(),
+            userRowMapper
+        )
+
+    fun lockExistingIds(userIds: Set<String>): Set<String> {
+        if (userIds.isEmpty()) {
+            return emptySet()
+        }
+        val placeholders = userIds.joinToString(", ") { "?" }
+        return jdbcTemplate.query(
+            """
+            select id
+            from users
+            where id in ($placeholders)
+            for update
+            """.trimIndent(),
+            { resultSet, _ -> resultSet.getString("id") },
+            *userIds.toTypedArray()
+        ).toSet()
+    }
+
     fun findByUsername(username: String): UserRecord? =
         jdbcTemplate.query(
             """

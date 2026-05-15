@@ -124,6 +124,7 @@ export interface GameCommandRequest {
         | "undo"
         | "end-game"
         | "claim-side"
+        | "assign-player-seat"
         | "assign-bot-opponent";
     square?: string;
     origin?: string;
@@ -132,4 +133,5 @@ export interface GameCommandRequest {
     side?: Side;
     boardSize?: number;
     botId?: string;
+    playerUserId?: string;
 }

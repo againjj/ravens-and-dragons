@@ -25,6 +25,15 @@ export const fetchAuthSession = async (fetchImpl = fetch) => {
     return parseJson(response);
 };
 
+export const fetchUsers = async (fetchImpl = fetch) => {
+    const response = await fetchImpl("/api/auth/users");
+    if (!response.ok) {
+        throw new Error(await parseErrorMessage(response));
+    }
+
+    return parseJson(response);
+};
+
 export const loginAsGuest = async (fetchImpl = fetch) => {
     const response = await fetchImpl("/api/auth/guest", {
         method: "POST"

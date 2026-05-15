@@ -1,23 +1,39 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, test, vi } from "vitest";
+import { beforeEach, describe, expect, test, vi } from "vitest";
 
 import { SeatPanel } from "../../main/frontend/components/SeatPanel.js";
 import { createAuthSession, createSession } from "./fixtures.js";
 import { renderWithStore } from "./test-utils.js";
 
+const { fetchUsersMock } = vi.hoisted(() => ({
+    fetchUsersMock: vi.fn()
+}));
+
+vi.mock("../../main/frontend/game-client.js", async (importOriginal) => ({
+    ...(await importOriginal<typeof import("../../main/frontend/game-client.js")>()),
+    fetchUsers: fetchUsersMock
+}));
+
 describe("SeatPanel", () => {
-    test("shows seat ownership and claim buttons for an authenticated spectator", async () => {
+    beforeEach(() => {
+        fetchUsersMock.mockReset();
+        fetchUsersMock.mockResolvedValue([
+            { id: "player-dragons", displayName: "Dragon Player", authType: "local" },
+            { id: "player-ravens", displayName: "Raven Player", authType: "local" },
+            { id: "guest-player", displayName: "Guest Player", authType: "guest" }
+        ]);
+    });
+
+    test("shows open seats as add player buttons and adds the viewer through the picker", async () => {
         const user = userEvent.setup();
-        const onAssignBotOpponent = vi.fn();
         const onClaimDragons = vi.fn();
-        const onClaimRavens = vi.fn();
 
         renderWithStore(
             <SeatPanel
-                onAssignBotOpponent={onAssignBotOpponent}
+                onAssignBotOpponent={vi.fn()}
                 onClaimDragons={onClaimDragons}
-                onClaimRavens={onClaimRavens}
+                onClaimRavens={vi.fn()}
             />,
             {
                 preloadedState: {
@@ -34,26 +50,32 @@ describe("SeatPanel", () => {
         );
 
         expect(screen.getByText((_, element) => element?.textContent === "Ravens: Raven Player")).toBeInTheDocument();
-        expect(screen.getByText((_, element) => element?.textContent === "Dragons: Open seat")).toBeInTheDocument();
-        expect(screen.queryByRole("button", { name: "Claim Ravens" })).toBeNull();
-        expect(screen.getByRole("button", { name: "Claim Dragons" })).toBeEnabled();
+        expect(screen.getByRole("button", { name: "Add Player" })).toBeEnabled();
 
-        await user.click(screen.getByRole("button", { name: "Claim Dragons" }));
+        await user.click(screen.getByRole("button", { name: "Add Player" }));
+        await user.click(screen.getByRole("button", { name: "Add Myself" }));
 
         expect(onClaimDragons).toHaveBeenCalledTimes(1);
-        expect(onClaimRavens).not.toHaveBeenCalled();
-        expect(onAssignBotOpponent).not.toHaveBeenCalled();
     });
 
-    test("shows the remaining open claim button after the viewer has claimed a side", () => {
+    test("adds a selected existing player and excludes the current user from the dropdown", async () => {
+        const user = userEvent.setup();
+        const onAssignPlayerSeat = vi.fn();
+
         renderWithStore(
-            <SeatPanel onAssignBotOpponent={vi.fn()} onClaimDragons={vi.fn()} onClaimRavens={vi.fn()} />,
+            <SeatPanel
+                onAssignBotOpponent={vi.fn()}
+                onAssignPlayerSeat={onAssignPlayerSeat}
+                onClaimDragons={vi.fn()}
+                onClaimRavens={vi.fn()}
+            />,
             {
                 preloadedState: {
                     auth: {
                         session: createAuthSession({ user: { id: "player-dragons", displayName: "Dragon Player", authType: "local" } })
                     },
                     game: {
+                        session: createSession({ ravensPlayerUserId: null }),
                         viewerRole: "dragons",
                         dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
                         ravensPlayer: null
@@ -62,8 +84,88 @@ describe("SeatPanel", () => {
             }
         );
 
-        expect(screen.queryByRole("button", { name: "Claim Dragons" })).toBeNull();
-        expect(screen.getByRole("button", { name: "Claim Ravens" })).toBeEnabled();
+        await user.click(screen.getByRole("button", { name: "Add Player" }));
+
+        const playerSelect = await screen.findByRole("combobox", { name: "Choose player" });
+        expect(screen.queryByRole("option", { name: "Dragon Player" })).toBeNull();
+
+        await user.selectOptions(playerSelect, "guest-player");
+        await user.click(screen.getAllByRole("button", { name: "Add Player" })[1]);
+
+        expect(onAssignPlayerSeat).toHaveBeenCalledWith("ravens", "guest-player");
+    });
+
+    test("shows bot choices only for the legal bot opponent target", async () => {
+        const user = userEvent.setup();
+        const onAssignBotOpponent = vi.fn();
+
+        renderWithStore(
+            <SeatPanel
+                onAssignBotOpponent={onAssignBotOpponent}
+                onClaimDragons={vi.fn()}
+                onClaimRavens={vi.fn()}
+            />,
+            {
+                preloadedState: {
+                    auth: {
+                        session: createAuthSession()
+                    },
+                    game: {
+                        session: createSession({
+                            selectedRuleConfigurationId: "sherwood-rules",
+                            ravensPlayerUserId: null
+                        }, {
+                            turns: [{ type: "move", from: "a1", to: "a2" }]
+                        }),
+                        viewerRole: "dragons",
+                        dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
+                        ravensPlayer: null,
+                        availableBots: [
+                            { id: "random", displayName: "Randall" },
+                            { id: "simple", displayName: "Simon" }
+                        ]
+                    }
+                }
+            }
+        );
+
+        await user.click(screen.getByRole("button", { name: "Add Player" }));
+        const botSelect = screen.getByRole("combobox", { name: "Choose bot" });
+
+        await user.selectOptions(botSelect, "simple");
+        await user.click(screen.getByRole("button", { name: "Add Bot" }));
+
+        expect(onAssignBotOpponent).toHaveBeenCalledWith("simple");
+    });
+
+    test("does not show bot choices when no bots are available", async () => {
+        const user = userEvent.setup();
+
+        renderWithStore(
+            <SeatPanel onAssignBotOpponent={vi.fn()} onClaimDragons={vi.fn()} onClaimRavens={vi.fn()} />,
+            {
+                preloadedState: {
+                    auth: {
+                        session: createAuthSession()
+                    },
+                    game: {
+                        session: createSession({
+                            selectedRuleConfigurationId: "free-play",
+                            ravensPlayerUserId: null
+                        }),
+                        viewerRole: "dragons",
+                        dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
+                        ravensPlayer: null,
+                        availableBots: []
+                    }
+                }
+            }
+        );
+
+        await user.click(screen.getByRole("button", { name: "Add Player" }));
+
+        expect(screen.queryByRole("combobox", { name: "Choose bot" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Add Bot" })).toBeNull();
     });
 
     test("renders bot-controlled seats with the bot label", () => {
@@ -77,10 +179,7 @@ describe("SeatPanel", () => {
                     game: {
                         session: createSession({
                             selectedRuleConfigurationId: "sherwood-rules",
-                            dragonsBotId: null,
                             ravensBotId: "random"
-                        }, {
-                            turns: []
                         }),
                         viewerRole: "dragons",
                         dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
@@ -93,210 +192,6 @@ describe("SeatPanel", () => {
         );
 
         expect(screen.getByText((_, element) => element?.textContent === "Ravens: Bot: Randall")).toBeInTheDocument();
-        expect(screen.queryByRole("button", { name: "Claim Ravens" })).toBeNull();
-        expect(screen.queryByRole("button", { name: "Assign Bot To Ravens" })).toBeNull();
-        expect(screen.queryByRole("combobox", { name: "Choose bot opponent" })).toBeNull();
-    });
-
-    test("shows a bot picker and assigns the selected bot for supported rulesets", async () => {
-        const user = userEvent.setup();
-        const onAssignBotOpponent = vi.fn();
-
-        renderWithStore(
-            <SeatPanel onAssignBotOpponent={onAssignBotOpponent} onClaimDragons={vi.fn()} onClaimRavens={vi.fn()} />,
-            {
-                preloadedState: {
-                    auth: {
-                        session: createAuthSession()
-                    },
-                    game: {
-                        session: createSession({
-                            selectedRuleConfigurationId: "square-one",
-                            dragonsBotId: null,
-                            ravensBotId: null,
-                            ravensPlayerUserId: null
-                        }, {
-                            turns: []
-                        }),
-                        viewerRole: "dragons",
-                        dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
-                        ravensPlayer: null,
-                        ravensBot: null,
-                        availableBots: [
-                            { id: "random", displayName: "Randall" },
-                            { id: "simple", displayName: "Simon" },
-                            { id: "minimax", displayName: "Maxine" },
-                            { id: "deep-minimax", displayName: "Alphie" }
-                        ]
-                    }
-                }
-            }
-        );
-
-        const botSelect = screen.getByRole("combobox", { name: "Choose bot opponent" });
-
-        expect(botSelect).toHaveValue("random");
-
-        await user.selectOptions(botSelect, "simple");
-        await user.click(screen.getByRole("button", { name: "Assign Bot To Ravens" }));
-
-        expect(onAssignBotOpponent).toHaveBeenCalledTimes(1);
-        expect(onAssignBotOpponent).toHaveBeenCalledWith("simple");
-    });
-
-    test("renders assigned minimax seats with the bot label", () => {
-        renderWithStore(
-            <SeatPanel onAssignBotOpponent={vi.fn()} onClaimDragons={vi.fn()} onClaimRavens={vi.fn()} />,
-            {
-                preloadedState: {
-                    auth: {
-                        session: createAuthSession()
-                    },
-                    game: {
-                        session: createSession({
-                            selectedRuleConfigurationId: "sherwood-rules",
-                            dragonsBotId: "minimax",
-                            ravensBotId: null,
-                            dragonsPlayerUserId: null
-                        }, {
-                            turns: []
-                        }),
-                        viewerRole: "ravens",
-                        dragonsPlayer: null,
-                        ravensPlayer: { id: "player-ravens", displayName: "Raven Player" },
-                        dragonsBot: { id: "minimax", displayName: "Maxine" },
-                        availableBots: [
-                            { id: "minimax", displayName: "Maxine" },
-                            { id: "deep-minimax", displayName: "Alphie" }
-                        ]
-                    }
-                }
-            }
-        );
-
-        expect(screen.getByText((_, element) => element?.textContent === "Dragons: Bot: Maxine")).toBeInTheDocument();
-    });
-
-    test("renders a pending bot assignment before refreshed bot metadata arrives", () => {
-        renderWithStore(
-            <SeatPanel onAssignBotOpponent={vi.fn()} onClaimDragons={vi.fn()} onClaimRavens={vi.fn()} />,
-            {
-                preloadedState: {
-                    auth: {
-                        session: createAuthSession()
-                    },
-                    game: {
-                        session: createSession({
-                            selectedRuleConfigurationId: "sherwood-rules",
-                            ravensBotId: null,
-                            ravensPlayerUserId: null
-                        }, {
-                            turns: []
-                        }),
-                        viewerRole: "dragons",
-                        dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
-                        ravensPlayer: null,
-                        availableBots: [
-                            { id: "random", displayName: "Randall" },
-                            { id: "simple", displayName: "Simon" }
-                        ],
-                        pendingBotAssignment: {
-                            side: "ravens",
-                            botId: "simple"
-                        }
-                    }
-                }
-            }
-        );
-
-        expect(screen.getByText((_, element) => element?.textContent === "Ravens: Bot: Simon")).toBeInTheDocument();
-    });
-
-    test("renders claim actions before the bot assignment controls", () => {
-        renderWithStore(
-            <SeatPanel onAssignBotOpponent={vi.fn()} onClaimDragons={vi.fn()} onClaimRavens={vi.fn()} />,
-            {
-                preloadedState: {
-                    auth: {
-                        session: createAuthSession()
-                    },
-                    game: {
-                        session: createSession({
-                            selectedRuleConfigurationId: "sherwood-rules",
-                            ravensPlayerUserId: null
-                        }, {
-                            turns: []
-                        }),
-                        viewerRole: "dragons",
-                        dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
-                        ravensPlayer: null,
-                        availableBots: [
-                            { id: "random", displayName: "Randall" },
-                            { id: "simple", displayName: "Simon" }
-                        ]
-                    }
-                }
-            }
-        );
-
-        const actionButtons = screen.getAllByRole("button").map((button) => button.textContent);
-        expect(actionButtons).toEqual(["Claim Ravens", "Assign Bot To Ravens"]);
-        expect(screen.getByRole("combobox", { name: "Choose bot opponent" })).toBeInTheDocument();
-    });
-
-    test("hides bot assignment when both seats are already claimed", () => {
-        renderWithStore(
-            <SeatPanel onAssignBotOpponent={vi.fn()} onClaimDragons={vi.fn()} onClaimRavens={vi.fn()} />,
-            {
-                preloadedState: {
-                    auth: {
-                        session: createAuthSession()
-                    },
-                    game: {
-                        session: createSession({
-                            selectedRuleConfigurationId: "sherwood-rules",
-                            ravensPlayerUserId: "player-dragons"
-                        }, {
-                            turns: []
-                        }),
-                        viewerRole: "dragons",
-                        dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
-                        ravensPlayer: { id: "player-dragons", displayName: "Dragon Player" },
-                        availableBots: [{ id: "random", displayName: "Randall" }]
-                    }
-                }
-            }
-        );
-
-        expect(screen.queryByRole("button", { name: "Assign Bot To Ravens" })).toBeNull();
-        expect(screen.queryByRole("combobox", { name: "Choose bot opponent" })).toBeNull();
-    });
-
-    test("hides bot assignment for unsupported rulesets", () => {
-        renderWithStore(
-            <SeatPanel onAssignBotOpponent={vi.fn()} onClaimDragons={vi.fn()} onClaimRavens={vi.fn()} />,
-            {
-                preloadedState: {
-                    auth: {
-                        session: createAuthSession()
-                    },
-                    game: {
-                        session: createSession({
-                            selectedRuleConfigurationId: "free-play",
-                            ravensPlayerUserId: null
-                        }, {
-                            turns: []
-                        }),
-                        viewerRole: "dragons",
-                        dragonsPlayer: { id: "player-dragons", displayName: "Dragon Player" },
-                        ravensPlayer: null,
-                        availableBots: []
-                    }
-                }
-            }
-        );
-
-        expect(screen.queryByRole("button", { name: "Assign Bot To Ravens" })).toBeNull();
-        expect(screen.queryByRole("combobox", { name: "Choose bot opponent" })).toBeNull();
+        expect(screen.queryByRole("button", { name: "Add Bot" })).toBeNull();
     });
 });

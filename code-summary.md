@@ -11,6 +11,7 @@ This repository is a Spring Boot 3.3 + Kotlin 2.1 service that hosts browser-bas
 
 The backend supports multiple persisted game sessions addressed by game id and broadcasts live updates over server-sent events per game. The frontend opens on a lobby, can route into `/{gameSlug}/create` for a local draft setup flow, and opens live games at `/g/{gameId}`. Game creation now posts through a slugged API path so the hosting service can distinguish the game type from the session id.
 Games can be marked as publicly listed at creation time. Publicly listed unfinished games appear in the lobby join panel through a shared platform listing endpoint. Signed-in users can also load and stream the unfinished games where they have a seat so the app header can show turn-aware navigation across browser windows.
+The platform auth surface exposes signed-in player summaries for shared player pickers, and the game runtime verifies newly added player-seat account ids inside the command persistence transaction before writing game state.
 
 The runnable app now assembles Ravens and Dragons through a platform-owned game module contract and opaque game runtime. Platform owns generic game ids, persistence, REST/SSE routing, stale cleanup, and handler dispatch. Game handlers supply client-facing public state for generic game reads and initial stream snapshots so a module can normalize older persisted payloads before the frontend resolves the game entry. Ravens and Dragons owns every Ravens-shaped concept, including board pieces, sides, snapshots, command semantics, undo payloads, bot turns, and game-view metadata.
 
@@ -74,7 +75,7 @@ The Gradle wrapper is pinned to Gradle 9.4.1. Java 21 is the project toolchain. 
 - Signed-in player game navigation uses `GET /api/games/mine` and live menu updates use `GET /api/games/mine/stream`.
 - Game commands use `POST /api/games/{gameId}/commands`.
 - Clicker commands increment the shared counter until the game reaches `10`.
-- Seat and bot actions are Ravens command types sent through the command endpoint.
+- Seat and bot actions are Ravens command types sent through the command endpoint. Ravens uses a platform-owned player picker to add the current user, another existing player, or a legal bot opponent to open seats.
 - Live updates use `GET /api/games/{gameId}/stream`.
 
 Games persist in the configured database, so clients can reopen the same game after server restart. SSE fanout remains in memory per app instance.

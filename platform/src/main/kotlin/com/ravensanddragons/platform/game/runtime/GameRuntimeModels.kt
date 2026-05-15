@@ -64,6 +64,8 @@ class InvalidCommandException(message: String) : RuntimeException(message)
 
 class GameNotFoundException(gameId: String) : RuntimeException("Game $gameId was not found.")
 
+class PlayerAccountMissingException : RuntimeException("The chosen player account no longer exists.")
+
 class VersionConflictException(
     val latestState: JsonNode
 ) : RuntimeException("Game version conflict.")

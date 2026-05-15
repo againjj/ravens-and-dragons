@@ -1,89 +1,162 @@
-import { useEffect, useState } from "react";
+import { PlayerPicker } from "@ravensanddragons/platform-frontend/player-picker";
+import type { AuthUserSummary } from "@ravensanddragons/platform-frontend/auth-types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { useRavensAndDragonsSelector } from "../frontend-state.js";
+import { fetchUsers } from "../game-client.js";
 import {
     selectBotAssignmentModel,
     selectCanClaimDragons,
     selectCanClaimRavens,
     selectDragonsPlayer,
+    selectFeedbackMessage,
     selectRavensPlayer
 } from "../features/game/gameSelectors.js";
+import { selectCurrentUser } from "../features/host/hostAuthSelectors.js";
+import { playerAccountMissingMessage } from "../features/game/gameThunks.js";
+import type { Side } from "../game-types.js";
 
 interface SeatPanelProps {
     onAssignBotOpponent: (botId: string) => void;
+    onAssignPlayerSeat?: (side: Side, playerUserId: string) => void;
     onClaimDragons: () => void;
     onClaimRavens: () => void;
 }
 
-export const SeatPanel = ({ onAssignBotOpponent, onClaimDragons, onClaimRavens }: SeatPanelProps) => {
+export const SeatPanel = ({ onAssignBotOpponent, onAssignPlayerSeat = () => {}, onClaimDragons, onClaimRavens }: SeatPanelProps) => {
+    const currentUser = useRavensAndDragonsSelector(selectCurrentUser);
     const dragonsPlayer = useRavensAndDragonsSelector(selectDragonsPlayer);
     const ravensPlayer = useRavensAndDragonsSelector(selectRavensPlayer);
     const { dragonsBot, ravensBot, availableBots, canAssign, targetSide } = useRavensAndDragonsSelector(selectBotAssignmentModel);
     const canClaimDragons = useRavensAndDragonsSelector(selectCanClaimDragons);
     const canClaimRavens = useRavensAndDragonsSelector(selectCanClaimRavens);
-    const [selectedBotId, setSelectedBotId] = useState<string>(availableBots[0]?.id ?? "");
+    const feedbackMessage = useRavensAndDragonsSelector(selectFeedbackMessage);
+    const [activePickerSide, setActivePickerSide] = useState<Side | null>(null);
+    const [players, setPlayers] = useState<AuthUserSummary[]>([]);
+    const reopenSideRef = useRef<Side | null>(null);
+    const shouldReopenAfterFeedbackRef = useRef(false);
+    const previousFeedbackMessageRef = useRef<string | null>(null);
 
-    useEffect(() => {
-        if (availableBots.some((bot) => bot.id === selectedBotId)) {
+    const loadPlayers = useCallback(async () => {
+        if (!currentUser) {
+            setPlayers([]);
             return;
         }
-        setSelectedBotId(availableBots[0]?.id ?? "");
-    }, [availableBots, selectedBotId]);
+        try {
+            const users = await fetchUsers();
+            setPlayers(users.filter((user) => user.id !== currentUser.id));
+        } catch {
+            setPlayers([]);
+        }
+    }, [currentUser]);
+
+    const openPicker = (side: Side) => {
+        setActivePickerSide(side);
+        void loadPlayers();
+    };
+
+    const closePicker = () => {
+        setActivePickerSide(null);
+    };
+
+    useEffect(() => {
+        if (feedbackMessage === playerAccountMissingMessage) {
+            shouldReopenAfterFeedbackRef.current = true;
+        }
+
+        if (
+            previousFeedbackMessageRef.current === playerAccountMissingMessage &&
+            feedbackMessage == null &&
+            shouldReopenAfterFeedbackRef.current &&
+            reopenSideRef.current
+        ) {
+            shouldReopenAfterFeedbackRef.current = false;
+            openPicker(reopenSideRef.current);
+        }
+
+        previousFeedbackMessageRef.current = feedbackMessage;
+    }, [feedbackMessage]);
+
+    const renderSeatValue = (
+        side: Side,
+        player: typeof dragonsPlayer,
+        bot: typeof dragonsBot,
+        canOpenPicker: boolean
+    ) => {
+        if (player) {
+            return player.displayName;
+        }
+        if (bot) {
+            return `Bot: ${bot.displayName}`;
+        }
+        if (!canOpenPicker) {
+            return "Open seat";
+        }
+
+        const label = "Add Player";
+        const pickerBots = canAssign && targetSide === side ? availableBots : [];
+        return (
+            <>
+                <button
+                    type="button"
+                    onClick={() => {
+                        openPicker(side);
+                    }}
+                >
+                    {label}
+                </button>
+                {activePickerSide === side
+                    ? createPortal(
+                        <div className="seat-player-picker-backdrop" role="presentation">
+                            <section
+                                className="panel seat-player-picker-modal"
+                                role="dialog"
+                                aria-modal="true"
+                                aria-label={`${side === "ravens" ? "Ravens" : "Dragons"} player picker`}
+                            >
+                                <PlayerPicker
+                                    players={players}
+                                    bots={pickerBots}
+                                    onAddMyself={() => {
+                                        reopenSideRef.current = side;
+                                        closePicker();
+                                        if (side === "ravens") {
+                                            onClaimRavens();
+                                        } else {
+                                            onClaimDragons();
+                                        }
+                                    }}
+                                    onAddPlayer={(playerUserId) => {
+                                        reopenSideRef.current = side;
+                                        closePicker();
+                                        onAssignPlayerSeat(side, playerUserId);
+                                    }}
+                                    onAddBot={(botId) => {
+                                        reopenSideRef.current = side;
+                                        closePicker();
+                                        onAssignBotOpponent(botId);
+                                    }}
+                                    onCancel={closePicker}
+                                />
+                            </section>
+                        </div>,
+                        document.body
+                    )
+                    : null}
+            </>
+        );
+    };
 
     return (
         <div className="seat-summary" aria-label="Seat ownership">
             <div className="seat-summary-line">
                 <span className="seat-summary-item">
-                    <strong>Ravens:</strong> {ravensPlayer?.displayName ?? (ravensBot ? `Bot: ${ravensBot.displayName}` : "Open seat")}
+                    <strong>Ravens:</strong> {renderSeatValue("ravens", ravensPlayer, ravensBot, canClaimRavens)}
                 </span>
                 <span className="seat-summary-item">
-                    <strong>Dragons:</strong> {dragonsPlayer?.displayName ?? (dragonsBot ? `Bot: ${dragonsBot.displayName}` : "Open seat")}
+                    <strong>Dragons:</strong> {renderSeatValue("dragons", dragonsPlayer, dragonsBot, canClaimDragons)}
                 </span>
-                {canAssign || canClaimDragons || canClaimRavens ? (
-                    <span className="controls seat-summary-actions">
-                        {canClaimRavens ? (
-                            <button type="button" onClick={onClaimRavens}>
-                                Claim Ravens
-                            </button>
-                        ) : null}
-                        {canClaimDragons ? (
-                            <button type="button" onClick={onClaimDragons}>
-                                Claim Dragons
-                            </button>
-                        ) : null}
-                        {canAssign && targetSide ? (
-                            <>
-                                <div className="select-shell">
-                                    <select
-                                        aria-label="Choose bot opponent"
-                                        id="bot-opponent-select"
-                                        value={selectedBotId}
-                                        onChange={(event) => {
-                                            setSelectedBotId(event.target.value);
-                                        }}
-                                    >
-                                        {availableBots.map((bot) => (
-                                            <option key={bot.id} value={bot.id}>
-                                                {bot.displayName}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <button
-                                    type="button"
-                                    disabled={!selectedBotId}
-                                    onClick={() => {
-                                        if (selectedBotId) {
-                                            onAssignBotOpponent(selectedBotId);
-                                        }
-                                    }}
-                                >
-                                    {`Assign Bot To ${targetSide === "ravens" ? "Ravens" : "Dragons"}`}
-                                </button>
-                            </>
-                        ) : null}
-                    </span>
-                ) : null}
             </div>
         </div>
     );

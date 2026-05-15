@@ -124,6 +124,25 @@ class AuthControllerTest : AbstractGameControllerTestSupport() {
     }
 
     @Test
+    fun `authenticated user can list existing players`() {
+        seedUser("guest-player", "Guest Player", authType = AuthType.guest, username = "guest-player")
+        seedUser("oauth-player", "OAuth Player", authType = AuthType.oauth, username = "oauth-player")
+
+        mockMvc.get("/api/auth/users") {
+            with(authenticated("profile", defaultTestUserId))
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$[0].displayName", equalTo("Guest Player"))
+            jsonPath("$[0].authType", equalTo("guest"))
+            jsonPath("$[1].displayName", equalTo("OAuth Player"))
+            jsonPath("$[1].authType", equalTo("oauth"))
+            jsonPath("$[2].displayName", equalTo("Other Player"))
+            jsonPath("$[3].displayName", equalTo("Test Player"))
+            jsonPath("$[3].authType", equalTo("local"))
+        }
+    }
+
+    @Test
     fun `local user can update their display name`() {
         mockMvc.post("/api/auth/profile") {
             with(authenticated("profile", defaultTestUserId))

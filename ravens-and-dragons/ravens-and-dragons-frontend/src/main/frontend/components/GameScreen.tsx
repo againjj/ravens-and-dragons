@@ -11,6 +11,7 @@ import {
 } from "../features/game/gameSelectors.js";
 import { gameActions } from "../features/game/gameSlice.js";
 import {
+    assignPlayerSeat,
     assignBotOpponent,
     claimSide,
     endGame,
@@ -50,6 +51,9 @@ export const GameScreen = () => {
                         <SeatPanel
                             onAssignBotOpponent={(botId) => {
                                 void dispatch(assignBotOpponent(botId));
+                            }}
+                            onAssignPlayerSeat={(side, playerUserId) => {
+                                void dispatch(assignPlayerSeat(side, playerUserId));
                             }}
                             onClaimDragons={() => {
                                 void dispatch(claimSide("dragons"));

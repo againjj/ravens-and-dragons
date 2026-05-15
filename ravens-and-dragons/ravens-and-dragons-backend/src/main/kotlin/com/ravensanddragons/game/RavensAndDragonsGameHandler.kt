@@ -6,6 +6,7 @@ import com.ravensanddragons.auth.UserAccountService
 import com.ravensanddragons.game.bot.BotRegistry
 import com.ravensanddragons.game.bot.BotTurnRunner
 import com.ravensanddragons.game.model.AssignBotOpponentRequest
+import com.ravensanddragons.game.model.AssignPlayerSeatRequest
 import com.ravensanddragons.game.model.ClaimSideRequest
 import com.ravensanddragons.game.model.CreateGameRequest
 import com.ravensanddragons.game.model.GameCommandRequest
@@ -101,6 +102,16 @@ class RavensAndDragonsGameHandler(
                         storedGame,
                         actingUserId ?: throw ForbiddenActionException("You must sign in before assigning a bot opponent."),
                         botDefinition
+                    )
+                }
+                "assign-player-seat" -> {
+                    val request = gameJsonCodec.convert(command, AssignPlayerSeatRequest::class.java)
+                    requireExpectedVersion(storedGame.session, command)
+                    actingUserId ?: throw ForbiddenActionException("You must sign in before adding a player.")
+                    gameCommandService.assignPlayerSeat(
+                        storedGame,
+                        request.side,
+                        request.playerUserId
                     )
                 }
                 else -> {

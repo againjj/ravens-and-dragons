@@ -35,7 +35,7 @@ The parent project has two child projects:
 - `src/main/kotlin/com/ravensanddragons/game/rules/*.kt`
   - Canonical board coordinates, rule metadata, snapshot creation, rule-engine contracts, and free-play/trivial/original-style rule execution.
 - `src/main/kotlin/com/ravensanddragons/game/session/*.kt`
-  - `GameCommandService.kt` owns command authorization, validation, undo handling, and seat-claim transitions.
+  - `GameCommandService.kt` owns command authorization, validation, undo handling, seat-claim transitions, explicit player-seat assignment, and bot-opponent assignment rules.
   - `GameUserReferenceCleanup.kt` implements the platform cleanup port for account deletion.
 - `src/main/kotlin/com/ravensanddragons/game/persistence/*.kt`
   - Ravens-owned stored-game state envelope and Ravens JSON encoding/decoding.
@@ -72,7 +72,7 @@ The parent project has two child projects:
 - `src/main/frontend/move-history.ts`
   - Turn notation and grouped move-history row helpers.
 - `src/main/frontend/game-client.ts`
-  - Ravens and Dragons game REST command helpers, create-game submission, bot assignment, SSE subscription setup, and compatibility re-exports for shared auth API helpers.
+  - Ravens and Dragons game REST command helpers, create-game submission, player and bot assignment, SSE subscription setup, and compatibility re-exports for shared auth API helpers.
 - `src/main/frontend/components/*.tsx`
   - React components for Ravens game create/play UI, including board, controls, rules panel, seat panel, move list, and status text.
 - `src/main/frontend/features/game/*.ts`
@@ -110,12 +110,12 @@ Server-only undo history stores compact restore-state entries instead of full sn
 - Live games open at `/g/{gameId}`.
 - Create flows open at `/ravens-and-dragons/create`.
 - Active games send mutations to `POST /api/games/{gameId}/commands`.
-- Seat claiming and bot assignment are Ravens command types sent through the same command endpoint.
+- Seat claiming, explicit player-seat assignment, and bot assignment are Ravens command types sent through the same command endpoint.
 - Active games subscribe to `GET /api/games/{gameId}/stream`.
 - Request-scoped auth-aware game metadata is loaded from `GET /api/games/{gameId}/view`.
 - Legacy Ravens games stored with snapshot-only public state are converted to full session-shaped responses when loaded or streamed.
 - Seat ownership gates gameplay actions by claimed side and active turn.
-- Supported preset games can assign bots to the opposite open seat.
+- The live-game seat panel opens the platform player picker for open seats. The picker can add the current user, add another existing local/OAuth/guest player, or add a supported bot when the acting user owns exactly one human seat and the opposite seat is open. Bot assignment is allowed after play has started, but still requires that one-seat ownership rule.
 - Undo against a bot reverses one full human-plus-bot exchange when available.
 
 ## Tests

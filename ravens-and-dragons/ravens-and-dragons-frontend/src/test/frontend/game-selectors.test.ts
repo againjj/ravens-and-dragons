@@ -266,7 +266,7 @@ describe("game selectors", () => {
         expect(selectCanAssignBotOpponent(store.getState())).toBe(true);
     });
 
-    test("bot assignment is hidden after the first move even on a supported ruleset", () => {
+    test("bot assignment is available after the first move on a supported ruleset", () => {
         const store = createAppStore({
             auth: {
                 session: createAuthSession()
@@ -299,7 +299,7 @@ describe("game selectors", () => {
         });
 
         expect(selectIsBotAssignmentSupported(store.getState())).toBe(true);
-        expect(selectCanAssignBotOpponent(store.getState())).toBe(false);
+        expect(selectCanAssignBotOpponent(store.getState())).toBe(true);
     });
 
     test("bot assignment stays hidden for unsupported rulesets", () => {

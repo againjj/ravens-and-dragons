@@ -15,6 +15,7 @@ export {
     deleteLocalAccountRequest,
     defaultCommandErrorMessage,
     fetchAuthSession,
+    fetchUsers,
     fetchLocalProfile,
     getOAuthLoginUrl,
     loginAsGuest,
@@ -99,9 +100,20 @@ export const sendGameCommandRequest = async (
         body: JSON.stringify(command)
     });
 
-    if (response.ok || response.status === 409) {
+    if (response.ok) {
         return {
             game: await parseJson<ServerGameSession>(response)
+        };
+    }
+
+    if (response.status === 409) {
+        const body = await parseJson<ServerGameSession | { message?: string }>(response);
+        if ("id" in body && "snapshot" in body) {
+            return { game: body };
+        }
+        return {
+            errorMessage: body.message ?? defaultCommandErrorMessage,
+            status: response.status
         };
     }
 

@@ -5,7 +5,6 @@ import com.ravensanddragons.game.model.*
 import com.ravensanddragons.game.persistence.*
 import com.ravensanddragons.game.rules.*
 
-
 import com.ravensanddragons.auth.ForbiddenActionException
 import org.springframework.stereotype.Service
 import java.time.Clock
@@ -15,6 +14,9 @@ import java.time.Instant
 class GameCommandService(
     private val clock: Clock
 ) {
+    fun assignPlayerSeat(current: StoredGame, side: Side, userId: String): StoredGame =
+        claimSide(current, side, userId)
+
     fun claimSide(current: StoredGame, side: Side, userId: String): StoredGame {
         val session = current.session
         val currentHolder = when (side) {
@@ -50,10 +52,6 @@ class GameCommandService(
         if (session.selectedRuleConfigurationId !in botDefinition.supportedRuleConfigurationIds) {
             throw InvalidCommandException("${botDefinition.displayName} is not available for this rule configuration.")
         }
-        if (session.snapshot.turns.isNotEmpty()) {
-            throw InvalidCommandException("Bot assignment is available only before the first move.")
-        }
-
         val dragonsPlayerUserId = session.dragonsPlayerUserId
         val ravensPlayerUserId = session.ravensPlayerUserId
         val claimedSeatCount = listOf(dragonsPlayerUserId, ravensPlayerUserId).count { it != null }

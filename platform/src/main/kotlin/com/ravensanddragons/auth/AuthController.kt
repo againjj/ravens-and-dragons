@@ -37,6 +37,12 @@ class AuthController(
         )
     }
 
+    @GetMapping("/api/auth/users")
+    fun users(request: HttpServletRequest): List<AuthUserSummary> {
+        currentUserId(request)
+        return userAccountService.listUsers()
+    }
+
     @GetMapping("/api/auth/profile")
     fun profile(request: HttpServletRequest): LocalProfileResponse =
         userAccountService.getLocalProfile(currentUserId(request))
