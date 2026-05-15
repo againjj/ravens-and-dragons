@@ -68,6 +68,7 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
         setSelectedGameSlug
     );
     const showProfileLink = isAuthenticated && currentUser?.authType === "local";
+    const currentUserId = currentUser?.id ?? null;
     const userTurnCount = playerGames.filter((game) => game.isCurrentUserTurn).length;
     useGameSessionLifecycles(gameEntries);
 
@@ -80,7 +81,7 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
     }, [dispatch]);
 
     useEffect(() => {
-        if (!isAuthenticated || !currentUser) {
+        if (!isAuthenticated || !currentUserId) {
             setPlayerGames([]);
             setIsUserMenuOpen(false);
             return;
@@ -107,7 +108,7 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
             isMounted = false;
             closeStream();
         };
-    }, [currentUser, isAuthenticated]);
+    }, [currentUserId, isAuthenticated]);
 
     useEffect(() => {
         if (currentCreateGameEntry) {

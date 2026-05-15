@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 
 import { App } from "../../main/frontend/App.js";
 import type { AppDispatch } from "../../main/frontend/app/store.js";
+import { authActions } from "../../main/frontend/features/auth/authSlice.js";
 import { createGameView } from "./fixtures.js";
 import { renderWithStore } from "./test-utils.js";
 import type { GameEntry } from "@ravensanddragons/platform-frontend/game-entry";
@@ -642,6 +643,42 @@ describe("App routing", () => {
         expect(currentGameLink).toHaveClass("is-current-page");
         expect(screen.getByRole("menuitem", { name: "Your Turn Ravens and Dragons: MPQRVWX" })).toBeInTheDocument();
         expect(container.querySelector(".your-turn-badge")?.textContent).toBe("YourTurn");
+    });
+
+    test("player game stream stays open when metadata refresh replaces the same current user object", async () => {
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "guest-1",
+                displayName: "Guest 1",
+                authType: "guest"
+            }
+        });
+        const closeStream = vi.fn();
+        openPlayerGamesStreamMock.mockReturnValue(closeStream);
+        window.history.pushState({}, "", "/lobby");
+
+        const { store } = renderWithStore(<App />);
+
+        await screen.findByRole("heading", { name: "Game Lobby" });
+        expect(openPlayerGamesStreamMock).toHaveBeenCalledTimes(1);
+
+        act(() => {
+            store.dispatch(
+                authActions.authSessionSet({
+                    authenticated: true,
+                    user: {
+                        id: "guest-1",
+                        displayName: "Guest 1",
+                        authType: "guest"
+                    },
+                    oauthProviders: []
+                })
+            );
+        });
+
+        expect(closeStream).not.toHaveBeenCalled();
+        expect(openPlayerGamesStreamMock).toHaveBeenCalledTimes(1);
     });
 
     test("loading /lobby while signed out redirects to /login with a return target", async () => {
