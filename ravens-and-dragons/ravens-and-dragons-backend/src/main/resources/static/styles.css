@@ -376,19 +376,21 @@ h3 {
 }
 
 .public-game-option {
+    display: block;
     width: 100%;
     text-align: left;
     padding: 0;
     border-radius: 6px;
     border: 1px solid transparent;
-    background: transparent;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(250, 240, 226, 0.82) 48%, rgba(232, 207, 196, 0.66));
     color: var(--ink);
     font-weight: 400;
+    box-shadow: none;
 }
 
 .public-game-option[aria-selected="true"] {
     border-color: rgba(123, 50, 35, 0.38);
-    background: rgba(123, 50, 35, 0.12);
+    background: linear-gradient(180deg, rgba(238, 207, 193, 0.98), rgba(222, 181, 164, 0.94) 48%, rgba(197, 145, 126, 0.84));
 }
 
 .public-game-empty {

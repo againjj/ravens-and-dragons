@@ -53,5 +53,5 @@ The app keeps the included-game list declarative by registering each game module
 - Running `./gradlew bootRun` serves the Vite-built frontend bundle plus static CSS through Spring Boot.
 - `server.port` defaults to `8080` unless overridden by `PORT`.
 - Railway deployment starts `ravens-and-dragons.jar`.
-- The lobby can open a selected public game or a typed game id; missing typed ids report feedback without navigating away from the lobby.
+- The lobby can open a selected public game or a typed game id; public game rows use per-row gradients with a darker selected state, and missing typed ids report feedback without navigating away from the lobby.
 - The shared app header keeps the `Ayazian Games` title visually unchanged while linking it back to `/lobby` after login, leaves it inert on the login page, and turns the signed-in username into a menu containing profile/lobby/game/logout navigation plus live turn badges.
