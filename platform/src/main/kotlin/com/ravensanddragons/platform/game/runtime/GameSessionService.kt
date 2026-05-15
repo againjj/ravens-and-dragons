@@ -46,7 +46,7 @@ class GameSessionService(
     fun getGame(gameId: String): JsonNode = withGameLock(gameId) {
         val current = getStoredGame(gameId)
         touchGame(gameId)
-        current.publicState
+        publicStateForClient(current)
     }
 
     fun getGameView(gameId: String, currentUserId: String?): JsonNode = withGameLock(gameId) {
@@ -126,7 +126,7 @@ class GameSessionService(
         emitter.onTimeout(removeEmitter)
         emitter.onError { removeEmitter() }
 
-        val delivered = sendSnapshot(emitter, getStoredGame(gameId).publicState)
+        val delivered = sendSnapshot(emitter, publicStateForClient(getStoredGame(gameId)))
         if (!delivered) {
             removeEmitter()
             completeEmitter(emitter)
@@ -238,6 +238,9 @@ class GameSessionService(
 
     private fun requireHandler(gameSlug: String): GameHandler =
         gameHandlersBySlug[gameSlug] ?: throw IllegalArgumentException("Game module '$gameSlug' is not registered.")
+
+    private fun publicStateForClient(game: GameRecord): JsonNode =
+        requireHandler(game.gameSlug).publicState(game)
 
     private fun JsonNode.withoutPlatformFields(): JsonNode =
         if (this is ObjectNode) {

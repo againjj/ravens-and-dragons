@@ -7,6 +7,7 @@ import com.ravensanddragons.game.model.*
 import com.ravensanddragons.game.persistence.*
 import com.ravensanddragons.game.rules.*
 import com.ravensanddragons.game.session.*
+import com.ravensanddragons.platform.game.runtime.GameRecord
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -585,6 +586,42 @@ class GameSessionServiceTest {
         assertEquals(game.id, loaded.id)
         assertNotNull(afterTouch)
         assertTrue(afterTouch!!.lastAccessedAt >= beforeTouch!!.lastAccessedAt)
+    }
+
+    @Test
+    fun `loading a legacy snapshot only game returns a full session payload`() {
+        val store = InMemoryGameStore()
+        val service = createService(store)
+        val now = fixedClock().instant()
+        val gameJsonCodec = defaultGameJsonCodec()
+        val snapshot = GameRules.startGame(
+            "sherwood-rules",
+            selectedStartingSide = Side.ravens
+        )
+
+        store.platformStore().putIfAbsent(
+            GameRecord(
+                id = "H838F6J",
+                gameSlug = "ravens-and-dragons",
+                version = 10,
+                createdAt = now,
+                updatedAt = now.plusSeconds(60),
+                lastAccessedAt = now.plusSeconds(120),
+                lifecycle = GameLifecycle.active.name,
+                publicState = gameJsonCodec.valueToTree(snapshot),
+                privateState = gameJsonCodec.valueToTree(emptyList<UndoEntry>())
+            )
+        )
+
+        val loaded = service.getGame("H838F6J")
+
+        assertEquals("H838F6J", loaded.id)
+        assertEquals("ravens-and-dragons", loaded.gameSlug)
+        assertEquals(10, loaded.version)
+        assertEquals(GameLifecycle.active, loaded.lifecycle)
+        assertEquals(snapshot.board, loaded.snapshot.board)
+        assertEquals(snapshot.activeSide, loaded.snapshot.activeSide)
+        assertEquals("sherwood-rules", loaded.selectedRuleConfigurationId)
     }
 
     @Test

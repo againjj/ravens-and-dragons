@@ -144,6 +144,9 @@ class RavensAndDragonsGameHandler(
         )
     }
 
+    override fun publicState(current: PlatformGameRecord): JsonNode =
+        gameJsonCodec.valueToTree(current.toStoredGame().session)
+
     override fun publicGameDetails(current: PlatformGameRecord): PublicGameDetails {
         val game = current.toStoredGame().session
         return PublicGameDetails(

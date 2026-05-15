@@ -9,6 +9,7 @@ Ravens and Dragons is a Spring Boot and Kotlin web app for playing browser-based
 - Use a shared `Ayazian Games` app shell with compact fixed header/footer chrome, a lobby-linked title after login, a turn-aware username menu, gradient-styled public lobby rows, and scrollable page content
 - Play in the browser with live updates shared across tabs and clients, including header turn badges for unfinished games where you have a seat
 - Persist games in the configured database so they survive app restarts
+- Reopen older persisted Ravens and Dragons games whose stored state predates the current multi-game session payload shape
 - Sign in as a guest or local user, with optional Google OAuth support
 - Claim the ravens or dragons side in a live game through the game command flow
 - In `Free Play`, setup clicks now cycle `raven -> dragon -> gold -> empty`, and the starting-side picker lists Ravens first and defaults to Ravens

@@ -29,6 +29,7 @@ The parent project has two child projects:
 - `src/main/kotlin/com/ravensanddragons/game/RavensAndDragonsGameHandler.kt`
   - Implements the platform `GameHandler` port for Ravens and Dragons.
   - Converts opaque platform JSON records into Ravens `GameSession` plus undo state, delegates create/command/view behavior to Ravens services, runs bot replies, and serializes Ravens-owned public/private state back into the platform record.
+  - Normalizes legacy snapshot-only public payloads into full `GameSession` responses for generic game reads and initial stream snapshots, allowing older persisted Ravens games to reopen through the current multi-game shell.
   - Supplies public-listing display data, including open Ravens/Dragons seat counts, while preserving platform-owned listing flags on game updates.
   - Supplies player-game menu data for signed-in users by reporting seated users and whether the active side belongs to the current user.
 - `src/main/kotlin/com/ravensanddragons/game/rules/*.kt`
@@ -112,6 +113,7 @@ Server-only undo history stores compact restore-state entries instead of full sn
 - Seat claiming and bot assignment are Ravens command types sent through the same command endpoint.
 - Active games subscribe to `GET /api/games/{gameId}/stream`.
 - Request-scoped auth-aware game metadata is loaded from `GET /api/games/{gameId}/view`.
+- Legacy Ravens games stored with snapshot-only public state are converted to full session-shaped responses when loaded or streamed.
 - Seat ownership gates gameplay actions by claimed side and active turn.
 - Supported preset games can assign bots to the opposite open seat.
 - Undo against a bot reverses one full human-plus-bot exchange when available.
