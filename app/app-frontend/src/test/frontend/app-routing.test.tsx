@@ -157,12 +157,24 @@ describe("App routing", () => {
             json: async () => ({ gameSlug: "ravens-and-dragons" })
         });
         vi.stubGlobal("fetch", fetchGameMetadataMock);
+        document.title = "Ravens and Dragons";
         window.history.pushState({}, "", "/");
     });
 
     afterEach(() => {
         vi.unstubAllGlobals();
+        document.title = "";
         window.history.pushState({}, "", "/");
+    });
+
+    test("uses the app title during transient loading", async () => {
+        fetchAuthSessionMock.mockReturnValue(new Promise(() => undefined));
+
+        renderWithStore(<App />);
+
+        await waitFor(() => {
+            expect(document.title).toBe("Ayazian Games");
+        });
     });
 
     test("unauthenticated users loading a game route are redirected to /login and then back after login", async () => {
@@ -176,6 +188,7 @@ describe("App routing", () => {
         await screen.findByRole("button", { name: "Continue as Guest" });
         expect(window.location.pathname).toBe("/login");
         expect(new URLSearchParams(window.location.search).get("next")).toBe("/g/CFGHJMP");
+        expect(document.title).toBe("Ayazian Games: Login");
 
         fetchAuthSessionMock.mockResolvedValue({
             authenticated: true,
@@ -230,6 +243,7 @@ describe("App routing", () => {
         expect(ravensOpenGame).not.toHaveBeenCalled();
         expect(window.location.pathname).toBe("/g/9W5RJHQ");
         expect(screen.getByRole("heading", { name: "Clicker game" })).toBeInTheDocument();
+        expect(document.title).toBe("Ayazian Games: Clicker (9W5RJHQ)");
     });
 
     test("unknown game routes return to the lobby without opening the default game", async () => {
@@ -255,6 +269,7 @@ describe("App routing", () => {
 
         await screen.findByRole("heading", { name: "Game Lobby" });
         expect(window.location.pathname).toBe("/lobby");
+        expect(document.title).toBe("Ayazian Games");
         expect(ravensOpenGame).not.toHaveBeenCalled();
         expect(screen.queryByRole("heading", { name: "Ravens and Dragons game" })).not.toBeInTheDocument();
     });
@@ -274,6 +289,7 @@ describe("App routing", () => {
             expect(window.location.pathname).toBe("/ravens-and-dragons/create");
         });
         expect(await screen.findByRole("heading", { name: "Create game: Ravens and Dragons", level: 1 })).toBeInTheDocument();
+        expect(document.title).toBe("Ayazian Games: Create Ravens and Dragons");
     });
 
     test("logged in users loading / are redirected to /lobby", async () => {
@@ -290,6 +306,7 @@ describe("App routing", () => {
 
         await screen.findByRole("heading", { name: "Game Lobby" });
         expect(window.location.pathname).toBe("/lobby");
+        expect(document.title).toBe("Ayazian Games");
         expect(screen.getByRole("heading", { name: "Ayazian Games", level: 1 })).toBeInTheDocument();
         expect(screen.getByRole("button", { name: "Dragon Player" })).toBeInTheDocument();
         expect(screen.getByText("© 2026 Johnathon Ayazian")).toBeInTheDocument();
@@ -458,6 +475,7 @@ describe("App routing", () => {
         await user.click(screen.getByRole("button", { name: "Open Game" }));
 
         await screen.findByRole("heading", { name: "Game QRVWXC2" });
+        expect(document.title).toBe("Ayazian Games: Ravens and Dragons (QRVWXC2)");
         expect(window.location.pathname).toBe("/g/QRVWXC2");
     });
 
@@ -912,6 +930,7 @@ describe("App routing", () => {
         renderWithStore(<App />);
 
         expect(await screen.findByRole("heading", { name: "Profile" })).toBeInTheDocument();
+        expect(document.title).toBe("Ayazian Games: Profile");
         expect(fetchLocalProfileMock).toHaveBeenCalled();
     });
 
@@ -960,6 +979,7 @@ describe("App routing", () => {
         await waitFor(() => {
             expect(window.location.pathname).toBe("/clicker/create");
         });
+        expect(document.title).toBe("Ayazian Games: Create Clicker");
         expect(screen.getByRole("button", { name: "Start" })).toBeInTheDocument();
     });
 

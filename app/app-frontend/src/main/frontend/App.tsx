@@ -37,6 +37,7 @@ interface AppProps {
 }
 
 const registeredGameEntries: GameEntry<AppDispatch>[] = [ravensAndDragonsGameEntry, clickerGameEntry];
+const appTitle = "Ayazian Games";
 
 const fetchPublicGames = async (): Promise<PublicGameListing[]> => {
     const response = await fetch("/api/games/public");
@@ -98,10 +99,29 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
     const currentCreateGameEntry = createGameSlug ? gameEntriesBySlug.get(createGameSlug) ?? null : null;
     const CurrentCreateScreen = currentCreateGameEntry?.components.CreateScreen ?? null;
     const selectedLobbyGameEntry = gameEntriesBySlug.get(selectedGameSlug) ?? gameEntries[0];
+    const pageTitle = useMemo(() => {
+        if (page === "login") {
+            return `${appTitle}: Login`;
+        }
+        if (page === "profile") {
+            return `${appTitle}: Profile`;
+        }
+        if (page === "create" && currentCreateGameEntry) {
+            return `${appTitle}: Create ${currentCreateGameEntry.identity.displayName}`;
+        }
+        if (page === "game" && currentGameId) {
+            return `${appTitle}: ${activeGameEntry.identity.displayName} (${currentGameId})`;
+        }
+        return appTitle;
+    }, [activeGameEntry.identity.displayName, currentCreateGameEntry, currentGameId, page]);
 
     useEffect(() => {
         void dispatch(loadAuthSession());
     }, [dispatch]);
+
+    useEffect(() => {
+        document.title = pageTitle;
+    }, [pageTitle]);
 
     useEffect(() => {
         const onAuthExpired = () => {
