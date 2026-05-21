@@ -5,11 +5,17 @@ This file contains repository-wide instructions for AI-assisted work in this pro
 ## Required Startup Step
 
 - Before making changes, read this file and `code-summary.md` at the repository root.
-- Also read the `AGENTS.md` and `code-summary.md` files for each top-level project you expect to touch:
-  - `app/`
-  - `platform/`
-  - `ravens-and-dragons/`
+- Also read the `AGENTS.md` and `code-summary.md` files for each top-level project you reasonably expect to touch based on the request and initial file discovery.
+- Do not read every listed project automatically; expand scope only when imports, routes, tests, ownership boundaries, or the user's request point there.
 - Treat the root and project-level files together as the project context for implementation or review work.
+
+## Scoping Rules
+
+- Before reading project-level context files, infer the likely ownership area from the user's request.
+- Read only the root `AGENTS.md` and `code-summary.md` plus the project-level files for projects that are likely to be touched.
+- Do not read unrelated game-module context by default for app shell, auth, deployment, documentation, or platform-only questions.
+- If the relevant project is unclear, start with lightweight file discovery and expand only when imports, routes, tests, or ownership boundaries point to another project.
+- For login, lobby shell, shared routing, app header, profile, and frontend auth behavior, start with the owning shell and shared-auth areas; inspect game modules only if the issue reproduces inside a game-specific screen or crosses a game-entry contract.
 
 ## Project Priorities
 

@@ -2,6 +2,18 @@
 
 This file is the canonical list of planned work that is not being implemented immediately. Keep each item issue-tracker-like, link any backing plan files, and remove completed items plus obsolete backing plan files when the work is done.
 
+## Make Browser Password Managers Recognize Login
+
+- **Goal:** Make Google Chrome recognize the login screen as a login screen and offer to save local-account passwords.
+- **Why:** Players expect browser password managers to work with local accounts, and the current login flow does not trigger Chrome's save-password prompt.
+- **Notes:** Investigate cross-browser-compatible form and navigation behavior before relying on browser-specific credential APIs.
+
+## Replace Clicker With Tic-Tac-Toe
+
+- **Goal:** Replace the existing Clicker game with Tic-Tac-Toe throughout the service.
+- **Why:** Tic-Tac-Toe is intended to become the simple included game instead of Clicker, so stale Clicker code, data, routes, and UI references should not remain.
+- **Notes:** Remove or convert all references to Clicker. Remove existing Clicker games from the database as a one-off change. Clean up the create game page so there is proper space around the public checkbox and start button, and display them vertically. On the game page, use two panels: one on the left similar to the Ravens And Dragons lefthand panel, and one on the right that contains the board.
+
 ## Always Load Local Environment For Boot Run
 
 - **Goal:** Make local app startup automatically load `.env.local` when running `bootRun`.
