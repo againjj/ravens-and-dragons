@@ -107,10 +107,10 @@ describe("gameThunks", () => {
         fetchGameViewMock.mockRejectedValue(new TypeError("Cannot read properties of undefined (reading 'id')"));
         const store = createAppStore();
 
-        const loaded = await store.dispatch(openGame("clicker-game"));
+        const loaded = await store.dispatch(openGame("sample-game"));
 
         expect(loaded).toBe(false);
-        expect(store.getState().game.feedbackMessage).toBe('Unable to open game "clicker-game".');
+        expect(store.getState().game.feedbackMessage).toBe('Unable to open game "sample-game".');
     });
 
     test("claimSide refreshes the current game view after a successful claim", async () => {

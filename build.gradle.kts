@@ -30,7 +30,7 @@ tasks.named("assemble") {
 
 tasks.named("check") {
     dependsOn(":platform:check")
-    dependsOn(":clicker:check")
+    dependsOn(":tic-tac-toe:check")
     dependsOn(":ravens-and-dragons:check")
     dependsOn(":app:app-frontend:check")
     dependsOn(":app:check")
@@ -40,7 +40,7 @@ val testBackend by tasks.registering {
     group = LifecycleBasePlugin.VERIFICATION_GROUP
     description = "Runs backend test suites for all service subprojects."
     dependsOn(":platform:test")
-    dependsOn(":clicker:testBackend")
+    dependsOn(":tic-tac-toe:testBackend")
     dependsOn(":ravens-and-dragons:testBackend")
     dependsOn(":app:test")
 }
@@ -49,7 +49,7 @@ val testFrontend by tasks.registering {
     group = LifecycleBasePlugin.VERIFICATION_GROUP
     description = "Runs frontend test suites for all service subprojects."
     dependsOn(":app:app-frontend:test")
-    dependsOn(":clicker:testFrontend")
+    dependsOn(":tic-tac-toe:testFrontend")
     dependsOn(":ravens-and-dragons:testFrontend")
 }
 

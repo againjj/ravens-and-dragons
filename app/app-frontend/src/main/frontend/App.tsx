@@ -18,8 +18,8 @@ import { useGameRoute } from "./hooks/useGameRoute.js";
 import { selectCurrentUser, selectIsAuthenticated, selectOAuthProviders } from "./features/auth/authSelectors.js";
 import { authActions } from "./features/auth/authSlice.js";
 import { fetchPlayerGames, openPlayerGamesStream, type PlayerGameListing } from "./features/playerGames/playerGamesClient.js";
-import { clickerGameEntry } from "../../../../../clicker/clicker-frontend/src/main/frontend/clicker-entry.js";
 import { ravensAndDragonsGameEntry } from "../../../../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/ravens-and-dragons-entry.js";
+import { ticTacToeGameEntry } from "../../../../../tic-tac-toe/tic-tac-toe-frontend/src/main/frontend/tic-tac-toe-entry.js";
 import {
     authSessionExpiredEventType,
     createResponseError,
@@ -36,7 +36,7 @@ interface AppProps {
     gameEntries?: GameEntry<AppDispatch>[];
 }
 
-const registeredGameEntries: GameEntry<AppDispatch>[] = [ravensAndDragonsGameEntry, clickerGameEntry];
+const registeredGameEntries: GameEntry<AppDispatch>[] = [ravensAndDragonsGameEntry, ticTacToeGameEntry];
 const appTitle = "Ayazian Games";
 
 const fetchPublicGames = async (): Promise<PublicGameListing[]> => {

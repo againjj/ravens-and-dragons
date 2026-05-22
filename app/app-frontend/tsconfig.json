@@ -13,8 +13,8 @@
   "include": [
     "src/main/frontend/**/*.ts",
     "src/main/frontend/**/*.tsx",
-    "../../clicker/clicker-frontend/src/main/frontend/**/*.ts",
-    "../../clicker/clicker-frontend/src/main/frontend/**/*.tsx",
+    "../../tic-tac-toe/tic-tac-toe-frontend/src/main/frontend/**/*.ts",
+    "../../tic-tac-toe/tic-tac-toe-frontend/src/main/frontend/**/*.tsx",
     "../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/**/*.ts",
     "../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend/**/*.tsx"
   ]

@@ -36,6 +36,9 @@ describe("LobbyScreen", () => {
             />
         );
 
+        expect(screen.getByRole("combobox", { name: "Game" })).toBeVisible();
+        expect(screen.getByRole("option", { name: "Ravens and Dragons" })).toBeInTheDocument();
+        expect(screen.getByRole("option", { name: "Lunar Dunes" })).toBeInTheDocument();
         await user.selectOptions(screen.getByLabelText("Game"), "lunar-dunes");
         expect(onSelectGame).toHaveBeenCalledWith("lunar-dunes");
         await user.click(screen.getByRole("button", { name: "Create Game" }));

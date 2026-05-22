@@ -1,4 +1,4 @@
-package com.ravensanddragons.clicker
+package com.ravensanddragons.tictactoe
 
 import com.ravensanddragons.platform.game.GameModuleDefinition
 import com.ravensanddragons.platform.game.GameModuleIdentity
@@ -6,14 +6,14 @@ import com.ravensanddragons.platform.game.GameModulePersistenceContract
 import com.ravensanddragons.platform.game.GameModuleRoutes
 import com.ravensanddragons.platform.game.GameModuleSmokeCheck
 
-object ClickerGameModuleDefinition : GameModuleDefinition {
-    private const val gameSlug = "clicker"
+object TicTacToeGameModuleDefinition : GameModuleDefinition {
+    private const val gameSlug = "tic-tac-toe"
     private const val createPath = "/$gameSlug/create"
     private const val apiCreatePath = "/api/games/$gameSlug"
 
     override val identity: GameModuleIdentity = GameModuleIdentity(
         slug = gameSlug,
-        displayName = "Clicker"
+        displayName = "Tic-Tac-Toe"
     )
 
     override val routes: GameModuleRoutes = GameModuleRoutes(

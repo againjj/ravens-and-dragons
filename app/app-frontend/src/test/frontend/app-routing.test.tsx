@@ -206,21 +206,21 @@ describe("App routing", () => {
         pushStateSpy.mockRestore();
     });
 
-    test("login redirects to a Clicker game by resolving the game route before opening it", async () => {
+    test("login redirects to a Tic-Tac-Toe game by resolving the game route before opening it", async () => {
         const user = userEvent.setup();
         const ravensOpenGame = vi.fn();
-        const clickerOpenGame = vi.fn();
+        const ticTacToeOpenGame = vi.fn();
         const ravensGame = makeTestGameEntry("ravens-and-dragons", "Ravens and Dragons", () => undefined);
-        const clickerGame = makeTestGameEntry("clicker", "Clicker", () => undefined);
+        const ticTacToeGame = makeTestGameEntry("tic-tac-toe", "Tic-Tac-Toe", () => undefined);
         ravensGame.lifecycle.openGame = ravensOpenGame;
-        clickerGame.lifecycle.openGame = clickerOpenGame;
+        ticTacToeGame.lifecycle.openGame = ticTacToeOpenGame;
         fetchGameMetadataMock.mockResolvedValue({
             ok: true,
-            json: async () => ({ gameSlug: "clicker" })
+            json: async () => ({ gameSlug: "tic-tac-toe" })
         });
         window.history.pushState({}, "", "/g/9W5RJHQ");
 
-        renderWithStore(<App gameEntries={[ravensGame, clickerGame]} />);
+        renderWithStore(<App gameEntries={[ravensGame, ticTacToeGame]} />);
 
         await screen.findByRole("button", { name: "Continue as Guest" });
         expect(window.location.pathname).toBe("/login");
@@ -237,13 +237,13 @@ describe("App routing", () => {
         await user.click(screen.getByRole("button", { name: "Continue as Guest" }));
 
         await waitFor(() => {
-            expect(clickerOpenGame).toHaveBeenCalledWith(expect.anything(), "9W5RJHQ");
+            expect(ticTacToeOpenGame).toHaveBeenCalledWith(expect.anything(), "9W5RJHQ");
         });
-        expect(clickerOpenGame).toHaveBeenCalledTimes(1);
+        expect(ticTacToeOpenGame).toHaveBeenCalledTimes(1);
         expect(ravensOpenGame).not.toHaveBeenCalled();
         expect(window.location.pathname).toBe("/g/9W5RJHQ");
-        expect(screen.getByRole("heading", { name: "Clicker game" })).toBeInTheDocument();
-        expect(document.title).toBe("Ayazian Games: Clicker (9W5RJHQ)");
+        expect(screen.getByRole("heading", { name: "Tic-Tac-Toe game" })).toBeInTheDocument();
+        expect(document.title).toBe("Ayazian Games: Tic-Tac-Toe (9W5RJHQ)");
     });
 
     test("unknown game routes return to the lobby without opening the default game", async () => {
@@ -949,6 +949,9 @@ describe("App routing", () => {
         renderWithStore(<App />);
 
         await screen.findByRole("heading", { name: "Game Lobby" });
+        expect(screen.getByRole("combobox", { name: "Game" })).toBeVisible();
+        expect(screen.getByRole("option", { name: "Ravens and Dragons" })).toBeInTheDocument();
+        expect(screen.getByRole("option", { name: "Tic-Tac-Toe" })).toBeInTheDocument();
         expect(screen.getByLabelText("Game")).toHaveValue("ravens-and-dragons");
         await user.click(screen.getByRole("button", { name: "Create Game" }));
 
@@ -958,7 +961,7 @@ describe("App routing", () => {
         expect(await screen.findByRole("heading", { name: "Create game: Ravens and Dragons", level: 1 })).toBeInTheDocument();
     });
 
-    test("selecting Clicker from the lobby opens the Clicker create route", async () => {
+    test("selecting Tic-Tac-Toe from the lobby opens the Tic-Tac-Toe create route", async () => {
         const user = userEvent.setup();
         fetchAuthSessionMock.mockResolvedValue({
             authenticated: true,
@@ -973,13 +976,13 @@ describe("App routing", () => {
         renderWithStore(<App />);
 
         await screen.findByRole("heading", { name: "Game Lobby" });
-        await user.selectOptions(screen.getByLabelText("Game"), "clicker");
+        await user.selectOptions(screen.getByLabelText("Game"), "tic-tac-toe");
         await user.click(screen.getByRole("button", { name: "Create Game" }));
 
         await waitFor(() => {
-            expect(window.location.pathname).toBe("/clicker/create");
+            expect(window.location.pathname).toBe("/tic-tac-toe/create");
         });
-        expect(document.title).toBe("Ayazian Games: Create Clicker");
+        expect(document.title).toBe("Ayazian Games: Create Tic-Tac-Toe");
         expect(screen.getByRole("button", { name: "Start" })).toBeInTheDocument();
     });
 

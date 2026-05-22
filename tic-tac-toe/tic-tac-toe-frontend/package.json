@@ -1,5 +1,5 @@
 {
-  "name": "clicker-frontend",
+  "name": "tic-tac-toe-frontend",
   "type": "module",
   "private": true,
   "scripts": {

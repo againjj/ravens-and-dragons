@@ -28,7 +28,7 @@ val buildFrontend by tasks.registering(NpmTask::class) {
 
 tasks.register<NpmTask>("test") {
     group = LifecycleBasePlugin.VERIFICATION_GROUP
-    description = "Runs the Clicker frontend test suite."
+    description = "Runs the Tic-Tac-Toe frontend test suite."
     dependsOn(tasks.npmInstall, buildFrontend)
     npmCommand.set(listOf("run", "test"))
 

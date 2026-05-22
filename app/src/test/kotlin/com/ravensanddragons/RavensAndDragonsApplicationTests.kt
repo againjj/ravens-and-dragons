@@ -33,7 +33,7 @@ class RavensAndDragonsApplicationTests(
         val module = gameModuleRegistry.requireModule("ravens-and-dragons")
 
         assertAll(
-            { assertEquals(listOf("clicker", "ravens-and-dragons"), gameModuleRegistry.modules.map { it.identity.slug }) },
+            { assertEquals(listOf("tic-tac-toe", "ravens-and-dragons"), gameModuleRegistry.modules.map { it.identity.slug }) },
             { assertEquals("Ravens and Dragons", module.identity.displayName) },
             { assertEquals("/ravens-and-dragons/create", module.routes.browserCreatePath) },
             { assertEquals("/g/{gameId}", module.routes.browserPlayPathPattern) },
@@ -70,15 +70,15 @@ class RavensAndDragonsApplicationTests(
     }
 
     @Test
-    fun assemblesClickerGameModule() {
-        val module = gameModuleRegistry.requireModule("clicker")
+    fun assemblesTicTacToeGameModule() {
+        val module = gameModuleRegistry.requireModule("tic-tac-toe")
 
         assertAll(
-            { assertEquals("Clicker", module.identity.displayName) },
-            { assertEquals("/clicker/create", module.routes.browserCreatePath) },
+            { assertEquals("Tic-Tac-Toe", module.identity.displayName) },
+            { assertEquals("/tic-tac-toe/create", module.routes.browserCreatePath) },
             { assertEquals("/g/{gameId}", module.routes.browserPlayPathPattern) },
             { assertEquals("/api/games/{gameSlug}", module.routes.apiBasePath) },
-            { assertEquals("clicker", module.persistence.migrationNamespace) },
+            { assertEquals("tic-tac-toe", module.persistence.migrationNamespace) },
             {
                 assertEquals(
                     setOf(
@@ -104,8 +104,8 @@ class RavensAndDragonsApplicationTests(
                     module.persistence.opaquePayloadNames
                 )
             },
-            { assertEquals("/clicker/create", module.smokeCheck.browserEntryPath) },
-            { assertEquals("/api/games/clicker", module.smokeCheck.apiEntryPath) }
+            { assertEquals("/tic-tac-toe/create", module.smokeCheck.browserEntryPath) },
+            { assertEquals("/api/games/tic-tac-toe", module.smokeCheck.apiEntryPath) }
         )
     }
 }

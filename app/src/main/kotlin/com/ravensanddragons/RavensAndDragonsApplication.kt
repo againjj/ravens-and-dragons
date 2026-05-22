@@ -1,8 +1,8 @@
 package com.ravensanddragons
 
-import com.ravensanddragons.clicker.ClickerGameModuleDefinition
 import com.ravensanddragons.game.RavensAndDragonsGameModuleDefinition
 import com.ravensanddragons.platform.game.GameModuleRegistry
+import com.ravensanddragons.tictactoe.TicTacToeGameModuleDefinition
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.boot.autoconfigure.SpringBootApplication
@@ -21,7 +21,7 @@ class RavensAndDragonsApplication {
     fun gameModuleRegistry(): GameModuleRegistry =
         GameModuleRegistry(
             listOf(
-                ClickerGameModuleDefinition,
+                TicTacToeGameModuleDefinition,
                 RavensAndDragonsGameModuleDefinition
             )
         )

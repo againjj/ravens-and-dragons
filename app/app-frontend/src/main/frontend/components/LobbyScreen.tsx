@@ -56,7 +56,7 @@ export const LobbyScreen = ({
                         <p>Create a game to start playing a new game.</p>
                     </div>
                     <div className="lobby-actions">
-                        <div className="control-row">
+                        <div className="control-row game-picker-row">
                             <label className="control-label" htmlFor="game-select">
                                 Game
                             </label>

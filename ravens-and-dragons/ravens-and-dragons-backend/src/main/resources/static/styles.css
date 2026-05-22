@@ -689,6 +689,17 @@ h3 {
     gap: 12px;
 }
 
+.game-picker-row {
+    grid-template-columns: 100%;
+    align-items: start;
+    gap: 6px;
+}
+
+.game-picker-row .select-shell,
+.game-picker-row select {
+    min-height: 38px;
+}
+
 .checkbox-row {
     display: inline-flex;
     align-items: center;
@@ -896,6 +907,102 @@ button:disabled {
     font-weight: 600;
 }
 
+.tic-tac-toe-create-panel {
+    width: min(100%, 360px);
+    padding: 24px;
+    display: grid;
+    gap: 18px;
+    align-content: start;
+}
+
+.tic-tac-toe-create-panel button {
+    justify-self: start;
+}
+
+.tic-tac-toe-page {
+    max-width: 980px;
+}
+
+.tic-tac-toe-layout {
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(220px, 0.85fr) minmax(320px, 1.15fr);
+    gap: var(--layout-gap);
+    align-items: stretch;
+}
+
+.tic-tac-toe-status-panel {
+    display: grid;
+    align-content: start;
+}
+
+.tic-tac-toe-status {
+    font-size: 1.15rem;
+    font-weight: 800;
+}
+
+.tic-tac-toe-message {
+    min-height: 1.45em;
+    color: var(--accent-dark);
+    font-weight: 700;
+}
+
+.tic-tac-toe-board-panel {
+    padding: 18px;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+}
+
+.tic-tac-toe-board {
+    width: min(100%, 430px);
+    aspect-ratio: 1;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.tic-tac-toe-square {
+    width: 100%;
+    height: 100%;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    border-radius: 8px;
+    padding: 0;
+    display: grid;
+    place-items: center;
+    color: var(--line);
+    background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(246, 231, 208, 0.92)),
+        var(--panel-strong);
+    border: 1px solid rgba(58, 46, 32, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.42);
+    font-family: "Avenir Next", "Segoe UI", sans-serif;
+    font-size: clamp(3.2rem, 10vw, 6rem);
+    font-weight: 900;
+    line-height: 1;
+}
+
+.tic-tac-toe-square:not(:disabled):hover {
+    border-color: rgba(181, 82, 51, 0.56);
+    box-shadow:
+        inset 0 0 0 1px rgba(255, 255, 255, 0.56),
+        0 10px 18px rgba(181, 82, 51, 0.16);
+}
+
+.tic-tac-toe-square.is-filled {
+    background:
+        linear-gradient(180deg, rgba(255, 250, 242, 0.96), rgba(236, 216, 187, 0.94)),
+        var(--panel-strong);
+}
+
+.tic-tac-toe-square.is-winning {
+    color: #fffef9;
+    background: linear-gradient(135deg, var(--forest), #1f463b);
+}
+
 .legend-section p + p {
     margin-top: 8px;
 }
@@ -1060,6 +1167,10 @@ button:disabled {
     .game-layout {
         grid-template-columns: 1fr;
         grid-template-rows: auto auto auto;
+    }
+
+    .tic-tac-toe-layout {
+        grid-template-columns: 1fr;
     }
 
     .lobby-grid,

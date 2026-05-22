@@ -6,7 +6,7 @@ This repository is a Spring Boot 3.3 + Kotlin 2.1 service that hosts browser-bas
 
 - `app/`: runnable Spring Boot application, deployed frontend shell, and deployable jar assembly.
 - `platform/`: shared service infrastructure such as auth, web error handling, route fallback, the game module contract, and shared frontend package code.
-- `clicker/`: the Clicker game module, including backend counter rules/API handling and frontend create/play UI.
+- `tic-tac-toe/`: the Tic-Tac-Toe game module, including backend 3x3 board rules/API handling and frontend create/play UI.
 - `ravens-and-dragons/`: the Ravens and Dragons game module, including backend rules/APIs, frontend UI, bots, machine training, assets, and tests.
 
 The backend supports multiple persisted game sessions addressed by game id and broadcasts live updates over server-sent events per game. The frontend opens on a lobby, can route into `/{gameSlug}/create` for a local draft setup flow, and opens live games at `/g/{gameId}`. Game creation now posts through a slugged API path so the hosting service can distinguish the game type from the session id.
@@ -15,15 +15,15 @@ The platform auth surface exposes signed-in player summaries for shared player p
 
 The runnable app now assembles Ravens and Dragons through a platform-owned game module contract and opaque game runtime. Platform owns generic game ids, persistence, REST/SSE routing, stale cleanup, and handler dispatch. Game handlers supply client-facing public state for generic game reads and initial stream snapshots so a module can normalize older persisted payloads before the frontend resolves the game entry. Ravens and Dragons owns every Ravens-shaped concept, including board pieces, sides, snapshots, command semantics, undo payloads, bot turns, and game-view metadata.
 
-The repository is structured so each game lives in its own sub-project. The current checkout contains two game modules, Clicker and Ravens and Dragons, and the app registers each module explicitly.
+The repository is structured so each game lives in its own sub-project. The current checkout contains two game modules, Tic-Tac-Toe and Ravens and Dragons, and the app registers each module explicitly.
 
-The React app shell now lives under `app/app-frontend` and renders Clicker and Ravens and Dragons through a frontend game entry contract supplied by the shared `@ravensanddragons/platform-frontend` package. The package also owns shared auth wire types, auth API helpers, and browser shell hooks that future frontend game bundles can reuse.
+The React app shell now lives under `app/app-frontend` and renders Tic-Tac-Toe and Ravens and Dragons through a frontend game entry contract supplied by the shared `@ravensanddragons/platform-frontend` package. The package also owns shared auth wire types, auth API helpers, and browser shell hooks that future frontend game bundles can reuse.
 Frontend API helpers classify unauthorized, domain, and network/server failures so shell and game surfaces can redirect expired sessions to login, show server-down notices, and avoid silently replacing failed loads with empty lists. Live SSE streams are closed on errors; menu and game streams wait for a later user action or reload before reconnecting instead of polling the server while it is down.
 
 ## Project Files
 
 - `settings.gradle.kts`
-  - Includes `:platform`, `:clicker`, `:clicker:clicker-backend`, `:clicker:clicker-frontend`, `:ravens-and-dragons`, `:ravens-and-dragons:ravens-and-dragons-backend`, `:ravens-and-dragons:ravens-and-dragons-frontend`, `:app`, and `:app:app-frontend`.
+  - Includes `:platform`, `:tic-tac-toe`, `:tic-tac-toe:tic-tac-toe-backend`, `:tic-tac-toe:tic-tac-toe-frontend`, `:ravens-and-dragons`, `:ravens-and-dragons:ravens-and-dragons-backend`, `:ravens-and-dragons:ravens-and-dragons-frontend`, `:app`, and `:app:app-frontend`.
 - `build.gradle.kts`
   - Owns shared plugin versions, repositories, aggregate lifecycle tasks, root convenience tasks, and deployment-facing jar copy behavior.
 - `app/local-env.gradle.kts`
@@ -77,7 +77,7 @@ The Gradle wrapper is pinned to Gradle 9.4.1. Java 21 is the project toolchain. 
 - Public unfinished games use `GET /api/games/public`.
 - Signed-in player game navigation uses `GET /api/games/mine` and live menu updates use `GET /api/games/mine/stream`.
 - Game commands use `POST /api/games/{gameId}/commands`.
-- Clicker commands increment the shared counter until the game reaches `10`.
+- Tic-Tac-Toe commands place alternating X/O marks on an empty 3x3 square until a row, column, diagonal, or draw finishes the game.
 - Seat and bot actions are Ravens command types sent through the command endpoint. Ravens uses a platform-owned player picker to add the current user, another existing player, or a legal bot opponent to open seats.
 - Live updates use `GET /api/games/{gameId}/stream`.
 
@@ -101,6 +101,6 @@ The shared browser chrome keeps the `Ayazian Games` header title linked back to 
 Read these before changing the corresponding project:
 
 - `app/AGENTS.md` and `app/code-summary.md`
-- `clicker/AGENTS.md` and `clicker/code-summary.md`
+- `tic-tac-toe/AGENTS.md` and `tic-tac-toe/code-summary.md`
 - `platform/AGENTS.md` and `platform/code-summary.md`
 - `ravens-and-dragons/AGENTS.md` and `ravens-and-dragons/code-summary.md`

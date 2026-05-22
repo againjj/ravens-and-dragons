@@ -16,11 +16,12 @@ val generatedFrontendTestDir = layout.buildDirectory.dir("generated/frontend-tes
 
 val buildFrontend by tasks.registering(NpmTask::class) {
     dependsOn(tasks.npmInstall)
+    dependsOn(":tic-tac-toe:tic-tac-toe-frontend:npmInstall")
     npmCommand.set(listOf("run", "build"))
 
     inputs.files(
         fileTree("src/main/frontend"),
-        fileTree("../../clicker/clicker-frontend/src/main/frontend"),
+        fileTree("../../tic-tac-toe/tic-tac-toe-frontend/src/main/frontend"),
         fileTree("../../platform/frontend"),
         fileTree("../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend"),
         file("package.json"),
@@ -40,7 +41,7 @@ tasks.register<NpmTask>("test") {
     inputs.files(
         fileTree("src/main/frontend"),
         fileTree("src/test/frontend"),
-        fileTree("../../clicker/clicker-frontend/src/main/frontend"),
+        fileTree("../../tic-tac-toe/tic-tac-toe-frontend/src/main/frontend"),
         fileTree("../../platform/frontend"),
         fileTree("../../ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend"),
         file("package.json"),

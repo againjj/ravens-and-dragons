@@ -5,7 +5,7 @@ Ravens and Dragons is a Spring Boot and Kotlin web app for playing browser-based
 ## Highlights
 
 - Create a new game from a draft setup or open an existing game by ID
-- Play the included Clicker game, where a shared counter starts at `0` and the game ends at `10`
+- Play the included Tic-Tac-Toe game, where X moves first on a 3x3 board and the game ends on a win or draw
 - Use a shared `Ayazian Games` app shell with compact fixed header/footer chrome, lobby-linked header title after login, route-aware browser tab titles, a turn-aware username menu, gradient-styled public lobby rows, and scrollable page content
 - Play in the browser with live updates shared across tabs and clients, including header turn badges for unfinished games where you have a seat
 - When the server is unavailable, the frontend shows a server-down notice and closes live streams instead of silently clearing lists or polling until the server returns
@@ -165,9 +165,9 @@ The stale-game eviction threshold defaults to six weeks, and the cleanup schedul
 
 - `app`: runnable Spring Boot application project that assembles the deployed jar and browser shell
 - `app/app-frontend`: app-owned React shell for auth, lobby, profile, routing, and game-entry registration
-- `clicker`: parent game module for the Clicker counter game
-- `clicker/clicker-backend`: Clicker game module definition, counter command handling, and JVM tests
-- `clicker/clicker-frontend`: Clicker frontend game entry, create/play UI, and frontend tests
+- `tic-tac-toe`: parent game module for the Tic-Tac-Toe game
+- `tic-tac-toe/tic-tac-toe-backend`: Tic-Tac-Toe game module definition, place-mark command handling, and JVM tests
+- `tic-tac-toe/tic-tac-toe-frontend`: Tic-Tac-Toe frontend game entry, create/play UI, and frontend tests
 - `platform`: shared-service backend project for auth, OAuth provider metadata, route fallback, generic web exception handling, the game module contract, and opaque game runtime
 - `ravens-and-dragons`: parent game module that aggregates backend and frontend child projects
 - `ravens-and-dragons/ravens-and-dragons-backend`: Ravens and Dragons gameplay, game APIs, resources, JVM tests, and training code
@@ -176,4 +176,4 @@ The stale-game eviction threshold defaults to six weeks, and the cleanup schedul
 - `platform/src/main/kotlin/com/ravensanddragons/auth`: authentication and account management
 - `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend`: Ravens game frontend entry, create/play UI, Redux state, and browser-side helpers
 - `code-summary.md`: service-wide architecture and implementation summary
-- `app/code-summary.md`, `platform/code-summary.md`, and `ravens-and-dragons/code-summary.md`: project-level implementation summaries
+- `app/code-summary.md`, `platform/code-summary.md`, `tic-tac-toe/code-summary.md`, and `ravens-and-dragons/code-summary.md`: project-level implementation summaries
