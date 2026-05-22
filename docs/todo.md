@@ -14,12 +14,6 @@ This file is the canonical list of planned work that is not being implemented im
 - **Why:** Tic-Tac-Toe is intended to become the simple included game instead of Clicker, so stale Clicker code, data, routes, and UI references should not remain.
 - **Notes:** Remove or convert all references to Clicker. Remove existing Clicker games from the database as a one-off change. Clean up the create game page so there is proper space around the public checkbox and start button, and display them vertically. On the game page, use two panels: one on the left similar to the Ravens And Dragons lefthand panel, and one on the right that contains the board.
 
-## Always Load Local Environment For Boot Run
-
-- **Goal:** Make local app startup automatically load `.env.local` when running `bootRun`.
-- **Why:** It makes it easier to run `bootRun` without manually sourcing local environment variables first.
-- **Notes:** Preserve the current default app configuration and avoid changing deployment behavior.
-
 ## Prepare Ravens And Dragons For External Game Repos
 
 - **Goal:** Make `ravens-and-dragons` buildable and testable as an independent Gradle project and keep the app's included-game list declarative.

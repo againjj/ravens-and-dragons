@@ -115,10 +115,9 @@ Google sign-in appears only when a Google OAuth client registration is configure
 
 1. Copy `.env.local.example` to `.env.local`.
 2. Fill in your Google OAuth client values.
-3. Load the environment before starting the app.
+3. Start the app from the repository root.
 
 ```bash
-source .env.local
 ./gradlew bootRun
 ```
 
@@ -129,6 +128,8 @@ SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_ID
 SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_CLIENT_SECRET
 SPRING_SECURITY_OAUTH2_CLIENT_REGISTRATION_GOOGLE_SCOPE=openid,profile,email
 ```
+
+Use standard dotenv `KEY=value` syntax in `.env.local`; shell-only prefixes such as `export` are not supported.
 
 Use these redirect URIs in Google Cloud:
 

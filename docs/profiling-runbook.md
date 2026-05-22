@@ -27,12 +27,9 @@ mkdir -p /tmp/rad-profile-first-run
 
 ## Start The App
 
-Load local env vars and start the app:
+Start the app from the repository root:
 
 ```bash
-set -a
-source .env.local
-set +a
 ./gradlew bootRun
 ```
 

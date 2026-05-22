@@ -1,5 +1,4 @@
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-import org.springframework.boot.gradle.tasks.run.BootRun
 import org.springframework.boot.gradle.tasks.bundling.BootJar
 
 plugins {
@@ -47,10 +46,6 @@ tasks.withType<JavaExec>().configureEach {
     javaLauncher.set(java21Launcher)
 }
 
-tasks.withType<BootRun>().configureEach {
-    workingDir = rootProject.projectDir
-}
-
 tasks.withType<Test>().configureEach {
     useJUnitPlatform()
     javaLauncher.set(java21Launcher)
@@ -59,6 +54,8 @@ tasks.withType<Test>().configureEach {
 tasks.withType<BootJar>().configureEach {
     archiveFileName.set("ravens-and-dragons.jar")
 }
+
+apply(from = "local-env.gradle.kts")
 
 val appFrontendProject = project(":app:app-frontend")
 val generatedAppFrontendDir = appFrontendProject.layout.buildDirectory.dir("generated/frontend")

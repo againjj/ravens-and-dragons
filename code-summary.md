@@ -26,6 +26,8 @@ Frontend API helpers classify unauthorized, domain, and network/server failures 
   - Includes `:platform`, `:clicker`, `:clicker:clicker-backend`, `:clicker:clicker-frontend`, `:ravens-and-dragons`, `:ravens-and-dragons:ravens-and-dragons-backend`, `:ravens-and-dragons:ravens-and-dragons-frontend`, `:app`, and `:app:app-frontend`.
 - `build.gradle.kts`
   - Owns shared plugin versions, repositories, aggregate lifecycle tasks, root convenience tasks, and deployment-facing jar copy behavior.
+- `app/local-env.gradle.kts`
+  - Owns local `.env.local` parsing for `bootRun` and the parser verification task.
 - `AGENTS.md`
   - Repository-wide agent instructions.
 - `code-summary.md`
@@ -44,13 +46,13 @@ Frontend API helpers classify unauthorized, domain, and network/server failures 
 ## Build And Test Flow
 
 - `./gradlew bootRun`
-  - Runs the assembled Spring Boot app from `app/`.
+  - Runs the assembled Spring Boot app from `app/`, loading `.env.local` into the local app process when the file exists.
 - `./gradlew testBackend`
   - Runs backend/JVM tests across backend-capable projects.
 - `./gradlew testFrontend`
   - Runs frontend tests across frontend-capable projects.
 - `./gradlew test`
-  - Runs the aggregate backend and frontend suites.
+  - Runs the aggregate backend and frontend suites, including app build-script coverage for local `.env.local` parsing.
 - `./gradlew check`
   - Runs the full default verification suite plus packaging checks.
 - `./gradlew botMatchHarnessTest`
@@ -92,6 +94,7 @@ The shared browser chrome keeps the `Ayazian Games` header title linked back to 
 - The stale cleanup delay is derived as one tenth of the stale threshold.
 - Optional Google OAuth appears only when Spring OAuth Google client registration environment variables are configured.
 - Railway deploys run the Spring Boot fat jar named `ravens-and-dragons.jar`.
+- Local `bootRun` loads standard dotenv-style `KEY=value` entries from `.env.local` in the repository root when the file exists and fails on unsupported syntax; packaged jars and deployment startup continue to use their ambient process environment.
 
 ## Project Summaries
 

@@ -13,8 +13,11 @@ The app keeps the included-game list declarative by registering each game module
   - Depends directly on `:platform`, `:clicker:clicker-backend`, and `:ravens-and-dragons:ravens-and-dragons-backend`.
   - Configures Java 21 for Kotlin, JavaExec, and tests.
   - Copies the app-owned Vite frontend bundle from `:app:app-frontend` into Spring Boot static resources during `processResources`.
-  - Keeps `bootRun` working from the repository root.
+  - Applies `app/local-env.gradle.kts` so `bootRun` works from the repository root and local env loading stays isolated.
   - Names the executable jar `ravens-and-dragons.jar`.
+- `app/local-env.gradle.kts`
+  - Loads standard dotenv `KEY=value` entries from root `.env.local` into the local `bootRun` process when present.
+  - Adds `testLocalEnvParser` coverage for `.env.local` parsing and runs it before `:app:test`.
 - `app/app-frontend/build.gradle.kts`
   - Builds and tests the deployed React shell with Gradle-managed Node/npm.
   - Produces the static frontend bundle consumed by `app:processResources`.
@@ -39,6 +42,8 @@ The app keeps the included-game list declarative by registering each game module
   - Verifies the Spring application context loads.
   - Verifies default servlet session timeout and stale cleanup delay.
   - Verifies the assembled app registers the Clicker and Ravens and Dragons game modules with the expected routes and persistence boundary metadata.
+- `:app:testLocalEnvParser`
+  - Verifies the `bootRun` `.env.local` parser handles standard dotenv `KEY=value` entries, quoted values, unquoted values, comments, blank lines, missing files, and fails unsupported syntax.
 
 ## Responsibilities
 
@@ -52,7 +57,7 @@ The app keeps the included-game list declarative by registering each game module
 
 ## Runtime Notes
 
-- Running `./gradlew bootRun` serves the Vite-built frontend bundle plus static CSS through Spring Boot.
+- Running `./gradlew bootRun` serves the Vite-built frontend bundle plus static CSS through Spring Boot and loads standard dotenv `KEY=value` entries from `.env.local` in the repository root when present.
 - `server.port` defaults to `8080` unless overridden by `PORT`.
 - Railway deployment starts `ravens-and-dragons.jar`.
 - The lobby can open a selected public game or a typed game id; public game rows use per-row gradients with a darker selected state, and missing typed ids report feedback without navigating away from the lobby.
