@@ -448,7 +448,7 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
                     currentCreateGameEntry && CurrentCreateScreen ? (
                         <CurrentCreateScreen
                             gameName={currentCreateGameEntry.identity.displayName}
-                            onStartGame={(publiclyListed) => {
+                            onStartGame={(publiclyListed: boolean | undefined) => {
                                 handleStartGameFromCreate(currentCreateGameEntry.identity.slug, publiclyListed);
                             }}
                         />
