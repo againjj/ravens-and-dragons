@@ -17,6 +17,7 @@ val generatedFrontendTestDir = layout.buildDirectory.dir("generated/frontend-tes
 val buildFrontend by tasks.registering(NpmTask::class) {
     dependsOn(tasks.npmInstall)
     dependsOn(":tic-tac-toe:tic-tac-toe-frontend:npmInstall")
+    dependsOn(":ravens-and-dragons:ravens-and-dragons-frontend:npmInstall")
     npmCommand.set(listOf("run", "build"))
 
     inputs.files(

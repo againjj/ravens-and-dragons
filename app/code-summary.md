@@ -20,6 +20,7 @@ The app keeps the included-game list declarative by registering each game module
   - Adds `testLocalEnvParser` coverage for `.env.local` parsing and runs it before `:app:test`.
 - `app/app-frontend/build.gradle.kts`
   - Builds and tests the deployed React shell with Gradle-managed Node/npm.
+  - Installs the frontend dependencies for the game modules imported by the shell before typechecking the deployed bundle, so clean production builds resolve each module's local package dependencies.
   - Produces the static frontend bundle consumed by `app:processResources`.
 - `app/app-frontend/src/main/frontend/App.tsx`
   - Owns the shared browser shell, auth bootstrap, lobby/profile/login routing, public game list loading, signed-in user menu/player-game stream wiring, fullscreen action, and game-entry selection for create/play screens.
