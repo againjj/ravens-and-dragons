@@ -180,8 +180,10 @@ describe("App routing", () => {
     test("unauthenticated users loading a game route are redirected to /login and then back after login", async () => {
         const user = userEvent.setup();
         const pushStateSpy = vi.spyOn(window.history, "pushState");
+        const replaceStateSpy = vi.spyOn(window.history, "replaceState");
         fetchGameViewMock.mockResolvedValue(createGameView({ id: "CFGHJMP" }));
         window.history.pushState({}, "", "/g/CFGHJMP");
+        pushStateSpy.mockClear();
 
         renderWithStore(<App />);
 
@@ -189,6 +191,7 @@ describe("App routing", () => {
         expect(window.location.pathname).toBe("/login");
         expect(new URLSearchParams(window.location.search).get("next")).toBe("/g/CFGHJMP");
         expect(document.title).toBe("Ayazian Games: Login");
+        expect(replaceStateSpy).toHaveBeenCalledWith({}, "", "/login?next=%2Fg%2FCFGHJMP");
 
         fetchAuthSessionMock.mockResolvedValue({
             authenticated: true,
@@ -202,8 +205,10 @@ describe("App routing", () => {
         await user.click(screen.getByRole("button", { name: "Continue as Guest" }));
         expect(fetchGameViewMock).toHaveBeenCalledWith("CFGHJMP");
         expect(window.location.pathname).toBe("/g/CFGHJMP");
-        expect(pushStateSpy).toHaveBeenCalledWith({}, "", "/g/CFGHJMP");
+        expect(replaceStateSpy).toHaveBeenCalledWith({}, "", "/g/CFGHJMP");
+        expect(pushStateSpy).not.toHaveBeenCalledWith({}, "", "/g/CFGHJMP");
         pushStateSpy.mockRestore();
+        replaceStateSpy.mockRestore();
     });
 
     test("login redirects to a Tic-Tac-Toe game by resolving the game route before opening it", async () => {
@@ -244,6 +249,42 @@ describe("App routing", () => {
         expect(window.location.pathname).toBe("/g/9W5RJHQ");
         expect(screen.getByRole("heading", { name: "Tic-Tac-Toe game" })).toBeInTheDocument();
         expect(document.title).toBe("Ayazian Games: Tic-Tac-Toe (9W5RJHQ)");
+    });
+
+    test("authenticated users loading /login with a game return target are redirected by replacing the login URL", async () => {
+        const replaceStateSpy = vi.spyOn(window.history, "replaceState");
+        const ravensOpenGame = vi.fn();
+        const ticTacToeOpenGame = vi.fn();
+        const ravensGame = makeTestGameEntry("ravens-and-dragons", "Ravens and Dragons", () => undefined);
+        const ticTacToeGame = makeTestGameEntry("tic-tac-toe", "Tic-Tac-Toe", () => undefined);
+        ravensGame.lifecycle.openGame = ravensOpenGame;
+        ticTacToeGame.lifecycle.openGame = ticTacToeOpenGame;
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "guest-1",
+                displayName: "Guest 1",
+                authType: "guest"
+            }
+        });
+        fetchGameMetadataMock.mockResolvedValue({
+            ok: true,
+            json: async () => ({ gameSlug: "tic-tac-toe" })
+        });
+        window.history.pushState({}, "", "/login?next=%2Fg%2F9W5RJHQ");
+        replaceStateSpy.mockClear();
+
+        renderWithStore(<App gameEntries={[ravensGame, ticTacToeGame]} />);
+
+        await waitFor(() => {
+            expect(ticTacToeOpenGame).toHaveBeenCalledWith(expect.anything(), "9W5RJHQ");
+        });
+        expect(ticTacToeOpenGame).toHaveBeenCalledTimes(1);
+        expect(ravensOpenGame).not.toHaveBeenCalled();
+        expect(window.location.pathname).toBe("/g/9W5RJHQ");
+        expect(replaceStateSpy).toHaveBeenCalledWith({}, "", "/g/9W5RJHQ");
+        expect(screen.getByRole("heading", { name: "Tic-Tac-Toe game" })).toBeInTheDocument();
+        replaceStateSpy.mockRestore();
     });
 
     test("unknown game routes return to the lobby without opening the default game", async () => {

@@ -23,6 +23,7 @@ The app keeps the included-game list declarative by registering each game module
   - Produces the static frontend bundle consumed by `app:processResources`.
 - `app/app-frontend/src/main/frontend/App.tsx`
   - Owns the shared browser shell, auth bootstrap, lobby/profile/login routing, public game list loading, signed-in user menu/player-game stream wiring, fullscreen action, and game-entry selection for create/play screens.
+  - Replaces transient login URLs when authenticated users are redirected to their `next` target so `/login?next=...` does not remain in browser history after sign-in.
   - Classifies shell-level async failures so expired sessions redirect to login, server/network failures show a server-unavailable dialog, and failed lobby/menu loads are not silently rendered as empty lists.
   - Registers the Tic-Tac-Toe and Ravens and Dragons frontend entries for the lobby.
 - `app/app-frontend/src/main/frontend/features/playerGames/playerGamesClient.ts`

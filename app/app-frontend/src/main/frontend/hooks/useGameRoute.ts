@@ -305,13 +305,13 @@ export const useGameRoute = (
                 const targetPath = getLoginRedirectPath();
                 const targetRoute = parseRoute(targetPath);
                 if (targetRoute.kind === "game" && targetRoute.gameId) {
-                    openRouteGame(targetRoute.gameId, "push");
+                    openRouteGame(targetRoute.gameId, "replace");
                 } else if (targetRoute.kind === "create") {
-                    navigateToCreate(targetRoute.gameSlug ?? "ravens-and-dragons", "push");
+                    navigateToCreate(targetRoute.gameSlug ?? "ravens-and-dragons", "replace");
                 } else if (targetRoute.kind === "profile") {
-                    navigateToProfile("push");
+                    navigateToProfile("replace");
                 } else {
-                    navigateToLobby("push");
+                    navigateToLobby("replace");
                 }
                 return;
             }
