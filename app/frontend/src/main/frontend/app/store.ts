@@ -1,0 +1,80 @@
+import { combineReducers, configureStore } from "@reduxjs/toolkit";
+import type { ThunkAction, UnknownAction } from "@reduxjs/toolkit";
+
+import type { AuthState } from "../features/auth/authSlice.js";
+import { authReducer, initialAuthState } from "../features/auth/authSlice.js";
+import {
+    createGameDraftReducer,
+    gameReducer,
+    initialCreateGameDraftState,
+    initialGameState,
+    initialUiState,
+    uiReducer,
+    type CreateGameDraftState,
+    type GameState,
+    type UiState
+} from "ravens-and-dragons-frontend/app-integration";
+
+const rootReducer = combineReducers({
+    auth: authReducer,
+    createGame: createGameDraftReducer,
+    game: gameReducer,
+    ui: uiReducer
+});
+
+export interface PreloadedAppState {
+    auth?: AuthState;
+    createGame?: CreateGameDraftState;
+    game?: GameState;
+    ui?: UiState;
+}
+
+const buildPreloadedGameState = (gameState?: GameState): GameState => {
+    const mergedGameState = {
+        ...initialGameState,
+        ...gameState
+    };
+
+    if (mergedGameState.session && !gameState?.currentGameId) {
+        mergedGameState.currentGameId = mergedGameState.session.id;
+    }
+
+    if (mergedGameState.session && !gameState?.view) {
+        mergedGameState.view = "game";
+    }
+
+    return mergedGameState;
+};
+
+const buildPreloadedCreateGameState = (createGameState?: CreateGameDraftState): CreateGameDraftState => ({
+    ...initialCreateGameDraftState,
+    ...createGameState
+});
+
+export const createAppStore = (preloadedState?: PreloadedAppState) =>
+    configureStore({
+        reducer: rootReducer,
+        preloadedState: {
+            auth: {
+                ...initialAuthState,
+                ...preloadedState?.auth,
+                session: {
+                    ...initialAuthState.session,
+                    ...preloadedState?.auth?.session
+                }
+            },
+            createGame: buildPreloadedCreateGameState(preloadedState?.createGame),
+            game: buildPreloadedGameState(preloadedState?.game),
+            ui: {
+                ...initialUiState,
+                ...preloadedState?.ui
+            }
+        }
+    });
+
+export const store = createAppStore();
+
+export type RootState = ReturnType<typeof rootReducer>;
+export type AppStore = ReturnType<typeof createAppStore>;
+export type AppDispatch = AppStore["dispatch"];
+export type AppThunk<ReturnType = void> = ThunkAction<ReturnType, RootState, unknown, UnknownAction>;

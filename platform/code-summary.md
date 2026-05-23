@@ -2,15 +2,21 @@
 
 ## Overview
 
-`platform/` owns shared service infrastructure used by the runnable app and game modules. It is a Kotlin/JVM library project, not the Spring Boot entrypoint. It also publishes the local `@ravensanddragons/platform-frontend` package for browser code that is shared by multiple frontend game bundles.
+`platform/` owns shared service infrastructure used by the runnable app and game modules. It is split into `backend` and `frontend` child projects: the backend is a Kotlin/JVM library rather than the Spring Boot entrypoint, and the frontend publishes the local `@ravensanddragons/platform-frontend` package for browser code shared by multiple frontend game bundles.
 
 ## Key Files
 
-- `platform/build.gradle.kts`
+- `platform/backend/build.gradle.kts`
   - Kotlin/JVM library project with Java 21.
   - Exposes Spring web, JDBC, security, OAuth client, Jackson Kotlin, and Kotlin reflection dependencies.
   - Configures JUnit Platform tests.
-- `platform/src/main/kotlin/com/ravensanddragons/auth/*.kt`
+- `platform/build.gradle.kts`
+  - Aggregates the platform backend and frontend child projects.
+  - Exposes `testBackend`, `testFrontend`, and `test` tasks.
+- `platform/frontend/build.gradle.kts`
+  - Applies the shared frontend Gradle convention.
+  - Builds and tests the `@ravensanddragons/platform-frontend` package with Gradle-managed Node/npm.
+- `platform/backend/src/main/kotlin/com/ravensanddragons/auth/*.kt`
   - Session auth models and helpers.
   - JDBC-backed user persistence.
   - Guest and local login flows.
@@ -20,16 +26,16 @@
   - Temporary guest-user cleanup hooks.
   - `PlayerAccountValidator` implementation that locks newly added player account rows before game command persistence.
   - `UserReferenceCleanup` port used by game modules to release game-owned references during account deletion.
-- `platform/src/main/kotlin/com/ravensanddragons/web/*.kt`
+- `platform/backend/src/main/kotlin/com/ravensanddragons/web/*.kt`
   - Shared web-layer exception handling.
   - Normalizes expected disconnected-client SSE exceptions such as logout-time broken-pipe writes.
-- `platform/src/main/kotlin/com/ravensanddragons/AppRoutesController.kt`
+- `platform/backend/src/main/kotlin/com/ravensanddragons/AppRoutesController.kt`
   - Shared browser route fallback behavior.
-- `platform/src/main/kotlin/com/ravensanddragons/platform/game/GameModuleContract.kt`
+- `platform/backend/src/main/kotlin/com/ravensanddragons/platform/game/GameModuleContract.kt`
   - Platform-owned `GameModuleDefinition` contract.
   - Validating `GameModuleRegistry` for assembled game metadata.
   - Records game identity, slug-derived create routing, the active-game browser route pattern, slugged API entry points, persistence boundary metadata, and smoke-check entry points.
-- `platform/src/main/kotlin/com/ravensanddragons/platform/game/runtime/*.kt`
+- `platform/backend/src/main/kotlin/com/ravensanddragons/platform/game/runtime/*.kt`
   - Shared opaque game runtime infrastructure.
   - Defines the `GameHandler` port implemented by game modules.
   - Owns generated game ids, persisted game records, public listing metadata, JDBC storage, session locking, stale cleanup, REST/SSE game routing, and generic JSON request/response delegation.
@@ -37,15 +43,17 @@
   - Exposes public unfinished game listings and signed-in player-game listings/streams, with shared sorting for both list surfaces.
   - Lets game handlers supply display names, open-seat counts, player-seat user ids, current-user turn flags, and normalized client-facing public state without moving game-specific seat rules or legacy payload conversion into platform.
   - Stores game-owned public/private state as JSON without understanding board pieces, sides, captures, rule configurations, bot turns, or undo semantics.
-- `platform/src/main/resources/db/migration/*.sql`
+- `platform/backend/src/main/resources/db/migration/*.sql`
   - Flyway migrations for shared auth tables and the game record table used by the platform runtime.
 - `platform/frontend`
   - Local npm package `@ravensanddragons/platform-frontend`.
+  - Keeps source under `src/main/frontend`, generated package output under `dist`, and frontend tests under `src/test/frontend`.
   - Exports shared auth wire types, auth API helpers, frontend game-entry contracts, the shared player picker, route helpers, and reusable browser shell hooks.
   - Classifies frontend API failures with status-aware request errors plus shared session-expired and server-unavailable browser events used by the shell and game modules.
-- `platform/src/test/kotlin/com/ravensanddragons/platform/game/GameModuleRegistryTest.kt`
+  - Tests API error classification, OAuth URL building, shared route helpers, and player-picker interaction behavior.
+- `platform/backend/src/test/kotlin/com/ravensanddragons/platform/game/GameModuleRegistryTest.kt`
   - Verifies registry validation, duplicate slug rejection, and lookup behavior.
-- `platform/src/test/kotlin/com/ravensanddragons/web/DisconnectedClientExceptionHandlerTest.kt`
+- `platform/backend/src/test/kotlin/com/ravensanddragons/web/DisconnectedClientExceptionHandlerTest.kt`
   - Verifies shared disconnected-client exception handling.
 
 ## Responsibilities

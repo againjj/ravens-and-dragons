@@ -10,7 +10,7 @@
     },
     "./auth-types": {
       "types": "./dist/auth-types.d.ts",
-      "default": "./dist/empty.js"
+      "default": "./dist/auth-types.js"
     },
     "./game-entry": {
       "types": "./dist/game-entry.d.ts",
@@ -25,7 +25,22 @@
       "default": "./dist/hooks/useFullscreen.js"
     }
   },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run"
+  },
   "peerDependencies": {
     "react": "19.1.0"
+  },
+  "devDependencies": {
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/react": "19.1.2",
+    "@types/react-dom": "19.1.2",
+    "jsdom": "26.1.0",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "typescript": "5.6.3",
+    "vitest": "^4.1.2"
   }
 }

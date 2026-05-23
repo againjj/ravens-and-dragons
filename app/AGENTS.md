@@ -25,6 +25,6 @@ This file contains instructions for work inside the `app/` project.
 
 ## Testing
 
-- `:app:test` should stay focused on assembled-service wiring and Spring context tests.
-- Use `./gradlew :app:test` for focused app verification.
+- `:app:backend:test` should stay focused on assembled-service wiring and Spring context tests.
+- Use `./gradlew :app:testBackend` or `./gradlew :app:backend:test` for focused app backend verification.
 - Run `./gradlew test` before finishing app changes whenever practical.

@@ -6,14 +6,14 @@
 
 The parent project has two child projects:
 
-- `tic-tac-toe/tic-tac-toe-backend`
-- `tic-tac-toe/tic-tac-toe-frontend`
+- `tic-tac-toe/backend`
+- `tic-tac-toe/frontend`
 
 ## Backend Project
 
-- `tic-tac-toe/tic-tac-toe-backend/build.gradle.kts`
+- `tic-tac-toe/backend/build.gradle.kts`
   - Kotlin/JVM backend module with Java 21.
-  - Depends on `:platform` only.
+  - Depends on `:platform:backend` only.
 - `src/main/kotlin/com/ravensanddragons/tictactoe/TicTacToeGameModuleDefinition.kt`
   - Tic-Tac-Toe implementation of the platform game module contract.
   - Declares the `tic-tac-toe` slug and `/tic-tac-toe/create` browser route.
@@ -24,10 +24,11 @@ The parent project has two child projects:
 
 ## Frontend Project
 
-- `tic-tac-toe/tic-tac-toe-frontend/build.gradle.kts`
+- `tic-tac-toe/frontend/build.gradle.kts`
+  - Applies the shared frontend Gradle convention.
   - Typechecks and tests the Tic-Tac-Toe frontend package with Gradle-managed Node/npm.
 - `src/main/frontend/tic-tac-toe-entry.tsx`
-  - Exports `ticTacToeGameEntry` for the app-owned frontend shell.
+  - Exports `ticTacToeGameEntry` through the package entrypoint for the app-owned frontend shell.
   - Owns the Tic-Tac-Toe create and play screens, the public-listing checkbox for game creation, plus Tic-Tac-Toe-specific REST/SSE behavior.
   - Uses shared frontend API failure classification so expired sessions and server-down states surface consistently, and closes the Tic-Tac-Toe SSE stream on errors.
 

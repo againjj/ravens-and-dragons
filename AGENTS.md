@@ -57,6 +57,7 @@ This file contains repository-wide instructions for AI-assisted work in this pro
 - `platform/` owns shared service capabilities: authentication, shared web error handling, route fallback, the game module contract, and reusable platform boundaries.
 - `app/` owns the runnable Spring Boot application, deployed jar assembly, and explicit registration of included game modules.
 - `ravens-and-dragons/` owns Ravens and Dragons game rules, game APIs, game-specific persistence payloads, frontend UI, assets, bots, machine training, and tests.
+- Any sub-project named `X` that contains both backend and frontend code must contain two sub-projects named `backend` and `frontend`; `X:testBackend` must run the backend tests, `X:testFrontend` must run the frontend tests, and `X:test` must depend on both `X:testBackend` and `X:testFrontend`.
 - Each game should live in its own sub-project; do not merge separate games into a single game module.
 - Do not move gameplay rules into `platform/` or `app/`.
 - Do not make platform own game-specific snapshot, undo, rule, bot, board, or command semantics.

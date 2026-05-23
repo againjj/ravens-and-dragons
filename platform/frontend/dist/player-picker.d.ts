@@ -1,11 +1,9 @@
+import { type ReactElement } from "react";
 import type { AuthUserSummary } from "./auth-types";
-import type { ReactElement } from "react";
-
 export interface PlayerPickerOption {
     id: string;
     displayName: string;
 }
-
 export interface PlayerPickerProps {
     players: AuthUserSummary[];
     bots: PlayerPickerOption[];
@@ -14,5 +12,4 @@ export interface PlayerPickerProps {
     onAddBot: (botId: string) => void;
     onCancel: () => void;
 }
-
-export declare const PlayerPicker: (props: PlayerPickerProps) => ReactElement;
+export declare const PlayerPicker: ({ players, bots, onAddMyself, onAddPlayer, onAddBot, onCancel }: PlayerPickerProps) => ReactElement;

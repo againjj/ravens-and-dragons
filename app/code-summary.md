@@ -9,42 +9,46 @@ The app keeps the included-game list declarative by registering each game module
 ## Key Files
 
 - `app/build.gradle.kts`
+  - Aggregates the app backend and frontend child projects.
+  - Exposes `testBackend`, `testFrontend`, `test`, `bootJar`, and `bootRun` proxy tasks.
+- `app/backend/build.gradle.kts`
   - Applies Spring Boot and Kotlin plugins.
-  - Depends directly on `:platform`, `:tic-tac-toe:tic-tac-toe-backend`, and `:ravens-and-dragons:ravens-and-dragons-backend`.
+  - Depends directly on `:platform:backend`, `:tic-tac-toe:backend`, and `:ravens-and-dragons:backend`.
   - Configures Java 21 for Kotlin, JavaExec, and tests.
-  - Copies the app-owned Vite frontend bundle from `:app:app-frontend` into Spring Boot static resources during `processResources`.
+  - Copies the app-owned Vite frontend bundle from `:app:frontend` into Spring Boot static resources during `processResources`.
   - Applies `app/local-env.gradle.kts` so `bootRun` works from the repository root and local env loading stays isolated.
   - Names the executable jar `ravens-and-dragons.jar`.
 - `app/local-env.gradle.kts`
   - Loads standard dotenv `KEY=value` entries from root `.env.local` into the local `bootRun` process when present.
-  - Adds `testLocalEnvParser` coverage for `.env.local` parsing and runs it before `:app:test`.
-- `app/app-frontend/build.gradle.kts`
+  - Adds `testLocalEnvParser` coverage for `.env.local` parsing and runs it before `:app:backend:test`.
+- `app/frontend/build.gradle.kts`
+  - Applies the shared frontend Gradle convention.
   - Builds and tests the deployed React shell with Gradle-managed Node/npm.
   - Installs the frontend dependencies for the game modules imported by the shell before typechecking the deployed bundle, so clean production builds resolve each module's local package dependencies.
-  - Produces the static frontend bundle consumed by `app:processResources`.
-- `app/app-frontend/src/main/frontend/App.tsx`
+  - Produces the static frontend bundle consumed by `:app:backend:processResources`.
+- `app/frontend/src/main/frontend/App.tsx`
   - Owns the shared browser shell, auth bootstrap, lobby/profile/login routing, public game list loading, signed-in user menu/player-game stream wiring, fullscreen action, and game-entry selection for create/play screens.
   - Replaces transient login URLs when authenticated users are redirected to their `next` target so `/login?next=...` does not remain in browser history after sign-in.
   - Classifies shell-level async failures so expired sessions redirect to login, server/network failures show a server-unavailable dialog, and failed lobby/menu loads are not silently rendered as empty lists.
-  - Registers the Tic-Tac-Toe and Ravens and Dragons frontend entries for the lobby.
-- `app/app-frontend/src/main/frontend/features/playerGames/playerGamesClient.ts`
+  - Registers the Tic-Tac-Toe and Ravens and Dragons frontend package entries for the lobby.
+- `app/frontend/src/main/frontend/features/playerGames/playerGamesClient.ts`
   - Loads the signed-in user's unfinished seated games and opens the player-game SSE stream used by the header menu turn badges after the initial list load succeeds.
   - Closes the player-game stream on errors so the browser does not keep retrying while the server is down; the stream is reopened only by a later user action or auth/session change.
-- `app/app-frontend/src/main/frontend/app/store.ts`
-  - Assembles the Redux store from app-owned auth state plus the registered game frontend reducers.
-- `app/app-frontend/src/main/frontend/features/auth/*.ts`
+- `app/frontend/src/main/frontend/app/store.ts`
+  - Assembles the Redux store from app-owned auth state plus Ravens frontend package reducers exposed through the game package integration surface.
+- `app/frontend/src/main/frontend/features/auth/*.ts`
   - Owns browser auth state, auth thunks, local profile state, and selectors used by the app shell.
-- `app/src/main/kotlin/com/ravensanddragons/RavensAndDragonsApplication.kt`
+- `app/backend/src/main/kotlin/com/ravensanddragons/RavensAndDragonsApplication.kt`
   - Spring Boot entrypoint.
   - Enables scheduling.
   - Provides the UTC `Clock` bean.
   - Provides the `GameModuleRegistry` bean that currently registers `TicTacToeGameModuleDefinition` and `RavensAndDragonsGameModuleDefinition`.
   - Derives `staleGameCleanupDelay` from `platform.games.stale-threshold`, with the previous Ravens-branded property still accepted by the platform runtime as a fallback.
-- `app/src/test/kotlin/com/ravensanddragons/RavensAndDragonsApplicationTests.kt`
+- `app/backend/src/test/kotlin/com/ravensanddragons/RavensAndDragonsApplicationTests.kt`
   - Verifies the Spring application context loads.
   - Verifies default servlet session timeout and stale cleanup delay.
   - Verifies the assembled app registers the Tic-Tac-Toe and Ravens and Dragons game modules with the expected routes and persistence boundary metadata.
-- `:app:testLocalEnvParser`
+- `:app:backend:testLocalEnvParser`
   - Verifies the `bootRun` `.env.local` parser handles standard dotenv `KEY=value` entries, quoted values, unquoted values, comments, blank lines, missing files, and fails unsupported syntax.
 
 ## Responsibilities
@@ -52,8 +56,8 @@ The app keeps the included-game list declarative by registering each game module
 - Assemble the deployable app from platform and selected game modules.
 - Own the deployed frontend shell and static asset packaging.
 - Own top-level application beans and deployment jar packaging.
-- Keep `:app:test` focused on assembled-service wiring and context behavior.
-- Keep `:app:app-frontend:test` focused on shell, auth, lobby, profile, and route behavior.
+- Keep `:app:backend:test` focused on assembled-service wiring and context behavior.
+- Keep `:app:frontend:test` focused on shell, auth, lobby, profile, and route behavior.
 - Limit app-level game wiring to registering each included game module once.
 - Leave game-specific behavior to game modules and shared infrastructure to `platform/`.
 

@@ -4,8 +4,8 @@
 
 This repository is a Spring Boot 3.3 + Kotlin 2.1 service that hosts browser-based games. It is organized as a Gradle multi-project build with four top-level projects:
 
-- `app/`: runnable Spring Boot application, deployed frontend shell, and deployable jar assembly.
-- `platform/`: shared service infrastructure such as auth, web error handling, route fallback, the game module contract, and shared frontend package code.
+- `app/`: parent project for the runnable Spring Boot backend, deployed frontend shell, and deployable jar assembly.
+- `platform/`: parent project for shared service infrastructure such as auth, web error handling, route fallback, the game module contract, and shared frontend package code.
 - `tic-tac-toe/`: the Tic-Tac-Toe game module, including backend 3x3 board rules/API handling and frontend create/play UI.
 - `ravens-and-dragons/`: the Ravens and Dragons game module, including backend rules/APIs, frontend UI, bots, machine training, assets, and tests.
 
@@ -17,15 +17,19 @@ The runnable app now assembles Ravens and Dragons through a platform-owned game 
 
 The repository is structured so each game lives in its own sub-project. The current checkout contains two game modules, Tic-Tac-Toe and Ravens and Dragons, and the app registers each module explicitly.
 
-The React app shell now lives under `app/app-frontend` and renders Tic-Tac-Toe and Ravens and Dragons through a frontend game entry contract supplied by the shared `@ravensanddragons/platform-frontend` package. The package also owns shared auth wire types, auth API helpers, and browser shell hooks that future frontend game bundles can reuse.
+The React app shell now lives under `app/frontend` and renders Tic-Tac-Toe and Ravens and Dragons through a frontend game entry contract supplied by the shared `@ravensanddragons/platform-frontend` package. The package also owns shared auth wire types, auth API helpers, and browser shell hooks that future frontend game bundles can reuse.
 Frontend API helpers classify unauthorized, domain, and network/server failures so shell and game surfaces can redirect expired sessions to login, show server-down notices, and avoid silently replacing failed loads with empty lists. Live SSE streams are closed on errors; menu and game streams wait for a later user action or reload before reconnecting instead of polling the server while it is down.
 
 ## Project Files
 
 - `settings.gradle.kts`
-  - Includes `:platform`, `:tic-tac-toe`, `:tic-tac-toe:tic-tac-toe-backend`, `:tic-tac-toe:tic-tac-toe-frontend`, `:ravens-and-dragons`, `:ravens-and-dragons:ravens-and-dragons-backend`, `:ravens-and-dragons:ravens-and-dragons-frontend`, `:app`, and `:app:app-frontend`.
+  - Includes `:platform`, `:platform:backend`, `:platform:frontend`, `:tic-tac-toe`, `:tic-tac-toe:backend`, `:tic-tac-toe:frontend`, `:ravens-and-dragons`, `:ravens-and-dragons:backend`, `:ravens-and-dragons:frontend`, `:app`, `:app:backend`, and `:app:frontend`.
 - `build.gradle.kts`
   - Owns shared plugin versions, repositories, aggregate lifecycle tasks, root convenience tasks, and deployment-facing jar copy behavior.
+- `buildSrc/src/main/kotlin/FrontendProjectConventionPlugin.kt`
+  - Owns the shared Gradle convention for frontend Node/npm setup, `buildFrontend`, `test`, common inputs, and verification wiring.
+- `gradle/paired-project.gradle.kts`
+  - Owns the shared Gradle convention for parent projects with `backend` and `frontend` children, including `testBackend`, `testFrontend`, `test`, and `check` wiring.
 - `app/local-env.gradle.kts`
   - Owns local `.env.local` parsing for `bootRun` and the parser verification task.
 - `AGENTS.md`

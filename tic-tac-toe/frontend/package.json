@@ -1,0 +1,31 @@
+{
+  "name": "tic-tac-toe-frontend",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./src/main/frontend/tic-tac-toe-entry.tsx",
+      "default": "./src/main/frontend/tic-tac-toe-entry.tsx"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@ravensanddragons/platform-frontend": "file:../../platform/frontend",
+    "react": "19.1.0",
+    "react-dom": "19.1.0"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/react": "19.1.2",
+    "@types/react-dom": "19.1.2",
+    "jsdom": "26.1.0",
+    "typescript": "5.6.3",
+    "vite": "7.3.2",
+    "vitest": "^4.1.2"
+  }
+}

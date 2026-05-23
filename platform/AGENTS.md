@@ -23,6 +23,8 @@ This file contains instructions for work inside the `platform/` project.
 
 ## Testing
 
-- `:platform:test` should cover shared service and contract behavior without depending on game-specific rules.
-- Use `./gradlew :platform:test` for focused platform verification.
+- `:platform:testBackend` should cover shared service and contract behavior without depending on game-specific rules.
+- `:platform:testFrontend` should cover shared frontend package contracts, helpers, and reusable components.
+- Use `./gradlew :platform:testBackend` for focused platform backend verification.
+- Use `./gradlew :platform:testFrontend` for focused platform frontend verification.
 - Run `./gradlew test` before finishing platform changes whenever practical.

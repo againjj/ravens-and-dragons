@@ -19,12 +19,12 @@ platform/
 
 ravens-and-dragons/
   build.gradle.kts
-  ravens-and-dragons-backend/
+  backend/
     build.gradle.kts
     src/main/kotlin/...
     src/main/resources/...
     src/test/kotlin/...
-  ravens-and-dragons-frontend/
+  frontend/
     build.gradle.kts
     src/main/frontend/...
     src/test/frontend/...
@@ -49,12 +49,12 @@ This layout keeps game modules as first-class top-level projects. If a future ga
 The target command vocabulary should be explicit:
 
 ```bash
-./gradlew :ravens-and-dragons:ravens-and-dragons-backend:test
-./gradlew :ravens-and-dragons:ravens-and-dragons-frontend:test
+./gradlew :ravens-and-dragons:backend:test
+./gradlew :ravens-and-dragons:frontend:test
 ./gradlew :ravens-and-dragons:testBackend
 ./gradlew :ravens-and-dragons:testFrontend
 ./gradlew :ravens-and-dragons:test
-./gradlew :app:test
+./gradlew :app:testBackend
 ./gradlew testBackend
 ./gradlew testFrontend
 ./gradlew test
@@ -68,7 +68,7 @@ The target command vocabulary should be explicit:
 - Root `testBackend` aggregates backend tests across all included projects that contain backend test targets.
 - Root `testFrontend` aggregates frontend tests across all included projects that contain frontend test targets.
 - Root `test` depends on both root `testBackend` and root `testFrontend`.
-- `:app:test` runs only wiring and integration tests for the assembled service.
+- `:app:testBackend` runs only wiring and integration tests for the assembled service.
 - Root `check` depends on the full verification suite, including root `test` and any packaging checks.
 - Parallel test execution should be enabled at the Gradle scheduling level first, then within individual test tasks only when the tests are isolated enough.
 

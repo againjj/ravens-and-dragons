@@ -1,68 +1,19 @@
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-import org.springframework.boot.gradle.tasks.bundling.BootJar
+extra["pairedProjectDisplayName"] = "app"
 
-plugins {
-    id("org.springframework.boot")
-    id("io.spring.dependency-management")
-    kotlin("jvm")
-    kotlin("plugin.spring")
+apply(from = "../gradle/paired-project.gradle.kts")
+
+subprojects {
+    group = "com.ravensanddragons.app"
 }
 
-java {
-    toolchain {
-        languageVersion = JavaLanguageVersion.of(21)
-    }
+tasks.register("bootJar") {
+    group = LifecycleBasePlugin.BUILD_GROUP
+    description = "Assembles the runnable service jar."
+    dependsOn(":app:backend:bootJar")
 }
 
-kotlin {
-    jvmToolchain(21)
-}
-
-dependencies {
-    implementation(project(":platform"))
-    implementation(project(":tic-tac-toe:tic-tac-toe-backend"))
-    implementation(project(":ravens-and-dragons:ravens-and-dragons-backend"))
-
-    implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation("org.jetbrains.kotlin:kotlin-reflect")
-    runtimeOnly("org.flywaydb:flyway-core:10.22.0")
-    runtimeOnly("org.flywaydb:flyway-database-postgresql:10.22.0")
-
-    testImplementation("org.springframework.boot:spring-boot-starter-test")
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
-}
-
-tasks.withType<KotlinCompile> {
-    compilerOptions {
-        freeCompilerArgs.add("-Xjsr305=strict")
-    }
-}
-
-val java21Launcher = javaToolchains.launcherFor {
-    languageVersion = JavaLanguageVersion.of(21)
-}
-
-tasks.withType<JavaExec>().configureEach {
-    javaLauncher.set(java21Launcher)
-}
-
-tasks.withType<Test>().configureEach {
-    useJUnitPlatform()
-    javaLauncher.set(java21Launcher)
-}
-
-tasks.withType<BootJar>().configureEach {
-    archiveFileName.set("ravens-and-dragons.jar")
-}
-
-apply(from = "local-env.gradle.kts")
-
-val appFrontendProject = project(":app:app-frontend")
-val generatedAppFrontendDir = appFrontendProject.layout.buildDirectory.dir("generated/frontend")
-
-tasks.processResources {
-    dependsOn(":app:app-frontend:buildFrontend")
-    from(generatedAppFrontendDir) {
-        into("static")
-    }
+tasks.register("bootRun") {
+    group = ApplicationPlugin.APPLICATION_GROUP
+    description = "Runs the assembled Spring Boot app."
+    dependsOn(":app:backend:bootRun")
 }

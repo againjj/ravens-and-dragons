@@ -1,6 +1,5 @@
 plugins {
     base
-    id("com.github.node-gradle.node") version "7.0.2" apply false
     id("org.springframework.boot") version "3.3.4" apply false
     id("io.spring.dependency-management") version "1.1.7" apply false
     kotlin("jvm") version "2.1.21" apply false
@@ -19,8 +18,8 @@ allprojects {
 val copyAppBootJar by tasks.registering(Copy::class) {
     group = LifecycleBasePlugin.BUILD_GROUP
     description = "Copies the assembled app jar to the historical root build/libs location."
-    dependsOn(":app:bootJar")
-    from(project(":app").layout.buildDirectory.file("libs/ravens-and-dragons.jar"))
+    dependsOn(":app:backend:bootJar")
+    from(project(":app:backend").layout.buildDirectory.file("libs/ravens-and-dragons.jar"))
     into(layout.buildDirectory.dir("libs"))
 }
 
@@ -32,23 +31,23 @@ tasks.named("check") {
     dependsOn(":platform:check")
     dependsOn(":tic-tac-toe:check")
     dependsOn(":ravens-and-dragons:check")
-    dependsOn(":app:app-frontend:check")
     dependsOn(":app:check")
 }
 
 val testBackend by tasks.registering {
     group = LifecycleBasePlugin.VERIFICATION_GROUP
     description = "Runs backend test suites for all service subprojects."
-    dependsOn(":platform:test")
+    dependsOn(":platform:testBackend")
     dependsOn(":tic-tac-toe:testBackend")
     dependsOn(":ravens-and-dragons:testBackend")
-    dependsOn(":app:test")
+    dependsOn(":app:testBackend")
 }
 
 val testFrontend by tasks.registering {
     group = LifecycleBasePlugin.VERIFICATION_GROUP
     description = "Runs frontend test suites for all service subprojects."
-    dependsOn(":app:app-frontend:test")
+    dependsOn(":platform:testFrontend")
+    dependsOn(":app:testFrontend")
     dependsOn(":tic-tac-toe:testFrontend")
     dependsOn(":ravens-and-dragons:testFrontend")
 }
@@ -62,13 +61,13 @@ tasks.register("test") {
 tasks.register("botMatchHarnessTest") {
     group = LifecycleBasePlugin.VERIFICATION_GROUP
     description = "Runs the Ravens and Dragons bot-vs-bot soak harness."
-    dependsOn(":ravens-and-dragons:ravens-and-dragons-backend:botMatchHarnessTest")
+    dependsOn(":ravens-and-dragons:backend:botMatchHarnessTest")
 }
 
 tasks.register("runMachineTraining") {
     group = LifecycleBasePlugin.BUILD_GROUP
     description = "Runs the Ravens and Dragons offline machine-training pipeline."
-    dependsOn(":ravens-and-dragons:ravens-and-dragons-backend:runMachineTraining")
+    dependsOn(":ravens-and-dragons:backend:runMachineTraining")
 }
 
 tasks.register("bootJar") {

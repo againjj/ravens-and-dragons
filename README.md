@@ -70,7 +70,7 @@ Run the full default verification suite with:
 ./gradlew check
 ```
 
-That runs the same backend and frontend suites plus any other default verification checks. Filtered backend test runs such as `./gradlew :ravens-and-dragons:ravens-and-dragons-backend:test --tests ...` stay focused on JVM tests and do not run frontend tests.
+That runs the same backend and frontend suites plus any other default verification checks. Filtered backend test runs such as `./gradlew :ravens-and-dragons:backend:test --tests ...` stay focused on JVM tests and do not run frontend tests.
 
 The Randall-vs-Maxine soak harness now runs separately:
 
@@ -80,7 +80,7 @@ The Randall-vs-Maxine soak harness now runs separately:
 
 To run a larger head-to-head batch, pass `botMatchHarnessGamesPerMatchup` to Gradle. For example, `-DbotMatchHarnessGamesPerMatchup=10` runs the release-two Randall/Maxine coverage plus the Sherwood-only Michelle baseline smoke evaluation at ten games per ordered matchup.
 
-`ravens-and-dragons/ravens-and-dragons-backend/src/test/kotlin/com/ravensanddragons/game/GameBotsTest.kt` also keeps two disabled manual bot-comparison checks: one for representative depth-2 move agreement between `MinimaxGameBotStrategy` and `AlphaBetaGameBotStrategy`, and one for timing those same representative searches without making the regular suite flaky.
+`ravens-and-dragons/backend/src/test/kotlin/com/ravensanddragons/game/GameBotsTest.kt` also keeps two disabled manual bot-comparison checks: one for representative depth-2 move agreement between `MinimaxGameBotStrategy` and `AlphaBetaGameBotStrategy`, and one for timing those same representative searches without making the regular suite flaky.
 
 ## Profiling
 
@@ -163,17 +163,22 @@ The stale-game eviction threshold defaults to six weeks, and the cleanup schedul
 
 ## Project Layout
 
-- `app`: runnable Spring Boot application project that assembles the deployed jar and browser shell
-- `app/app-frontend`: app-owned React shell for auth, lobby, profile, routing, and game-entry registration
+- `app`: parent application project that aggregates backend and frontend child projects
+- `app/backend`: runnable Spring Boot application project that assembles the deployed jar and browser shell
+- `app/frontend`: app-owned React shell for auth, lobby, profile, routing, and game-entry registration
 - `tic-tac-toe`: parent game module for the Tic-Tac-Toe game
-- `tic-tac-toe/tic-tac-toe-backend`: Tic-Tac-Toe game module definition, place-mark command handling, and JVM tests
-- `tic-tac-toe/tic-tac-toe-frontend`: Tic-Tac-Toe frontend game entry, create/play UI, and frontend tests
-- `platform`: shared-service backend project for auth, OAuth provider metadata, route fallback, generic web exception handling, the game module contract, and opaque game runtime
+- `tic-tac-toe/backend`: Tic-Tac-Toe game module definition, place-mark command handling, and JVM tests
+- `tic-tac-toe/frontend`: Tic-Tac-Toe frontend game entry, create/play UI, and frontend tests
+- `platform`: parent shared-service project that aggregates backend and frontend child projects
+- `platform/backend`: shared-service backend project for auth, OAuth provider metadata, route fallback, generic web exception handling, the game module contract, and opaque game runtime
+- `platform/frontend`: shared frontend package for auth API helpers, game-entry contracts, player picking, and browser hooks
+- `buildSrc/src/main/kotlin/FrontendProjectConventionPlugin.kt`: shared Gradle convention for frontend Node/npm build and test wiring
+- `gradle/paired-project.gradle.kts`: shared Gradle convention for paired `backend`/`frontend` parent projects
 - `ravens-and-dragons`: parent game module that aggregates backend and frontend child projects
-- `ravens-and-dragons/ravens-and-dragons-backend`: Ravens and Dragons gameplay, game APIs, resources, JVM tests, and training code
-- `ravens-and-dragons/ravens-and-dragons-frontend`: Ravens and Dragons React game entry, Redux state, browser-side game helpers, and game frontend tests
-- `ravens-and-dragons/ravens-and-dragons-backend/src/main/kotlin/com/ravensanddragons/game`: backend game rules, bot strategies/orchestration, Ravens session semantics, and the game handler adapter
-- `platform/src/main/kotlin/com/ravensanddragons/auth`: authentication and account management
-- `ravens-and-dragons/ravens-and-dragons-frontend/src/main/frontend`: Ravens game frontend entry, create/play UI, Redux state, and browser-side helpers
+- `ravens-and-dragons/backend`: Ravens and Dragons gameplay, game APIs, resources, JVM tests, and training code
+- `ravens-and-dragons/frontend`: Ravens and Dragons React game entry, Redux state, browser-side game helpers, and game frontend tests
+- `ravens-and-dragons/backend/src/main/kotlin/com/ravensanddragons/game`: backend game rules, bot strategies/orchestration, Ravens session semantics, and the game handler adapter
+- `platform/backend/src/main/kotlin/com/ravensanddragons/auth`: authentication and account management
+- `ravens-and-dragons/frontend/src/main/frontend`: Ravens game frontend entry, create/play UI, Redux state, and browser-side helpers
 - `code-summary.md`: service-wide architecture and implementation summary
 - `app/code-summary.md`, `platform/code-summary.md`, `tic-tac-toe/code-summary.md`, and `ravens-and-dragons/code-summary.md`: project-level implementation summaries

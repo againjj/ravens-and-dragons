@@ -7,14 +7,14 @@ It is intentionally a single-game sub-project rather than a shared home for mult
 
 The parent project has two child projects:
 
-- `ravens-and-dragons/ravens-and-dragons-backend`
-- `ravens-and-dragons/ravens-and-dragons-frontend`
+- `ravens-and-dragons/backend`
+- `ravens-and-dragons/frontend`
 
 ## Backend Project
 
-- `ravens-and-dragons/ravens-and-dragons-backend/build.gradle.kts`
+- `ravens-and-dragons/backend/build.gradle.kts`
   - Kotlin/JVM backend module with Java 21.
-  - Depends on `:platform`.
+  - Depends on `:platform:backend`.
   - Uses Spring web/JDBC, Jackson Kotlin, Flyway, H2, and PostgreSQL.
   - Defines the `train` source set and `runMachineTraining` task.
   - Disables executable `bootJar`/`bootRun` because the runnable app lives in `app/`.
@@ -54,13 +54,16 @@ The parent project has two child projects:
 
 ## Frontend Project
 
-- `ravens-and-dragons/ravens-and-dragons-frontend/build.gradle.kts`
+- `ravens-and-dragons/frontend/build.gradle.kts`
+  - Applies the shared frontend Gradle convention.
   - Frontend build and test project using Gradle-managed Node/npm.
   - Depends on the local `@ravensanddragons/platform-frontend` package for shared frontend contracts and auth/browser helpers.
-  - Typechecks the Ravens frontend package; the deployed browser shell and Vite bundle now live under `app/app-frontend`.
+  - Typechecks the Ravens frontend package; the deployed browser shell and Vite bundle now live under `app/frontend`.
 - `src/main/frontend/ravens-and-dragons-entry.ts`
-  - Registers the current Ravens and Dragons frontend entry.
+  - Registers the current Ravens and Dragons frontend package entry.
   - Wires `/{gameSlug}/create`, `/g/{gameId}`, `CreateGameScreen`, `GameScreen`, create-game submission, open-game loading, lobby return cleanup, create-draft state, and SSE lifecycle behavior into the shell contract.
+- `src/main/frontend/app-integration.ts`
+  - Exposes the Ravens reducers, initial state, selectors, thunks, and wire types that the app shell needs without deep relative imports into the game source tree.
 - `src/main/frontend/frontend-state.ts`
   - Defines the host state and typed hooks needed by Ravens components without importing the app shell back into the game package.
 - `src/main/frontend/game-types.ts`
@@ -122,8 +125,8 @@ Server-only undo history stores compact restore-state entries instead of full sn
 
 ## Tests
 
-- Backend rule tests live under `ravens-and-dragons-backend/src/test/kotlin/com/ravensanddragons/game`.
-- Frontend helper and React/Redux tests live under `ravens-and-dragons-frontend/src/test/frontend`.
+- Backend rule tests live under `backend/src/test/kotlin/com/ravensanddragons/game`.
+- Frontend helper and React/Redux tests live under `frontend/src/test/frontend`.
 - `GameRulesTest.kt` verifies backend rule transitions and deterministic Sherwood legal-move generation.
 - `GameControllerTest.kt`, `GameCommandControllerTest.kt`, and authorization tests verify game API behavior.
 - `BotTurnRunnerTest.kt` verifies bot replies and grouped undo.
