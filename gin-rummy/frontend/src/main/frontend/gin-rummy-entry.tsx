@@ -631,10 +631,56 @@ const ResultCards = ({ title, cards, score }: { title: string; cards: string[]; 
 const RulesReference = ({ config }: { config: GinRummyConfig }) => (
     <section className="panel gin-rules">
         <h2>Rules Reference</h2>
-        <p>Draw one card from stock or discard, then discard one card. A card taken from discard cannot be discarded immediately.</p>
-        <p>Sets are three or four cards of the same rank. Runs are three or more cards in one suit. Aces are low{config.aceHighAllowed ? " or high in runs" : ""}, and always score one point as deadwood.</p>
-        <p>Knock with 10 or fewer deadwood. Gin scores 25 plus the opponent deadwood. Big Gin {config.bigGinAllowed ? "is enabled" : "is disabled"} and scores 31 plus opponent deadwood.</p>
-        <p>Undercut scores 25 plus the deadwood difference for the defender. Target score is {config.targetScore}; {config.playMode === "singleGame" ? "single game has no game bonus" : "best of five match shows games won and running total points"}.</p>
+        <section>
+            <h3>Goal</h3>
+            <p>Two players play hands until someone reaches {config.targetScore} points. {config.playMode === "singleGame" ? "This table is a single game, so no game bonus is awarded." : "This table is a best-of-five match, so games won and running total points are tracked."}</p>
+        </section>
+        <section>
+            <h3>Cards And Melds</h3>
+            <p>Use a standard 52-card deck. Sets are three or four cards of the same rank. Runs are three or more cards in the same suit. Melds cannot overlap; a card can count in only one meld.</p>
+            <p>Aces score one point as deadwood. Face cards score 10, and number cards score face value. Aces are low in runs{config.aceHighAllowed ? " and may also be used high by this table's optional rule" : ""}.</p>
+        </section>
+        <section>
+            <h3>Deal</h3>
+            {config.optionalDealRule ? (
+                <p>The starting player is dealt 11 cards, the other player is dealt 10, and the discard pile starts empty. The first turn is only the starting player discarding one card.</p>
+            ) : (
+                <p>The dealer deals 10 cards to each player, one at a time, beginning with the opponent. The next card is turned face up to start the discard pile, and the remaining cards form the stock.</p>
+            )}
+            <p>The dealer alternates after each hand and after each new game in a match.</p>
+        </section>
+        <section>
+            <h3>Turns</h3>
+            {config.optionalDealRule ? (
+                <p>After the opening discard, players alternate turns. On each turn, draw the top stock card or the top discard, then discard one card.</p>
+            ) : (
+                <p>On the first turn, the non-dealer may take the upcard or pass. If the non-dealer passes, the dealer may take it or pass. If both pass, the non-dealer draws from stock. After that, players alternate turns by drawing from stock or discard, then discarding.</p>
+            )}
+            <p>A card drawn from the discard pile cannot be discarded immediately on the same turn. If only two cards remain in stock before someone goes out, the hand ends in a draw and no points are awarded.</p>
+        </section>
+        <section>
+            <h3>Knocking And Gin</h3>
+            <p>You may knock when your chosen meld arrangement leaves 10 or fewer deadwood points after the discard. When multiple legal arrangements exist, the knocker chooses the arrangement to reveal.</p>
+            <p>After a knock, the defender reveals melds and may lay off deadwood onto the knocker's melds. The defender's deadwood is automatically minimized. The knocker never lays off onto the defender's melds.</p>
+            <p>Going Gin means ending with zero deadwood. The defender cannot lay off against Gin. {config.bigGinAllowed ? "Big Gin is enabled: after drawing, an 11-card hand that all melds may end the hand for the Big Gin bonus." : "Big Gin is disabled at this table."}</p>
+        </section>
+        <section>
+            <h3>Hand Scoring</h3>
+            <p>Successful knock: the knocker scores the defender's deadwood after layoffs minus the knocker's deadwood.</p>
+            <p>Undercut: if the defender's deadwood is less than or equal to the knocker's deadwood, the defender scores 25 plus the deadwood difference.</p>
+            <p>Gin scores 25 plus the defender's deadwood. {config.bigGinAllowed ? "Big Gin scores 31 plus the defender's deadwood." : ""}</p>
+        </section>
+        <section>
+            <h3>Game Scoring</h3>
+            {config.playMode === "singleGame" ? (
+                <p>The first player to reach {config.targetScore} points wins this single game. Game bonus, line bonus, and shutout bonus are not applied in single-game play.</p>
+            ) : (
+                <>
+                    <p>The first player to reach {config.targetScore} points wins the game. Game points are recorded as a running sum across the best-of-five match.</p>
+                    <p>The game winner receives a 100-point game bonus. {config.lineBonusEnabled ? "Line bonus is enabled: each hand won in the game adds 25 points." : "Line bonus is disabled."} {config.shutoutBonusEnabled ? "Shutout bonus is enabled: if the loser won no hands, the winner receives the configured shutout bonus." : "Shutout bonus is disabled."}</p>
+                </>
+            )}
+        </section>
     </section>
 );
 
