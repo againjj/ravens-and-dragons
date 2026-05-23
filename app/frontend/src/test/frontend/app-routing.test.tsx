@@ -211,6 +211,46 @@ describe("App routing", () => {
         replaceStateSpy.mockRestore();
     });
 
+    test("guest login after an expired game session returns to the game route", async () => {
+        const user = userEvent.setup();
+        const replaceStateSpy = vi.spyOn(window.history, "replaceState");
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "player-dragons",
+                displayName: "Dragon Player",
+                authType: "local"
+            }
+        });
+        fetchGameViewMock.mockResolvedValue(createGameView({ id: "MPF2XHF" }));
+        window.history.pushState({}, "", "/g/MPF2XHF");
+
+        renderWithStore(<App />);
+
+        await waitFor(() => {
+            expect(fetchGameViewMock).toHaveBeenCalledWith("MPF2XHF");
+        });
+
+        act(() => {
+            window.dispatchEvent(new CustomEvent("ravensanddragons:auth-session-expired"));
+        });
+
+        await screen.findByRole("button", { name: "Continue as Guest" });
+        expect(window.location.pathname).toBe("/login");
+        expect(new URLSearchParams(window.location.search).get("next")).toBe("/g/MPF2XHF");
+
+        fetchGameViewMock.mockClear();
+        await user.click(screen.getByRole("button", { name: "Continue as Guest" }));
+
+        await waitFor(() => {
+            expect(window.location.pathname).toBe("/g/MPF2XHF");
+        });
+        expect(fetchGameViewMock).toHaveBeenCalledWith("MPF2XHF");
+        expect(replaceStateSpy).toHaveBeenCalledWith({}, "", "/g/MPF2XHF");
+        expect(screen.getByRole("heading", { name: "Ravens and Dragons" })).toBeInTheDocument();
+        replaceStateSpy.mockRestore();
+    });
+
     test("login redirects to a Tic-Tac-Toe game by resolving the game route before opening it", async () => {
         const user = userEvent.setup();
         const ravensOpenGame = vi.fn();

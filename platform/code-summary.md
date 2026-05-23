@@ -48,9 +48,11 @@
 - `platform/frontend`
   - Local npm package `@ravensanddragons/platform-frontend`.
   - Keeps source under `src/main/frontend`, generated package output under `dist`, and frontend tests under `src/test/frontend`.
-  - Exports shared auth wire types, auth API helpers, frontend game-entry contracts, the shared player picker, route helpers, and reusable browser shell hooks.
+  - Exports shared auth wire types, auth API helpers, frontend game-entry contracts including generic `GameStartOptions`, the shared player picker, route helpers, and reusable browser shell hooks.
   - Classifies frontend API failures with status-aware request errors plus shared session-expired and server-unavailable browser events used by the shell and game modules.
   - Tests API error classification, OAuth URL building, shared route helpers, and player-picker interaction behavior.
+- `platform/docs/game-runtime-api.md`
+  - Documents backend game runtime contracts, routes, player-game listing hooks, shared frontend game-entry APIs, player picker usage, and error helper expectations.
 - `platform/backend/src/test/kotlin/com/ravensanddragons/platform/game/GameModuleRegistryTest.kt`
   - Verifies registry validation, duplicate slug rejection, and lookup behavior.
 - `platform/backend/src/test/kotlin/com/ravensanddragons/web/DisconnectedClientExceptionHandlerTest.kt`

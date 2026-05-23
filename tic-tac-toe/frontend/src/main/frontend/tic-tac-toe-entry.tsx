@@ -9,7 +9,7 @@ import {
     serverUnavailableMessage,
     sessionExpiredMessage
 } from "@ravensanddragons/platform-frontend/api-client";
-import { buildGameCreatePath, type GameEntry } from "@ravensanddragons/platform-frontend/game-entry";
+import { buildGameCreatePath, type GameEntry, type GameStartOptions } from "@ravensanddragons/platform-frontend/game-entry";
 
 type TicTacToeMark = "X" | "O";
 
@@ -95,7 +95,7 @@ const statusForGame = (game: TicTacToeGameState | null): string => {
     return `${game.currentMark} to move`;
 };
 
-const CreateTicTacToeScreen = ({ onStartGame }: { gameName: string; onStartGame: (publiclyListed?: boolean) => void }) => {
+const CreateTicTacToeScreen = ({ onStartGame }: { gameName: string; onStartGame: (options?: GameStartOptions | boolean) => void }) => {
     const [publiclyListed, setPubliclyListed] = useState(true);
 
     return (

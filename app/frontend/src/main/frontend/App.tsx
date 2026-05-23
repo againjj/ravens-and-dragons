@@ -11,7 +11,7 @@ import {
     selectIsLoadingGame
 } from "ravens-and-dragons-frontend/app-integration";
 import { continueAsGuest, loadAuthSession, login, logout, signup, signedOutSession } from "./features/auth/authThunks.js";
-import type { GameEntry } from "@ravensanddragons/platform-frontend/game-entry";
+import type { GameEntry, GameStartOptions } from "@ravensanddragons/platform-frontend/game-entry";
 import { useFullscreen } from "@ravensanddragons/platform-frontend/hooks/useFullscreen";
 import type { AppDispatch } from "./app/store.js";
 import { useGameRoute } from "./hooks/useGameRoute.js";
@@ -20,6 +20,7 @@ import { authActions } from "./features/auth/authSlice.js";
 import { fetchPlayerGames, openPlayerGamesStream, type PlayerGameListing } from "./features/playerGames/playerGamesClient.js";
 import { ravensAndDragonsGameEntry } from "ravens-and-dragons-frontend";
 import { ticTacToeGameEntry } from "tic-tac-toe-frontend";
+import { ginRummyGameEntry } from "gin-rummy-frontend";
 import {
     authSessionExpiredEventType,
     createResponseError,
@@ -36,7 +37,7 @@ interface AppProps {
     gameEntries?: GameEntry<AppDispatch>[];
 }
 
-const registeredGameEntries: GameEntry<AppDispatch>[] = [ravensAndDragonsGameEntry, ticTacToeGameEntry];
+const registeredGameEntries: GameEntry<AppDispatch>[] = [ravensAndDragonsGameEntry, ticTacToeGameEntry, ginRummyGameEntry];
 const appTitle = "Ayazian Games";
 
 const fetchPublicGames = async (): Promise<PublicGameListing[]> => {
@@ -254,12 +255,17 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
         void dispatch(logout());
     };
 
-    const handleStartGameFromCreate = (gameSlug: string, publiclyListed = true) => {
+    const normalizeStartOptions = (options?: GameStartOptions | boolean): GameStartOptions => {
+        if (typeof options === "boolean") {
+            return { publiclyListed: options };
+        }
+        return { publiclyListed: true, ...options };
+    };
+
+    const handleStartGameFromCreate = (gameSlug: string, options?: GameStartOptions | boolean) => {
         void (async () => {
             try {
-                const gameId = await (gameEntriesBySlug.get(gameSlug) ?? activeGameEntry).lifecycle.startGame(dispatch, gameSlug, {
-                    publiclyListed
-                });
+                const gameId = await (gameEntriesBySlug.get(gameSlug) ?? activeGameEntry).lifecycle.startGame(dispatch, gameSlug, normalizeStartOptions(options));
                 if (gameId) {
                     navigateToGame(gameId);
                 }
@@ -448,8 +454,8 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
                     currentCreateGameEntry && CurrentCreateScreen ? (
                         <CurrentCreateScreen
                             gameName={currentCreateGameEntry.identity.displayName}
-                            onStartGame={(publiclyListed: boolean | undefined) => {
-                                handleStartGameFromCreate(currentCreateGameEntry.identity.slug, publiclyListed);
+                            onStartGame={(options: GameStartOptions | boolean | undefined) => {
+                                handleStartGameFromCreate(currentCreateGameEntry.identity.slug, options);
                             }}
                         />
                     ) : (

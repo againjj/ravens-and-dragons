@@ -1,4 +1,5 @@
 import { useRef, useState, type CSSProperties } from "react";
+import type { GameStartOptions } from "@ravensanddragons/platform-frontend/game-entry";
 
 import { getBoardDimension, getColumnLetters } from "../board-geometry.js";
 import { useRavensAndDragonsDispatch, useRavensAndDragonsSelector } from "../frontend-state.js";
@@ -20,7 +21,7 @@ import { useBoardSizing } from "../hooks/useBoardSizing.js";
 
 interface CreateGameScreenProps {
     gameName: string;
-    onStartGame?: (publiclyListed?: boolean) => void | Promise<void>;
+    onStartGame?: (options?: GameStartOptions | boolean) => void | Promise<void>;
 }
 
 export const CreateGameScreen = ({ gameName, onStartGame }: CreateGameScreenProps) => {

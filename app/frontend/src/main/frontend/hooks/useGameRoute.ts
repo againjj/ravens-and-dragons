@@ -291,6 +291,8 @@ export const useGameRoute = (
             setLocationPath(currentLocationPath);
 
             if (!isAuthenticated) {
+                openedRouteGameIdRef.current = null;
+                setResolvingGameRouteId(null);
                 if (route.kind !== "login") {
                     replaceToLogin(route.fullPath === "" ? "/" : route.fullPath);
                     setLocationPath(getCurrentLocationPath());

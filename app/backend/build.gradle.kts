@@ -21,6 +21,7 @@ kotlin {
 dependencies {
     implementation(project(":platform:backend"))
     implementation(project(":tic-tac-toe:backend"))
+    implementation(project(":gin-rummy:backend"))
     implementation(project(":ravens-and-dragons:backend"))
 
     implementation("org.springframework.boot:spring-boot-starter-web")

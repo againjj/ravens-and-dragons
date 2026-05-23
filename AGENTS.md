@@ -49,6 +49,7 @@ This file contains repository-wide instructions for AI-assisted work in this pro
 - Keep `README.md` human-focused and limited to the current state of the repository.
 - Keep root `code-summary.md` focused on service-wide architecture, build/runtime flow, and cross-project responsibilities.
 - Keep project-level `code-summary.md` files focused on the files and behavior owned by that project.
+- Keep `docs/adding-a-new-game.md`, `platform/docs/game-runtime-api.md`, and `app/docs/adding-game-to-app.md` current enough that a new game can be added without reading existing game implementations.
 - Do not include historical implementation notes in `README.md`; preserve that context in planning docs, summaries, or commit history instead.
 - When moving or splitting docs, update file references so startup instructions and design-doc links point at the new canonical files.
 

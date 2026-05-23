@@ -6,6 +6,7 @@ Ravens and Dragons is a Spring Boot and Kotlin web app for playing browser-based
 
 - Create a new game from a draft setup or open an existing game by ID
 - Play the included Tic-Tac-Toe game, where X moves first on a 3x3 board and the game ends on a win or draw
+- Play the included Gin Rummy game with human seats, configurable match/scoring rules, drag-reorderable hands, draw/discard turns, knocking, gin, Big Gin, and in-game rule references
 - Use a shared `Ayazian Games` app shell with compact fixed header/footer chrome, lobby-linked header title after login, route-aware browser tab titles, a turn-aware username menu, gradient-styled public lobby rows, and scrollable page content
 - Play in the browser with live updates shared across tabs and clients, including header turn badges for unfinished games where you have a seat
 - When the server is unavailable, the frontend shows a server-down notice and closes live streams instead of silently clearing lists or polling until the server returns
@@ -89,6 +90,7 @@ A repeatable local memory-profiling runbook lives at [docs/profiling-runbook.md]
 ## Design Docs
 
 - [docs/multi-game-service-structure-plan.md](/Users/jrayazian/code/ravens-and-dragons/docs/multi-game-service-structure-plan.md): staged plan for evolving the app into a multi-game service with top-level game modules such as `ravens-and-dragons/`
+- [docs/adding-a-new-game.md](/Users/jrayazian/code/ravens-and-dragons/docs/adding-a-new-game.md): canonical guide for adding a new top-level game module
 - [docs/machine-trained-bot-improvements.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-trained-bot-improvements.md): planning notes for making the evolved, ruleset-scoped `machine-trained` bot `Michelle` stronger
 - [docs/todo.md](/Users/jrayazian/code/ravens-and-dragons/docs/todo.md): canonical list of unfinished follow-up work, updated at explicit wrap-up points rather than during exploratory planning
 - [docs/machine-training-runbook.md](/Users/jrayazian/code/ravens-and-dragons/docs/machine-training-runbook.md): human-facing guide to the current Michelle pipeline, including runtime behavior, schema-5 features, training, evolution, validation, installation, rollback, and troubleshooting
@@ -169,6 +171,9 @@ The stale-game eviction threshold defaults to six weeks, and the cleanup schedul
 - `tic-tac-toe`: parent game module for the Tic-Tac-Toe game
 - `tic-tac-toe/backend`: Tic-Tac-Toe game module definition, place-mark command handling, and JVM tests
 - `tic-tac-toe/frontend`: Tic-Tac-Toe frontend game entry, create/play UI, and frontend tests
+- `gin-rummy`: parent game module for the Gin Rummy game
+- `gin-rummy/backend`: Gin Rummy game module definition, card rules, meld/deadwood solving, scoring, command handling, and JVM tests
+- `gin-rummy/frontend`: Gin Rummy frontend game entry, create/play UI, hand interactions, and frontend tests
 - `platform`: parent shared-service project that aggregates backend and frontend child projects
 - `platform/backend`: shared-service backend project for auth, OAuth provider metadata, route fallback, generic web exception handling, the game module contract, and opaque game runtime
 - `platform/frontend`: shared frontend package for auth API helpers, game-entry contracts, player picking, and browser hooks
@@ -181,4 +186,4 @@ The stale-game eviction threshold defaults to six weeks, and the cleanup schedul
 - `platform/backend/src/main/kotlin/com/ravensanddragons/auth`: authentication and account management
 - `ravens-and-dragons/frontend/src/main/frontend`: Ravens game frontend entry, create/play UI, Redux state, and browser-side helpers
 - `code-summary.md`: service-wide architecture and implementation summary
-- `app/code-summary.md`, `platform/code-summary.md`, `tic-tac-toe/code-summary.md`, and `ravens-and-dragons/code-summary.md`: project-level implementation summaries
+- `app/code-summary.md`, `platform/code-summary.md`, `tic-tac-toe/code-summary.md`, `gin-rummy/code-summary.md`, and `ravens-and-dragons/code-summary.md`: project-level implementation summaries

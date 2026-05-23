@@ -1,21 +1,21 @@
 {
-  "name": "app-frontend",
+  "name": "gin-rummy-frontend",
   "type": "module",
   "private": true,
+  "exports": {
+    ".": {
+      "types": "./src/main/frontend/gin-rummy-entry.tsx",
+      "default": "./src/main/frontend/gin-rummy-entry.tsx"
+    }
+  },
   "scripts": {
-    "build": "tsc && vite build",
-    "dev": "vite",
+    "build": "tsc",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@ravensanddragons/platform-frontend": "file:../../platform/frontend",
-    "@reduxjs/toolkit": "2.8.2",
-    "gin-rummy-frontend": "file:../../gin-rummy/frontend",
-    "ravens-and-dragons-frontend": "file:../../ravens-and-dragons/frontend",
     "react": "19.1.0",
-    "react-dom": "19.1.0",
-    "react-redux": "9.2.0",
-    "tic-tac-toe-frontend": "file:../../tic-tac-toe/frontend"
+    "react-dom": "19.1.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

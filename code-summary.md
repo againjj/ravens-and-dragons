@@ -2,11 +2,12 @@
 
 ## Overview
 
-This repository is a Spring Boot 3.3 + Kotlin 2.1 service that hosts browser-based games. It is organized as a Gradle multi-project build with four top-level projects:
+This repository is a Spring Boot 3.3 + Kotlin 2.1 service that hosts browser-based games. It is organized as a Gradle multi-project build with five top-level projects:
 
 - `app/`: parent project for the runnable Spring Boot backend, deployed frontend shell, and deployable jar assembly.
 - `platform/`: parent project for shared service infrastructure such as auth, web error handling, route fallback, the game module contract, and shared frontend package code.
 - `tic-tac-toe/`: the Tic-Tac-Toe game module, including backend 3x3 board rules/API handling and frontend create/play UI.
+- `gin-rummy/`: the Gin Rummy game module, including backend card rules/scoring/API handling and frontend create/play UI.
 - `ravens-and-dragons/`: the Ravens and Dragons game module, including backend rules/APIs, frontend UI, bots, machine training, assets, and tests.
 
 The backend supports multiple persisted game sessions addressed by game id and broadcasts live updates over server-sent events per game. The frontend opens on a lobby, can route into `/{gameSlug}/create` for a local draft setup flow, and opens live games at `/g/{gameId}`. Game creation now posts through a slugged API path so the hosting service can distinguish the game type from the session id.
@@ -15,15 +16,15 @@ The platform auth surface exposes signed-in player summaries for shared player p
 
 The runnable app now assembles Ravens and Dragons through a platform-owned game module contract and opaque game runtime. Platform owns generic game ids, persistence, REST/SSE routing, stale cleanup, and handler dispatch. Game handlers supply client-facing public state for generic game reads and initial stream snapshots so a module can normalize older persisted payloads before the frontend resolves the game entry. Ravens and Dragons owns every Ravens-shaped concept, including board pieces, sides, snapshots, command semantics, undo payloads, bot turns, and game-view metadata.
 
-The repository is structured so each game lives in its own sub-project. The current checkout contains two game modules, Tic-Tac-Toe and Ravens and Dragons, and the app registers each module explicitly.
+The repository is structured so each game lives in its own sub-project. The current checkout contains three game modules, Tic-Tac-Toe, Gin Rummy, and Ravens and Dragons, and the app registers each module explicitly.
 
-The React app shell now lives under `app/frontend` and renders Tic-Tac-Toe and Ravens and Dragons through a frontend game entry contract supplied by the shared `@ravensanddragons/platform-frontend` package. The package also owns shared auth wire types, auth API helpers, and browser shell hooks that future frontend game bundles can reuse.
+The React app shell now lives under `app/frontend` and renders Tic-Tac-Toe, Gin Rummy, and Ravens and Dragons through a frontend game entry contract supplied by the shared `@ravensanddragons/platform-frontend` package. The package also owns shared auth wire types, auth API helpers, browser shell hooks, and generic create-option typing that future frontend game bundles can reuse.
 Frontend API helpers classify unauthorized, domain, and network/server failures so shell and game surfaces can redirect expired sessions to login, show server-down notices, and avoid silently replacing failed loads with empty lists. Live SSE streams are closed on errors; menu and game streams wait for a later user action or reload before reconnecting instead of polling the server while it is down.
 
 ## Project Files
 
 - `settings.gradle.kts`
-  - Includes `:platform`, `:platform:backend`, `:platform:frontend`, `:tic-tac-toe`, `:tic-tac-toe:backend`, `:tic-tac-toe:frontend`, `:ravens-and-dragons`, `:ravens-and-dragons:backend`, `:ravens-and-dragons:frontend`, `:app`, `:app:backend`, and `:app:frontend`.
+  - Includes `:platform`, `:platform:backend`, `:platform:frontend`, `:tic-tac-toe`, `:tic-tac-toe:backend`, `:tic-tac-toe:frontend`, `:gin-rummy`, `:gin-rummy:backend`, `:gin-rummy:frontend`, `:ravens-and-dragons`, `:ravens-and-dragons:backend`, `:ravens-and-dragons:frontend`, `:app`, `:app:backend`, and `:app:frontend`.
 - `build.gradle.kts`
   - Owns shared plugin versions, repositories, aggregate lifecycle tasks, root convenience tasks, and deployment-facing jar copy behavior.
 - `buildSrc/src/main/kotlin/FrontendProjectConventionPlugin.kt`
@@ -40,6 +41,8 @@ Frontend API helpers classify unauthorized, domain, and network/server failures 
   - Canonical list of planned work that is not being implemented immediately.
 - `docs/multi-game-service-structure-plan.md`
   - Staged plan for evolving the app into a multi-game service with top-level game modules.
+- `docs/adding-a-new-game.md`
+  - Canonical implementation guide for adding a new top-level game module without reading existing game implementations.
 - `docs/profiling-runbook.md`
   - Local memory-profiling workflow.
 - `docs/machine-training-runbook.md`
@@ -82,6 +85,7 @@ The Gradle wrapper is pinned to Gradle 9.4.1. Java 21 is the project toolchain. 
 - Signed-in player game navigation uses `GET /api/games/mine` and live menu updates use `GET /api/games/mine/stream`.
 - Game commands use `POST /api/games/{gameId}/commands`.
 - Tic-Tac-Toe commands place alternating X/O marks on an empty 3x3 square until a row, column, diagonal, or draw finishes the game.
+- Gin Rummy commands claim human seats, start alternating-dealer hands, draw/pass/discard, reorder hands, knock, gin, big gin, and advance hands/games/matches while scoring with configured bonuses.
 - Seat and bot actions are Ravens command types sent through the command endpoint. Ravens uses a platform-owned player picker to add the current user, another existing player, or a legal bot opponent to open seats.
 - Live updates use `GET /api/games/{gameId}/stream`.
 
@@ -106,5 +110,6 @@ Read these before changing the corresponding project:
 
 - `app/AGENTS.md` and `app/code-summary.md`
 - `tic-tac-toe/AGENTS.md` and `tic-tac-toe/code-summary.md`
+- `gin-rummy/AGENTS.md` and `gin-rummy/code-summary.md`
 - `platform/AGENTS.md` and `platform/code-summary.md`
 - `ravens-and-dragons/AGENTS.md` and `ravens-and-dragons/code-summary.md`

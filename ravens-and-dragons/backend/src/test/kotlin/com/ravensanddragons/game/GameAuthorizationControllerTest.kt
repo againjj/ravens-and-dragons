@@ -64,6 +64,28 @@ class GameAuthorizationControllerTest : AbstractGameControllerTestSupport() {
     }
 
     @Test
+    fun `stream error redispatch does not try to start another async stream`() {
+        val game = createGame()
+
+        mockMvc.get("/api/games/${game.id}/stream") {
+            accept = MediaType.TEXT_EVENT_STREAM
+            with(errorDispatcher())
+        }.andExpect {
+            status { isNoContent() }
+        }
+    }
+
+    @Test
+    fun `player games stream error redispatch does not try to start another async stream`() {
+        mockMvc.get("/api/games/mine/stream") {
+            accept = MediaType.TEXT_EVENT_STREAM
+            with(errorDispatcher())
+        }.andExpect {
+            status { isNoContent() }
+        }
+    }
+
+    @Test
     fun `anonymous users cannot submit commands`() {
         val game = createGame()
 
@@ -223,6 +245,12 @@ class GameAuthorizationControllerTest : AbstractGameControllerTestSupport() {
     private fun asyncDispatcher(): RequestPostProcessor =
         RequestPostProcessor { request ->
             request.dispatcherType = DispatcherType.ASYNC
+            request
+        }
+
+    private fun errorDispatcher(): RequestPostProcessor =
+        RequestPostProcessor { request ->
+            request.dispatcherType = DispatcherType.ERROR
             request
         }
 

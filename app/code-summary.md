@@ -13,7 +13,7 @@ The app keeps the included-game list declarative by registering each game module
   - Exposes `testBackend`, `testFrontend`, `test`, `bootJar`, and `bootRun` proxy tasks.
 - `app/backend/build.gradle.kts`
   - Applies Spring Boot and Kotlin plugins.
-  - Depends directly on `:platform:backend`, `:tic-tac-toe:backend`, and `:ravens-and-dragons:backend`.
+  - Depends directly on `:platform:backend`, `:tic-tac-toe:backend`, `:gin-rummy:backend`, and `:ravens-and-dragons:backend`.
   - Configures Java 21 for Kotlin, JavaExec, and tests.
   - Copies the app-owned Vite frontend bundle from `:app:frontend` into Spring Boot static resources during `processResources`.
   - Applies `app/local-env.gradle.kts` so `bootRun` works from the repository root and local env loading stays isolated.
@@ -30,7 +30,7 @@ The app keeps the included-game list declarative by registering each game module
   - Owns the shared browser shell, auth bootstrap, lobby/profile/login routing, public game list loading, signed-in user menu/player-game stream wiring, fullscreen action, and game-entry selection for create/play screens.
   - Replaces transient login URLs when authenticated users are redirected to their `next` target so `/login?next=...` does not remain in browser history after sign-in.
   - Classifies shell-level async failures so expired sessions redirect to login, server/network failures show a server-unavailable dialog, and failed lobby/menu loads are not silently rendered as empty lists.
-  - Registers the Tic-Tac-Toe and Ravens and Dragons frontend package entries for the lobby.
+  - Registers the Tic-Tac-Toe, Gin Rummy, and Ravens and Dragons frontend package entries for the lobby.
 - `app/frontend/src/main/frontend/features/playerGames/playerGamesClient.ts`
   - Loads the signed-in user's unfinished seated games and opens the player-game SSE stream used by the header menu turn badges after the initial list load succeeds.
   - Closes the player-game stream on errors so the browser does not keep retrying while the server is down; the stream is reopened only by a later user action or auth/session change.
@@ -42,12 +42,14 @@ The app keeps the included-game list declarative by registering each game module
   - Spring Boot entrypoint.
   - Enables scheduling.
   - Provides the UTC `Clock` bean.
-  - Provides the `GameModuleRegistry` bean that currently registers `TicTacToeGameModuleDefinition` and `RavensAndDragonsGameModuleDefinition`.
+  - Provides the `GameModuleRegistry` bean that currently registers `TicTacToeGameModuleDefinition`, `GinRummyGameModuleDefinition`, and `RavensAndDragonsGameModuleDefinition`.
   - Derives `staleGameCleanupDelay` from `platform.games.stale-threshold`, with the previous Ravens-branded property still accepted by the platform runtime as a fallback.
 - `app/backend/src/test/kotlin/com/ravensanddragons/RavensAndDragonsApplicationTests.kt`
   - Verifies the Spring application context loads.
   - Verifies default servlet session timeout and stale cleanup delay.
-  - Verifies the assembled app registers the Tic-Tac-Toe and Ravens and Dragons game modules with the expected routes and persistence boundary metadata.
+  - Verifies the assembled app registers the Tic-Tac-Toe, Gin Rummy, and Ravens and Dragons game modules with the expected routes and persistence boundary metadata.
+- `app/docs/adding-game-to-app.md`
+  - Documents app-level backend/frontend registration steps for adding a new game without reading existing game projects.
 - `:app:backend:testLocalEnvParser`
   - Verifies the `bootRun` `.env.local` parser handles standard dotenv `KEY=value` entries, quoted values, unquoted values, comments, blank lines, missing files, and fails unsupported syntax.
 

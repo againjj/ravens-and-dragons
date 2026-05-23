@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.ravensanddragons.auth.AuthSessionSupport
 import com.ravensanddragons.auth.ForbiddenActionException
+import jakarta.servlet.DispatcherType
 import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
@@ -47,8 +48,12 @@ class GameController(
         )
 
     @GetMapping("/api/games/mine/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
-    fun streamPlayerGames(request: HttpServletRequest): ResponseEntity<SseEmitter> =
-        ResponseEntity.ok()
+    fun streamPlayerGames(request: HttpServletRequest): ResponseEntity<SseEmitter> {
+        if (request.dispatcherType == DispatcherType.ERROR) {
+            return ResponseEntity.noContent().build()
+        }
+
+        return ResponseEntity.ok()
             .contentType(MediaType.TEXT_EVENT_STREAM)
             .body(
                 gameSessionService.createPlayerGamesEmitter(
@@ -56,6 +61,7 @@ class GameController(
                         ?: throw ForbiddenActionException("You must sign in before loading your games.")
                 )
             )
+    }
 
     @GetMapping("/api/games/{gameId}")
     fun getGame(@PathVariable gameId: String): JsonNode = gameSessionService.getGame(gameId)
@@ -83,14 +89,22 @@ class GameController(
     )
 
     @GetMapping("/api/games/{gameId}/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
-    fun streamGame(@PathVariable gameId: String): ResponseEntity<SseEmitter> =
-        try {
+    fun streamGame(
+        @PathVariable gameId: String,
+        request: HttpServletRequest
+    ): ResponseEntity<SseEmitter> {
+        if (request.dispatcherType == DispatcherType.ERROR) {
+            return ResponseEntity.noContent().build()
+        }
+
+        return try {
             ResponseEntity.ok()
                 .contentType(MediaType.TEXT_EVENT_STREAM)
                 .body(gameSessionService.createEmitter(gameId))
         } catch (_: GameNotFoundException) {
             ResponseEntity.notFound().build()
         }
+    }
 
     @ExceptionHandler(GameNotFoundException::class)
     fun handleGameNotFound(exception: GameNotFoundException): ResponseEntity<ErrorResponse> =

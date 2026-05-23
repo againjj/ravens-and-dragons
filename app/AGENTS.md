@@ -13,6 +13,7 @@ This file contains instructions for work inside the `app/` project.
 - `app/` owns the runnable Spring Boot application and deployment jar assembly.
 - `app/` wires shared platform services and the selected game modules into one deployable service.
 - `app/` should treat each game as its own sub-project and register each included game module explicitly.
+- Keep `app/docs/adding-game-to-app.md` current when app-level game registration changes.
 - `app/` owns application-level beans such as the system clock, stale-game cleanup delay, and game module registry assembly.
 - `app/` should not own canonical game rules, game-specific command behavior, auth persistence internals, or frontend components.
 

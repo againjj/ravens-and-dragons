@@ -20,6 +20,7 @@ This file contains instructions for work inside the `platform/` project.
 - Prefer explicit interfaces and DTOs at service boundaries instead of moving game-specific logic into shared code.
 - Do not add assumptions that all future games have Ravens and Dragons concepts such as ravens, dragons, gold, board squares, captures, or bot strategies.
 - When changing auth/session behavior, check any game-module integration points that rely on user ids, seat ownership, or account deletion cleanup.
+- When changing game runtime or shared frontend APIs, update `platform/docs/game-runtime-api.md` so games can use those APIs without reading existing usages.
 
 ## Testing
 
