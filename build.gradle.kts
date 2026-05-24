@@ -15,6 +15,12 @@ allprojects {
     }
 }
 
+subprojects {
+    tasks.withType<Jar>().configureEach {
+        archiveBaseName.set(project.path.removePrefix(":").replace(":", "-"))
+    }
+}
+
 val copyAppBootJar by tasks.registering(Copy::class) {
     group = LifecycleBasePlugin.BUILD_GROUP
     description = "Copies the assembled app jar to the historical root build/libs location."

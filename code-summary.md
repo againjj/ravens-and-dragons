@@ -28,6 +28,7 @@ Frontend API helpers classify unauthorized, domain, and network/server failures 
   - Includes `:platform`, `:platform:backend`, `:platform:frontend`, `:tic-tac-toe`, `:tic-tac-toe:backend`, `:tic-tac-toe:frontend`, `:gin-rummy`, `:gin-rummy:backend`, `:gin-rummy:frontend`, `:ravens-and-dragons`, `:ravens-and-dragons:backend`, `:ravens-and-dragons:frontend`, `:app`, `:app:backend`, and `:app:frontend`.
 - `build.gradle.kts`
   - Owns shared plugin versions, repositories, aggregate lifecycle tasks, root convenience tasks, and deployment-facing jar copy behavior.
+  - Gives subproject jar artifacts path-derived names so the assembled Spring Boot jar can include multiple `backend` modules without duplicate `BOOT-INF/lib` entries.
 - `buildSrc/src/main/kotlin/FrontendProjectConventionPlugin.kt`
   - Owns the shared Gradle convention for frontend Node/npm setup, `buildFrontend`, `test`, common inputs, and verification wiring.
 - `gradle/paired-project.gradle.kts`
