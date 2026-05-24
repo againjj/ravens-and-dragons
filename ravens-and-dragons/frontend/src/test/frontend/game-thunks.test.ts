@@ -3,6 +3,7 @@ import { describe, expect, test, vi, beforeEach } from "vitest";
 import { createAppStore } from "../../../../../app/frontend/src/main/frontend/app/store.js";
 import { createGameDraftActions } from "../../main/frontend/features/game/createGameSlice.js";
 import { createAuthSession, createGameView, createSession } from "./fixtures.js";
+import { ApiRequestError } from "@ravensanddragons/platform-frontend/api-client";
 
 const {
     createGameSessionMock,
@@ -64,6 +65,25 @@ describe("gameThunks", () => {
         expect(createdGameId).toBeNull();
         expect(store.getState().game.feedbackMessage).toBe("The server is down. Please wait and try again later.");
         expect(store.getState().createGame.isActive).toBe(true);
+    });
+
+    test("createGame signs out when the server rejects stale auth", async () => {
+        createGameSessionMock.mockRejectedValue(new ApiRequestError("You must sign in before creating a game.", 401));
+        const store = createAppStore({
+            auth: {
+                session: createAuthSession({ oauthProviders: ["google"] })
+            }
+        });
+        store.dispatch(createGameDraftActions.createModeEntered());
+
+        const createdGameId = await store.dispatch(createGame("ravens-and-dragons"));
+
+        expect(createdGameId).toBeNull();
+        expect(store.getState().auth.session.authenticated).toBe(false);
+        expect(store.getState().auth.session.user).toBeNull();
+        expect(store.getState().auth.session.oauthProviders).toEqual(["google"]);
+        expect(store.getState().game.feedbackMessage).toBe("Your session expired. Please sign in again.");
+        expect(store.getState().game.isSubmitting).toBe(false);
     });
 
     test("openGame enters the game view for a valid game id", async () => {

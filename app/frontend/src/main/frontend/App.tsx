@@ -81,6 +81,10 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
     const { PlayScreen } = activeGameEntry.components;
     const handleAuthExpired = useCallback(() => {
         setIsUserMenuOpen(false);
+        setPlayerGames([]);
+        setLobbyOpenErrorMessage(null);
+        setServerErrorMessage(null);
+        setIsPlayerGamesStreamPaused(false);
         dispatch(authActions.authSessionSet(signedOutSession(oauthProviders)));
         dispatch(authActions.authFeedbackMessageSet(sessionExpiredMessage));
     }, [dispatch, oauthProviders]);

@@ -105,6 +105,7 @@ The shared browser chrome keeps the `Ayazian Games` header title linked back to 
 - Optional Google OAuth appears only when Spring OAuth Google client registration environment variables are configured.
 - Railway deploys run the Spring Boot fat jar named `ravens-and-dragons.jar`.
 - Local `bootRun` loads standard dotenv-style `KEY=value` entries from `.env.local` in the repository root when the file exists and fails on unsupported syntax; packaged jars and deployment startup continue to use their ambient process environment.
+- Railway startup supplies default JVM memory flags through `JAVA_TOOL_OPTIONS`: a small initial/minimum heap, an 80% container-relative max heap, G1 GC, and periodic concurrent idle GC so the app can reclaim quiet-period heap while still growing during bot-search bursts.
 
 ## Project Summaries
 
