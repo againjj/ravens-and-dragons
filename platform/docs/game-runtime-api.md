@@ -41,7 +41,7 @@ The platform owns these routes:
 - `GET /api/games/public` lists publicly listed unfinished games.
 - `GET /api/games/mine` and `/stream` list signed-in user games.
 
-Command persistence revalidates newly added player-seat user ids through the platform account validator before storing the state.
+Command persistence revalidates newly added player-seat user ids through the platform account validator before storing the state. Game and player-list SSE fanout is deferred until after the command transaction commits so stream listeners that refetch state cannot observe stale pre-commit data.
 
 ## Shared Frontend APIs
 

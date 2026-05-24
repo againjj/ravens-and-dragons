@@ -122,7 +122,7 @@ class GinRummyGameHandler(
             optionalDealRule = request.booleanValue("optionalDealRule", true),
             lineBonusEnabled = request.booleanValue("lineBonusEnabled", false),
             shutoutBonusEnabled = request.booleanValue("shutoutBonusEnabled", true),
-            aceHighAllowed = request.booleanValue("aceHighAllowed", false)
+            aceHighAllowed = request.booleanValue("aceHighAllowed", true)
         )
         val publicState = GinRummyPublicState(
             id = gameId,
@@ -130,19 +130,20 @@ class GinRummyGameHandler(
             version = 1,
             createdAt = now,
             updatedAt = now,
-            lifecycle = setupLifecycle,
+            lifecycle = activeLifecycle,
             config = config,
             seats = listOf(GinRummySeat(), GinRummySeat()),
             dealerSeat = 0,
             currentSeat = 1,
-            phase = setupPhase,
+            phase = discardOnlyPhase,
             gameNumber = 1,
             roundNumber = 1,
             stockCount = 0,
             createdByUserId = createdByUserId,
             message = null
         )
-        return toRecord(publicState, GinRummyPrivateState(), now)
+        val dealt = dealHand(publicState)
+        return toRecord(dealt.first, dealt.second, now)
     }
 
     override fun applyCommand(current: GameRecord, command: JsonNode, actingUserId: String?): GameRecord {
@@ -153,7 +154,6 @@ class GinRummyGameHandler(
         val result = when (val type = command.get("type")?.asText()) {
             "claimSeat" -> claimSeat(publicState, privateState, command, actingUserId)
             "clearSeat" -> clearSeat(publicState, privateState, command, actingUserId)
-            "startHand" -> startHand(publicState, privateState)
             "passUpcard" -> passUpcard(publicState, privateState, actingUserId)
             "drawStock" -> drawStock(publicState, privateState, actingUserId)
             "drawDiscard" -> drawDiscard(publicState, privateState, actingUserId)
@@ -162,8 +162,8 @@ class GinRummyGameHandler(
             "gin" -> discard(publicState, privateState, command, actingUserId, knockArrangement = parseArrangement(command), forceGin = true)
             "bigGin" -> bigGin(publicState, privateState, command, actingUserId)
             "reorderHand" -> reorderHand(publicState, privateState, command, actingUserId)
-            "nextHand" -> startHand(nextDealerPublicState(publicState), GinRummyPrivateState())
-            "nextGame" -> startHand(nextGamePublicState(publicState), GinRummyPrivateState())
+            "nextHand" -> dealHand(nextDealerPublicState(publicState))
+            "nextGame" -> dealHand(nextGamePublicState(publicState))
             else -> throw InvalidCommandException("Unsupported Gin Rummy command: ${type ?: "missing type"}.")
         }
 
@@ -202,6 +202,7 @@ class GinRummyGameHandler(
                 optionsNode.set<JsonNode>(seat.toString(), objectMapper.valueToTree(options))
             }
         })
+        viewerNode.put("drewDiscardCardId", privateState.drewDiscardCardId)
         return (objectMapper.valueToTree<ObjectNode>(publicState)).set<JsonNode>("viewer", viewerNode)
     }
 
@@ -240,8 +241,6 @@ class GinRummyGameHandler(
             seats = state.seats.map { seat -> if (seat.userId == userId) GinRummySeat() else seat },
             version = state.version + 1,
             updatedAt = Instant.now(clock),
-            lifecycle = setupLifecycle,
-            phase = setupPhase,
             createdByUserId = state.createdByUserId.takeUnless { it == userId },
             message = "A seated player left. Claim open seats to continue."
         )
@@ -269,15 +268,10 @@ class GinRummyGameHandler(
         val nextSeats = publicState.seats.toMutableList()
         nextSeats[seat] = GinRummySeat(playerUserId, displayName)
         val canStart = nextSeats.all { it.userId != null }
-        val nextPublicState = publicState.copy(
+        return publicState.copy(
             seats = nextSeats,
             message = if (canStart) null else "Claim the other seat."
-        )
-        return if (canStart && publicState.phase == setupPhase && privateState.hands.all { it.isEmpty() }) {
-            startHand(nextPublicState, privateState)
-        } else {
-            nextPublicState to privateState
-        }
+        ) to privateState
     }
 
     private fun clearSeat(
@@ -293,17 +287,12 @@ class GinRummyGameHandler(
         val nextSeats = publicState.seats.toMutableList()
         nextSeats[seat] = GinRummySeat()
         return publicState.copy(
-            lifecycle = setupLifecycle,
-            phase = setupPhase,
             seats = nextSeats,
-            message = "Claim open seats to start Gin Rummy."
+            message = "Claim open seats to continue Gin Rummy."
         ) to privateState
     }
 
-    private fun startHand(publicState: GinRummyPublicState, ignoredPrivateState: GinRummyPrivateState): Pair<GinRummyPublicState, GinRummyPrivateState> {
-        if (publicState.seats.any { it.userId == null }) {
-            throw InvalidCommandException("Both seats must be claimed before starting a hand.")
-        }
+    private fun dealHand(publicState: GinRummyPublicState): Pair<GinRummyPublicState, GinRummyPrivateState> {
         val deck = standardDeck().toMutableList()
         Collections.shuffle(deck, Random(publicState.id.hashCode().toLong() + publicState.version + publicState.roundNumber * 37L))
         val hands = listOf(mutableListOf<GinRummyCard>(), mutableListOf())
@@ -631,7 +620,6 @@ class GinRummyGameHandler(
     private fun nextGamePublicState(publicState: GinRummyPublicState): GinRummyPublicState =
         publicState.copy(
             lifecycle = activeLifecycle,
-            phase = setupPhase,
             dealerSeat = 1 - publicState.dealerSeat,
             currentSeat = publicState.dealerSeat,
             gameNumber = publicState.gameNumber + 1,
@@ -743,10 +731,8 @@ class GinRummyGameHandler(
         objectMapper.treeToValue(privateState, GinRummyPrivateState::class.java)
 
     private companion object {
-        const val setupLifecycle = "setup"
         const val activeLifecycle = "active"
         const val finishedLifecycle = "finished"
-        const val setupPhase = "setup"
         const val firstUpcardPhase = "firstUpcard"
         const val drawPhase = "draw"
         const val discardOnlyPhase = "discardOnly"

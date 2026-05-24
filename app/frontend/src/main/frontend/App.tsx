@@ -468,7 +468,7 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
                         <ProfileScreen />
                     </section>
                 ) : (
-                    <PlayScreen />
+                    <PlayScreen key={currentGameId ?? activeGameEntry.identity.slug} />
                 )}
             </section>
 

@@ -49,7 +49,7 @@ class GameController(
 
     @GetMapping("/api/games/mine/stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
     fun streamPlayerGames(request: HttpServletRequest): ResponseEntity<SseEmitter> {
-        if (request.dispatcherType == DispatcherType.ERROR) {
+        if (request.dispatcherType != DispatcherType.REQUEST) {
             return ResponseEntity.noContent().build()
         }
 
@@ -93,7 +93,7 @@ class GameController(
         @PathVariable gameId: String,
         request: HttpServletRequest
     ): ResponseEntity<SseEmitter> {
-        if (request.dispatcherType == DispatcherType.ERROR) {
+        if (request.dispatcherType != DispatcherType.REQUEST) {
             return ResponseEntity.noContent().build()
         }
 

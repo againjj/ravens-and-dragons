@@ -757,6 +757,50 @@ describe("App routing", () => {
         expect(container.querySelector(".your-turn-badge")?.textContent).toBe("YourTurn");
     });
 
+    test("switching games from the user menu remounts the active game screen", async () => {
+        const user = userEvent.setup();
+        const statefulGame = makeTestGameEntry("stateful-game", "Stateful Game", () => undefined);
+        statefulGame.components.PlayScreen = () => {
+            const [initialPath] = useState(window.location.pathname);
+            return <h1>{`Stateful game at ${initialPath}`}</h1>;
+        };
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "player-dragons",
+                displayName: "Dragon Player",
+                authType: "local"
+            }
+        });
+        fetchPlayerGamesMock.mockResolvedValue([
+            {
+                gameId: "OLDGAME",
+                gameSlug: "stateful-game",
+                gameName: "Stateful Game",
+                isCurrentUserTurn: false
+            },
+            {
+                gameId: "NEWGAME",
+                gameSlug: "stateful-game",
+                gameName: "Stateful Game",
+                isCurrentUserTurn: false
+            }
+        ]);
+        fetchGameMetadataMock.mockResolvedValue({
+            ok: true,
+            json: async () => ({ gameSlug: "stateful-game" })
+        });
+        window.history.pushState({}, "", "/g/OLDGAME");
+
+        renderWithStore(<App gameEntries={[statefulGame]} />);
+
+        await screen.findByRole("heading", { name: "Stateful game at /g/OLDGAME" });
+        await user.click(screen.getByRole("button", { name: "Dragon Player" }));
+        await user.click(screen.getByRole("menuitem", { name: "Stateful Game: NEWGAME" }));
+
+        await screen.findByRole("heading", { name: "Stateful game at /g/NEWGAME" });
+    });
+
     test("player game stream stays open when metadata refresh replaces the same current user object", async () => {
         fetchAuthSessionMock.mockResolvedValue({
             authenticated: true,

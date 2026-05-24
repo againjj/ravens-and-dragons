@@ -1150,6 +1150,12 @@ button:disabled {
     margin: 0 auto;
 }
 
+.gin-page {
+    --gin-card-width: 76px;
+    --gin-card-height: 112px;
+    --gin-card-step: clamp(calc(var(--gin-card-width) / 2), calc((100vw - 318px) / 11), var(--gin-card-width));
+}
+
 .gin-create-panel {
     display: grid;
     gap: 18px;
@@ -1169,7 +1175,7 @@ button:disabled {
 
 .gin-board-shell {
     display: grid;
-    grid-template-columns: 180px minmax(0, 1fr) 180px;
+    grid-template-columns: 168px minmax(0, 1fr) 110px;
     grid-template-rows: 150px 132px 72px 164px;
     gap: 16px;
     align-items: center;
@@ -1178,7 +1184,7 @@ button:disabled {
 
 .gin-seat {
     display: grid;
-    gap: 10px;
+    gap: 4px;
     font-size: 0.95rem;
     position: relative;
     z-index: 1;
@@ -1195,16 +1201,22 @@ button:disabled {
 }
 
 .gin-seat-name,
-.gin-seat-score,
-.gin-score-grid > div {
+.gin-seat-score {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
     gap: 4px;
 }
 
+.gin-seat-score {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0;
+    line-height: 1.08;
+}
+
 .gin-seat-name {
-    min-height: 42px;
+    min-height: 28px;
+    flex-wrap: wrap;
 }
 
 .gin-seat-name span,
@@ -1222,44 +1234,74 @@ button:disabled {
     display: flex;
     justify-content: center;
     min-height: 140px;
-    width: 100%;
+    width: min(100%, calc(var(--gin-card-width) + (10 * var(--gin-card-step))));
+    margin: 0 auto;
 }
 
 .gin-hand-top {
-    grid-column: 1 / -1;
+    grid-column: 2 / 3;
     grid-row: 1;
     pointer-events: none;
+    flex-direction: row-reverse;
 }
 
 .gin-bottom-hand-wrap {
     position: relative;
     z-index: 3;
-    grid-column: 1 / -1;
+    grid-column: 2 / 3;
     grid-row: 4;
     min-height: 164px;
     pointer-events: none;
 }
 
 .gin-hand-bottom {
-    justify-content: center;
-    overflow-x: auto;
+    overflow: visible;
     padding-bottom: 8px;
     pointer-events: auto;
 }
 
 .gin-card-button {
     position: relative;
-    width: 76px;
-    height: 112px;
+    flex: 0 0 var(--gin-card-width);
+    width: var(--gin-card-width);
+    height: var(--gin-card-height);
     padding: 0;
-    margin-left: -18px;
+    margin-left: calc(var(--gin-card-step) - var(--gin-card-width));
     border: 0;
     background: transparent;
-    transition: transform 160ms ease, margin 160ms ease;
+    transition: transform 500ms ease, margin 500ms ease, opacity 160ms ease;
 }
 
 .gin-card-button:first-child {
     margin-left: 0;
+}
+
+.gin-hand-top .gin-card-button {
+    margin-left: 0;
+    margin-right: calc(var(--gin-card-step) - var(--gin-card-width));
+}
+
+.gin-hand-top .gin-card-button:first-child {
+    margin-right: 0;
+}
+
+.gin-card-button.is-illegal {
+    cursor: not-allowed;
+    opacity: 0.71;
+}
+
+.gin-card-placeholder {
+    border: 2px dashed rgba(58, 46, 32, 0.42);
+    border-radius: 8px;
+    background: rgba(255, 253, 247, 0.3);
+    pointer-events: none;
+}
+
+.gin-card-button.is-dragged {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 100 !important;
 }
 
 .gin-card-button.is-interactive:hover {
@@ -1271,8 +1313,8 @@ button:disabled {
 .gin-card-back,
 .gin-stock,
 .gin-discard {
-    width: 76px;
-    height: 112px;
+    width: var(--gin-card-width);
+    height: var(--gin-card-height);
     border-radius: 8px;
     border: 1px solid var(--border-strong);
     box-shadow: 0 8px 20px rgba(15, 23, 42, 0.16);
@@ -1282,7 +1324,7 @@ button:disabled {
     display: grid;
     grid-template-rows: auto 1fr auto;
     padding: 8px;
-    background: #fffaf1;
+    background: #fffdf7;
     color: #172033;
     font-weight: 800;
 }
@@ -1314,7 +1356,7 @@ button:disabled {
 .gin-stock {
     background:
         repeating-linear-gradient(45deg, #a91f32 0 4px, #e44855 4px 8px) center / calc(100% - 18px) calc(100% - 18px) no-repeat,
-        linear-gradient(#f8f0dc, #f8f0dc);
+        linear-gradient(#fffdf7, #fffdf7);
 }
 
 .gin-card-back::before {
@@ -1328,13 +1370,14 @@ button:disabled {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 34px;
+    gap: 17px;
     min-height: 160px;
 }
 
 .gin-stock,
 .gin-discard {
     padding: 0;
+    flex: 0 0 var(--gin-card-width);
     display: grid;
     place-items: center;
     color: #fff;
@@ -1371,20 +1414,28 @@ button:disabled {
     pointer-events: auto;
 }
 
-.gin-controls {
-    grid-column: 3;
-    grid-row: 2 / 4;
-    display: grid;
-    gap: 12px;
-    min-height: 132px;
-    align-content: start;
+.gin-turn-indicator {
+    flex: 0 0 88px;
+    white-space: pre-line;
+    text-align: right;
+    font-weight: 900;
+    line-height: 1.05;
+    color: #172033;
 }
 
-.gin-actions,
-.gin-knock-box {
-    display: flex;
-    flex-wrap: wrap;
+.gin-end-actions {
+    display: grid;
     gap: 8px;
+    align-content: center;
+}
+
+.gin-end-actions button {
+    min-width: 86px;
+}
+
+.gin-end-actions button.is-selected {
+    border-color: #172033;
+    box-shadow: 0 0 0 2px rgba(23, 32, 51, 0.16);
 }
 
 .gin-deadwood {
@@ -1396,7 +1447,7 @@ button:disabled {
 
 .gin-show-cards {
     position: absolute;
-    z-index: 2;
+    z-index: 5;
     left: 50%;
     top: 50%;
     transform: translate(-50%, -20%);
@@ -1405,47 +1456,13 @@ button:disabled {
 
 .gin-score-rules {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     gap: 16px;
     margin-top: 18px;
 }
 
-.gin-score-sheet,
 .gin-rules {
     padding: 22px;
-}
-
-.gin-score-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-}
-
-.gin-score-grid > div {
-    flex-direction: column;
-    align-items: flex-start;
-}
-
-.gin-round-result {
-    margin-top: 14px;
-    display: grid;
-    gap: 10px;
-}
-
-.gin-result-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 10px;
-}
-
-.gin-result-grid > div {
-    display: grid;
-    gap: 4px;
-}
-
-.gin-score-lines {
-    max-height: 180px;
-    overflow: auto;
 }
 
 .gin-rules {
@@ -1460,12 +1477,203 @@ button:disabled {
     padding: 22px;
 }
 
+.gin-result-board {
+    display: grid;
+    width: min(1180px, 100%);
+    margin: 0 auto;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(180px, 240px);
+    gap: 18px;
+    align-items: start;
+    min-height: 420px;
+}
+
+.gin-result-melds,
+.gin-result-tally,
+.gin-finished-layout {
+    display: grid;
+    gap: 12px;
+}
+
+.gin-result-knocker {
+    position: relative;
+    z-index: 1;
+}
+
+.gin-result-defender {
+    position: relative;
+    z-index: 2;
+}
+
+.gin-result-row {
+    min-height: var(--gin-card-height);
+}
+
+.gin-result-deadwood {
+    margin-top: 16px;
+    font-weight: 900;
+}
+
+.gin-result-card-run {
+    display: flex;
+    justify-content: flex-start;
+    min-height: var(--gin-card-height);
+}
+
+.gin-result-card-slot {
+    position: relative;
+    flex: 0 0 var(--gin-card-width);
+    margin-left: calc(var(--gin-card-step) - var(--gin-card-width));
+}
+
+.gin-result-card-slot:first-child {
+    margin-left: 0;
+}
+
+.gin-result-card-slot .gin-card {
+    width: 100%;
+}
+
+.gin-result-tally {
+    align-content: start;
+    line-height: 1.35;
+}
+
+.gin-result-tally > span {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 14px;
+}
+
+.gin-result-tally hr {
+    width: 100%;
+    margin: 0;
+    border: 0;
+    border-top: 1px solid var(--border-strong);
+}
+
+.gin-result-tally button {
+    margin-top: 8px;
+}
+
+.gin-finished-layout {
+    width: min(900px, 100%);
+    margin: 32px auto 0;
+    justify-items: center;
+    text-align: center;
+}
+
+.gin-finished-layout h1 {
+    margin: 0;
+    font-size: clamp(2.6rem, 8vw, 5.2rem);
+    line-height: 0.95;
+}
+
+.gin-finished-scores {
+    display: grid;
+    gap: 8px;
+    font-size: 1.15rem;
+}
+
+.gin-flying-card {
+    --gin-card-width: 76px;
+    --gin-card-height: 112px;
+    --gin-fly-from-x: 0px;
+    --gin-fly-from-y: 0px;
+    --gin-fly-to-x: 0px;
+    --gin-fly-to-y: 0px;
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 2000;
+    pointer-events: none;
+    transform: translate(calc(var(--gin-fly-from-x) - var(--gin-card-width) / 2), calc(var(--gin-fly-from-y) - var(--gin-card-height) / 2));
+    animation: gin-card-fly 500ms ease forwards;
+}
+
+@keyframes gin-card-fly {
+    to {
+        transform: translate(calc(var(--gin-fly-to-x) - var(--gin-card-width) / 2), calc(var(--gin-fly-to-y) - var(--gin-card-height) / 2));
+    }
+}
+
 @media (max-width: 500px) {
     :root {
         --page-pad-x: 12px;
         --page-pad-y: 12px;
         --layout-gap: 12px;
         --panel-gap: 10px;
+    }
+
+    .gin-board-shell {
+        --gin-card-step: clamp(calc(var(--gin-card-width) / 2), calc((100vw - 42px) / 11), var(--gin-card-width));
+        grid-template-columns: minmax(96px, 0.42fr) minmax(0, 1fr);
+        grid-template-rows: 142px auto auto 158px;
+        gap: 10px 12px;
+        min-height: 0;
+        align-items: center;
+    }
+
+    .gin-hand-top {
+        grid-column: 1 / -1;
+        grid-row: 1;
+    }
+
+    .gin-seat-top {
+        grid-column: 1;
+        grid-row: 2;
+        align-self: end;
+    }
+
+    .gin-seat-bottom {
+        grid-column: 1;
+        grid-row: 3;
+        align-self: start;
+    }
+
+    .gin-table {
+        grid-column: 2;
+        grid-row: 2 / 4;
+        justify-content: flex-start;
+        gap: 10px;
+        min-height: 132px;
+    }
+
+    .gin-turn-indicator {
+        display: none;
+    }
+
+    .gin-end-actions {
+        gap: 6px;
+    }
+
+    .gin-end-actions button {
+        min-width: 0;
+        padding-inline: 8px;
+    }
+
+    .gin-bottom-hand-wrap {
+        grid-column: 1 / -1;
+        grid-row: 4;
+        min-height: 158px;
+    }
+
+    .gin-seat {
+        font-size: 0.82rem;
+    }
+
+    .gin-seat-name {
+        min-height: 0;
+    }
+
+    .gin-seat-name span,
+    .gin-seat-pill {
+        padding: 1px 6px;
+        font-size: 0.7rem;
+    }
+
+    .gin-result-board {
+        grid-template-columns: 1fr;
+        gap: 16px;
     }
 
     html,

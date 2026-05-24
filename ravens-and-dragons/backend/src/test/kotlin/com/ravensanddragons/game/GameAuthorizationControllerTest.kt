@@ -52,14 +52,24 @@ class GameAuthorizationControllerTest : AbstractGameControllerTestSupport() {
     }
 
     @Test
-    fun `stream async redispatch can complete after logout invalidates the session`() {
+    fun `stream async redispatch does not try to start another async stream`() {
         val game = createGame()
 
         mockMvc.get("/api/games/${game.id}/stream") {
             accept = MediaType.TEXT_EVENT_STREAM
             with(asyncDispatcher())
         }.andExpect {
-            status { isOk() }
+            status { isNoContent() }
+        }
+    }
+
+    @Test
+    fun `player games stream async redispatch does not try to start another async stream`() {
+        mockMvc.get("/api/games/mine/stream") {
+            accept = MediaType.TEXT_EVENT_STREAM
+            with(asyncDispatcher())
+        }.andExpect {
+            status { isNoContent() }
         }
     }
 

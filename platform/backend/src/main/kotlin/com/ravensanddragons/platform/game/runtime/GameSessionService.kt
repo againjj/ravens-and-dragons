@@ -5,6 +5,8 @@ import com.fasterxml.jackson.databind.node.ObjectNode
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionSynchronization
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.time.Clock
 import java.time.Duration
@@ -99,7 +101,7 @@ class GameSessionService(
         playerAccountValidator.requirePlayerAccountsExist(newPlayerUserIds(handler, current, nextState))
         val persisted = persistAndBroadcast(gameId, nextState)
         val finalState = handler.afterCommandPersisted(persisted) { game -> persistAndBroadcast(gameId, game) }
-        broadcastPlayerGamesFor(current, finalState)
+        afterCommit { broadcastPlayerGamesFor(current, finalState) }
         finalState.publicState
     }
 
@@ -112,8 +114,7 @@ class GameSessionService(
             } catch (_: ConcurrentGameUpdateException) {
                 null
             }
-            persisted?.let { broadcast(it.id, it.publicState) }
-            persisted?.let { broadcastPlayerGamesFor(game, it) }
+            persisted?.let { afterCommit { broadcastPlayerGamesFor(game, it) } }
         }
     }
 
@@ -211,8 +212,20 @@ class GameSessionService(
             val latest = gameStore.get(gameId) ?: throw GameNotFoundException(gameId)
             throw VersionConflictException(latest.publicState)
         }
-        broadcast(gameId, game.publicState)
+        afterCommit { broadcast(gameId, game.publicState) }
         return game
+    }
+
+    private fun afterCommit(action: () -> Unit) {
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+                override fun afterCommit() {
+                    action()
+                }
+            })
+        } else {
+            action()
+        }
     }
 
     private fun sendSnapshot(emitter: SseEmitter, publicState: JsonNode): Boolean {
