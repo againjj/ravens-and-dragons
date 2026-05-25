@@ -1,42 +1,51 @@
-import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
-import { fetchAuthSession, fetchUsers, isServerUnavailableError, isUnauthorizedError, notifyAuthSessionExpired, notifyServerUnavailable, serverUnavailableMessage, sessionExpiredMessage } from "@ravensanddragons/platform-frontend/api-client";
-import type { AuthUserSummary } from "@ravensanddragons/platform-frontend/auth-types";
+import { notifyServerUnavailable } from "@ravensanddragons/platform-frontend/api-client";
 import { PlayerPicker } from "@ravensanddragons/platform-frontend/player-picker";
 import { CardView } from "./CardView";
 import { Hand } from "./Hand";
 import { FinishedGinRummyLayout, RoundResultBoard, RulesReference } from "./RoundResultBoard";
-import { fetchGinRummyGame, readGameIdFromLocation, sendCommand } from "./gin-rummy-client";
+import { readGameIdFromLocation } from "./gin-rummy-client";
 import { arrangementLabel, canDiscardCardToPile, discardPileInteractionState, elementCenter, endActionButtonState, findArrangements, findBestDeadwood, handInsertionPoint, lastHandCardPoint } from "./gin-rummy-rules";
 import type { Card, DragSource, EndAction, FlyingCard, FlyDestination, GinRummyGame, KnockChoice } from "./gin-rummy-types";
-
-const handleAsyncError = (error: unknown, setMessage: (message: string) => void) => {
-    if (isUnauthorizedError(error)) {
-        notifyAuthSessionExpired();
-        setMessage(sessionExpiredMessage);
-    } else if (isServerUnavailableError(error)) {
-        notifyServerUnavailable();
-        setMessage(serverUnavailableMessage);
-    } else {
-        setMessage(error instanceof Error ? error.message : "Unable to update Gin Rummy.");
-    }
-};
+import {
+    clearDragState,
+    clearFlyingCardByKey,
+    clearKnockChoicesAndPendingEndAction,
+    loadGinRummyAuthSession,
+    loadGinRummyGame,
+    loadGinRummyPlayers,
+    runGinRummyCommand,
+    setActiveDragCardId,
+    setActiveDragSource,
+    setActivePickerSeat,
+    setFlyingCard,
+    setKnockChoices,
+    setPendingEndAction,
+    setPlayMessage,
+    setRevealedTurnKey,
+    setShowFinishedLayout
+} from "./gin-rummy-slice";
+import { useGinRummyDispatch, useGinRummySelector } from "./gin-rummy-store";
 
 export const GinRummyPlayScreen = () => {
+    const dispatch = useGinRummyDispatch();
     const gameId = useMemo(readGameIdFromLocation, []);
-    const [game, setGame] = useState<GinRummyGame | null>(null);
-    const [message, setMessage] = useState<string | null>(null);
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [activePickerSeat, setActivePickerSeat] = useState<number | null>(null);
-    const [players, setPlayers] = useState<AuthUserSummary[]>([]);
-    const [currentUser, setCurrentUser] = useState<AuthUserSummary | null>(null);
-    const [revealedTurnKey, setRevealedTurnKey] = useState<string | null>(null);
-    const [knockChoices, setKnockChoices] = useState<KnockChoice[]>([]);
-    const [pendingEndAction, setPendingEndAction] = useState<EndAction | null>(null);
-    const [showFinishedLayout, setShowFinishedLayout] = useState(false);
-    const [flyingCard, setFlyingCard] = useState<FlyingCard | null>(null);
-    const [activeDragSource, setActiveDragSource] = useState<DragSource | null>(null);
-    const [activeDragCardId, setActiveDragCardId] = useState<string | null>(null);
+    const {
+        game,
+        message,
+        isSubmitting,
+        activePickerSeat,
+        players,
+        currentUser,
+        revealedTurnKey,
+        knockChoices,
+        pendingEndAction,
+        showFinishedLayout,
+        flyingCard,
+        activeDragSource,
+        activeDragCardId
+    } = useGinRummySelector((state) => state.ginRummy.play);
     const stockRef = useRef<HTMLButtonElement | null>(null);
     const discardRef = useRef<HTMLButtonElement | null>(null);
     const topHandRef = useRef<HTMLDivElement | null>(null);
@@ -46,26 +55,19 @@ export const GinRummyPlayScreen = () => {
 
     const loadGame = useCallback(() => {
         if (!gameId) {
-            setMessage("Game ID is missing.");
+            dispatch(setPlayMessage("Game ID is missing."));
             return;
         }
-        void fetchGinRummyGame(gameId)
-            .then((loaded) => {
-                setGame((current) => !current || loaded.version >= current.version ? loaded : current);
-                setMessage(null);
-            })
-            .catch((error: unknown) => handleAsyncError(error, setMessage));
-    }, [gameId]);
+        void dispatch(loadGinRummyGame(gameId));
+    }, [dispatch, gameId]);
 
     useEffect(() => {
         loadGame();
     }, [loadGame]);
 
     useEffect(() => {
-        void fetchAuthSession()
-            .then((session) => setCurrentUser(session.user))
-            .catch((error: unknown) => handleAsyncError(error, setMessage));
-    }, []);
+        void dispatch(loadGinRummyAuthSession());
+    }, [dispatch]);
 
     useEffect(() => {
         if (!gameId) return;
@@ -79,14 +81,6 @@ export const GinRummyPlayScreen = () => {
             stream.close();
         };
     }, [gameId, loadGame]);
-
-    useEffect(() => {
-        if (!game) return;
-        setKnockChoices([]);
-        setPendingEndAction(null);
-        setRevealedTurnKey(null);
-        setShowFinishedLayout(false);
-    }, [game?.currentSeat, game?.roundNumber]);
 
     const currentUserId = game?.viewer?.userId ?? null;
     const userSeats = game?.seats.map((seat, index) => seat.userId === currentUserId ? index : null).filter((seat): seat is number => seat !== null) ?? [];
@@ -140,23 +134,14 @@ export const GinRummyPlayScreen = () => {
 
     const runCommand = (command: Record<string, unknown>, baseGame = game): Promise<GinRummyGame | null> => {
         if (!baseGame) return Promise.resolve(null);
-        setIsSubmitting(true);
-        setMessage(null);
-        return sendCommand(baseGame, command)
-            .then((updated) => {
-                setGame(updated);
-                return updated;
-            })
-            .catch((error: unknown) => {
-                handleAsyncError(error, setMessage);
-                return null;
-            })
-            .finally(() => setIsSubmitting(false));
+        return dispatch(runGinRummyCommand({ game: baseGame, command }))
+            .unwrap()
+            .catch(() => null);
     };
 
     const openPicker = (seat: number) => {
-        setActivePickerSeat(seat);
-        void fetchUsers().then(setPlayers).catch(() => setPlayers([]));
+        dispatch(setActivePickerSeat(seat));
+        void dispatch(loadGinRummyPlayers());
     };
 
     const animateCard = (card: Card | null, fromClientX: number, fromClientY: number, destination: HTMLElement | FlyDestination | null) => {
@@ -176,8 +161,8 @@ export const GinRummyPlayScreen = () => {
             toY: point.y
         };
         flyKey.current = next.key;
-        setFlyingCard(next);
-        window.setTimeout(() => setFlyingCard((current) => current?.key === next.key ? null : current), 500);
+        dispatch(setFlyingCard(next));
+        window.setTimeout(() => dispatch(clearFlyingCardByKey(next.key)), 500);
     };
 
     const chooseKnock = (choices: KnockChoice[]) => {
@@ -185,7 +170,7 @@ export const GinRummyPlayScreen = () => {
         if (choices.length === 1) {
             runKnockChoice(choices[0]);
         } else {
-            setKnockChoices(choices);
+            dispatch(setKnockChoices(choices));
         }
     };
 
@@ -194,9 +179,8 @@ export const GinRummyPlayScreen = () => {
             ? { type: "bigGin", arrangement: choice.arrangement }
             : { type: choice.type, cardId: choice.cardId, arrangement: choice.arrangement };
         void runCommand(command).then((updated) => {
-            if (updated || choice.type === "bigGin") {
-                setKnockChoices([]);
-                setPendingEndAction(null);
+            if (updated) {
+                dispatch(clearKnockChoicesAndPendingEndAction());
             }
         });
     };
@@ -294,6 +278,12 @@ export const GinRummyPlayScreen = () => {
         );
     };
 
+    const claimSeat = (seat: number | null, playerUserId: string | null, displayName: string) => {
+        if (seat === null) return;
+        dispatch(setActivePickerSeat(null));
+        runCommand({ type: "claimSeat", seat, playerUserId, displayName });
+    };
+
     if (!game) {
         return <section className="panel"><p>{message ?? "Loading Gin Rummy..."}</p></section>;
     }
@@ -317,7 +307,7 @@ export const GinRummyPlayScreen = () => {
                         } else if (game.phase === "gameOver" && game.config.playMode === "bestOfFiveMatch") {
                             void runCommand({ type: "nextGame" });
                         } else {
-                            setShowFinishedLayout(true);
+                            dispatch(setShowFinishedLayout(true));
                         }
                     }}
                 />
@@ -358,11 +348,11 @@ export const GinRummyPlayScreen = () => {
                         disabled={!canAct || game.phase !== "draw"}
                         draggable={Boolean(canAct && game.phase === "draw")}
                         onDragStart={(event) => {
-                            setActiveDragSource("stock");
+                            dispatch(setActiveDragSource("stock"));
                             event.dataTransfer.setData("text/plain", "stock");
                             event.dataTransfer.setData("application/x-gin-source", "stock");
                         }}
-                        onDragEnd={() => setActiveDragSource(null)}
+                        onDragEnd={() => dispatch(setActiveDragSource(null))}
                         onClick={(event) => {
                             void drawToHand("stock", bottomHand.length, event.clientX, event.clientY, null);
                         }}
@@ -377,12 +367,12 @@ export const GinRummyPlayScreen = () => {
                         draggable={canDrawDiscard}
                         onDragStart={(event) => {
                             if (canDrawDiscard && game.discardTop) {
-                                setActiveDragSource("discard");
+                                dispatch(setActiveDragSource("discard"));
                                 event.dataTransfer.setData("text/plain", game.discardTop.id);
                                 event.dataTransfer.setData("application/x-gin-source", "discard");
                             }
                         }}
-                        onDragEnd={() => setActiveDragSource(null)}
+                        onDragEnd={() => dispatch(setActiveDragSource(null))}
                         onClick={(event) => {
                             if (!canDrawDiscard) return;
                             void drawToHand("discard", bottomHand.length, event.clientX, event.clientY, null);
@@ -400,18 +390,17 @@ export const GinRummyPlayScreen = () => {
                                     void runCommand({ type: "discard", cardId });
                                 }
                             }
-                            setActiveDragSource(null);
-                            setActiveDragCardId(null);
+                            dispatch(clearDragState());
                         }}
                     >
                         {game.discardTop ? <CardView card={game.discardTop} /> : null}
                     </button>
                     <div className="gin-end-actions">
-                        {renderEndActionButton("knock", "Knock", knockOnlyChoices.length > 0, () => setPendingEndAction("knock"))}
-                        {renderEndActionButton("gin", "Gin", ginChoices.length > 0, () => setPendingEndAction("gin"))}
+                        {renderEndActionButton("knock", "Knock", knockOnlyChoices.length > 0, () => dispatch(setPendingEndAction("knock")))}
+                        {renderEndActionButton("gin", "Gin", ginChoices.length > 0, () => dispatch(setPendingEndAction("gin")))}
                         {renderEndActionButton("bigGin", "Big Gin", Boolean(bigGinChoice), () => {
                             if (!bigGinChoice) return;
-                            setPendingEndAction("bigGin");
+                            dispatch(setPendingEndAction("bigGin"));
                             runKnockChoice(bigGinChoice);
                         })}
                     </div>
@@ -422,7 +411,7 @@ export const GinRummyPlayScreen = () => {
                 {renderSeat(bottomSeat, "bottom")}
                 <section className="gin-bottom-hand-wrap">
                     {shouldHideBottom ? (
-                        <button type="button" className="gin-show-cards" onClick={() => setRevealedTurnKey(currentTurnKey)}>
+                        <button type="button" className="gin-show-cards" onClick={() => dispatch(setRevealedTurnKey(currentTurnKey))}>
                             Show Cards
                         </button>
                     ) : null}
@@ -437,8 +426,8 @@ export const GinRummyPlayScreen = () => {
                         canDrawToHand={canAct && (game.phase === "draw" || game.phase === "firstUpcard")}
                         canDiscardCard={canDiscardHandCard}
                         activeDragSource={activeDragSource}
-                        onDragSourceChange={setActiveDragSource}
-                        onDragCardChange={setActiveDragCardId}
+                        onDragSourceChange={(source) => dispatch(setActiveDragSource(source))}
+                        onDragCardChange={(cardId) => dispatch(setActiveDragCardId(cardId))}
                         onDiscard={(cardId, clientX, clientY) => {
                             if (!canDiscardHandCard(cardId)) return;
                             const card = bottomHand.find((candidate) => candidate.id === cardId) ?? null;
@@ -468,16 +457,14 @@ export const GinRummyPlayScreen = () => {
                             players={players.filter((player) => player.id !== currentUserId)}
                             bots={[]}
                             onAddMyself={() => {
-                                setActivePickerSeat(null);
-                                runCommand({ type: "claimSeat", seat: activePickerSeat, playerUserId: currentUserId, displayName: currentUser?.displayName ?? "Player" });
+                                claimSeat(activePickerSeat, currentUserId, currentUser?.displayName ?? "Player");
                             }}
                             onAddPlayer={(playerUserId) => {
                                 const player = players.find((candidate) => candidate.id === playerUserId);
-                                setActivePickerSeat(null);
-                                runCommand({ type: "claimSeat", seat: activePickerSeat, playerUserId, displayName: player?.displayName ?? "Player" });
+                                claimSeat(activePickerSeat, playerUserId, player?.displayName ?? "Player");
                             }}
                             onAddBot={() => {}}
-                            onCancel={() => setActivePickerSeat(null)}
+                            onCancel={() => dispatch(setActivePickerSeat(null))}
                         />
                     </section>
                 </div>,

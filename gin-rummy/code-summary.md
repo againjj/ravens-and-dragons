@@ -26,19 +26,21 @@ The parent project has two child projects:
 - `gin-rummy/frontend/build.gradle.kts`
   - Applies the shared frontend Gradle convention.
 - `src/main/frontend/gin-rummy-entry.tsx`
-  - Exports the Gin Rummy game entry for the app shell.
+  - Exports the Gin Rummy game entry for the app shell and wraps Gin Rummy screens in the game-local Redux provider.
+- `src/main/frontend/gin-rummy-store.tsx` and `src/main/frontend/gin-rummy-slice.ts`
+  - Own the Gin Rummy Redux store, create-option state, play-screen async loading/command state, and cross-component interaction state.
 - `src/main/frontend/CreateGinRummyScreen.tsx`
-  - Owns the create-game controls, shared player picker usage, and default Gin Rummy options.
+  - Renders the create-game controls from Redux-backed Gin Rummy options.
 - `src/main/frontend/GinRummyPlayScreen.tsx`
-  - Owns play-screen state, game loading/streaming, seat picking, turn display, end-action flow, and draw/discard animation orchestration.
+  - Renders Redux-backed play-screen state, game loading/streaming, seat picking, turn display, end-action flow, and draw/discard animation orchestration.
 - `src/main/frontend/Hand.tsx`
   - Renders hand cards and owns drag/drop placement behavior for drawing, discarding, and rearranging cards.
 - `src/main/frontend/RoundResultBoard.tsx`
   - Renders end-of-hand results, final game/match layout, score tally, and rules reference content.
 - `src/main/frontend/CardView.tsx`, `gin-rummy-cards.ts`, `gin-rummy-client.ts`, `gin-rummy-rules.ts`, and `gin-rummy-types.ts`
   - Provide card rendering, deck helpers, API calls, client-side layout/scoring helpers, and frontend wire types used by the Gin screens.
-- `src/test/frontend/hand-drag.test.tsx`
-  - Covers drag insertion, rearrange/discard legality, score-summary labeling, and related UI helper behavior.
+- `src/test/frontend/hand-drag.test.tsx` and `src/test/frontend/gin-rummy-store.test.ts`
+  - Cover drag insertion, rearrange/discard legality, score-summary labeling, related UI helper behavior, and Redux state transitions.
 
 ## Boundaries
 

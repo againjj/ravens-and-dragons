@@ -65,6 +65,8 @@ Use `GameStartOptions` for create payloads. Include `publiclyListed` and any gam
 
 Frontend async failures must preserve auth/session expiry, server/network failure, and domain errors. Use the shared platform API helpers instead of turning failed loads into empty states.
 
+Use Redux for game UI state, async game loading/submission status, and client-only interaction state that crosses component boundaries. Keep canonical rules and server-owned game state semantics in the backend; Redux should orchestrate the frontend view and command flow.
+
 Live game screens should open `GET /api/games/{gameId}/stream` with `EventSource`, apply incoming `game` events, and close the stream on `onerror`. Do not build a custom reconnect loop in game code. When the stream errors because the server is down, call the shared server-unavailable notification helper and wait for a later user action, route change, or page reload to reconnect.
 
 When a game needs viewer-private state, load it through `GET /api/games/{gameId}/view` after the initial route resolves and after public stream events arrive. The stream payload is public state; do not put private hands, hidden pieces, or per-viewer reveal state in the stream.

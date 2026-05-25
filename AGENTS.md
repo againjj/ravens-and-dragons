@@ -60,6 +60,7 @@ This file contains repository-wide instructions for AI-assisted work in this pro
 - `ravens-and-dragons/` owns Ravens and Dragons game rules, game APIs, game-specific persistence payloads, frontend UI, assets, bots, machine training, and tests.
 - Any sub-project named `X` that contains both backend and frontend code must contain two sub-projects named `backend` and `frontend`; `X:testBackend` must run the backend tests, `X:testFrontend` must run the frontend tests, and `X:test` must depend on both `X:testBackend` and `X:testFrontend`.
 - Each game should live in its own sub-project; do not merge separate games into a single game module.
+- New game frontends should use Redux for game UI state, async game loading/submission status, and client-only interaction state that crosses component boundaries.
 - Do not move gameplay rules into `platform/` or `app/`.
 - Do not make platform own game-specific snapshot, undo, rule, bot, board, or command semantics.
 - If persistence, multiple rooms, richer multiplayer behavior, external game repositories, or route slugs are added later, discuss the architecture shift before spreading state ownership further.
