@@ -2,7 +2,7 @@
 
 ## Overview
 
-`gin-rummy/` is the Gin Rummy game module. It owns a two-player human-only card game with configurable target score, single-game or best-of-five match play, optional Big Gin, optional first-player-gets-11 deal, optional line and shutout bonuses, and optional ace-high runs.
+`gin-rummy/` is the Gin Rummy game module. It owns a two-player human-only card game with configurable target score, single-game or best-of-five match play, optional Big Gin, optional 11-card first deal, optional line/box bonus, always-on shutout doubling, and optional ace-high runs.
 
 The parent project has two child projects:
 
@@ -19,6 +19,7 @@ The parent project has two child projects:
 - `src/main/kotlin/com/ravensanddragons/ginrummy/GinRummyGameHandler.kt`
   - Implements platform `GameHandler`.
   - Owns immediate hand dealing at game creation, seat assignment, draw/discard commands, knocking, gin, big gin, scoring, and public/private view shaping.
+  - Keeps the first-hand dealer hidden in public state until both seats are claimed; the backend chooses and stores that dealer privately, and the optional eleventh card is added only when play starts.
   - Includes viewer-only turn details such as private hands, deadwood, knock options, and the discard-pile card that cannot be immediately re-discarded.
 
 ## Frontend Project

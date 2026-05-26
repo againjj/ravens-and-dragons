@@ -22,7 +22,6 @@ const game = (overrides: Partial<GinRummyGame> = {}): GinRummyGame => ({
         bigGinAllowed: false,
         optionalDealRule: true,
         lineBonusEnabled: false,
-        shutoutBonusEnabled: true,
         aceHighAllowed: true
     },
     seats: [

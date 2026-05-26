@@ -1,5 +1,6 @@
 package com.ravensanddragons.ginrummy
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ObjectNode
@@ -16,13 +17,13 @@ import java.util.Collections
 import java.util.Random
 import kotlin.math.abs
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 data class GinRummyConfig(
     val targetScore: Int = 100,
     val playMode: String = "singleGame",
     val bigGinAllowed: Boolean = false,
     val optionalDealRule: Boolean = true,
     val lineBonusEnabled: Boolean = false,
-    val shutoutBonusEnabled: Boolean = true,
     val aceHighAllowed: Boolean = false
 )
 
@@ -97,7 +98,8 @@ data class GinRummyPrivateState(
     val discardPile: List<GinRummyCard> = emptyList(),
     val hands: List<List<GinRummyCard>> = listOf(emptyList(), emptyList()),
     val drewDiscardCardId: String? = null,
-    val firstUpcardPasses: List<Int> = emptyList()
+    val firstUpcardPasses: List<Int> = emptyList(),
+    val pendingDealerSeat: Int? = null
 )
 
 data class GinRummyMeldArrangement(
@@ -121,7 +123,6 @@ class GinRummyGameHandler(
             bigGinAllowed = request.booleanValue("bigGinAllowed", false),
             optionalDealRule = request.booleanValue("optionalDealRule", true),
             lineBonusEnabled = request.booleanValue("lineBonusEnabled", false),
-            shutoutBonusEnabled = request.booleanValue("shutoutBonusEnabled", true),
             aceHighAllowed = request.booleanValue("aceHighAllowed", true)
         )
         val publicState = GinRummyPublicState(
@@ -133,16 +134,16 @@ class GinRummyGameHandler(
             lifecycle = activeLifecycle,
             config = config,
             seats = listOf(GinRummySeat(), GinRummySeat()),
-            dealerSeat = 0,
-            currentSeat = 1,
-            phase = discardOnlyPhase,
+            dealerSeat = hiddenSeat,
+            currentSeat = hiddenSeat,
+            phase = waitingForPlayersPhase,
             gameNumber = 1,
             roundNumber = 1,
             stockCount = 0,
             createdByUserId = createdByUserId,
-            message = null
+            message = "Claim both seats to start Gin Rummy."
         )
-        val dealt = dealHand(publicState)
+        val dealt = dealHiddenOpeningHand(publicState, randomInitialDealerSeat())
         return toRecord(dealt.first, dealt.second, now)
     }
 
@@ -162,8 +163,8 @@ class GinRummyGameHandler(
             "gin" -> discard(publicState, privateState, command, actingUserId, knockArrangement = parseArrangement(command), forceGin = true)
             "bigGin" -> bigGin(publicState, privateState, command, actingUserId)
             "reorderHand" -> reorderHand(publicState, privateState, command, actingUserId)
-            "nextHand" -> dealHand(nextDealerPublicState(publicState))
-            "nextGame" -> dealHand(nextGamePublicState(publicState))
+            "nextHand" -> nextHand(publicState)
+            "nextGame" -> nextGame(publicState)
             else -> throw InvalidCommandException("Unsupported Gin Rummy command: ${type ?: "missing type"}.")
         }
 
@@ -268,10 +269,15 @@ class GinRummyGameHandler(
         val nextSeats = publicState.seats.toMutableList()
         nextSeats[seat] = GinRummySeat(playerUserId, displayName)
         val canStart = nextSeats.all { it.userId != null }
-        return publicState.copy(
+        val updated = publicState.copy(
             seats = nextSeats,
             message = if (canStart) null else "Claim the other seat."
-        ) to privateState
+        )
+        return if (canStart && publicState.phase == waitingForPlayersPhase) {
+            revealOpeningHand(updated, privateState)
+        } else {
+            updated to privateState
+        }
     }
 
     private fun clearSeat(
@@ -331,6 +337,60 @@ class GinRummyGameHandler(
             winnerSeat = null,
             message = if (publicState.config.optionalDealRule) "Starting player discards first." else "Non-dealer may take the upcard or pass."
         ) to privateState
+    }
+
+    private fun dealHiddenOpeningHand(publicState: GinRummyPublicState, dealerSeat: Int): Pair<GinRummyPublicState, GinRummyPrivateState> {
+        val deck = standardDeck().toMutableList()
+        Collections.shuffle(deck, Random(publicState.id.hashCode().toLong() + publicState.version + publicState.roundNumber * 37L))
+        val hands = listOf(mutableListOf<GinRummyCard>(), mutableListOf())
+        val startingSeat = 1 - dealerSeat
+        repeat(10) {
+            listOf(startingSeat, dealerSeat).forEach { seat ->
+                hands[seat].add(deck.removeLast())
+            }
+        }
+        val discardPile = if (publicState.config.optionalDealRule) {
+            emptyList()
+        } else {
+            listOf(deck.removeLast())
+        }
+        val privateState = GinRummyPrivateState(
+            stock = deck,
+            discardPile = discardPile,
+            hands = hands.map { it.toList() },
+            pendingDealerSeat = dealerSeat
+        )
+        return publicState.copy(
+            stockCount = privateState.stock.size,
+            discardTop = privateState.discardPile.lastOrNull(),
+            discardCount = privateState.discardPile.size,
+            handCounts = privateState.hands.map { it.size }
+        ) to privateState
+    }
+
+    private fun revealOpeningHand(publicState: GinRummyPublicState, privateState: GinRummyPrivateState): Pair<GinRummyPublicState, GinRummyPrivateState> {
+        val dealerSeat = privateState.pendingDealerSeat ?: randomInitialDealerSeat()
+        val startingSeat = 1 - dealerSeat
+        val hands = privateState.hands.mutableHands()
+        val stock = privateState.stock.toMutableList()
+        if (publicState.config.optionalDealRule && hands[startingSeat].size == 10) {
+            hands[startingSeat].add(stock.removeLast())
+        }
+        val nextPrivate = privateState.copy(
+            stock = stock,
+            hands = hands.map { it.toList() },
+            pendingDealerSeat = null
+        )
+        return publicState.copy(
+            dealerSeat = dealerSeat,
+            currentSeat = startingSeat,
+            phase = if (publicState.config.optionalDealRule) discardOnlyPhase else firstUpcardPhase,
+            stockCount = nextPrivate.stock.size,
+            discardTop = nextPrivate.discardPile.lastOrNull(),
+            discardCount = nextPrivate.discardPile.size,
+            handCounts = nextPrivate.hands.map { it.size },
+            message = if (publicState.config.optionalDealRule) "Starting player discards first." else "Non-dealer may take the upcard or pass."
+        ) to nextPrivate
     }
 
     private fun passUpcard(
@@ -430,7 +490,7 @@ class GinRummyGameHandler(
             requireArrangementMatchesHand(arrangement, nextPrivate.hands[publicState.currentSeat], publicState.config.aceHighAllowed)
             val isGin = arrangement.deadwoodScore == 0
             if (forceGin && !isGin) {
-                throw InvalidCommandException("Gin requires zero deadwood.")
+                throw InvalidCommandException("Go Gin requires zero deadwood.")
             }
             if (!forceGin && arrangement.deadwoodScore > knockLimit) {
                 throw InvalidCommandException("Knocking requires 10 or fewer deadwood points.")
@@ -447,15 +507,15 @@ class GinRummyGameHandler(
     private fun bigGin(publicState: GinRummyPublicState, privateState: GinRummyPrivateState, command: JsonNode, actingUserId: String?): Pair<GinRummyPublicState, GinRummyPrivateState> {
         requireTurn(publicState, actingUserId)
         if (!publicState.config.bigGinAllowed) {
-            throw InvalidCommandException("Big Gin is not enabled for this game.")
+            throw InvalidCommandException("Go Big Gin is not enabled for this game.")
         }
         if (publicState.phase != discardPhase) {
-            throw InvalidCommandException("Big Gin can only be declared after drawing.")
+            throw InvalidCommandException("Go Big Gin can only be declared after drawing.")
         }
         val arrangement = parseArrangement(command) ?: bestArrangement(privateState.hands[publicState.currentSeat], publicState.config.aceHighAllowed)
         requireArrangementMatchesHand(arrangement, privateState.hands[publicState.currentSeat], publicState.config.aceHighAllowed)
         if (arrangement.deadwoodScore != 0 || privateState.hands[publicState.currentSeat].size != 11) {
-            throw InvalidCommandException("Big Gin requires all 11 cards in melds.")
+            throw InvalidCommandException("Go Big Gin requires all 11 cards in melds.")
         }
         return finishBigGin(publicState, privateState, arrangement)
     }
@@ -546,7 +606,7 @@ class GinRummyGameHandler(
         rawPoints: Int,
         result: GinRummyRoundResult
     ): Pair<GinRummyPublicState, GinRummyPrivateState> {
-        val shutoutApplies = publicState.config.shutoutBonusEnabled && publicState.scores.handsWonThisGame[1 - winner] == 0
+        val shutoutApplies = publicState.scores.handsWonThisGame[1 - winner] == 0
         val handPoints = if (shutoutApplies) rawPoints * 2 else rawPoints
         val gamePoints = publicState.scores.gamePoints.addTo(winner, handPoints)
         val handsWon = publicState.scores.handsWonThisGame.addTo(winner, 1)
@@ -575,7 +635,7 @@ class GinRummyGameHandler(
         if (publicState.config.lineBonusEnabled) {
             val lineBonus = handsWon[winner] * lineBonusPerHand
             totalBonus += lineBonus
-            bonusLines.add(GinRummyScoreLine(winner, lineBonus, "Line bonus", publicState.gameNumber, publicState.roundNumber))
+            bonusLines.add(GinRummyScoreLine(winner, lineBonus, "Line/box bonus", publicState.gameNumber, publicState.roundNumber))
         }
         val gamesWon = publicState.scores.gamesWon.addTo(winner, 1)
         val nextTotal = publicState.scores.totalPoints.addTo(winner, handPoints + totalBonus)
@@ -608,6 +668,20 @@ class GinRummyGameHandler(
             message = "Only two cards remain in stock. The hand is a draw."
         ) to privateState
 
+    private fun nextHand(publicState: GinRummyPublicState): Pair<GinRummyPublicState, GinRummyPrivateState> {
+        if (publicState.phase != roundOverPhase) {
+            throw InvalidCommandException("The next hand can only start after a completed hand.")
+        }
+        return dealHand(nextDealerPublicState(publicState))
+    }
+
+    private fun nextGame(publicState: GinRummyPublicState): Pair<GinRummyPublicState, GinRummyPrivateState> {
+        if (publicState.phase != gameOverPhase || publicState.config.playMode != "bestOfFiveMatch") {
+            throw InvalidCommandException("The next game can only start after a completed match game.")
+        }
+        return dealHand(nextGamePublicState(publicState))
+    }
+
     private fun nextDealerPublicState(publicState: GinRummyPublicState): GinRummyPublicState =
         publicState.copy(
             dealerSeat = 1 - publicState.dealerSeat,
@@ -634,10 +708,16 @@ class GinRummyGameHandler(
         )
 
     private fun requireTurn(publicState: GinRummyPublicState, actingUserId: String?) {
+        if (publicState.currentSeat !in publicState.seats.indices) {
+            throw InvalidCommandException("Claim both seats before taking a turn.")
+        }
         if (publicState.seats[publicState.currentSeat].userId != actingUserId) {
             throw InvalidCommandException("It is not your turn.")
         }
     }
+
+    private fun randomInitialDealerSeat(): Int =
+        Random().nextInt(2)
 
     private fun requireExpectedVersion(publicState: GinRummyPublicState, command: JsonNode) {
         val expectedVersion = command.get("expectedVersion")?.asLong()
@@ -733,6 +813,8 @@ class GinRummyGameHandler(
     private companion object {
         const val activeLifecycle = "active"
         const val finishedLifecycle = "finished"
+        const val hiddenSeat = -1
+        const val waitingForPlayersPhase = "waitingForPlayers"
         const val firstUpcardPhase = "firstUpcard"
         const val drawPhase = "draw"
         const val discardOnlyPhase = "discardOnly"

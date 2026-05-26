@@ -17,26 +17,25 @@ class GinRummyGameHandlerTest {
     )
 
     @Test
-    fun createsConfigurableGameWithHandDealtBeforeSeatsAreClaimed() {
+    fun createsConfigurableGameWithHiddenDealerAndTenCardHandsBeforeSeatsAreClaimed() {
         val request = objectMapper.createObjectNode()
             .put("targetScore", 250)
             .put("playMode", "bestOfFiveMatch")
             .put("bigGinAllowed", true)
             .put("optionalDealRule", true)
             .put("lineBonusEnabled", true)
-            .put("shutoutBonusEnabled", false)
             .put("aceHighAllowed", true)
 
         val game = handler.createGame("GIN1234", request, "creator")
         val state = objectMapper.treeToValue(game.publicState, GinRummyPublicState::class.java)
 
         assertEquals("active", state.lifecycle)
-        assertEquals("discardOnly", state.phase)
-        assertEquals(0, state.dealerSeat)
-        assertEquals(1, state.currentSeat)
-        assertEquals(listOf(10, 11), state.handCounts)
+        assertEquals("waitingForPlayers", state.phase)
+        assertEquals(-1, state.dealerSeat)
+        assertEquals(-1, state.currentSeat)
+        assertEquals(listOf(10, 10), state.handCounts)
         assertEquals(0, state.discardCount)
-        assertEquals(31, state.stockCount)
+        assertEquals(32, state.stockCount)
         assertEquals(250, state.config.targetScore)
         assertEquals("bestOfFiveMatch", state.config.playMode)
         assertTrue(state.config.bigGinAllowed)
@@ -44,35 +43,38 @@ class GinRummyGameHandlerTest {
     }
 
     @Test
-    fun claimingSeatsPreservesAlreadyDealtOptionalHand() {
+    fun claimingSecondSeatRevealsRandomDealerAndAddsOptionalEleventhCard() {
         val created = handler.createGame("GIN1234", objectMapper.createObjectNode(), "creator")
         var game = handler.applyCommand(created, command(created.version, "claimSeat").put("seat", 0).put("playerUserId", "u1").put("displayName", "One"), "u1")
+        val waiting = objectMapper.treeToValue(game.publicState, GinRummyPublicState::class.java)
+
+        assertEquals("waitingForPlayers", waiting.phase)
+        assertEquals(-1, waiting.dealerSeat)
+        assertEquals(listOf(10, 10), waiting.handCounts)
+
         game = handler.applyCommand(game, command(game.version, "claimSeat").put("seat", 1).put("playerUserId", "u2").put("displayName", "Two"), "u2")
 
         val state = objectMapper.treeToValue(game.publicState, GinRummyPublicState::class.java)
 
         assertEquals("discardOnly", state.phase)
-        assertEquals(1, state.currentSeat)
-        assertEquals(listOf(10, 11), state.handCounts)
+        assertTrue(state.dealerSeat in 0..1)
+        assertEquals(1 - state.dealerSeat, state.currentSeat)
+        assertEquals(11, state.handCounts[state.currentSeat])
+        assertEquals(10, state.handCounts[state.dealerSeat])
         assertEquals(0, state.discardCount)
         assertEquals(31, state.stockCount)
-        assertEquals(objectMapper.treeToValue(created.publicState, GinRummyPublicState::class.java).handCounts, state.handCounts)
         assertTrue(state.config.aceHighAllowed)
     }
 
     @Test
-    fun nextHandDealsWithoutSeatedPlayers() {
+    fun nextHandCannotStartBeforeAHandCompletes() {
         val created = handler.createGame("GIN1234", objectMapper.createObjectNode(), "creator")
-        val game = handler.applyCommand(created, command(created.version, "nextHand"), "u1")
 
-        val state = objectMapper.treeToValue(game.publicState, GinRummyPublicState::class.java)
+        val thrown = org.junit.jupiter.api.assertThrows<RuntimeException> {
+            handler.applyCommand(created, command(created.version, "nextHand"), "u1")
+        }
 
-        assertEquals("discardOnly", state.phase)
-        assertEquals(1, state.dealerSeat)
-        assertEquals(0, state.currentSeat)
-        assertEquals(2, state.roundNumber)
-        assertEquals(listOf(11, 10), state.handCounts)
-        assertEquals(31, state.stockCount)
+        assertEquals("The next hand can only start after a completed hand.", thrown.message)
     }
 
     @Test
@@ -160,22 +162,27 @@ class GinRummyGameHandlerTest {
         var game = handler.createGame("GIN1234", objectMapper.createObjectNode(), "creator")
         game = handler.applyCommand(game, command(game.version, "claimSeat").put("seat", 0).put("playerUserId", "u1").put("displayName", "One"), "u1")
         game = handler.applyCommand(game, command(game.version, "claimSeat").put("seat", 1).put("playerUserId", "u2").put("displayName", "Two"), "u2")
-        val firstDiscard = objectMapper.treeToValue(game.privateState, GinRummyPrivateState::class.java).hands[1].first().id
-        game = handler.applyCommand(game, command(game.version, "discard").put("cardId", firstDiscard), "u2")
-        game = handler.applyCommand(game, command(game.version, "clearSeat").put("seat", 0), "u1")
-        game = handler.applyCommand(game, command(game.version, "claimSeat").put("seat", 0).put("playerUserId", "u3").put("displayName", "Three"), "u3")
+        val started = objectMapper.treeToValue(game.publicState, GinRummyPublicState::class.java)
+        val startingUser = "u${started.currentSeat + 1}"
+        val drawingSeat = 1 - started.currentSeat
+        val drawingUser = "u${drawingSeat + 1}"
+        val firstDiscard = objectMapper.treeToValue(game.privateState, GinRummyPrivateState::class.java).hands[started.currentSeat].first().id
+        game = handler.applyCommand(game, command(game.version, "discard").put("cardId", firstDiscard), startingUser)
+        game = handler.applyCommand(game, command(game.version, "clearSeat").put("seat", drawingSeat), drawingUser)
+        game = handler.applyCommand(game, command(game.version, "claimSeat").put("seat", drawingSeat).put("playerUserId", "u3").put("displayName", "Three"), "u3")
 
         val reclaimed = objectMapper.treeToValue(game.publicState, GinRummyPublicState::class.java)
 
         assertEquals("draw", reclaimed.phase)
-        assertEquals(0, reclaimed.currentSeat)
+        assertEquals(drawingSeat, reclaimed.currentSeat)
         assertEquals(listOf(10, 10), reclaimed.handCounts)
 
         val drawn = handler.applyCommand(game, command(game.version, "drawStock"), "u3")
         val afterDraw = objectMapper.treeToValue(drawn.publicState, GinRummyPublicState::class.java)
 
         assertEquals("discard", afterDraw.phase)
-        assertEquals(listOf(11, 10), afterDraw.handCounts)
+        assertEquals(11, afterDraw.handCounts[drawingSeat])
+        assertEquals(10, afterDraw.handCounts[1 - drawingSeat])
     }
 
     @Test
@@ -184,10 +191,12 @@ class GinRummyGameHandlerTest {
         var game = handler.createGame("GIN1234", request, "creator")
         game = handler.applyCommand(game, command(game.version, "claimSeat").put("seat", 0).put("playerUserId", "u1").put("displayName", "One"), "u1")
         game = handler.applyCommand(game, command(game.version, "claimSeat").put("seat", 1).put("playerUserId", "u2").put("displayName", "Two"), "u2")
-        val upcardId = objectMapper.treeToValue(game.publicState, GinRummyPublicState::class.java).discardTop!!.id
+        val state = objectMapper.treeToValue(game.publicState, GinRummyPublicState::class.java)
+        val actingUser = "u${state.currentSeat + 1}"
+        val upcardId = state.discardTop!!.id
 
-        game = handler.applyCommand(game, command(game.version, "drawDiscard"), "u2")
-        val view = handler.gameView(game, "u2")
+        game = handler.applyCommand(game, command(game.version, "drawDiscard"), actingUser)
+        val view = handler.gameView(game, actingUser)
 
         assertEquals(upcardId, view.get("viewer").get("drewDiscardCardId").asText())
     }

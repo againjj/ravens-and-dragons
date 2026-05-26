@@ -85,7 +85,8 @@ export const GinRummyPlayScreen = () => {
     const currentUserId = game?.viewer?.userId ?? null;
     const userSeats = game?.seats.map((seat, index) => seat.userId === currentUserId ? index : null).filter((seat): seat is number => seat !== null) ?? [];
     const sameUserBothSeats = userSeats.length === 2;
-    const bottomSeat = !game ? 1 : sameUserBothSeats ? game.currentSeat : userSeats[0] ?? 1 - game.dealerSeat;
+    const hasVisibleDealer = Boolean(game && game.dealerSeat >= 0);
+    const bottomSeat = !game ? 1 : sameUserBothSeats && game.currentSeat >= 0 ? game.currentSeat : userSeats[0] ?? (hasVisibleDealer ? 1 - game.dealerSeat : 1);
     const topSeat = 1 - bottomSeat;
     const currentTurnKey = game ? `${game.id}:${game.roundNumber}:${game.currentSeat}` : "";
     const bottomHand = game?.viewer?.hands[String(bottomSeat)] ?? [];
@@ -98,6 +99,8 @@ export const GinRummyPlayScreen = () => {
     const { canDrawDiscard, canDiscardToPile } = discardPileState;
     const turnIndicatorText = !game
         ? ""
+        : game.currentSeat < 0
+            ? "Waiting\nfor players"
         : userSeats.length === 0
             ? `${game.seats[game.currentSeat]?.displayName ?? "Empty seat"}'s\nturn`
             : game.currentSeat === bottomSeat
@@ -131,6 +134,7 @@ export const GinRummyPlayScreen = () => {
         const arrangement = findArrangements(bottomHand, game.config.aceHighAllowed).find((option) => option.deadwoodScore === 0);
         return arrangement ? { type: "bigGin", arrangement } : null;
     }, [bottomHand, canShowEndActions, game]);
+    const visibleEndAction = bigGinChoice ? "bigGin" : ginChoices.length > 0 ? "gin" : knockOnlyChoices.length > 0 ? "knock" : null;
 
     const runCommand = (command: Record<string, unknown>, baseGame = game): Promise<GinRummyGame | null> => {
         if (!baseGame) return Promise.resolve(null);
@@ -255,7 +259,7 @@ export const GinRummyPlayScreen = () => {
     const renderSeat = (seatIndex: number, position: "top" | "bottom") => {
         if (!game) return null;
         const seat = game.seats[seatIndex];
-        const isDealer = game.dealerSeat === seatIndex;
+        const isDealer = game.dealerSeat >= 0 && game.dealerSeat === seatIndex;
         const seatName = seat.displayName;
         return (
             <aside className={`gin-seat gin-seat-${position}`}>
@@ -396,9 +400,9 @@ export const GinRummyPlayScreen = () => {
                         {game.discardTop ? <CardView card={game.discardTop} /> : null}
                     </button>
                     <div className="gin-end-actions">
-                        {renderEndActionButton("knock", "Knock", knockOnlyChoices.length > 0, () => dispatch(setPendingEndAction("knock")))}
-                        {renderEndActionButton("gin", "Gin", ginChoices.length > 0, () => dispatch(setPendingEndAction("gin")))}
-                        {renderEndActionButton("bigGin", "Big Gin", Boolean(bigGinChoice), () => {
+                        {renderEndActionButton("knock", "Knock", visibleEndAction === "knock", () => dispatch(setPendingEndAction("knock")))}
+                        {renderEndActionButton("gin", "Go Gin", visibleEndAction === "gin", () => dispatch(setPendingEndAction("gin")))}
+                        {renderEndActionButton("bigGin", "Go Big Gin", visibleEndAction === "bigGin", () => {
                             if (!bigGinChoice) return;
                             dispatch(setPendingEndAction("bigGin"));
                             runKnockChoice(bigGinChoice);

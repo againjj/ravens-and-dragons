@@ -1,5 +1,5 @@
 export type Suit = "clubs" | "diamonds" | "hearts" | "spades";
-export type Phase = "firstUpcard" | "draw" | "discardOnly" | "discard" | "roundOver" | "gameOver" | "matchOver";
+export type Phase = "waitingForPlayers" | "firstUpcard" | "draw" | "discardOnly" | "discard" | "roundOver" | "gameOver" | "matchOver";
 
 export interface GinRummyConfig {
     targetScore: number;
@@ -7,7 +7,6 @@ export interface GinRummyConfig {
     bigGinAllowed: boolean;
     optionalDealRule: boolean;
     lineBonusEnabled: boolean;
-    shutoutBonusEnabled: boolean;
     aceHighAllowed: boolean;
 }
 

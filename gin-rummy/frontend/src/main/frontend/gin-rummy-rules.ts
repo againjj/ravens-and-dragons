@@ -64,6 +64,7 @@ export const arrangementLabel = (arrangement: MeldArrangement): string => {
     return `${melds}, ${arrangement.deadwoodScore} deadwood: ${deadwood}`;
 };
 export const suitSymbol = (suit: Suit): string => ({ clubs: "♣", diamonds: "♦", hearts: "♥", spades: "♠" }[suit]);
+const resultReasonLabel = (reason: string): string => reason === "Gin" ? "Go Gin" : reason === "Big Gin" ? "Go Big Gin" : reason;
 const rankValue = (rank: string, aceHigh: boolean): number => rank === "A" ? (aceHigh ? 14 : 1) : rank === "J" ? 11 : rank === "Q" ? 12 : rank === "K" ? 13 : Number(rank);
 const deadwoodValue = (card: Card): number => card.rank === "A" ? 1 : ["J", "Q", "K"].includes(card.rank) ? 10 : Number(card.rank);
 const consecutive = (values: number[]): boolean => values.every((value, index) => index === 0 || value === values[index - 1] + 1);
@@ -74,11 +75,11 @@ export const buildScoreSummary = (game: GinRummyGame, result: RoundResult, knock
     const defenderName = game.seats[defenderSeat]?.displayName ?? `Seat ${defenderSeat + 1}`;
     const knockerDeadwood = result.knockerDeadwood ?? 0;
     const defenderDeadwood = result.defenderDeadwood ?? 0;
-    const title = result.reason || "Hand";
+    const title = resultReasonLabel(result.reason || "Hand");
     const lines: { label: string; value: number }[] = [];
     if (result.reason === "Gin" || result.reason === "Big Gin") {
         lines.push({ label: `${defenderName} Deadwood:`, value: defenderDeadwood });
-        lines.push({ label: `${winnerName} ${result.reason} Bonus:`, value: result.reason === "Big Gin" ? 31 : 25 });
+        lines.push({ label: `${winnerName} ${resultReasonLabel(result.reason)} Bonus:`, value: result.reason === "Big Gin" ? 31 : 25 });
     } else if (result.reason === "Undercut") {
         lines.push({ label: `${knockerName} Deadwood:`, value: knockerDeadwood });
         lines.push({ label: `${defenderName} Deadwood:`, value: -defenderDeadwood });

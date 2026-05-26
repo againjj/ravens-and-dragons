@@ -124,25 +124,25 @@ export const RulesReference = ({ config }: { config: GinRummyConfig }) => (
             <p>A card drawn from the discard pile cannot be discarded immediately on the same turn. If only two cards remain in stock before someone goes out, the hand ends in a draw and no points are awarded.</p>
         </section>
         <section>
-            <h3>Knocking And Gin</h3>
+            <h3>Knocking And Go Gin</h3>
             <p>You may knock when your chosen meld arrangement leaves 10 or fewer deadwood points after the discard. When multiple legal arrangements exist, the knocker chooses the arrangement to reveal.</p>
             <p>After a knock, the defender reveals melds and may lay off deadwood onto the knocker's melds. The defender's deadwood is automatically minimized. The knocker never lays off onto the defender's melds.</p>
-            <p>Going Gin means ending with zero deadwood. The defender cannot lay off against Gin. {config.bigGinAllowed ? "Big Gin is enabled: after drawing, an 11-card hand that all melds may end the hand for the Big Gin bonus." : "Big Gin is disabled at this table."}</p>
+            <p>Go Gin means ending with zero deadwood. The defender cannot lay off against Go Gin. {config.bigGinAllowed ? "Go Big Gin is enabled: after drawing, an 11-card hand that all melds may end the hand for the Go Big Gin bonus." : "Go Big Gin is disabled at this table."}</p>
         </section>
         <section>
             <h3>Hand Scoring</h3>
             <p>Successful knock: the knocker scores the defender's deadwood after layoffs minus the knocker's deadwood.</p>
             <p>Undercut: if the defender's deadwood is less than or equal to the knocker's deadwood, the defender scores 25 plus the deadwood difference.</p>
-            <p>Gin scores 25 plus the defender's deadwood. {config.bigGinAllowed ? "Big Gin scores 31 plus the defender's deadwood." : ""}</p>
+            <p>Go Gin scores 25 plus the defender's deadwood. {config.bigGinAllowed ? "Go Big Gin scores 31 plus the defender's deadwood." : ""}</p>
         </section>
         <section>
             <h3>Game Scoring</h3>
             {config.playMode === "singleGame" ? (
-                <p>The first player to reach {config.targetScore} points wins this single game. Game bonus, line bonus, and shutout bonus are not applied in single-game play.</p>
+                <p>The first player to reach {config.targetScore} points wins this single game. Game bonus and line/box bonus are not applied in single-game play.</p>
             ) : (
                 <>
                     <p>The first player to reach {config.targetScore} points wins the game. Game points are recorded as a running sum across the best-of-five match.</p>
-                    <p>The game winner receives a 100-point game bonus. {config.lineBonusEnabled ? "Line bonus is enabled: each hand won in the game adds 25 points." : "Line bonus is disabled."} {config.shutoutBonusEnabled ? "Shutout bonus is enabled: if the loser won no hands, the winner receives the configured shutout bonus." : "Shutout bonus is disabled."}</p>
+                    <p>The game winner receives a 100-point game bonus. {config.lineBonusEnabled ? "Line/box bonus is enabled: each hand won in the game adds 25 points." : "Line/box bonus is disabled."} Shutout doubling is always enabled.</p>
                 </>
             )}
         </section>

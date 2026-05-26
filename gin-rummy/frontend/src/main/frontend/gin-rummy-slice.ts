@@ -77,7 +77,6 @@ const initialState: GinRummyState = {
         bigGinAllowed: false,
         optionalDealRule: true,
         lineBonusEnabled: false,
-        shutoutBonusEnabled: true,
         aceHighAllowed: true
     },
     play: {

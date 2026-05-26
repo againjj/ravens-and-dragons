@@ -12,7 +12,6 @@ export const CreateGinRummyScreen = ({ onStartGame }: { gameName: string; onStar
         bigGinAllowed,
         optionalDealRule,
         lineBonusEnabled,
-        shutoutBonusEnabled,
         aceHighAllowed
     } = useGinRummySelector((state) => state.ginRummy.createOptions);
 
@@ -23,6 +22,15 @@ export const CreateGinRummyScreen = ({ onStartGame }: { gameName: string; onStar
             </div>
             <div className="gin-create-options">
                 <label className="control-row gin-create-row">
+                    <span className="control-label">Game type</span>
+                    <span className="select-shell">
+                        <select value={playMode} onChange={(event) => dispatch(updateCreateOptions({ playMode: event.target.value as GinRummyConfig["playMode"] }))}>
+                            <option value="singleGame">Single game</option>
+                            <option value="bestOfFiveMatch">Best of five match</option>
+                        </select>
+                    </span>
+                </label>
+                <label className="control-row gin-create-row">
                     <span className="control-label">Target score</span>
                     <input
                         className="text-input"
@@ -32,21 +40,11 @@ export const CreateGinRummyScreen = ({ onStartGame }: { gameName: string; onStar
                         onChange={(event) => dispatch(updateCreateOptions({ targetScore: Number(event.target.value) }))}
                     />
                 </label>
-                <label className="control-row gin-create-row">
-                    <span className="control-label">Game type</span>
-                    <span className="select-shell">
-                        <select value={playMode} onChange={(event) => dispatch(updateCreateOptions({ playMode: event.target.value as GinRummyConfig["playMode"] }))}>
-                            <option value="singleGame">Single game</option>
-                            <option value="bestOfFiveMatch">Best of five match</option>
-                        </select>
-                    </span>
-                </label>
-                <label className="checkbox-row"><input type="checkbox" checked={publiclyListed} onChange={(event) => dispatch(updateCreateOptions({ publiclyListed: event.target.checked }))} /><span>Publicly list game</span></label>
                 <label className="checkbox-row"><input type="checkbox" checked={bigGinAllowed} onChange={(event) => dispatch(updateCreateOptions({ bigGinAllowed: event.target.checked }))} /><span>Allow Big Gin</span></label>
-                <label className="checkbox-row"><input type="checkbox" checked={optionalDealRule} onChange={(event) => dispatch(updateCreateOptions({ optionalDealRule: event.target.checked }))} /><span>Optional 11-card first deal</span></label>
-                <label className="checkbox-row"><input type="checkbox" checked={lineBonusEnabled} onChange={(event) => dispatch(updateCreateOptions({ lineBonusEnabled: event.target.checked }))} /><span>Line Bonus</span></label>
-                <label className="checkbox-row"><input type="checkbox" checked={shutoutBonusEnabled} onChange={(event) => dispatch(updateCreateOptions({ shutoutBonusEnabled: event.target.checked }))} /><span>Shutout Bonus</span></label>
+                <label className="checkbox-row"><input type="checkbox" checked={lineBonusEnabled} onChange={(event) => dispatch(updateCreateOptions({ lineBonusEnabled: event.target.checked }))} /><span>Line/box bonus</span></label>
                 <label className="checkbox-row"><input type="checkbox" checked={aceHighAllowed} onChange={(event) => dispatch(updateCreateOptions({ aceHighAllowed: event.target.checked }))} /><span>Ace can be high in runs</span></label>
+                <label className="checkbox-row"><input type="checkbox" checked={optionalDealRule} onChange={(event) => dispatch(updateCreateOptions({ optionalDealRule: event.target.checked }))} /><span>11-card first deal</span></label>
+                <label className="checkbox-row"><input type="checkbox" checked={publiclyListed} onChange={(event) => dispatch(updateCreateOptions({ publiclyListed: event.target.checked }))} /><span>Publicly list game</span></label>
             </div>
             <button
                 type="button"
@@ -57,7 +55,6 @@ export const CreateGinRummyScreen = ({ onStartGame }: { gameName: string; onStar
                     bigGinAllowed,
                     optionalDealRule,
                     lineBonusEnabled,
-                    shutoutBonusEnabled,
                     aceHighAllowed
                 })}
             >
