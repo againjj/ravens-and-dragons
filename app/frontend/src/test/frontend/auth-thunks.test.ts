@@ -109,16 +109,22 @@ describe("authThunks", () => {
         expect(fetchGameViewMock).toHaveBeenCalledWith("game-101");
     });
 
-    test("login and signup update the auth session", async () => {
+    test("login updates the auth session and signup leaves the browser signed out with success feedback", async () => {
         loginRequestMock.mockResolvedValue(createAuthSession());
-        signupRequestMock.mockResolvedValue(createAuthSession({ user: { id: "new-user", displayName: "New User", authType: "local" } }));
+        signupRequestMock.mockResolvedValue({
+            authenticated: false,
+            user: null,
+            oauthProviders: ["google"]
+        });
         const store = createAppStore();
 
         await store.dispatch(login({ username: "dragon", password: "password123" }));
         expect(store.getState().auth.session.user?.id).toBe("player-dragons");
 
         await store.dispatch(signup({ username: "new-user", password: "password123", displayName: "New User" }));
-        expect(store.getState().auth.session.user?.id).toBe("new-user");
+        expect(store.getState().auth.session.authenticated).toBe(false);
+        expect(store.getState().auth.session.oauthProviders).toEqual(["google"]);
+        expect(store.getState().auth.feedbackMessage).toBe("Account created. Log in to continue.");
     });
 
     test("logout clears the auth session", async () => {
@@ -161,7 +167,8 @@ describe("authThunks", () => {
         fetchLocalProfileMock.mockResolvedValue({
             id: "player-dragons",
             username: "player-dragons",
-            displayName: "Dragon Player"
+            displayName: "Dragon Player",
+            authType: "local"
         });
         const store = createAppStore({
             auth: {
@@ -173,6 +180,31 @@ describe("authThunks", () => {
 
         expect(store.getState().auth.profile?.username).toBe("player-dragons");
         expect(store.getState().auth.profileLoadState).toBe("ready");
+    });
+
+    test("loadLocalProfile supports oauth profile details", async () => {
+        fetchLocalProfileMock.mockResolvedValue({
+            id: "google-player",
+            username: null,
+            displayName: "Google Player",
+            authType: "oauth"
+        });
+        const store = createAppStore({
+            auth: {
+                session: createAuthSession({
+                    user: {
+                        id: "google-player",
+                        displayName: "Google Player",
+                        authType: "oauth"
+                    }
+                })
+            }
+        });
+
+        await store.dispatch(loadLocalProfile());
+
+        expect(store.getState().auth.profile?.authType).toBe("oauth");
+        expect(store.getState().auth.profile?.username).toBeNull();
     });
 
     test("updateLocalProfile syncs the auth session and cached profile", async () => {
@@ -191,7 +223,8 @@ describe("authThunks", () => {
                 profile: {
                     id: "player-dragons",
                     username: "player-dragons",
-                    displayName: "Dragon Player"
+                    displayName: "Dragon Player",
+                    authType: "local"
                 },
                 profileLoadState: "ready"
             },
@@ -228,7 +261,8 @@ describe("authThunks", () => {
                 profile: {
                     id: "player-dragons",
                     username: "player-dragons",
-                    displayName: "Dragon Player"
+                    displayName: "Dragon Player",
+                    authType: "local"
                 },
                 profileLoadState: "ready"
             }

@@ -78,7 +78,7 @@ The Gradle wrapper is pinned to Gradle 9.4.1. Java 21 is the project toolchain. 
   - `/login`: auth entry with `next` redirect support.
   - `/lobby`: lobby screen.
   - `/{gameSlug}/create`: create route for the selected game identity.
-  - `/profile`: local-account profile route.
+  - `/profile`: local/OAuth account profile route.
   - `/g/{gameId}`: live game route.
 - Auth endpoints live under `/api/auth`.
 - Game creation uses `POST /api/games/{gameSlug}`.
@@ -93,7 +93,7 @@ The Gradle wrapper is pinned to Gradle 9.4.1. Java 21 is the project toolchain. 
 
 Games persist in the configured database, so clients can reopen the same game after server restart. SSE fanout remains in memory per app instance, and frontend streams close on connection errors rather than retrying automatically.
 
-The shared browser chrome keeps the `Ayazian Games` header title linked back to the lobby after login, renders route-specific browser tab titles under the `Ayazian Games` brand, renders the signed-in username as a turn-aware menu, uses compact button/dropdown styling, styles public lobby game-list rows with per-row gradients and a darker selected row, and switches the phone layout breakpoint at 500px.
+The shared browser chrome keeps the `Ayazian Games` header title linked back to the lobby after login, renders route-specific browser tab titles under the `Ayazian Games` brand, keeps the signed-in display name as plain text, and exposes profile/lobby/game/logout navigation through a turn-aware hamburger menu beside the header title. App-owned bundled styles keep compact button/dropdown styling, public lobby game-list row gradients with a darker selected row, and the 500px phone layout breakpoint.
 
 ## Runtime Configuration
 

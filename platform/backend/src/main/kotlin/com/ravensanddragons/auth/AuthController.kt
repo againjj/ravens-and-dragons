@@ -27,6 +27,13 @@ class AuthController(
             oauthProviders = oauthProviderCatalog.availableProviders()
         )
 
+    private fun signedOutSession(): AuthSessionResponse =
+        AuthSessionResponse(
+            authenticated = false,
+            user = null,
+            oauthProviders = oauthProviderCatalog.availableProviders()
+        )
+
     @GetMapping("/api/auth/session")
     fun session(request: HttpServletRequest): AuthSessionResponse {
         val user = userAccountService.currentUserSummary(authSessionSupport.currentUserId(request.getSession(false)))
@@ -60,9 +67,9 @@ class AuthController(
         request: HttpServletRequest,
         response: HttpServletResponse
     ): AuthSessionResponse {
-        val user = userAccountService.signup(signupRequest)
-        authSessionSupport.signIn(request, response, user)
-        return signedInSession(user)
+        userAccountService.signup(signupRequest)
+        authSessionSupport.signOut(request.getSession(false))
+        return signedOutSession()
     }
 
     @PostMapping("/api/auth/login")

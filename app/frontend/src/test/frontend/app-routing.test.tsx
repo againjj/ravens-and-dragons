@@ -150,7 +150,8 @@ describe("App routing", () => {
         fetchLocalProfileMock.mockResolvedValue({
             id: "player-dragons",
             username: "player-dragons",
-            displayName: "Dragon Player"
+            displayName: "Dragon Player",
+            authType: "local"
         });
         fetchGameMetadataMock.mockResolvedValue({
             ok: true,
@@ -389,7 +390,8 @@ describe("App routing", () => {
         expect(window.location.pathname).toBe("/lobby");
         expect(document.title).toBe("Ayazian Games");
         expect(screen.getByRole("heading", { name: "Ayazian Games", level: 1 })).toBeInTheDocument();
-        expect(screen.getByRole("button", { name: "Dragon Player" })).toBeInTheDocument();
+        expect(screen.getByRole("button", { name: "Menu" })).toBeInTheDocument();
+        expect(screen.getByText("Dragon Player")).toBeInTheDocument();
         expect(screen.getByText("© 2026 Johnathon Ayazian")).toBeInTheDocument();
         expect(screen.queryByRole("button", { name: "Lobby" })).not.toBeInTheDocument();
         expect(screen.queryByRole("menuitem", { name: "Profile" })).not.toBeInTheDocument();
@@ -605,7 +607,7 @@ describe("App routing", () => {
         renderWithStore(<App />);
 
         await screen.findByRole("heading", { name: "Game MPQRVWX" });
-        await user.click(screen.getByRole("button", { name: "Dragon Player" }));
+        await user.click(screen.getByRole("button", { name: "Menu" }));
         await user.click(screen.getByRole("menuitem", { name: "Lobby" }));
 
         await waitFor(() => {
@@ -657,8 +659,8 @@ describe("App routing", () => {
 
         const heroActions = container.querySelector(".hero-actions");
         expect(heroActions?.children.length).toBe(2);
-        expect(screen.getByRole("button", { name: "Dragon Player" })).toBeInTheDocument();
-        await user.click(screen.getByRole("button", { name: "Dragon Player" }));
+        expect(screen.getByRole("button", { name: "Menu" })).toBeInTheDocument();
+        await user.click(screen.getByRole("button", { name: "Menu" }));
         expect(Array.from(screen.getAllByRole("menuitem")).map((element) => element.textContent?.trim())).toEqual([
             "Profile",
             "Lobby",
@@ -681,7 +683,7 @@ describe("App routing", () => {
         renderWithStore(<App />);
 
         await screen.findByRole("heading", { name: "Game Lobby" });
-        const trigger = screen.getByRole("button", { name: "Dragon Player" });
+        const trigger = screen.getByRole("button", { name: "Menu" });
 
         await user.click(trigger);
         expect(screen.getByRole("menuitem", { name: "Lobby" })).toBeInTheDocument();
@@ -729,7 +731,7 @@ describe("App routing", () => {
         const { container } = renderWithStore(<App />);
 
         await screen.findByRole("heading", { name: "Game MPQRVWX" });
-        expect(screen.getByRole("button", { name: "Dragon Player" }).querySelector(".turn-count-badge")?.textContent).toBe("1");
+        expect(screen.getByRole("button", { name: "Menu" }).querySelector(".turn-count-badge")?.textContent).toBe("1");
 
         act(() => {
             streamUpdate?.([
@@ -747,12 +749,13 @@ describe("App routing", () => {
                 }
             ]);
         });
-        expect(screen.getByRole("button", { name: "Dragon Player" }).querySelector(".turn-count-badge")?.textContent).toBe("1");
+        expect(screen.getByRole("button", { name: "Menu" }).querySelector(".turn-count-badge")?.textContent).toBe("1");
 
-        await user.click(screen.getByRole("button", { name: "Dragon Player" }));
+        await user.click(screen.getByRole("button", { name: "Menu" }));
 
         const currentGameLink = screen.getByRole("menuitem", { name: /MPQRVWX/ });
         expect(currentGameLink).toHaveClass("is-current-page");
+        expect(currentGameLink.tagName).toBe("SPAN");
         expect(screen.getByRole("menuitem", { name: "Your Turn Ravens and Dragons: MPQRVWX" })).toBeInTheDocument();
         expect(container.querySelector(".your-turn-badge")?.textContent).toBe("YourTurn");
     });
@@ -795,7 +798,7 @@ describe("App routing", () => {
         renderWithStore(<App gameEntries={[statefulGame]} />);
 
         await screen.findByRole("heading", { name: "Stateful game at /g/OLDGAME" });
-        await user.click(screen.getByRole("button", { name: "Dragon Player" }));
+        await user.click(screen.getByRole("button", { name: "Menu" }));
         await user.click(screen.getByRole("menuitem", { name: "Stateful Game: NEWGAME" }));
 
         await screen.findByRole("heading", { name: "Stateful game at /g/NEWGAME" });
@@ -909,7 +912,7 @@ describe("App routing", () => {
         renderWithStore(<App />);
 
         await screen.findByRole("heading", { name: "Game MPQRVWX" });
-        await user.click(screen.getByRole("button", { name: "Dragon Player" }));
+        await user.click(screen.getByRole("button", { name: "Menu" }));
         await user.click(screen.getByRole("menuitem", { name: "Lobby" }));
 
         await waitFor(() => {
@@ -988,7 +991,7 @@ describe("App routing", () => {
         renderWithStore(<App />);
 
         await screen.findByRole("heading", { name: "Game MPQRVWX" });
-        await user.click(screen.getByRole("button", { name: "Dragon Player" }));
+        await user.click(screen.getByRole("button", { name: "Menu" }));
         await user.click(screen.getByRole("menuitem", { name: "Log Out" }));
 
         await waitFor(() => {
@@ -1011,17 +1014,47 @@ describe("App routing", () => {
 
         renderWithStore(<App />);
 
-        await screen.findByRole("button", { name: "Dragon Player" });
-        await user.click(screen.getByRole("button", { name: "Dragon Player" }));
+        await screen.findByRole("button", { name: "Menu" });
+        await user.click(screen.getByRole("button", { name: "Menu" }));
         await user.click(screen.getByRole("menuitem", { name: "Profile" }));
 
         expect(window.location.pathname).toBe("/profile");
         expect(await screen.findByRole("heading", { name: "Profile" })).toBeInTheDocument();
         expect(fetchLocalProfileMock).toHaveBeenCalled();
         expect(screen.queryByRole("menuitem", { name: "Profile" })).not.toBeInTheDocument();
-        await user.click(screen.getByRole("button", { name: "Dragon Player" }));
+        await user.click(screen.getByRole("button", { name: "Menu" }));
+        expect(screen.getByRole("menuitem", { name: "Profile" }).tagName).toBe("SPAN");
         expect(screen.getByRole("menuitem", { name: "Lobby" })).toBeInTheDocument();
         expect(screen.getByRole("menuitem", { name: "Log Out" })).toBeInTheDocument();
+    });
+
+    test("oauth users can open the profile page from the header", async () => {
+        const user = userEvent.setup();
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "google-player",
+                displayName: "Google Player",
+                authType: "oauth"
+            }
+        });
+        fetchLocalProfileMock.mockResolvedValue({
+            id: "google-player",
+            username: null,
+            displayName: "Google Player",
+            authType: "oauth"
+        });
+        window.history.pushState({}, "", "/lobby");
+
+        renderWithStore(<App />);
+
+        await screen.findByRole("button", { name: "Menu" });
+        await user.click(screen.getByRole("button", { name: "Menu" }));
+        await user.click(screen.getByRole("menuitem", { name: "Profile" }));
+
+        expect(window.location.pathname).toBe("/profile");
+        expect(await screen.findByRole("heading", { name: "Profile" })).toBeInTheDocument();
+        expect(fetchLocalProfileMock).toHaveBeenCalled();
     });
 
     test("guest users do not see the profile button", async () => {

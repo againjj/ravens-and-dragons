@@ -1,10 +1,11 @@
-import { screen } from "@testing-library/react";
+import { act, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi } from "vitest";
 
 import { AuthPanel } from "../../main/frontend/components/AuthPanel.js";
 import { createAuthSession } from "./fixtures.js";
 import { renderWithStore } from "./test-utils.js";
+import { authActions } from "../../main/frontend/features/auth/authSlice.js";
 
 describe("AuthPanel", () => {
     test("shows two sign-in panels with local, guest, oauth, and signup options when google auth is available", async () => {
@@ -48,11 +49,17 @@ describe("AuthPanel", () => {
         await user.type(screen.getByLabelText("Display Name"), "New Player");
         await user.type(screen.getByLabelText("Username", { selector: "#signup-username-input" }), "new-player");
         await user.type(screen.getByLabelText("Password", { selector: "#signup-password-input" }), "short");
+        await user.type(screen.getByLabelText("Confirm Password", { selector: "#signup-confirm-password-input" }), "short");
         expect(screen.getByRole("button", { name: "Sign Up" })).toBeDisabled();
         await user.clear(screen.getByLabelText("Display Name"));
         await user.type(screen.getByLabelText("Display Name"), "   ");
         await user.clear(screen.getByLabelText("Password", { selector: "#signup-password-input" }));
         await user.type(screen.getByLabelText("Password", { selector: "#signup-password-input" }), "password123");
+        await user.clear(screen.getByLabelText("Confirm Password", { selector: "#signup-confirm-password-input" }));
+        await user.type(screen.getByLabelText("Confirm Password", { selector: "#signup-confirm-password-input" }), "different123");
+        expect(screen.getByRole("button", { name: "Sign Up" })).toBeDisabled();
+        await user.clear(screen.getByLabelText("Confirm Password", { selector: "#signup-confirm-password-input" }));
+        await user.type(screen.getByLabelText("Confirm Password", { selector: "#signup-confirm-password-input" }), "password123");
         expect(screen.getByRole("button", { name: "Sign Up" })).toBeDisabled();
         await user.clear(screen.getByLabelText("Display Name"));
         await user.type(screen.getByLabelText("Display Name"), "New Player");
@@ -134,6 +141,58 @@ describe("AuthPanel", () => {
         expect(screen.getByRole("dialog", { name: "Sign In Error" })).toBeInTheDocument();
         await user.click(screen.getByRole("button", { name: "OK" }));
         expect(store.getState().auth.feedbackMessage).toBeNull();
+    });
+
+    test("shows account creation feedback with a success title", () => {
+        renderWithStore(
+            <AuthPanel
+                onContinueAsGuest={vi.fn()}
+                onLogin={vi.fn()}
+                onSignup={vi.fn()}
+                onLogout={vi.fn()}
+            />,
+            {
+                preloadedState: {
+                    auth: {
+                        session: {
+                            authenticated: false,
+                            user: null
+                        },
+                        isSubmitting: false,
+                        loadState: "ready",
+                        feedbackMessage: "Account created. Log in to continue."
+                    }
+                }
+            }
+        );
+
+        expect(screen.getByRole("dialog", { name: "Account Created" })).toHaveTextContent("Account created. Log in to continue.");
+    });
+
+    test("clears the create account form after account creation succeeds", async () => {
+        const user = userEvent.setup();
+        const { store } = renderWithStore(
+            <AuthPanel
+                onContinueAsGuest={vi.fn()}
+                onLogin={vi.fn()}
+                onSignup={vi.fn()}
+                onLogout={vi.fn()}
+            />
+        );
+
+        await user.type(screen.getByLabelText("Display Name"), "New Player");
+        await user.type(screen.getByLabelText("Username", { selector: "#signup-username-input" }), "new-player");
+        await user.type(screen.getByLabelText("Password", { selector: "#signup-password-input" }), "password123");
+        await user.type(screen.getByLabelText("Confirm Password", { selector: "#signup-confirm-password-input" }), "password123");
+
+        act(() => {
+            store.dispatch(authActions.authFeedbackMessageSet("Account created. Log in to continue."));
+        });
+
+        expect(screen.getByLabelText("Display Name")).toHaveValue("");
+        expect(screen.getByLabelText("Username", { selector: "#signup-username-input" })).toHaveValue("");
+        expect(screen.getByLabelText("Password", { selector: "#signup-password-input" })).toHaveValue("");
+        expect(screen.getByLabelText("Confirm Password", { selector: "#signup-confirm-password-input" })).toHaveValue("");
     });
 
     test("clicking outside the popup dismisses the auth error", async () => {

@@ -32,13 +32,15 @@ The app keeps the included-game list declarative by registering each game module
   - Classifies shell-level async failures so expired sessions redirect to login, server/network failures show a server-unavailable dialog, and failed lobby/menu loads are not silently rendered as empty lists.
   - Remounts active game play screens when the current `/g/{gameId}` changes, so game packages with local play-screen state do not keep stale finished or modal state after user-menu navigation.
   - Registers the Tic-Tac-Toe, Gin Rummy, and Ravens and Dragons frontend package entries for the lobby.
+- `app/frontend/src/main/frontend/styles/styles.css`
+  - Owns the bundled shared browser styles for the app shell, lobby/auth/profile surfaces, game layout primitives, and included game UI styling.
 - `app/frontend/src/main/frontend/features/playerGames/playerGamesClient.ts`
   - Loads the signed-in user's unfinished seated games and opens the player-game SSE stream used by the header menu turn badges after the initial list load succeeds.
   - Closes the player-game stream on errors so the browser does not keep retrying while the server is down; the stream is reopened only by a later user action or auth/session change.
 - `app/frontend/src/main/frontend/app/store.ts`
   - Assembles the Redux store from app-owned auth state plus Ravens frontend package reducers exposed through the game package integration surface.
 - `app/frontend/src/main/frontend/features/auth/*.ts`
-  - Owns browser auth state, auth thunks, local profile state, and selectors used by the app shell.
+  - Owns browser auth state, auth thunks, local/OAuth profile state, and selectors used by the app shell.
 - `app/backend/src/main/kotlin/com/ravensanddragons/RavensAndDragonsApplication.kt`
   - Spring Boot entrypoint.
   - Enables scheduling.
@@ -70,6 +72,7 @@ The app keeps the included-game list declarative by registering each game module
 - `server.port` defaults to `8080` unless overridden by `PORT`.
 - Railway deployment starts `ravens-and-dragons.jar`.
 - The lobby can open a selected public game or a typed game id; public game rows use per-row gradients with a darker selected state, and missing typed ids report feedback without navigating away from the lobby.
-- The shared app header keeps the `Ayazian Games` title visually unchanged while linking it back to `/lobby` after login, leaves it inert on the login page, and turns the signed-in username into a menu containing profile/lobby/game/logout navigation plus live turn badges.
+- The shared app header keeps the `Ayazian Games` title visually unchanged while linking it back to `/lobby` after login, leaves it inert on the login page, keeps the signed-in display name as plain text, and places a hamburger menu beside the title for profile/lobby/game/logout navigation plus live turn badges.
+- The login screen requires matching signup password confirmation, and successful local account creation leaves the browser signed out with an account-created popup so the user must sign in.
 - The browser tab title uses `Ayazian Games` for the lobby and loading states, then adds route-specific specifiers for login, profile, create flows, and live games.
 - Navigating to the lobby from the header/menu rechecks auth so stale client sessions redirect to login instead of showing an empty lobby.

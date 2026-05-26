@@ -15,6 +15,7 @@ export const ProfileScreen = () => {
     const feedbackMessage = useAppSelector(selectAuthFeedbackMessage);
     const [displayName, setDisplayName] = useState("");
     const [password, setPassword] = useState("");
+    const canDeleteAccount = profile?.authType === "local";
 
     useEffect(() => {
         void dispatch(loadLocalProfile());
@@ -49,9 +50,11 @@ export const ProfileScreen = () => {
                     {profileLoadState === "loading" && !profile ? <p>Loading profile...</p> : null}
                     {profile ? (
                         <div className="lobby-actions">
-                            <p>
-                                Username: <strong>{profile.username}</strong>
-                            </p>
+                            {profile.username ? (
+                                <p>
+                                    Username: <strong>{profile.username}</strong>
+                                </p>
+                            ) : null}
                             <p>
                                 Current display name: <strong>{profile.displayName}</strong>
                             </p>
@@ -85,40 +88,42 @@ export const ProfileScreen = () => {
                     ) : null}
                 </section>
 
-                <section className="panel auth-panel">
-                    <h2>Account deletion</h2>
-                    <p>Enter your password to delete your account.</p>
-                    <div className="lobby-actions">
-                        <div className="control-row">
-                            <label className="control-label" htmlFor="delete-account-password-input">
-                                Confirm Password
-                            </label>
-                            <input
-                                id="delete-account-password-input"
-                                className="text-input"
-                                type="password"
-                                value={password}
-                                disabled={isSubmitting}
-                                onChange={(event) => {
-                                    setPassword(event.target.value);
+                {canDeleteAccount ? (
+                    <section className="panel auth-panel">
+                        <h2>Account deletion</h2>
+                        <p>Enter your password to delete your account.</p>
+                        <div className="lobby-actions">
+                            <div className="control-row">
+                                <label className="control-label" htmlFor="delete-account-password-input">
+                                    Confirm Password
+                                </label>
+                                <input
+                                    id="delete-account-password-input"
+                                    className="text-input"
+                                    type="password"
+                                    value={password}
+                                    disabled={isSubmitting}
+                                    onChange={(event) => {
+                                        setPassword(event.target.value);
+                                    }}
+                                />
+                            </div>
+                            <button
+                                type="button"
+                                disabled={isSubmitting || password === ""}
+                                onClick={() => {
+                                    handleDeleteAccount({ password });
+                                    setPassword("");
                                 }}
-                            />
+                            >
+                                Delete Account
+                            </button>
                         </div>
-                        <button
-                            type="button"
-                            disabled={isSubmitting || password === ""}
-                            onClick={() => {
-                                handleDeleteAccount({ password });
-                                setPassword("");
-                            }}
-                        >
-                            Delete Account
-                        </button>
-                    </div>
-                    <p className="lobby-feedback" aria-live="polite">
-                        {feedbackMessage ?? " "}
-                    </p>
-                </section>
+                        <p className="lobby-feedback" aria-live="polite">
+                            {feedbackMessage ?? " "}
+                        </p>
+                    </section>
+                ) : null}
             </section>
 
             {feedbackMessage ? (

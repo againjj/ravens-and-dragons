@@ -64,17 +64,18 @@ class UserAccountService(
     }
 
     fun getLocalProfile(userId: String): LocalProfileResponse {
-        val user = requireLocalUser(userId)
+        val user = requireProfileUser(userId)
         return LocalProfileResponse(
             id = user.id,
-            username = user.username ?: throw IllegalStateException("Local user ${user.id} is missing a username."),
-            displayName = user.displayName
+            username = user.username,
+            displayName = user.displayName,
+            authType = user.authType
         )
     }
 
     @Transactional
     fun updateLocalDisplayName(userId: String, request: UpdateProfileRequest): UserRecord {
-        val user = requireLocalUser(userId)
+        val user = requireProfileUser(userId)
         val displayName = validateDisplayName(request.displayName)
         userRepository.updateDisplayName(user.id, displayName)
         return user.copy(displayName = displayName)
@@ -148,7 +149,16 @@ class UserAccountService(
         val user = userRepository.findById(userId)
             ?: throw AuthenticationFailedException("You must sign in before managing your profile.")
         if (user.authType != AuthType.local) {
-            throw ForbiddenActionException("Only local password accounts may manage profiles here.")
+            throw ForbiddenActionException("Only local password accounts may delete themselves here.")
+        }
+        return user
+    }
+
+    private fun requireProfileUser(userId: String): UserRecord {
+        val user = userRepository.findById(userId)
+            ?: throw AuthenticationFailedException("You must sign in before managing your profile.")
+        if (user.authType != AuthType.local && user.authType != AuthType.oauth) {
+            throw ForbiddenActionException("Only local password and OAuth accounts may manage profiles here.")
         }
         return user
     }

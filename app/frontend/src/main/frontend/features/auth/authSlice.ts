@@ -35,7 +35,7 @@ const authSlice = createSlice({
             state.session = action.payload;
             state.loadState = "ready";
             state.feedbackMessage = null;
-            if (action.payload.user?.authType !== "local") {
+            if (action.payload.user?.authType !== "local" && action.payload.user?.authType !== "oauth") {
                 state.profile = null;
                 state.profileLoadState = "idle";
             } else if (state.profile && state.profile.id === action.payload.user.id) {

@@ -34,7 +34,8 @@ describe("ProfileScreen", () => {
                 profile: {
                     id: "player-dragons",
                     username: "player-dragons",
-                    displayName: "Dragon Player"
+                    displayName: "Dragon Player",
+                    authType: "local"
                 },
                 profileLoadState: "ready"
             }
@@ -73,7 +74,8 @@ describe("ProfileScreen", () => {
                 profile: {
                     id: "player-dragons",
                     username: "player-dragons",
-                    displayName: "Dragon Player"
+                    displayName: "Dragon Player",
+                    authType: "local"
                 },
                 profileLoadState: "ready"
             }
@@ -94,5 +96,39 @@ describe("ProfileScreen", () => {
 
         expect(deleteLocalAccountMock).toHaveBeenCalledWith({ password: "password123" });
         expect(dispatchSpy).toHaveBeenCalledWith({ type: "auth/deleteLocalAccount" });
+    });
+
+    test("allows oauth accounts to update only their display name", async () => {
+        const user = userEvent.setup();
+        loadLocalProfileMock.mockReturnValue({ type: "auth/loadLocalProfile" });
+        updateLocalProfileMock.mockReturnValue({ type: "auth/updateLocalProfile" });
+        const store = createAppStore({
+            auth: {
+                session: createAuthSession({
+                    user: {
+                        id: "google-player",
+                        displayName: "Google Player",
+                        authType: "oauth"
+                    }
+                }),
+                profile: {
+                    id: "google-player",
+                    username: null,
+                    displayName: "Google Player",
+                    authType: "oauth"
+                },
+                profileLoadState: "ready"
+            }
+        });
+
+        renderWithStore(<ProfileScreen />, { store });
+
+        expect(screen.queryByText("Username:")).not.toBeInTheDocument();
+        expect(screen.queryByRole("heading", { name: "Account deletion" })).not.toBeInTheDocument();
+        await user.clear(screen.getByLabelText("New Display Name"));
+        await user.type(screen.getByLabelText("New Display Name"), "Renamed Google Player");
+        await user.click(screen.getByRole("button", { name: "Update" }));
+
+        expect(updateLocalProfileMock).toHaveBeenCalledWith({ displayName: "Renamed Google Player" });
     });
 });

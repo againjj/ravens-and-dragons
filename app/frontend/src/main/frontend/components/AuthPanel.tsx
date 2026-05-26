@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useAppDispatch, useAppSelector } from "../app/hooks.js";
 import { authActions } from "../features/auth/authSlice.js";
@@ -29,12 +29,25 @@ export const AuthPanel = ({
     const [loginPassword, setLoginPassword] = useState("");
     const [signupUsername, setSignupUsername] = useState("");
     const [signupPassword, setSignupPassword] = useState("");
+    const [signupConfirmPassword, setSignupConfirmPassword] = useState("");
     const [signupDisplayName, setSignupDisplayName] = useState("");
     const isSignupPasswordValid = signupPassword.length >= 8;
+    const doSignupPasswordsMatch = signupPassword === signupConfirmPassword;
     const isSignupDisplayNameValid = signupDisplayName.trim() !== "";
+    const isSignupSuccess = feedbackMessage === "Account created. Log in to continue.";
     const dismissFeedback = () => {
         dispatch(authActions.authFeedbackMessageSet(null));
     };
+
+    useEffect(() => {
+        if (!isSignupSuccess) {
+            return;
+        }
+        setSignupDisplayName("");
+        setSignupUsername("");
+        setSignupPassword("");
+        setSignupConfirmPassword("");
+    }, [isSignupSuccess]);
 
     if (isAuthenticated && currentUser) {
         return (
@@ -181,6 +194,21 @@ export const AuthPanel = ({
                                     }}
                                 />
                             </div>
+                            <div className="control-row">
+                                <label className="control-label" htmlFor="signup-confirm-password-input">
+                                    Confirm Password
+                                </label>
+                                <input
+                                    id="signup-confirm-password-input"
+                                    className="text-input"
+                                    type="password"
+                                    value={signupConfirmPassword}
+                                    disabled={isSubmitting}
+                                    onChange={(event) => {
+                                        setSignupConfirmPassword(event.target.value);
+                                    }}
+                                />
+                            </div>
                             <p className="auth-guidance">Use at least 8 characters for your password.</p>
                             <button
                                 type="button"
@@ -188,7 +216,8 @@ export const AuthPanel = ({
                                     isSubmitting ||
                                     signupUsername.trim() === "" ||
                                     !isSignupDisplayNameValid ||
-                                    !isSignupPasswordValid
+                                    !isSignupPasswordValid ||
+                                    !doSignupPasswordsMatch
                                 }
                                 onClick={() => {
                                     onSignup({
@@ -222,7 +251,7 @@ export const AuthPanel = ({
                             event.stopPropagation();
                         }}
                     >
-                        <h2 id="auth-feedback-title">Sign In Error</h2>
+                        <h2 id="auth-feedback-title">{isSignupSuccess ? "Account Created" : "Sign In Error"}</h2>
                         <p>{feedbackMessage}</p>
                         <button
                             type="button"

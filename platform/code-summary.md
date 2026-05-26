@@ -22,7 +22,7 @@
   - Guest and local login flows.
   - Optional OAuth login integration.
   - Signed-in user listing for shared player-picking UI.
-  - Local-account profile management.
+  - Local/OAuth account display-name profile management and local-account deletion.
   - Temporary guest-user cleanup hooks.
   - `PlayerAccountValidator` implementation that locks newly added player account rows before game command persistence.
   - `UserReferenceCleanup` port used by game modules to release game-owned references during account deletion.

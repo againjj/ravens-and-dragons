@@ -4,6 +4,7 @@ import { Provider } from "react-redux";
 
 import { App } from "./App.js";
 import { store } from "./app/store.js";
+import "./styles/styles.css";
 
 const container = document.querySelector<HTMLDivElement>("#root");
 

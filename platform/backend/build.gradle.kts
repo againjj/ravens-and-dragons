@@ -36,6 +36,7 @@ dependencies {
 
     testImplementation("org.springframework.boot:spring-boot-starter-test:3.3.4")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
+    testRuntimeOnly("com.h2database:h2:2.2.224")
 }
 
 tasks.withType<Test>().configureEach {

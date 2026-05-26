@@ -2,6 +2,7 @@ package com.ravensanddragons.auth
 
 import com.ravensanddragons.game.AbstractGameControllerTestSupport
 import org.hamcrest.Matchers.equalTo
+import org.hamcrest.Matchers.nullValue
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
@@ -39,7 +40,7 @@ class AuthControllerTest : AbstractGameControllerTestSupport() {
     }
 
     @Test
-    fun `signup and login establish a local authenticated session`() {
+    fun `signup creates a local account and login establishes an authenticated session`() {
         mockMvc.post("/api/auth/signup") {
             contentType = MediaType.APPLICATION_JSON
             content = objectMapper.writeValueAsString(
@@ -51,9 +52,8 @@ class AuthControllerTest : AbstractGameControllerTestSupport() {
             )
         }.andExpect {
             status { isOk() }
-            jsonPath("$.authenticated", equalTo(true))
-            jsonPath("$.user.authType", equalTo("local"))
-            jsonPath("$.user.displayName", equalTo("New Player"))
+            jsonPath("$.authenticated", equalTo(false))
+            jsonPath("$.user", nullValue())
         }
 
         mockMvc.post("/api/auth/login") {
@@ -173,22 +173,14 @@ class AuthControllerTest : AbstractGameControllerTestSupport() {
     }
 
     @Test
-    fun `guest and oauth accounts cannot load or update the local profile page`() {
+    fun `guest accounts cannot load or update the profile page`() {
         seedUser("guest-profile", "Guest Profile", authType = AuthType.guest, username = "guest-profile")
-        seedUser("oauth-profile", "OAuth Profile", authType = AuthType.oauth, username = "oauth-profile")
 
         mockMvc.get("/api/auth/profile") {
             with(authenticated("profile", "guest-profile", AuthType.guest))
         }.andExpect {
             status { isForbidden() }
-            jsonPath("$.message", equalTo("Only local password accounts may manage profiles here."))
-        }
-
-        mockMvc.get("/api/auth/profile") {
-            with(authenticated("profile", "oauth-profile", AuthType.oauth))
-        }.andExpect {
-            status { isForbidden() }
-            jsonPath("$.message", equalTo("Only local password accounts may manage profiles here."))
+            jsonPath("$.message", equalTo("Only local password and OAuth accounts may manage profiles here."))
         }
 
         mockMvc.post("/api/auth/profile") {
@@ -197,7 +189,22 @@ class AuthControllerTest : AbstractGameControllerTestSupport() {
             content = objectMapper.writeValueAsString(UpdateProfileRequest(displayName = "Guest Rename"))
         }.andExpect {
             status { isForbidden() }
-            jsonPath("$.message", equalTo("Only local password accounts may manage profiles here."))
+            jsonPath("$.message", equalTo("Only local password and OAuth accounts may manage profiles here."))
+        }
+    }
+
+    @Test
+    fun `oauth accounts can load and update their display name profile`() {
+        seedUser("oauth-profile", "OAuth Profile", authType = AuthType.oauth, username = null)
+
+        mockMvc.get("/api/auth/profile") {
+            with(authenticated("profile", "oauth-profile", AuthType.oauth))
+        }.andExpect {
+            status { isOk() }
+            jsonPath("$.id", equalTo("oauth-profile"))
+            jsonPath("$.username", nullValue())
+            jsonPath("$.displayName", equalTo("OAuth Profile"))
+            jsonPath("$.authType", equalTo("oauth"))
         }
 
         mockMvc.post("/api/auth/profile") {
@@ -205,8 +212,9 @@ class AuthControllerTest : AbstractGameControllerTestSupport() {
             contentType = MediaType.APPLICATION_JSON
             content = objectMapper.writeValueAsString(UpdateProfileRequest(displayName = "OAuth Rename"))
         }.andExpect {
-            status { isForbidden() }
-            jsonPath("$.message", equalTo("Only local password accounts may manage profiles here."))
+            status { isOk() }
+            jsonPath("$.user.displayName", equalTo("OAuth Rename"))
+            jsonPath("$.user.authType", equalTo("oauth"))
         }
     }
 

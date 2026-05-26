@@ -52,8 +52,9 @@ data class LoginRequest(
 
 data class LocalProfileResponse(
     val id: String,
-    val username: String,
-    val displayName: String
+    val username: String?,
+    val displayName: String,
+    val authType: AuthType
 )
 
 data class UpdateProfileRequest(

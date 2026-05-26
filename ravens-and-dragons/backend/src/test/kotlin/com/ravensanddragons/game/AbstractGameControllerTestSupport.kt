@@ -102,7 +102,7 @@ abstract class AbstractGameControllerTestSupport {
         userId: String,
         displayName: String,
         authType: AuthType = AuthType.local,
-        username: String = userId
+        username: String? = userId
     ) {
         jdbcTemplate.update(
             """

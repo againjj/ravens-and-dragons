@@ -49,8 +49,6 @@ The parent project has two child projects:
   - Offline Sherwood self-play, dataset generation, ranking trainer, artifact read/write, evolution loop, and CLI.
 - `src/main/resources/bots/machine-trained/*.json`
   - Bundled per-ruleset machine-trained artifacts. The Sherwood artifact for `Michelle` uses schema version 5.
-- `src/main/resources/static/styles.css`
-  - App shell layout, header/footer and user-menu styling, shared button/menu styling, Ravens board sizing variables, Gin Rummy table/card layout, responsive behavior, fullscreen styling, and board highlight color.
 
 ## Frontend Project
 
@@ -109,8 +107,7 @@ Server-only undo history stores compact restore-state entries instead of full sn
 - The create screen defaults to publicly listing new games and includes the selected public/private choice in the create request.
 - The app shell renders Ravens and Dragons through the registered frontend game entry while using shared platform frontend contracts/helpers for auth, game-entry typing, and fullscreen wiring.
 - The create and active game screens show `Ravens and Dragons` inside the content area. The create screen splits its configuration and board panels evenly on wide screens, while the active game screen places its information panel left of the board and spans its rules panel below the main panels.
-- Shared static styles keep buttons and dropdowns compact without changing their content size, style public lobby game-list entries with per-row gradients and a darker selected row, switch the phone layout breakpoint to 500px, and provide the Gin Rummy table, hand, card, drag-placeholder, and result-board layout.
-- The app header username menu shows unfinished games where the signed-in user has a Ravens or Dragons seat, marks the current page in bold, and displays live red turn badges fed by the platform player-game stream.
+- Shared browser styles now live in `app/frontend/src/main/frontend/styles/styles.css`; Ravens components continue using the shared game layout, board sizing, and board highlight classes from that app-owned bundle.
 - Live games open at `/g/{gameId}`.
 - Create flows open at `/ravens-and-dragons/create`.
 - Active games send mutations to `POST /api/games/{gameId}/commands`.

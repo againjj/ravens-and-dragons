@@ -14,8 +14,9 @@ export interface AuthSessionResponse {
 
 export interface LocalProfileResponse {
     id: string;
-    username: string;
+    username: string | null;
     displayName: string;
+    authType: AuthType;
 }
 
 export interface LoginRequest {

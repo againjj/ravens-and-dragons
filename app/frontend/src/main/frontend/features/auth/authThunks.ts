@@ -62,7 +62,7 @@ export const signup = (request: SignupRequest): AppThunk<Promise<void>> => async
     try {
         const session = await signupRequest(request);
         dispatch(authActions.authSessionSet(session));
-        await dispatch(refreshCurrentGameView());
+        dispatch(authActions.authFeedbackMessageSet("Account created. Log in to continue."));
     } catch (error) {
         dispatch(authActions.authFeedbackMessageSet(getRequestErrorMessage(error, "Unable to sign up right now.")));
     } finally {
@@ -99,7 +99,8 @@ export const logout = (): AppThunk<Promise<void>> => async (dispatch, getState) 
 };
 
 export const loadLocalProfile = (): AppThunk<Promise<void>> => async (dispatch, getState) => {
-    if (getState().auth.session.user?.authType !== "local") {
+    const authType = getState().auth.session.user?.authType;
+    if (authType !== "local" && authType !== "oauth") {
         dispatch(authActions.localProfileCleared());
         return;
     }
