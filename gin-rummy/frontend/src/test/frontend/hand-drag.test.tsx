@@ -2,7 +2,8 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Hand } from "../../main/frontend/Hand";
-import { buildScoreSummary, canDiscardCardToPile, discardPileInteractionState, endActionButtonState } from "../../main/frontend/gin-rummy-rules";
+import { buildScoreSummary, canDiscardCardToPile, discardPileInteractionState, endActionButtonState, findArrangements } from "../../main/frontend/gin-rummy-rules";
+import type { Card, Suit } from "../../main/frontend/gin-rummy-types";
 
 type DragStore = Record<string, string>;
 
@@ -12,6 +13,8 @@ const cards = [
     { id: "3_spades", rank: "3", suit: "spades" as const },
     { id: "4_spades", rank: "4", suit: "spades" as const }
 ];
+
+const card = (rank: string, suit: Suit): Card => ({ id: `${rank}_${suit}`, rank, suit });
 
 const renderHand = (overrides: Partial<Parameters<typeof Hand>[0]> = {}) => {
     const props: Parameters<typeof Hand>[0] = {
@@ -300,6 +303,75 @@ describe("Gin Rummy scoring summary", () => {
 
         expect(summary.lines).toContainEqual({ label: "Guest 500F2F Shutout double:", value: 32 });
         expect(summary.lines.some((line) => line.label.includes("Score adjustment"))).toBe(false);
+    });
+});
+
+describe("Gin Rummy meld arrangements", () => {
+    it("prunes split runs dominated by a longer run using the same cards", () => {
+        const arrangements = findArrangements([
+            card("6", "hearts"),
+            card("7", "hearts"),
+            card("8", "hearts"),
+            card("9", "hearts"),
+            card("10", "hearts"),
+            card("J", "hearts"),
+            card("A", "diamonds"),
+            card("2", "diamonds"),
+            card("3", "diamonds"),
+            card("7", "clubs")
+        ], false);
+
+        expect(arrangements).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                deadwoodScore: 7,
+                melds: expect.arrayContaining([
+                    ["6_hearts", "7_hearts", "8_hearts", "9_hearts", "10_hearts", "J_hearts"],
+                    ["A_diamonds", "2_diamonds", "3_diamonds"]
+                ])
+            })
+        ]));
+        expect(arrangements).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                deadwoodScore: 7,
+                melds: expect.arrayContaining([
+                    ["6_hearts", "7_hearts", "8_hearts"],
+                    ["9_hearts", "10_hearts", "J_hearts"]
+                ])
+            })
+        ]));
+    });
+
+    it("prunes arrangements whose meld cards are a strict subset of a longer run", () => {
+        const arrangements = findArrangements([
+            card("2", "hearts"),
+            card("3", "hearts"),
+            card("4", "hearts"),
+            card("5", "hearts"),
+            card("6", "hearts"),
+            card("7", "hearts"),
+            card("8", "hearts"),
+            card("A", "diamonds"),
+            card("2", "diamonds"),
+            card("A", "clubs")
+        ], false);
+
+        expect(arrangements).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                deadwoodScore: 4,
+                melds: expect.arrayContaining([
+                    ["2_hearts", "3_hearts", "4_hearts", "5_hearts", "6_hearts", "7_hearts", "8_hearts"]
+                ])
+            })
+        ]));
+        expect(arrangements).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                deadwoodScore: 9,
+                melds: expect.arrayContaining([
+                    ["2_hearts", "3_hearts", "4_hearts"],
+                    ["6_hearts", "7_hearts", "8_hearts"]
+                ])
+            })
+        ]));
     });
 });
 

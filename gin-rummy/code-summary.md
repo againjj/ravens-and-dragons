@@ -19,6 +19,7 @@ The parent project has two child projects:
 - `src/main/kotlin/com/ravensanddragons/ginrummy/GinRummyGameHandler.kt`
   - Implements platform `GameHandler`.
   - Owns immediate hand dealing at game creation, seat assignment, draw/discard commands, knocking, gin, big gin, scoring, and public/private view shaping.
+  - Scores meld arrangements through a solver that prunes split or subset meld choices when a larger legal meld arrangement contains the same meld cards.
   - Keeps the first-hand dealer hidden in public state until the first seat is claimed; the backend chooses and stores that dealer privately, reveals it on the first claim, and adds the optional eleventh card as soon as the dealer is revealed.
   - Auto-deals the next hand when a hand ends without ending the game, while sending the completed hand result only as transient command/stream state so reloads do not reopen old result popups. Game and match endings remain in game-over/match-over public states.
   - Includes viewer-only turn details such as private hands, deadwood, knock options, and the discard-pile card that cannot be immediately re-discarded.
@@ -40,9 +41,9 @@ The parent project has two child projects:
 - `src/main/frontend/RoundResultBoard.tsx`
   - Renders end-of-hand results, final game/match layout, score tally, and rules reference content.
 - `src/main/frontend/CardView.tsx`, `gin-rummy-cards.ts`, `gin-rummy-client.ts`, `gin-rummy-rules.ts`, and `gin-rummy-types.ts`
-  - Provide card rendering, deck helpers, API calls, client-side layout/scoring helpers, and frontend wire types used by the Gin screens.
+  - Provide card rendering, deck helpers, API calls, client-side layout/scoring helpers, meld-arrangement pruning for knock choices, and frontend wire types used by the Gin screens.
 - `src/test/frontend/hand-drag.test.tsx` and `src/test/frontend/gin-rummy-store.test.ts`
-  - Cover drag insertion, rearrange/discard legality, score-summary labeling, related UI helper behavior, and Redux state transitions.
+  - Cover drag insertion, rearrange/discard legality, meld-arrangement pruning, score-summary labeling, related UI helper behavior, and Redux state transitions.
 
 ## Boundaries
 

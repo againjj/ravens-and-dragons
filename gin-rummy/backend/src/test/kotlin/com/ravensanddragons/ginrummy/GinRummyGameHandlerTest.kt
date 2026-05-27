@@ -6,6 +6,7 @@ import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
@@ -142,6 +143,63 @@ class GinRummyGameHandlerTest {
         assertTrue(best.melds.any { it.toSet() == setOf("A_clubs", "2_clubs", "3_clubs") })
         assertTrue(best.melds.any { it.toSet() == setOf("2_spades", "2_diamonds", "2_hearts") })
         assertTrue(best.melds.any { it.toSet() == setOf("8_spades", "9_spades", "10_spades") })
+    }
+
+    @Test
+    fun meldSolverPrunesSplitRunsDominatedByLongerRunUsingSameCards() {
+        val cards = listOf(
+            card("6", "hearts"),
+            card("7", "hearts"),
+            card("8", "hearts"),
+            card("9", "hearts"),
+            card("10", "hearts"),
+            card("J", "hearts"),
+            card("A", "diamonds"),
+            card("2", "diamonds"),
+            card("3", "diamonds"),
+            card("7", "clubs")
+        )
+
+        val arrangements = GinRummyMeldSolver.arrangements(cards, aceHighAllowed = false)
+
+        assertTrue(arrangements.any {
+            it.deadwoodScore == 7
+                && it.melds.any { meld -> meld == listOf("6_hearts", "7_hearts", "8_hearts", "9_hearts", "10_hearts", "J_hearts") }
+                && it.melds.any { meld -> meld == listOf("A_diamonds", "2_diamonds", "3_diamonds") }
+        })
+        assertFalse(arrangements.any {
+            it.deadwoodScore == 7
+                && it.melds.any { meld -> meld == listOf("6_hearts", "7_hearts", "8_hearts") }
+                && it.melds.any { meld -> meld == listOf("9_hearts", "10_hearts", "J_hearts") }
+        })
+    }
+
+    @Test
+    fun meldSolverPrunesArrangementsWhoseMeldCardsAreStrictSubsetOfLongerRun() {
+        val cards = listOf(
+            card("2", "hearts"),
+            card("3", "hearts"),
+            card("4", "hearts"),
+            card("5", "hearts"),
+            card("6", "hearts"),
+            card("7", "hearts"),
+            card("8", "hearts"),
+            card("A", "diamonds"),
+            card("2", "diamonds"),
+            card("A", "clubs")
+        )
+
+        val arrangements = GinRummyMeldSolver.arrangements(cards, aceHighAllowed = false)
+
+        assertTrue(arrangements.any {
+            it.deadwoodScore == 4
+                && it.melds.any { meld -> meld == listOf("2_hearts", "3_hearts", "4_hearts", "5_hearts", "6_hearts", "7_hearts", "8_hearts") }
+        })
+        assertFalse(arrangements.any {
+            it.deadwoodScore == 9
+                && it.melds.any { meld -> meld == listOf("2_hearts", "3_hearts", "4_hearts") }
+                && it.melds.any { meld -> meld == listOf("6_hearts", "7_hearts", "8_hearts") }
+        })
     }
 
     @Test

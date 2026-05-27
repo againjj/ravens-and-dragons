@@ -152,7 +152,27 @@ export const findArrangements = (cards: Card[], aceHighAllowed: boolean): MeldAr
             seen.add(key);
             return true;
         })
+        .filter((result, _index, arrangements) => !arrangements.some((other) => other !== result && isDominatedByLargerMelds(result, other)))
         .sort((a, b) => a.deadwoodScore - b.deadwoodScore || a.deadwood.length - b.deadwood.length);
+};
+
+const isDominatedByLargerMelds = (arrangement: MeldArrangement, other: MeldArrangement): boolean => {
+    if (arrangement.melds.length === 0) return false;
+    const used = new Set(arrangement.melds.flat());
+    const otherUsed = new Set(other.melds.flat());
+    if ([...used].some((cardId) => !otherUsed.has(cardId))) return false;
+    let hasStrictlyLargerMeld = false;
+    return arrangement.melds.every((meld) => {
+        const meldSet = new Set(meld);
+        return other.melds.some((otherMeld) => {
+            const otherMeldSet = new Set(otherMeld);
+            const contained = [...meldSet].every((cardId) => otherMeldSet.has(cardId));
+            if (contained && otherMeldSet.size > meldSet.size) {
+                hasStrictlyLargerMeld = true;
+            }
+            return contained;
+        });
+    }) && hasStrictlyLargerMeld;
 };
 
 const meldCandidates = (cards: Card[], aceHighAllowed: boolean): string[][] => {

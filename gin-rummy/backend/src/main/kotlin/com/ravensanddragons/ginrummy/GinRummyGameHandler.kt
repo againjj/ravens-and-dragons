@@ -906,7 +906,32 @@ object GinRummyMeldSolver {
         }
         search(0, emptySet(), emptyList())
         return results.distinctBy { it.melds.sortedBy { meld -> meld.joinToString(",") }.joinToString("|") to it.deadwood.sorted() }
+            .filterNotDominatedByLargerMelds()
             .sortedWith(compareBy<GinRummyMeldArrangement> { it.deadwoodScore }.thenBy { it.deadwood.size }.thenBy { it.melds.size })
+    }
+
+    private fun List<GinRummyMeldArrangement>.filterNotDominatedByLargerMelds(): List<GinRummyMeldArrangement> =
+        filterNot { arrangement ->
+            any { other -> other !== arrangement && arrangement.isDominatedBy(other) }
+        }
+
+    private fun GinRummyMeldArrangement.isDominatedBy(other: GinRummyMeldArrangement): Boolean {
+        if (melds.isEmpty()) return false
+        val used = melds.flatten().toSet()
+        val otherUsed = other.melds.flatten().toSet()
+        if (!otherUsed.containsAll(used)) return false
+        var hasStrictlyLargerMeld = false
+        return melds.all { meld ->
+            val meldSet = meld.toSet()
+            other.melds.any { otherMeld ->
+                val otherMeldSet = otherMeld.toSet()
+                val contained = otherMeldSet.containsAll(meldSet)
+                if (contained && otherMeldSet.size > meldSet.size) {
+                    hasStrictlyLargerMeld = true
+                }
+                contained
+            }
+        } && hasStrictlyLargerMeld
     }
 
     private fun meldCandidates(cards: List<GinRummyCard>, aceHighAllowed: Boolean): List<List<String>> {
