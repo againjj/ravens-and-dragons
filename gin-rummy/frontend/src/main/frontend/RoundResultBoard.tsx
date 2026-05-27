@@ -12,8 +12,12 @@ export const RoundResultBoard = ({ game, result, onNext }: { game: GinRummyGame;
         : game.phase === "gameOver" && game.config.playMode === "bestOfFiveMatch"
             ? "Next Game"
             : game.phase === "matchOver"
-                ? "Finish Match"
-                : "Finish Game";
+                ? "Close"
+                : game.phase === "gameOver"
+                    ? "Close"
+                    : "Close";
+    const gameScoreLines = result.scoreLines?.slice(1) ?? [];
+    const showGameScoreSummary = game.phase === "gameOver" || game.phase === "matchOver";
     return (
         <section className="gin-result-board">
             <div className="gin-result-melds gin-result-knocker">
@@ -53,6 +57,26 @@ export const RoundResultBoard = ({ game, result, onNext }: { game: GinRummyGame;
                     <span>{scoreSummary.totalLabel}</span>
                     <strong>{result.points}</strong>
                 </span>
+                {showGameScoreSummary ? (
+                    <>
+                        <hr />
+                        <strong>Game Score</strong>
+                        {gameScoreLines.map((line, index) => (
+                            <span key={`${line.reason}-${index}`}>
+                                <span>{line.reason}:</span>
+                                <strong>{line.points}</strong>
+                            </span>
+                        ))}
+                        <span>
+                            <span>{game.seats[0]?.displayName ?? "Seat 1"}:</span>
+                            <strong>{game.scores.gamePoints[0]}</strong>
+                        </span>
+                        <span>
+                            <span>{game.seats[1]?.displayName ?? "Seat 2"}:</span>
+                            <strong>{game.scores.gamePoints[1]}</strong>
+                        </span>
+                    </>
+                ) : null}
                 <button type="button" onClick={onNext}>{nextLabel}</button>
             </aside>
         </section>
@@ -77,18 +101,16 @@ export const FinishedGinRummyLayout = ({ game }: { game: GinRummyGame }) => {
     const winnerName = game.seats[winnerSeat]?.displayName ?? `Seat ${winnerSeat + 1}`;
     const isMatch = game.config.playMode === "bestOfFiveMatch";
     return (
-        <section className="game-page gin-page">
-            <section className="gin-finished-layout">
-                <h1>{winnerName} Wins!</h1>
-                <div className="gin-finished-scores">
-                    {[0, 1].map((seat) => (
-                        <span key={seat}>
-                            <strong>{game.seats[seat]?.displayName ?? `Seat ${seat + 1}`}</strong>
-                            {isMatch ? ` ${game.scores.gamesWon[seat]} games won` : ` ${game.scores.gamePoints[seat]} game score`}
-                        </span>
-                    ))}
-                </div>
-            </section>
+        <section className="gin-finished-layout">
+            <h1>{winnerName} Wins!</h1>
+            <div className="gin-finished-scores">
+                {[0, 1].map((seat) => (
+                    <span key={seat}>
+                        <strong>{game.seats[seat]?.displayName ?? `Seat ${seat + 1}`}</strong>
+                        {isMatch ? ` ${game.scores.gamesWon[seat]} games won` : ` ${game.scores.gamePoints[seat]} game score`}
+                    </span>
+                ))}
+            </div>
         </section>
     );
 };

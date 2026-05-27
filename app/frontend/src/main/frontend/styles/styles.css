@@ -1186,6 +1186,12 @@ button:disabled {
     min-height: 550px;
 }
 
+.gin-board-finished {
+    grid-template-columns: 1fr;
+    grid-template-rows: 1fr;
+    place-items: center;
+}
+
 .gin-seat {
     display: grid;
     gap: 4px;
@@ -1479,6 +1485,33 @@ button:disabled {
     gap: 10px;
     max-width: min(760px, calc(100vw - 32px));
     padding: 22px;
+}
+
+.gin-result-modal {
+    width: min(1220px, calc(100vw - 32px));
+    max-height: calc(100vh - 40px);
+    overflow: auto;
+    padding: 22px;
+    background: rgba(255, 252, 244, 0.98);
+    box-shadow: 0 24px 60px rgba(20, 15, 9, 0.32);
+}
+
+.gin-round-reason-modal {
+    display: grid;
+    gap: 12px;
+    width: min(420px, calc(100vw - 32px));
+    padding: 22px;
+    background: rgba(255, 252, 244, 0.99);
+    box-shadow: 0 24px 60px rgba(20, 15, 9, 0.36);
+}
+
+.gin-round-reason-modal h2,
+.gin-round-reason-modal p {
+    margin: 0;
+}
+
+.modal-backdrop-stacked {
+    z-index: 60;
 }
 
 .gin-result-board {

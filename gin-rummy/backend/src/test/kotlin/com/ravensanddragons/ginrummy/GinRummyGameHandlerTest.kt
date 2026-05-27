@@ -43,27 +43,43 @@ class GinRummyGameHandlerTest {
     }
 
     @Test
-    fun claimingSecondSeatRevealsRandomDealerAndAddsOptionalEleventhCard() {
+    fun claimingFirstSeatRevealsRandomDealerAndAddsOptionalEleventhCard() {
         val created = handler.createGame("GIN1234", objectMapper.createObjectNode(), "creator")
-        var game = handler.applyCommand(created, command(created.version, "claimSeat").put("seat", 0).put("playerUserId", "u1").put("displayName", "One"), "u1")
-        val waiting = objectMapper.treeToValue(game.publicState, GinRummyPublicState::class.java)
-
-        assertEquals("waitingForPlayers", waiting.phase)
-        assertEquals(-1, waiting.dealerSeat)
-        assertEquals(listOf(10, 10), waiting.handCounts)
-
-        game = handler.applyCommand(game, command(game.version, "claimSeat").put("seat", 1).put("playerUserId", "u2").put("displayName", "Two"), "u2")
-
+        val game = handler.applyCommand(created, command(created.version, "claimSeat").put("seat", 0).put("playerUserId", "u1").put("displayName", "One"), "u1")
         val state = objectMapper.treeToValue(game.publicState, GinRummyPublicState::class.java)
 
-        assertEquals("discardOnly", state.phase)
         assertTrue(state.dealerSeat in 0..1)
+        assertEquals("discardOnly", state.phase)
         assertEquals(1 - state.dealerSeat, state.currentSeat)
         assertEquals(11, state.handCounts[state.currentSeat])
         assertEquals(10, state.handCounts[state.dealerSeat])
         assertEquals(0, state.discardCount)
         assertEquals(31, state.stockCount)
         assertTrue(state.config.aceHighAllowed)
+    }
+
+    @Test
+    fun emptyCurrentSeatMustBeClaimedBeforePlayCanContinue() {
+        val created = handler.createGame("GIN1234", objectMapper.createObjectNode(), "creator")
+        var game = handler.applyCommand(created, command(created.version, "claimSeat").put("seat", 0).put("playerUserId", "u1").put("displayName", "One"), "u1")
+        val state = objectMapper.treeToValue(game.publicState, GinRummyPublicState::class.java)
+        if (state.currentSeat == 0) {
+            game = handler.applyCommand(game, command(game.version, "clearSeat").put("seat", 0), "u1")
+        }
+
+        val thrown = org.junit.jupiter.api.assertThrows<RuntimeException> {
+            handler.applyCommand(game, command(game.version, "discard").put("cardId", "A_spades"), "u1")
+        }
+        assertEquals("The current seat must be claimed before play can continue.", thrown.message)
+
+        game = handler.applyCommand(game, command(game.version, "claimSeat").put("seat", state.currentSeat).put("playerUserId", "u2").put("displayName", "Two"), "u2")
+        val claimed = objectMapper.treeToValue(game.publicState, GinRummyPublicState::class.java)
+        val discard = objectMapper.treeToValue(game.privateState, GinRummyPrivateState::class.java).hands[claimed.currentSeat].first().id
+        val advanced = handler.applyCommand(game, command(game.version, "discard").put("cardId", discard), "u2")
+        val afterDiscard = objectMapper.treeToValue(advanced.publicState, GinRummyPublicState::class.java)
+
+        assertEquals(state.currentSeat, claimed.currentSeat)
+        assertEquals("draw", afterDiscard.phase)
     }
 
     @Test
@@ -199,6 +215,36 @@ class GinRummyGameHandlerTest {
         val view = handler.gameView(game, actingUser)
 
         assertEquals(upcardId, view.get("viewer").get("drewDiscardCardId").asText())
+    }
+
+    @Test
+    fun stockExhaustionDealsNextHandUnderRoundResult() {
+        var game = handler.createGame("GIN1234", objectMapper.createObjectNode(), "creator")
+        game = handler.applyCommand(game, command(game.version, "claimSeat").put("seat", 0).put("playerUserId", "u1").put("displayName", "One"), "u1")
+        game = handler.applyCommand(game, command(game.version, "claimSeat").put("seat", 1).put("playerUserId", "u2").put("displayName", "Two"), "u2")
+        var state = objectMapper.treeToValue(game.publicState, GinRummyPublicState::class.java)
+        val firstDiscard = objectMapper.treeToValue(game.privateState, GinRummyPrivateState::class.java).hands[state.currentSeat].first().id
+        game = handler.applyCommand(game, command(game.version, "discard").put("cardId", firstDiscard), "u${state.currentSeat + 1}")
+        state = objectMapper.treeToValue(game.publicState, GinRummyPublicState::class.java)
+        val privateState = objectMapper.treeToValue(game.privateState, GinRummyPrivateState::class.java)
+        val exhausted = game.copy(
+            publicState = objectMapper.valueToTree(state.copy(stockCount = 2)),
+            privateState = objectMapper.valueToTree(privateState.copy(stock = privateState.stock.take(2)))
+        )
+
+        val updated = handler.applyCommand(exhausted, command(exhausted.version, "drawStock"), "u${state.currentSeat + 1}")
+        val next = objectMapper.treeToValue(updated.publicState, GinRummyPublicState::class.java)
+        val result = objectMapper.treeToValue(updated.publicState.get("roundResult"), GinRummyRoundResult::class.java)
+        val persisted = objectMapper.treeToValue(handler.persistedStateAfterCommand(updated).publicState, GinRummyPublicState::class.java)
+        val persistedJson = handler.persistedStateAfterCommand(updated).publicState
+
+        assertEquals("Stock exhausted", result.reason)
+        assertEquals(state.roundNumber, result.roundNumber)
+        assertEquals(state.roundNumber + 1, next.roundNumber)
+        assertEquals("discardOnly", next.phase)
+        assertEquals(31, next.stockCount)
+        assertEquals(null, persistedJson.get("roundResult"))
+        assertEquals(next.roundNumber, persisted.roundNumber)
     }
 
     private fun command(version: Long, type: String) =

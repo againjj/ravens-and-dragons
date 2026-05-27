@@ -283,6 +283,8 @@ describe("Gin Rummy scoring summary", () => {
             winnerSeat: 1,
             points: 64,
             reason: "Gin",
+            gameNumber: 1,
+            roundNumber: 1,
             knockerSeat: 1,
             knockerDeadwood: 0,
             defenderDeadwood: 7,
@@ -290,7 +292,8 @@ describe("Gin Rummy scoring summary", () => {
             selectedDeadwood: [],
             defenderMelds: [],
             defenderDeadwoodCards: [],
-            layoffs: []
+            layoffs: [],
+            scoreLines: []
         } as Parameters<typeof buildScoreSummary>[1];
 
         const summary = buildScoreSummary(game, result, 1, 0);

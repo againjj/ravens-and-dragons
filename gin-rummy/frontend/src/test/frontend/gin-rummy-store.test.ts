@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import { createGinRummyStore } from "../../main/frontend/gin-rummy-store";
 import {
     loadGinRummyGame,
+    receiveGinRummyGame,
     runGinRummyCommand,
+    setDismissedRoundResultKey,
     setKnockChoices,
     setPendingEndAction,
     setRevealedTurnKey,
@@ -54,6 +56,23 @@ const game = (overrides: Partial<GinRummyGame> = {}): GinRummyGame => ({
         knockOptions: {}
     },
     ...overrides
+});
+
+const roundResult = (): NonNullable<GinRummyGame["roundResult"]> => ({
+    winnerSeat: 0,
+    points: 18,
+    reason: "Knock",
+    gameNumber: 1,
+    roundNumber: 1,
+    knockerSeat: 0,
+    knockerDeadwood: 7,
+    defenderDeadwood: 25,
+    selectedMelds: [],
+    selectedDeadwood: [],
+    defenderMelds: [],
+    defenderDeadwoodCards: [],
+    layoffs: [],
+    scoreLines: []
 });
 
 describe("Gin Rummy Redux state", () => {
@@ -111,5 +130,50 @@ describe("Gin Rummy Redux state", () => {
             version: 3,
             currentSeat: 1
         });
+    });
+
+    it("keeps an open transient round result while later board updates arrive", () => {
+        const store = createGinRummyStore();
+        store.dispatch(loadGinRummyGame.fulfilled(game({
+            version: 2,
+            currentSeat: 0,
+            roundNumber: 2,
+            roundResult: roundResult()
+        }), "load", "gin-1"));
+
+        store.dispatch(receiveGinRummyGame(game({
+            version: 3,
+            currentSeat: 1,
+            roundNumber: 2,
+            roundResult: null
+        })));
+
+        expect(store.getState().ginRummy.play.game).toMatchObject({
+            version: 3,
+            currentSeat: 1,
+            roundResult: {
+                reason: "Knock",
+                roundNumber: 1
+            }
+        });
+    });
+
+    it("does not keep a transient round result after this browser dismisses it", () => {
+        const store = createGinRummyStore();
+        store.dispatch(loadGinRummyGame.fulfilled(game({
+            version: 2,
+            roundNumber: 2,
+            roundResult: roundResult()
+        }), "load", "gin-1"));
+        store.dispatch(setDismissedRoundResultKey("gin-1:1:1:Knock"));
+
+        store.dispatch(receiveGinRummyGame(game({
+            version: 3,
+            currentSeat: 1,
+            roundNumber: 2,
+            roundResult: null
+        })));
+
+        expect(store.getState().ginRummy.play.game?.roundResult).toBeNull();
     });
 });

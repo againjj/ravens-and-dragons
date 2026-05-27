@@ -58,6 +58,8 @@ data class GinRummyRoundResult(
     val winnerSeat: Int? = null,
     val points: Int = 0,
     val reason: String = "",
+    val gameNumber: Int = 1,
+    val roundNumber: Int = 1,
     val knockerSeat: Int? = null,
     val knockerDeadwood: Int? = null,
     val defenderDeadwood: Int? = null,
@@ -65,9 +67,11 @@ data class GinRummyRoundResult(
     val selectedDeadwood: List<String> = emptyList(),
     val defenderMelds: List<List<String>> = emptyList(),
     val defenderDeadwoodCards: List<String> = emptyList(),
-    val layoffs: List<String> = emptyList()
+    val layoffs: List<String> = emptyList(),
+    val scoreLines: List<GinRummyScoreLine> = emptyList()
 )
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 data class GinRummyPublicState(
     val id: String,
     val gameSlug: String,
@@ -87,7 +91,6 @@ data class GinRummyPublicState(
     val discardCount: Int = 0,
     val handCounts: List<Int> = listOf(0, 0),
     val scores: GinRummyScores = GinRummyScores(),
-    val roundResult: GinRummyRoundResult? = null,
     val winnerSeat: Int? = null,
     val message: String? = null,
     val createdByUserId: String? = null
@@ -106,6 +109,12 @@ data class GinRummyMeldArrangement(
     val melds: List<List<String>>,
     val deadwood: List<String>,
     val deadwoodScore: Int
+)
+
+private data class GinRummyCommandUpdate(
+    val publicState: GinRummyPublicState,
+    val privateState: GinRummyPrivateState,
+    val roundResult: GinRummyRoundResult? = null
 )
 
 @Component
@@ -141,7 +150,7 @@ class GinRummyGameHandler(
             roundNumber = 1,
             stockCount = 0,
             createdByUserId = createdByUserId,
-            message = "Claim both seats to start Gin Rummy."
+            message = "Claim a seat to reveal the dealer."
         )
         val dealt = dealHiddenOpeningHand(publicState, randomInitialDealerSeat())
         return toRecord(dealt.first, dealt.second, now)
@@ -153,29 +162,40 @@ class GinRummyGameHandler(
         requireExpectedVersion(publicState, command)
 
         val result = when (val type = command.get("type")?.asText()) {
-            "claimSeat" -> claimSeat(publicState, privateState, command, actingUserId)
-            "clearSeat" -> clearSeat(publicState, privateState, command, actingUserId)
-            "passUpcard" -> passUpcard(publicState, privateState, actingUserId)
+            "claimSeat" -> claimSeat(publicState, privateState, command, actingUserId).toCommandUpdate()
+            "clearSeat" -> clearSeat(publicState, privateState, command, actingUserId).toCommandUpdate()
+            "passUpcard" -> passUpcard(publicState, privateState, actingUserId).toCommandUpdate()
             "drawStock" -> drawStock(publicState, privateState, actingUserId)
-            "drawDiscard" -> drawDiscard(publicState, privateState, actingUserId)
+            "drawDiscard" -> drawDiscard(publicState, privateState, actingUserId).toCommandUpdate()
             "discard" -> discard(publicState, privateState, command, actingUserId, knockArrangement = null)
             "knock" -> discard(publicState, privateState, command, actingUserId, knockArrangement = parseArrangement(command))
             "gin" -> discard(publicState, privateState, command, actingUserId, knockArrangement = parseArrangement(command), forceGin = true)
             "bigGin" -> bigGin(publicState, privateState, command, actingUserId)
-            "reorderHand" -> reorderHand(publicState, privateState, command, actingUserId)
-            "nextHand" -> nextHand(publicState)
-            "nextGame" -> nextGame(publicState)
+            "reorderHand" -> reorderHand(publicState, privateState, command, actingUserId).toCommandUpdate()
+            "nextHand" -> nextHand(publicState).toCommandUpdate()
+            "nextGame" -> nextGame(publicState).toCommandUpdate()
             else -> throw InvalidCommandException("Unsupported Gin Rummy command: ${type ?: "missing type"}.")
         }
 
         val now = Instant.now(clock)
-        return toRecord(
-            result.first.copy(version = publicState.version + 1, updatedAt = now),
-            result.second,
+        val record = toRecord(
+            result.publicState.copy(version = publicState.version + 1, updatedAt = now),
+            result.privateState,
             current.lastAccessedAt,
             current.publiclyListed
         )
+        return result.roundResult?.let { record.withRoundResult(it) } ?: record
     }
+
+    override fun persistedStateAfterCommand(commandResult: GameRecord): GameRecord {
+        if (commandResult.publicState.get("roundResult") == null) return commandResult
+        return commandResult.copy(
+            publicState = commandResult.publicState.deepCopy<ObjectNode>().also { it.remove("roundResult") }
+        )
+    }
+
+    override fun commandPublicState(commandResult: GameRecord, persisted: GameRecord): JsonNode =
+        commandResult.publicState
 
     override fun gameView(current: GameRecord, currentUserId: String?): JsonNode {
         val publicState = current.toPublicState()
@@ -268,12 +288,11 @@ class GinRummyGameHandler(
         val displayName = command.textValue("displayName", "Player")
         val nextSeats = publicState.seats.toMutableList()
         nextSeats[seat] = GinRummySeat(playerUserId, displayName)
-        val canStart = nextSeats.all { it.userId != null }
         val updated = publicState.copy(
             seats = nextSeats,
-            message = if (canStart) null else "Claim the other seat."
+            message = waitingMessage(publicState.copy(seats = nextSeats))
         )
-        return if (canStart && publicState.phase == waitingForPlayersPhase) {
+        return if (publicState.phase == waitingForPlayersPhase && publicState.dealerSeat == hiddenSeat) {
             revealOpeningHand(updated, privateState)
         } else {
             updated to privateState
@@ -333,7 +352,6 @@ class GinRummyGameHandler(
             discardTop = privateState.discardPile.lastOrNull(),
             discardCount = privateState.discardPile.size,
             handCounts = privateState.hands.map { it.size },
-            roundResult = null,
             winnerSeat = null,
             message = if (publicState.config.optionalDealRule) "Starting player discards first." else "Non-dealer may take the upcard or pass."
         ) to privateState
@@ -389,7 +407,12 @@ class GinRummyGameHandler(
             discardTop = nextPrivate.discardPile.lastOrNull(),
             discardCount = nextPrivate.discardPile.size,
             handCounts = nextPrivate.hands.map { it.size },
-            message = if (publicState.config.optionalDealRule) "Starting player discards first." else "Non-dealer may take the upcard or pass."
+            message = waitingMessage(publicState.copy(
+                dealerSeat = dealerSeat,
+                currentSeat = startingSeat,
+                phase = if (publicState.config.optionalDealRule) discardOnlyPhase else firstUpcardPhase,
+                seats = publicState.seats
+            )) ?: if (publicState.config.optionalDealRule) "Starting player discards first." else "Non-dealer may take the upcard or pass."
         ) to nextPrivate
     }
 
@@ -416,7 +439,7 @@ class GinRummyGameHandler(
         ) to privateState.copy(firstUpcardPasses = passes)
     }
 
-    private fun drawStock(publicState: GinRummyPublicState, privateState: GinRummyPrivateState, actingUserId: String?): Pair<GinRummyPublicState, GinRummyPrivateState> {
+    private fun drawStock(publicState: GinRummyPublicState, privateState: GinRummyPrivateState, actingUserId: String?): GinRummyCommandUpdate {
         requireTurn(publicState, actingUserId)
         if (publicState.phase !in setOf(drawPhase, firstUpcardPhase)) {
             throw InvalidCommandException("Draw from stock is not legal right now.")
@@ -433,7 +456,7 @@ class GinRummyGameHandler(
             stockCount = stock.size,
             handCounts = nextPrivate.hands.map { it.size },
             message = "Discard a card, or knock if your deadwood is 10 or less."
-        ) to nextPrivate
+        ).toCommandUpdate(nextPrivate)
     }
 
     private fun drawDiscard(publicState: GinRummyPublicState, privateState: GinRummyPrivateState, actingUserId: String?): Pair<GinRummyPublicState, GinRummyPrivateState> {
@@ -462,7 +485,7 @@ class GinRummyGameHandler(
         actingUserId: String?,
         knockArrangement: GinRummyMeldArrangement?,
         forceGin: Boolean = false
-    ): Pair<GinRummyPublicState, GinRummyPrivateState> {
+    ): GinRummyCommandUpdate {
         requireTurn(publicState, actingUserId)
         if (publicState.phase !in setOf(discardPhase, discardOnlyPhase)) {
             throw InvalidCommandException("Discard is not legal right now.")
@@ -501,10 +524,10 @@ class GinRummyGameHandler(
             phase = drawPhase,
             currentSeat = 1 - publicState.currentSeat,
             message = "Draw from stock or discard."
-        ) to nextPrivate
+        ).toCommandUpdate(nextPrivate)
     }
 
-    private fun bigGin(publicState: GinRummyPublicState, privateState: GinRummyPrivateState, command: JsonNode, actingUserId: String?): Pair<GinRummyPublicState, GinRummyPrivateState> {
+    private fun bigGin(publicState: GinRummyPublicState, privateState: GinRummyPrivateState, command: JsonNode, actingUserId: String?): GinRummyCommandUpdate {
         requireTurn(publicState, actingUserId)
         if (!publicState.config.bigGinAllowed) {
             throw InvalidCommandException("Go Big Gin is not enabled for this game.")
@@ -536,7 +559,7 @@ class GinRummyGameHandler(
         return publicState to privateState.copy(hands = hands.map { it.toList() })
     }
 
-    private fun finishKnock(publicState: GinRummyPublicState, privateState: GinRummyPrivateState, arrangement: GinRummyMeldArrangement, isGin: Boolean): Pair<GinRummyPublicState, GinRummyPrivateState> {
+    private fun finishKnock(publicState: GinRummyPublicState, privateState: GinRummyPrivateState, arrangement: GinRummyMeldArrangement, isGin: Boolean): GinRummyCommandUpdate {
         val knocker = publicState.currentSeat
         val defender = 1 - knocker
         val defenderHand = privateState.hands[defender]
@@ -569,6 +592,8 @@ class GinRummyGameHandler(
             winnerSeat = winner,
             points = points,
             reason = reason,
+            gameNumber = publicState.gameNumber,
+            roundNumber = publicState.roundNumber,
             knockerSeat = knocker,
             knockerDeadwood = knockerDeadwood,
             defenderDeadwood = defenderDeadwood,
@@ -580,7 +605,7 @@ class GinRummyGameHandler(
         ))
     }
 
-    private fun finishBigGin(publicState: GinRummyPublicState, privateState: GinRummyPrivateState, arrangement: GinRummyMeldArrangement): Pair<GinRummyPublicState, GinRummyPrivateState> {
+    private fun finishBigGin(publicState: GinRummyPublicState, privateState: GinRummyPrivateState, arrangement: GinRummyMeldArrangement): GinRummyCommandUpdate {
         val winner = publicState.currentSeat
         val defender = 1 - winner
         val defenderDeadwood = bestArrangement(privateState.hands[defender], publicState.config.aceHighAllowed).deadwoodScore
@@ -589,6 +614,8 @@ class GinRummyGameHandler(
             winnerSeat = winner,
             points = points,
             reason = "Big Gin",
+            gameNumber = publicState.gameNumber,
+            roundNumber = publicState.roundNumber,
             knockerSeat = winner,
             knockerDeadwood = 0,
             defenderDeadwood = defenderDeadwood,
@@ -605,15 +632,16 @@ class GinRummyGameHandler(
         winner: Int,
         rawPoints: Int,
         result: GinRummyRoundResult
-    ): Pair<GinRummyPublicState, GinRummyPrivateState> {
+    ): GinRummyCommandUpdate {
         val shutoutApplies = publicState.scores.handsWonThisGame[1 - winner] == 0
         val handPoints = if (shutoutApplies) rawPoints * 2 else rawPoints
         val gamePoints = publicState.scores.gamePoints.addTo(winner, handPoints)
         val handsWon = publicState.scores.handsWonThisGame.addTo(winner, 1)
         val baseLine = GinRummyScoreLine(winner, handPoints, if (shutoutApplies) "${result.reason} with shutout double" else result.reason, publicState.gameNumber, publicState.roundNumber)
+        val roundResult = result.copy(points = handPoints, scoreLines = listOf(baseLine))
         val reachedTarget = gamePoints[winner] >= publicState.config.targetScore
         if (!reachedTarget) {
-            return publicState.copy(
+            val completed = publicState.copy(
                 phase = roundOverPhase,
                 currentSeat = winner,
                 scores = publicState.scores.copy(
@@ -622,9 +650,10 @@ class GinRummyGameHandler(
                     handsWonThisGame = handsWon,
                     runningLines = publicState.scores.runningLines + baseLine
                 ),
-                roundResult = result.copy(points = handPoints),
                 message = "Hand complete. Start the next hand."
-            ) to privateState
+            )
+            val dealt = dealHand(nextDealerPublicState(completed))
+            return GinRummyCommandUpdate(dealt.first.copy(message = dealt.first.message), dealt.second, roundResult)
         }
 
         val bonusLines = mutableListOf(baseLine)
@@ -640,7 +669,7 @@ class GinRummyGameHandler(
         val gamesWon = publicState.scores.gamesWon.addTo(winner, 1)
         val nextTotal = publicState.scores.totalPoints.addTo(winner, handPoints + totalBonus)
         val matchWon = publicState.config.playMode == "bestOfFiveMatch" && gamesWon[winner] >= 3
-        return publicState.copy(
+        return GinRummyCommandUpdate(publicState.copy(
             lifecycle = if (matchWon || publicState.config.playMode == "singleGame") finishedLifecycle else activeLifecycle,
             phase = when {
                 matchWon -> matchOverPhase
@@ -656,17 +685,24 @@ class GinRummyGameHandler(
                 runningLines = publicState.scores.runningLines + bonusLines
             ),
             winnerSeat = winner,
-            roundResult = result.copy(points = handPoints),
             message = if (matchWon) "Match complete." else if (publicState.config.playMode == "singleGame") "Game complete." else "Game complete. Start the next game."
-        ) to privateState
+        ), privateState, result.copy(points = handPoints, scoreLines = bonusLines))
     }
 
-    private fun finishRoundDraw(publicState: GinRummyPublicState, privateState: GinRummyPrivateState): Pair<GinRummyPublicState, GinRummyPrivateState> =
-        publicState.copy(
+    private fun finishRoundDraw(publicState: GinRummyPublicState, privateState: GinRummyPrivateState): GinRummyCommandUpdate {
+        val roundResult = GinRummyRoundResult(
+            reason = "Stock exhausted",
+            points = 0,
+            gameNumber = publicState.gameNumber,
+            roundNumber = publicState.roundNumber
+        )
+        val completed = publicState.copy(
             phase = roundOverPhase,
-            roundResult = GinRummyRoundResult(reason = "Stock exhausted", points = 0),
             message = "Only two cards remain in stock. The hand is a draw."
-        ) to privateState
+        )
+        val dealt = dealHand(nextDealerPublicState(completed))
+        return GinRummyCommandUpdate(dealt.first.copy(message = dealt.first.message), dealt.second, roundResult)
+    }
 
     private fun nextHand(publicState: GinRummyPublicState): Pair<GinRummyPublicState, GinRummyPrivateState> {
         if (publicState.phase != roundOverPhase) {
@@ -687,7 +723,6 @@ class GinRummyGameHandler(
             dealerSeat = 1 - publicState.dealerSeat,
             currentSeat = publicState.dealerSeat,
             roundNumber = publicState.roundNumber + 1,
-            roundResult = null,
             message = null
         )
 
@@ -702,19 +737,28 @@ class GinRummyGameHandler(
                 gamePoints = listOf(0, 0),
                 handsWonThisGame = listOf(0, 0)
             ),
-            roundResult = null,
             winnerSeat = null,
             message = null
         )
 
     private fun requireTurn(publicState: GinRummyPublicState, actingUserId: String?) {
         if (publicState.currentSeat !in publicState.seats.indices) {
-            throw InvalidCommandException("Claim both seats before taking a turn.")
+            throw InvalidCommandException("Claim a seat before taking a turn.")
+        }
+        if (publicState.seats[publicState.currentSeat].userId == null) {
+            throw InvalidCommandException("The current seat must be claimed before play can continue.")
         }
         if (publicState.seats[publicState.currentSeat].userId != actingUserId) {
             throw InvalidCommandException("It is not your turn.")
         }
     }
+
+    private fun waitingMessage(publicState: GinRummyPublicState): String? =
+        when {
+            publicState.seats.none { it.userId != null } -> "Claim a seat to reveal the dealer."
+            publicState.currentSeat in publicState.seats.indices && publicState.seats[publicState.currentSeat].userId == null -> "Waiting for the current seat to be claimed."
+            else -> null
+        }
 
     private fun randomInitialDealerSeat(): Int =
         Random().nextInt(2)
@@ -802,6 +846,13 @@ class GinRummyGameHandler(
             createdByUserId = publicState.createdByUserId,
             lastAccessedAt = lastAccessedAt,
             publiclyListed = publiclyListed
+        )
+
+    private fun GameRecord.withRoundResult(roundResult: GinRummyRoundResult): GameRecord =
+        copy(
+            publicState = publicState.deepCopy<ObjectNode>().also {
+                it.set<JsonNode>("roundResult", objectMapper.valueToTree(roundResult))
+            }
         )
 
     private fun GameRecord.toPublicState(): GinRummyPublicState =
@@ -921,6 +972,12 @@ private fun List<Int>.addTo(index: Int, amount: Int): List<Int> =
 
 private fun List<List<GinRummyCard>>.mutableHands(): MutableList<MutableList<GinRummyCard>> =
     map { it.toMutableList() }.toMutableList()
+
+private fun Pair<GinRummyPublicState, GinRummyPrivateState>.toCommandUpdate(): GinRummyCommandUpdate =
+    GinRummyCommandUpdate(first, second)
+
+private fun GinRummyPublicState.toCommandUpdate(privateState: GinRummyPrivateState): GinRummyCommandUpdate =
+    GinRummyCommandUpdate(this, privateState)
 
 private fun MutableList<GinRummyCard>.removeById(cardId: String): GinRummyCard? {
     val index = indexOfFirst { it.id == cardId }

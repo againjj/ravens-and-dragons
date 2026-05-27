@@ -37,6 +37,10 @@ export const sendCommand = async (game: GinRummyGame, command: Record<string, un
     if (!response.ok) {
         throw await createResponseError(response, "Unable to update Gin Rummy right now.");
     }
-    return fetchGinRummyGame(game.id);
+    const commandState = await response.json() as GinRummyGame;
+    const viewerState = await fetchGinRummyGame(game.id);
+    return {
+        ...viewerState,
+        roundResult: commandState.roundResult
+    };
 };
-

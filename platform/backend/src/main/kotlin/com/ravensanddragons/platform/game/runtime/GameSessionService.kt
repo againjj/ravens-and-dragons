@@ -97,12 +97,14 @@ class GameSessionService(
     fun applyCommand(gameId: String, command: JsonNode, actingUserId: String?): JsonNode = withGameLock(gameId) {
         val current = getStoredGame(gameId)
         val handler = requireHandler(current.gameSlug)
-        val nextState = handler.applyCommand(current, command, actingUserId)
-        playerAccountValidator.requirePlayerAccountsExist(newPlayerUserIds(handler, current, nextState))
-        val persisted = persistAndBroadcast(gameId, nextState)
+        val commandResult = handler.applyCommand(current, command, actingUserId)
+        val persistableState = handler.persistedStateAfterCommand(commandResult)
+        playerAccountValidator.requirePlayerAccountsExist(newPlayerUserIds(handler, current, persistableState))
+        val commandPublicState = handler.commandPublicState(commandResult, persistableState)
+        val persisted = persistAndBroadcast(gameId, persistableState, commandPublicState)
         val finalState = handler.afterCommandPersisted(persisted) { game -> persistAndBroadcast(gameId, game) }
         afterCommit { broadcastPlayerGamesFor(current, finalState) }
-        finalState.publicState
+        if (finalState == persisted) commandPublicState else finalState.publicState
     }
 
     fun clearUserReferences(userId: String) {
@@ -205,14 +207,14 @@ class GameSessionService(
         }
     }
 
-    private fun persistAndBroadcast(gameId: String, game: GameRecord): GameRecord {
+    private fun persistAndBroadcast(gameId: String, game: GameRecord, broadcastPublicState: JsonNode = game.publicState): GameRecord {
         try {
             gameStore.put(game)
         } catch (_: ConcurrentGameUpdateException) {
             val latest = gameStore.get(gameId) ?: throw GameNotFoundException(gameId)
             throw VersionConflictException(latest.publicState)
         }
-        afterCommit { broadcast(gameId, game.publicState) }
+        afterCommit { broadcast(gameId, broadcastPublicState) }
         return game
     }
 

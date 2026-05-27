@@ -19,7 +19,8 @@ The parent project has two child projects:
 - `src/main/kotlin/com/ravensanddragons/ginrummy/GinRummyGameHandler.kt`
   - Implements platform `GameHandler`.
   - Owns immediate hand dealing at game creation, seat assignment, draw/discard commands, knocking, gin, big gin, scoring, and public/private view shaping.
-  - Keeps the first-hand dealer hidden in public state until both seats are claimed; the backend chooses and stores that dealer privately, and the optional eleventh card is added only when play starts.
+  - Keeps the first-hand dealer hidden in public state until the first seat is claimed; the backend chooses and stores that dealer privately, reveals it on the first claim, and adds the optional eleventh card as soon as the dealer is revealed.
+  - Auto-deals the next hand when a hand ends without ending the game, while sending the completed hand result only as transient command/stream state so reloads do not reopen old result popups. Game and match endings remain in game-over/match-over public states.
   - Includes viewer-only turn details such as private hands, deadwood, knock options, and the discard-pile card that cannot be immediately re-discarded.
 
 ## Frontend Project
@@ -33,7 +34,7 @@ The parent project has two child projects:
 - `src/main/frontend/CreateGinRummyScreen.tsx`
   - Renders the create-game controls from Redux-backed Gin Rummy options.
 - `src/main/frontend/GinRummyPlayScreen.tsx`
-  - Renders Redux-backed play-screen state, game loading/streaming, seat picking, turn display, end-action flow, and draw/discard animation orchestration.
+  - Renders Redux-backed play-screen state, game loading/streaming, seat picking, turn display, end-action flow, browser-local hand-result popups, and draw/discard animation orchestration.
 - `src/main/frontend/Hand.tsx`
   - Renders hand cards and owns drag/drop placement behavior for drawing, discarding, and rearranging cards.
 - `src/main/frontend/RoundResultBoard.tsx`

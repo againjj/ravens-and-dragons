@@ -28,6 +28,8 @@ interface GinRummyPlayState {
     knockChoices: KnockChoice[];
     pendingEndAction: EndAction | null;
     showFinishedLayout: boolean;
+    dismissedRoundResultKey: string | null;
+    dismissedRoundReasonKey: string | null;
     flyingCard: FlyingCard | null;
     activeDragSource: DragSource | null;
     activeDragCardId: string | null;
@@ -59,12 +61,21 @@ const clearTurnInteraction = (state: GinRummyPlayState) => {
     state.showFinishedLayout = false;
 };
 
+const roundResultKey = (game: GinRummyGame): string | null =>
+    game.roundResult
+        ? `${game.id}:${game.roundResult.gameNumber ?? game.gameNumber}:${game.roundResult.roundNumber ?? game.roundNumber}:${game.roundResult.reason}`
+        : null;
+
 const receiveGame = (state: GinRummyPlayState, game: GinRummyGame, requireCurrentOrNewer: boolean) => {
     if (requireCurrentOrNewer && state.game && game.version < state.game.version) return;
     const previous = state.game;
-    state.game = game;
+    const previousRoundResultKey = previous ? roundResultKey(previous) : null;
+    const nextGame = !game.roundResult && previous?.roundResult && previousRoundResultKey && state.dismissedRoundResultKey !== previousRoundResultKey
+        ? { ...game, roundResult: previous.roundResult }
+        : game;
+    state.game = nextGame;
     state.message = null;
-    if (!previous || previous.currentSeat !== game.currentSeat || previous.roundNumber !== game.roundNumber) {
+    if (!previous || previous.currentSeat !== nextGame.currentSeat || previous.roundNumber !== nextGame.roundNumber) {
         clearTurnInteraction(state);
     }
 };
@@ -90,6 +101,8 @@ const initialState: GinRummyState = {
         knockChoices: [],
         pendingEndAction: null,
         showFinishedLayout: false,
+        dismissedRoundResultKey: null,
+        dismissedRoundReasonKey: null,
         flyingCard: null,
         activeDragSource: null,
         activeDragCardId: null
@@ -154,6 +167,9 @@ const ginRummySlice = createSlice({
         setPlayMessage(state, action: PayloadAction<string | null>) {
             state.play.message = action.payload;
         },
+        receiveGinRummyGame(state, action: PayloadAction<GinRummyGame>) {
+            receiveGame(state.play, action.payload, true);
+        },
         setActivePickerSeat(state, action: PayloadAction<number | null>) {
             state.play.activePickerSeat = action.payload;
         },
@@ -172,6 +188,12 @@ const ginRummySlice = createSlice({
         },
         setShowFinishedLayout(state, action: PayloadAction<boolean>) {
             state.play.showFinishedLayout = action.payload;
+        },
+        setDismissedRoundResultKey(state, action: PayloadAction<string | null>) {
+            state.play.dismissedRoundResultKey = action.payload;
+        },
+        setDismissedRoundReasonKey(state, action: PayloadAction<string | null>) {
+            state.play.dismissedRoundReasonKey = action.payload;
         },
         setFlyingCard(state, action: PayloadAction<FlyingCard | null>) {
             state.play.flyingCard = action.payload;
@@ -227,12 +249,15 @@ const ginRummySlice = createSlice({
 export const {
     updateCreateOptions,
     setPlayMessage,
+    receiveGinRummyGame,
     setActivePickerSeat,
     setRevealedTurnKey,
     setKnockChoices,
     clearKnockChoicesAndPendingEndAction,
     setPendingEndAction,
     setShowFinishedLayout,
+    setDismissedRoundResultKey,
+    setDismissedRoundReasonKey,
     setFlyingCard,
     clearFlyingCardByKey,
     setActiveDragSource,

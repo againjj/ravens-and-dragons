@@ -47,6 +47,8 @@ export interface RoundResult {
     winnerSeat: number | null;
     points: number;
     reason: string;
+    gameNumber: number;
+    roundNumber: number;
     knockerSeat: number | null;
     knockerDeadwood: number | null;
     defenderDeadwood: number | null;
@@ -55,6 +57,7 @@ export interface RoundResult {
     defenderMelds: string[][];
     defenderDeadwoodCards: string[];
     layoffs: string[];
+    scoreLines: ScoreLine[];
 }
 
 export interface KnockChoice {

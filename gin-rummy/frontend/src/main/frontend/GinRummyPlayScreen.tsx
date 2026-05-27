@@ -5,7 +5,7 @@ import { PlayerPicker } from "@ravensanddragons/platform-frontend/player-picker"
 import { CardView } from "./CardView";
 import { Hand } from "./Hand";
 import { FinishedGinRummyLayout, RoundResultBoard, RulesReference } from "./RoundResultBoard";
-import { readGameIdFromLocation } from "./gin-rummy-client";
+import { fetchGinRummyGame, readGameIdFromLocation } from "./gin-rummy-client";
 import { arrangementLabel, canDiscardCardToPile, discardPileInteractionState, elementCenter, endActionButtonState, findArrangements, findBestDeadwood, handInsertionPoint, lastHandCardPoint } from "./gin-rummy-rules";
 import type { Card, DragSource, EndAction, FlyingCard, FlyDestination, GinRummyGame, KnockChoice } from "./gin-rummy-types";
 import {
@@ -15,16 +15,18 @@ import {
     loadGinRummyAuthSession,
     loadGinRummyGame,
     loadGinRummyPlayers,
+    receiveGinRummyGame,
     runGinRummyCommand,
     setActiveDragCardId,
     setActiveDragSource,
     setActivePickerSeat,
+    setDismissedRoundReasonKey,
+    setDismissedRoundResultKey,
     setFlyingCard,
     setKnockChoices,
     setPendingEndAction,
     setPlayMessage,
-    setRevealedTurnKey,
-    setShowFinishedLayout
+    setRevealedTurnKey
 } from "./gin-rummy-slice";
 import { useGinRummyDispatch, useGinRummySelector } from "./gin-rummy-store";
 
@@ -41,7 +43,8 @@ export const GinRummyPlayScreen = () => {
         revealedTurnKey,
         knockChoices,
         pendingEndAction,
-        showFinishedLayout,
+        dismissedRoundResultKey,
+        dismissedRoundReasonKey,
         flyingCard,
         activeDragSource,
         activeDragCardId
@@ -72,7 +75,19 @@ export const GinRummyPlayScreen = () => {
     useEffect(() => {
         if (!gameId) return;
         const stream = new EventSource(`/api/games/${encodeURIComponent(gameId)}/stream`);
-        stream.addEventListener("game", () => loadGame());
+        stream.addEventListener("game", (event) => {
+            const streamedGame = parseStreamedGame(event);
+            if (!streamedGame?.roundResult) {
+                loadGame();
+                return;
+            }
+            void fetchGinRummyGame(gameId)
+                .then((viewerGame) => dispatch(receiveGinRummyGame({
+                    ...viewerGame,
+                    roundResult: streamedGame.roundResult
+                })))
+                .catch(() => loadGame());
+        });
         stream.onerror = () => {
             notifyServerUnavailable();
             stream.close();
@@ -135,6 +150,20 @@ export const GinRummyPlayScreen = () => {
         return arrangement ? { type: "bigGin", arrangement } : null;
     }, [bottomHand, canShowEndActions, game]);
     const visibleEndAction = bigGinChoice ? "bigGin" : ginChoices.length > 0 ? "gin" : knockOnlyChoices.length > 0 ? "knock" : null;
+    const roundResultKey = game?.roundResult
+        ? `${game.id}:${game.roundResult.gameNumber ?? game.gameNumber}:${game.roundResult.roundNumber ?? game.roundNumber}:${game.roundResult.reason}`
+        : null;
+    const showResultOverlay = Boolean(game?.roundResult && roundResultKey && dismissedRoundResultKey !== roundResultKey);
+    const endingSeat = game?.roundResult?.knockerSeat ?? game?.roundResult?.winnerSeat ?? null;
+    const viewerEndedHand = endingSeat !== null && userSeats.includes(endingSeat);
+    const showReasonOverlay = Boolean(
+        game?.roundResult
+        && showResultOverlay
+        && roundResultKey
+        && dismissedRoundReasonKey !== roundResultKey
+        && (game.roundResult.reason === "Stock exhausted" || !viewerEndedHand)
+    );
+    const finalBoard = Boolean(game && (game.phase === "gameOver" || game.phase === "matchOver"));
 
     const runCommand = (command: Record<string, unknown>, baseGame = game): Promise<GinRummyGame | null> => {
         if (!baseGame) return Promise.resolve(null);
@@ -292,162 +321,138 @@ export const GinRummyPlayScreen = () => {
         return <section className="panel"><p>{message ?? "Loading Gin Rummy..."}</p></section>;
     }
 
-    if (showFinishedLayout && (game.phase === "gameOver" || game.phase === "matchOver")) {
-        return <FinishedGinRummyLayout game={game} />;
-    }
-
-    const showResultLayout = Boolean(game.roundResult && (game.phase === "roundOver" || game.phase === "gameOver" || game.phase === "matchOver"));
-
-    if (showResultLayout && game.roundResult) {
-        return (
-            <section className="game-page gin-page">
-                <h1 className="content-title">Gin Rummy</h1>
-                <RoundResultBoard
-                    game={game}
-                    result={game.roundResult}
-                    onNext={() => {
-                        if (game.phase === "roundOver") {
-                            void runCommand({ type: "nextHand" });
-                        } else if (game.phase === "gameOver" && game.config.playMode === "bestOfFiveMatch") {
-                            void runCommand({ type: "nextGame" });
-                        } else {
-                            dispatch(setShowFinishedLayout(true));
-                        }
-                    }}
-                />
-                <section className="gin-score-rules">
-                    <RulesReference config={game.config} />
-                </section>
-            </section>
-        );
-    }
-
     return (
         <section className="game-page gin-page">
             <h1 className="content-title">Gin Rummy</h1>
-            <section className="gin-board-shell">
-                {renderSeat(topSeat, "top")}
-                <Hand
-                    handRef={topHandRef}
-                    cards={[]}
-                    count={game.handCounts[topSeat] ?? 0}
-                    faceUp={false}
-                    position="top"
-                    onReorder={() => {}}
-                    onDiscard={() => {}}
-                    onDrawToHand={() => {}}
-                    onDragSourceChange={() => {}}
-                    onDragCardChange={() => {}}
-                    canDiscard={false}
-                    canDrawToHand={false}
-                    interactive={false}
-                    activeDragSource={activeDragSource}
-                />
-                <section className="gin-table">
-                    <div className="gin-turn-indicator">{turnIndicatorText}</div>
-                    <button
-                        ref={stockRef}
-                        type="button"
-                        className="gin-stock"
-                        disabled={!canAct || game.phase !== "draw"}
-                        draggable={Boolean(canAct && game.phase === "draw")}
-                        onDragStart={(event) => {
-                            dispatch(setActiveDragSource("stock"));
-                            event.dataTransfer.setData("text/plain", "stock");
-                            event.dataTransfer.setData("application/x-gin-source", "stock");
-                        }}
-                        onDragEnd={() => dispatch(setActiveDragSource(null))}
-                        onClick={(event) => {
-                            void drawToHand("stock", bottomHand.length, event.clientX, event.clientY, null);
-                        }}
-                    >
-                        <strong>{game.stockCount}</strong>
-                    </button>
-                    <button
-                        ref={discardRef}
-                        type="button"
-                        className={`gin-discard ${game.discardTop ? "" : "is-empty"}`}
-                        disabled={discardPileState.disabled}
-                        draggable={canDrawDiscard}
-                        onDragStart={(event) => {
-                            if (canDrawDiscard && game.discardTop) {
-                                dispatch(setActiveDragSource("discard"));
-                                event.dataTransfer.setData("text/plain", game.discardTop.id);
-                                event.dataTransfer.setData("application/x-gin-source", "discard");
-                            }
-                        }}
-                        onDragEnd={() => dispatch(setActiveDragSource(null))}
-                        onClick={(event) => {
-                            if (!canDrawDiscard) return;
-                            void drawToHand("discard", bottomHand.length, event.clientX, event.clientY, null);
-                        }}
-                        onDragOver={(event) => {
-                            const cardId = activeDragCardId ?? event.dataTransfer.getData("text/plain");
-                            if (cardId && canDropCardOnDiscard(cardId)) event.preventDefault();
-                        }}
-                        onDrop={(event) => {
-                            const cardId = activeDragCardId ?? event.dataTransfer.getData("text/plain");
-                            if (cardId && canDropCardOnDiscard(cardId)) {
-                                const card = bottomHand.find((candidate) => candidate.id === cardId) ?? null;
-                                animateCard(card, event.clientX, event.clientY, discardRef.current);
-                                if (!finishPendingEndAction(cardId)) {
-                                    void runCommand({ type: "discard", cardId });
-                                }
-                            }
-                            dispatch(clearDragState());
-                        }}
-                    >
-                        {game.discardTop ? <CardView card={game.discardTop} /> : null}
-                    </button>
-                    <div className="gin-end-actions">
-                        {renderEndActionButton("knock", "Knock", visibleEndAction === "knock", () => dispatch(setPendingEndAction("knock")))}
-                        {renderEndActionButton("gin", "Go Gin", visibleEndAction === "gin", () => dispatch(setPendingEndAction("gin")))}
-                        {renderEndActionButton("bigGin", "Go Big Gin", visibleEndAction === "bigGin", () => {
-                            if (!bigGinChoice) return;
-                            dispatch(setPendingEndAction("bigGin"));
-                            runKnockChoice(bigGinChoice);
-                        })}
-                    </div>
-                    <div className="gin-table-actions">
-                        {canAct && game.phase === "firstUpcard" ? <button type="button" onClick={() => runCommand({ type: "passUpcard" })}>Pass</button> : null}
-                    </div>
-                </section>
-                {renderSeat(bottomSeat, "bottom")}
-                <section className="gin-bottom-hand-wrap">
-                    {shouldHideBottom ? (
-                        <button type="button" className="gin-show-cards" onClick={() => dispatch(setRevealedTurnKey(currentTurnKey))}>
-                            Show Cards
-                        </button>
-                    ) : null}
-                    <div className="gin-deadwood">{bottomFaceUp ? `Deadwood: ${findBestDeadwood(bottomHand, game.config.aceHighAllowed)} points` : " "}</div>
-                    <Hand
-                        handRef={bottomHandRef}
-                        cards={bottomHand}
-                        count={game.handCounts[bottomSeat] ?? 0}
-                        faceUp={bottomFaceUp}
-                        position="bottom"
-                        canDiscard={canAct && game.phase !== "draw" && game.phase !== "firstUpcard"}
-                        canDrawToHand={canAct && (game.phase === "draw" || game.phase === "firstUpcard")}
-                        canDiscardCard={canDiscardHandCard}
-                        activeDragSource={activeDragSource}
-                        onDragSourceChange={(source) => dispatch(setActiveDragSource(source))}
-                        onDragCardChange={(cardId) => dispatch(setActiveDragCardId(cardId))}
-                        onDiscard={(cardId, clientX, clientY) => {
-                            if (!canDiscardHandCard(cardId)) return;
-                            const card = bottomHand.find((candidate) => candidate.id === cardId) ?? null;
-                            animateCard(card, clientX, clientY, discardRef.current);
-                            if (!finishPendingEndAction(cardId)) {
-                                void runCommand({ type: "discard", cardId });
-                            }
-                        }}
-                        onDrawToHand={(source, insertIndex, clientX, clientY, destination) => {
-                            if (source === "discard" && !game.discardTop) return;
-                            void drawToHand(source, insertIndex, clientX, clientY, destination);
-                        }}
-                        onReorder={(cardIds) => runCommand({ type: "reorderHand", cardIds })}
-                        interactive
-                    />
-                </section>
+            <section className={`gin-board-shell ${finalBoard ? "gin-board-finished" : ""}`}>
+                {finalBoard ? (
+                    <FinishedGinRummyLayout game={game} />
+                ) : (
+                    <>
+                        {renderSeat(topSeat, "top")}
+                        <Hand
+                            handRef={topHandRef}
+                            cards={[]}
+                            count={game.handCounts[topSeat] ?? 0}
+                            faceUp={false}
+                            position="top"
+                            onReorder={() => {}}
+                            onDiscard={() => {}}
+                            onDrawToHand={() => {}}
+                            onDragSourceChange={() => {}}
+                            onDragCardChange={() => {}}
+                            canDiscard={false}
+                            canDrawToHand={false}
+                            interactive={false}
+                            activeDragSource={activeDragSource}
+                        />
+                        <section className="gin-table">
+                            <div className="gin-turn-indicator">{turnIndicatorText}</div>
+                            <button
+                                ref={stockRef}
+                                type="button"
+                                className="gin-stock"
+                                disabled={!canAct || game.phase !== "draw"}
+                                draggable={Boolean(canAct && game.phase === "draw")}
+                                onDragStart={(event) => {
+                                    dispatch(setActiveDragSource("stock"));
+                                    event.dataTransfer.setData("text/plain", "stock");
+                                    event.dataTransfer.setData("application/x-gin-source", "stock");
+                                }}
+                                onDragEnd={() => dispatch(setActiveDragSource(null))}
+                                onClick={(event) => {
+                                    void drawToHand("stock", bottomHand.length, event.clientX, event.clientY, null);
+                                }}
+                            >
+                                <strong>{game.stockCount}</strong>
+                            </button>
+                            <button
+                                ref={discardRef}
+                                type="button"
+                                className={`gin-discard ${game.discardTop ? "" : "is-empty"}`}
+                                disabled={discardPileState.disabled}
+                                draggable={canDrawDiscard}
+                                onDragStart={(event) => {
+                                    if (canDrawDiscard && game.discardTop) {
+                                        dispatch(setActiveDragSource("discard"));
+                                        event.dataTransfer.setData("text/plain", game.discardTop.id);
+                                        event.dataTransfer.setData("application/x-gin-source", "discard");
+                                    }
+                                }}
+                                onDragEnd={() => dispatch(setActiveDragSource(null))}
+                                onClick={(event) => {
+                                    if (!canDrawDiscard) return;
+                                    void drawToHand("discard", bottomHand.length, event.clientX, event.clientY, null);
+                                }}
+                                onDragOver={(event) => {
+                                    const cardId = activeDragCardId ?? event.dataTransfer.getData("text/plain");
+                                    if (cardId && canDropCardOnDiscard(cardId)) event.preventDefault();
+                                }}
+                                onDrop={(event) => {
+                                    const cardId = activeDragCardId ?? event.dataTransfer.getData("text/plain");
+                                    if (cardId && canDropCardOnDiscard(cardId)) {
+                                        const card = bottomHand.find((candidate) => candidate.id === cardId) ?? null;
+                                        animateCard(card, event.clientX, event.clientY, discardRef.current);
+                                        if (!finishPendingEndAction(cardId)) {
+                                            void runCommand({ type: "discard", cardId });
+                                        }
+                                    }
+                                    dispatch(clearDragState());
+                                }}
+                            >
+                                {game.discardTop ? <CardView card={game.discardTop} /> : null}
+                            </button>
+                            <div className="gin-end-actions">
+                                {renderEndActionButton("knock", "Knock", visibleEndAction === "knock", () => dispatch(setPendingEndAction("knock")))}
+                                {renderEndActionButton("gin", "Go Gin", visibleEndAction === "gin", () => dispatch(setPendingEndAction("gin")))}
+                                {renderEndActionButton("bigGin", "Go Big Gin", visibleEndAction === "bigGin", () => {
+                                    if (!bigGinChoice) return;
+                                    dispatch(setPendingEndAction("bigGin"));
+                                    runKnockChoice(bigGinChoice);
+                                })}
+                            </div>
+                            <div className="gin-table-actions">
+                                {canAct && game.phase === "firstUpcard" ? <button type="button" onClick={() => runCommand({ type: "passUpcard" })}>Pass</button> : null}
+                            </div>
+                        </section>
+                        {renderSeat(bottomSeat, "bottom")}
+                        <section className="gin-bottom-hand-wrap">
+                            {shouldHideBottom ? (
+                                <button type="button" className="gin-show-cards" onClick={() => dispatch(setRevealedTurnKey(currentTurnKey))}>
+                                    Show Cards
+                                </button>
+                            ) : null}
+                            <div className="gin-deadwood">{bottomFaceUp ? `Deadwood: ${findBestDeadwood(bottomHand, game.config.aceHighAllowed)} points` : " "}</div>
+                            <Hand
+                                handRef={bottomHandRef}
+                                cards={bottomHand}
+                                count={game.handCounts[bottomSeat] ?? 0}
+                                faceUp={bottomFaceUp}
+                                position="bottom"
+                                canDiscard={canAct && game.phase !== "draw" && game.phase !== "firstUpcard"}
+                                canDrawToHand={canAct && (game.phase === "draw" || game.phase === "firstUpcard")}
+                                canDiscardCard={canDiscardHandCard}
+                                activeDragSource={activeDragSource}
+                                onDragSourceChange={(source) => dispatch(setActiveDragSource(source))}
+                                onDragCardChange={(cardId) => dispatch(setActiveDragCardId(cardId))}
+                                onDiscard={(cardId, clientX, clientY) => {
+                                    if (!canDiscardHandCard(cardId)) return;
+                                    const card = bottomHand.find((candidate) => candidate.id === cardId) ?? null;
+                                    animateCard(card, clientX, clientY, discardRef.current);
+                                    if (!finishPendingEndAction(cardId)) {
+                                        void runCommand({ type: "discard", cardId });
+                                    }
+                                }}
+                                onDrawToHand={(source, insertIndex, clientX, clientY, destination) => {
+                                    if (source === "discard" && !game.discardTop) return;
+                                    void drawToHand(source, insertIndex, clientX, clientY, destination);
+                                }}
+                                onReorder={(cardIds) => runCommand({ type: "reorderHand", cardIds })}
+                                interactive
+                            />
+                        </section>
+                    </>
+                )}
             </section>
 
             <section className="gin-score-rules">
@@ -504,6 +509,52 @@ export const GinRummyPlayScreen = () => {
                 </div>,
                 document.body
             ) : null}
+
+            {showResultOverlay && game.roundResult && roundResultKey ? createPortal(
+                <div className="modal-backdrop" role="presentation">
+                    <section className="panel gin-result-modal" role="dialog" aria-modal="true" aria-label="Hand result">
+                        <RoundResultBoard
+                            game={game}
+                            result={game.roundResult}
+                            onNext={() => {
+                                dispatch(setDismissedRoundResultKey(roundResultKey));
+                                dispatch(setDismissedRoundReasonKey(roundResultKey));
+                                if (game.phase === "gameOver" && game.config.playMode === "bestOfFiveMatch" && game.lifecycle !== "finished") {
+                                    void runCommand({ type: "nextGame" });
+                                }
+                            }}
+                        />
+                    </section>
+                </div>,
+                document.body
+            ) : null}
+
+            {showReasonOverlay && game.roundResult && roundResultKey ? createPortal(
+                <div className="modal-backdrop modal-backdrop-stacked" role="presentation">
+                    <section className="panel gin-round-reason-modal" role="dialog" aria-modal="true" aria-label="Hand ended">
+                        <h2>Hand Ended</h2>
+                        <p>{handEndedMessage(game.roundResult.reason, game.roundResult.knockerSeat, game)}</p>
+                        <button type="button" onClick={() => dispatch(setDismissedRoundReasonKey(roundResultKey))}>Continue</button>
+                    </section>
+                </div>,
+                document.body
+            ) : null}
         </section>
     );
+};
+
+const handEndedMessage = (reason: string, endingSeat: number | null, game: GinRummyGame): string => {
+    if (reason === "Stock exhausted") return "Only two cards remained in stock, so the hand ended in a draw.";
+    const name = endingSeat !== null ? game.seats[endingSeat]?.displayName ?? `Seat ${endingSeat + 1}` : "The other player";
+    return `${name} ended the hand with ${reason === "Gin" ? "Gin" : reason}.`;
+};
+
+const parseStreamedGame = (event: Event): GinRummyGame | null => {
+    if (!("data" in event) || typeof event.data !== "string") return null;
+    try {
+        const parsed = JSON.parse(event.data) as GinRummyGame;
+        return parsed.gameSlug === "gin-rummy" ? parsed : null;
+    } catch {
+        return null;
+    }
 };

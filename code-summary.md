@@ -15,7 +15,7 @@ Games can be marked as publicly listed at creation time. Publicly listed unfinis
 The platform auth surface exposes signed-in player summaries for shared player pickers, and the game runtime verifies newly added player-seat account ids inside the command persistence transaction before writing game state.
 
 The runnable app now assembles Ravens and Dragons through a platform-owned game module contract and opaque game runtime. Platform owns generic game ids, persistence, REST/SSE routing, stale cleanup, and handler dispatch. Game handlers supply client-facing public state for generic game reads and initial stream snapshots so a module can normalize older persisted payloads before the frontend resolves the game entry. Ravens and Dragons owns every Ravens-shaped concept, including board pieces, sides, snapshots, command semantics, undo payloads, bot turns, and game-view metadata.
-Command-triggered game and player-list stream events are sent after the database transaction commits, so clients that refetch on SSE updates see the persisted post-command state.
+Command-triggered game and player-list stream events are sent after the database transaction commits. Game handlers can mark parts of a command result as command-only public state, so immediate command responses and SSE events may include transient details while later reads load the persisted state without them.
 
 The repository is structured so each game lives in its own sub-project. The current checkout contains three game modules, Tic-Tac-Toe, Gin Rummy, and Ravens and Dragons, and the app registers each module explicitly.
 
@@ -87,7 +87,7 @@ The Gradle wrapper is pinned to Gradle 9.4.1. Java 21 is the project toolchain. 
 - Signed-in player game navigation uses `GET /api/games/mine` and live menu updates use `GET /api/games/mine/stream`.
 - Game commands use `POST /api/games/{gameId}/commands`.
 - Tic-Tac-Toe commands place alternating X/O marks on an empty 3x3 square until a row, column, diagonal, or draw finishes the game.
-- Gin Rummy commands claim human seats, draw/pass/discard, reorder hands, knock, gin, big gin, and advance immediately dealt alternating-dealer hands/games/matches while scoring with configured bonuses.
+- Gin Rummy commands claim human seats, reveal the dealer on the first seated player, draw/pass/discard, reorder hands, knock, gin, big gin, and advance immediately dealt alternating-dealer hands/games/matches while scoring with configured bonuses and sending the just-completed hand result as transient command/stream state for browser-local popups.
 - Seat and bot actions are Ravens command types sent through the command endpoint. Ravens uses a platform-owned player picker to add the current user, another existing player, or a legal bot opponent to open seats.
 - Live updates use `GET /api/games/{gameId}/stream`.
 
