@@ -203,6 +203,37 @@ class GinRummyGameHandlerTest {
     }
 
     @Test
+    fun meldSolverPrunesArrangementsWhoseMeldsAreExactSubsetOfAnotherArrangement() {
+        val cards = listOf(
+            card("A", "spades"),
+            card("A", "hearts"),
+            card("A", "clubs"),
+            card("8", "clubs"),
+            card("9", "clubs"),
+            card("10", "clubs"),
+            card("5", "diamonds"),
+            card("6", "diamonds"),
+            card("7", "diamonds"),
+            card("2", "spades")
+        )
+
+        val arrangements = GinRummyMeldSolver.arrangements(cards, aceHighAllowed = false)
+
+        assertTrue(arrangements.any {
+            it.deadwoodScore == 2
+                && it.melds.any { meld -> meld.toSet() == setOf("A_spades", "A_hearts", "A_clubs") }
+                && it.melds.any { meld -> meld == listOf("8_clubs", "9_clubs", "10_clubs") }
+                && it.melds.any { meld -> meld == listOf("5_diamonds", "6_diamonds", "7_diamonds") }
+        })
+        assertFalse(arrangements.any {
+            it.deadwoodScore == 5
+                && it.melds.size == 2
+                && it.melds.any { meld -> meld == listOf("8_clubs", "9_clubs", "10_clubs") }
+                && it.melds.any { meld -> meld == listOf("5_diamonds", "6_diamonds", "7_diamonds") }
+        })
+    }
+
+    @Test
     fun viewIncludesPrivateHandOnlyForSeatedViewerAfterSeatsAutoStartHand() {
         var game = handler.createGame("GIN1234", objectMapper.createObjectNode(), "creator")
         game = handler.applyCommand(game, command(game.version, "claimSeat").put("seat", 0).put("playerUserId", "u1").put("displayName", "One"), "u1")

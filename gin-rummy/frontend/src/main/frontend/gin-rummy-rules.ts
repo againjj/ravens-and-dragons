@@ -169,18 +169,18 @@ const isDominatedByLargerMelds = (arrangement: MeldArrangement, other: MeldArran
     const used = new Set(arrangement.melds.flat());
     const otherUsed = new Set(other.melds.flat());
     if ([...used].some((cardId) => !otherUsed.has(cardId))) return false;
-    let hasStrictlyLargerMeld = false;
+    let hasContainingMeld = otherUsed.size > used.size;
     return arrangement.melds.every((meld) => {
         const meldSet = new Set(meld);
         return other.melds.some((otherMeld) => {
             const otherMeldSet = new Set(otherMeld);
             const contained = [...meldSet].every((cardId) => otherMeldSet.has(cardId));
             if (contained && otherMeldSet.size > meldSet.size) {
-                hasStrictlyLargerMeld = true;
+                hasContainingMeld = true;
             }
             return contained;
         });
-    }) && hasStrictlyLargerMeld;
+    }) && hasContainingMeld;
 };
 
 const meldCandidates = (cards: Card[], aceHighAllowed: boolean): string[][] => {

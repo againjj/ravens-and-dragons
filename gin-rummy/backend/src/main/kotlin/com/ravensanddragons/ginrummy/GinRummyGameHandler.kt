@@ -926,18 +926,18 @@ object GinRummyMeldSolver {
         val used = melds.flatten().toSet()
         val otherUsed = other.melds.flatten().toSet()
         if (!otherUsed.containsAll(used)) return false
-        var hasStrictlyLargerMeld = false
+        var hasContainingMeld = otherUsed.size > used.size
         return melds.all { meld ->
             val meldSet = meld.toSet()
             other.melds.any { otherMeld ->
                 val otherMeldSet = otherMeld.toSet()
                 val contained = otherMeldSet.containsAll(meldSet)
                 if (contained && otherMeldSet.size > meldSet.size) {
-                    hasStrictlyLargerMeld = true
+                    hasContainingMeld = true
                 }
                 contained
             }
-        } && hasStrictlyLargerMeld
+        } && hasContainingMeld
     }
 
     private fun meldCandidates(cards: List<GinRummyCard>, aceHighAllowed: Boolean): List<List<String>> {

@@ -392,6 +392,41 @@ describe("Gin Rummy meld arrangements", () => {
             })
         ]));
     });
+
+    it("prunes arrangements whose melds are an exact subset of another arrangement", () => {
+        const arrangements = findArrangements([
+            card("A", "spades"),
+            card("A", "hearts"),
+            card("A", "clubs"),
+            card("8", "clubs"),
+            card("9", "clubs"),
+            card("10", "clubs"),
+            card("5", "diamonds"),
+            card("6", "diamonds"),
+            card("7", "diamonds"),
+            card("2", "spades")
+        ], false);
+
+        expect(arrangements).toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                deadwoodScore: 2,
+                melds: expect.arrayContaining([
+                    expect.arrayContaining(["A_spades", "A_hearts", "A_clubs"]),
+                    ["8_clubs", "9_clubs", "10_clubs"],
+                    ["5_diamonds", "6_diamonds", "7_diamonds"]
+                ])
+            })
+        ]));
+        expect(arrangements).not.toEqual(expect.arrayContaining([
+            expect.objectContaining({
+                deadwoodScore: 5,
+                melds: expect.arrayContaining([
+                    ["8_clubs", "9_clubs", "10_clubs"],
+                    ["5_diamonds", "6_diamonds", "7_diamonds"]
+                ])
+            })
+        ]));
+    });
 });
 
 describe("Gin Rummy end action buttons", () => {
