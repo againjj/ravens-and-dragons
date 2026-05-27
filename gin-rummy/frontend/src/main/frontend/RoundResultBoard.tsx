@@ -1,12 +1,13 @@
 import { CardView } from "./CardView";
 import { deckById } from "./gin-rummy-cards";
 import type { GinRummyConfig, GinRummyGame, RoundResult } from "./gin-rummy-types";
-import { buildScoreSummary, groupLayoffsByMeld } from "./gin-rummy-rules";
+import { buildScoreSummary, groupLayoffsByMeld, pointLabel, seatDisplayName } from "./gin-rummy-rules";
 export const RoundResultBoard = ({ game, result, onNext }: { game: GinRummyGame; result: RoundResult; onNext: () => void }) => {
     const knockerSeat = result.knockerSeat ?? game.currentSeat;
     const defenderSeat = knockerSeat === 0 ? 1 : 0;
     const layoffGroups = groupLayoffsByMeld(result.layoffs, result.selectedMelds, game.config.aceHighAllowed);
     const scoreSummary = buildScoreSummary(game, result, knockerSeat, defenderSeat);
+    const resultRowCount = Math.max(result.selectedMelds.length, layoffGroups.length, result.defenderMelds.length, 1);
     const nextLabel = game.phase === "roundOver"
         ? "Next Hand"
         : game.phase === "gameOver" && game.config.playMode === "bestOfFiveMatch"
@@ -21,27 +22,42 @@ export const RoundResultBoard = ({ game, result, onNext }: { game: GinRummyGame;
     return (
         <section className="gin-result-board">
             <div className="gin-result-melds gin-result-knocker">
-                <strong>{game.seats[knockerSeat]?.displayName ?? "Knocker"}</strong>
-                {result.selectedMelds.map((meld, index) => (
-                    <div key={index} className="gin-result-row">
-                        <ResultCardRun cards={meld} />
+                <strong>{seatDisplayName(game, knockerSeat, "Knocker")}</strong>
+                <div className="gin-result-card-rows">
+                    {Array.from({ length: resultRowCount }, (_, index) => (
+                        <div key={index} className="gin-result-row">
+                            <ResultCardRun cards={result.selectedMelds[index] ?? []} emptyLabel="" />
+                        </div>
+                    ))}
+                    <div className="gin-result-row gin-result-deadwood">
+                        <span>Deadwood: {pointLabel(result.knockerDeadwood ?? 0)}</span>
+                        <ResultCardRun cards={result.selectedDeadwood} />
                     </div>
-                ))}
-                <div className="gin-result-row gin-result-deadwood">
-                    <span>Deadwood: {result.knockerDeadwood ?? 0}</span>
-                    <ResultCardRun cards={result.selectedDeadwood} />
+                </div>
+            </div>
+            <div className="gin-result-melds gin-result-layoffs">
+                <strong>{seatDisplayName(game, defenderSeat, "Opponent")} layoffs</strong>
+                <div className="gin-result-card-rows">
+                    {Array.from({ length: resultRowCount }, (_, index) => (
+                        <div key={index} className="gin-result-row">
+                            <ResultCardRun cards={layoffGroups[index] ?? []} emptyLabel="" />
+                        </div>
+                    ))}
+                    <div className="gin-result-row gin-result-deadwood gin-result-deadwood-spacer" aria-hidden="true" />
                 </div>
             </div>
             <div className="gin-result-melds gin-result-defender">
-                <strong>{game.seats[defenderSeat]?.displayName ?? "Opponent"}</strong>
-                {layoffGroups.map((layoffs, index) => (
-                    <div key={index} className="gin-result-row">
-                        <ResultCardRun cards={layoffs} />
+                <strong>{seatDisplayName(game, defenderSeat, "Opponent")} melds</strong>
+                <div className="gin-result-card-rows">
+                    {Array.from({ length: resultRowCount }, (_, index) => (
+                        <div key={index} className="gin-result-row">
+                            <ResultCardRun cards={result.defenderMelds[index] ?? []} emptyLabel="" />
+                        </div>
+                    ))}
+                    <div className="gin-result-row gin-result-deadwood">
+                        <span>Deadwood: {pointLabel(result.defenderDeadwood ?? 0)}</span>
+                        <ResultCardRun cards={result.defenderDeadwoodCards} />
                     </div>
-                ))}
-                <div className="gin-result-row gin-result-deadwood">
-                    <span>Deadwood: {result.defenderDeadwood ?? 0}</span>
-                    <ResultCardRun cards={result.defenderDeadwoodCards} />
                 </div>
             </div>
             <aside className="gin-result-tally">
@@ -59,7 +75,6 @@ export const RoundResultBoard = ({ game, result, onNext }: { game: GinRummyGame;
                 </span>
                 {showGameScoreSummary ? (
                     <>
-                        <hr />
                         <strong>Game Score</strong>
                         {gameScoreLines.map((line, index) => (
                             <span key={`${line.reason}-${index}`}>
@@ -68,11 +83,11 @@ export const RoundResultBoard = ({ game, result, onNext }: { game: GinRummyGame;
                             </span>
                         ))}
                         <span>
-                            <span>{game.seats[0]?.displayName ?? "Seat 1"}:</span>
+                            <span>{seatDisplayName(game, 0)}:</span>
                             <strong>{game.scores.gamePoints[0]}</strong>
                         </span>
                         <span>
-                            <span>{game.seats[1]?.displayName ?? "Seat 2"}:</span>
+                            <span>{seatDisplayName(game, 1)}:</span>
                             <strong>{game.scores.gamePoints[1]}</strong>
                         </span>
                     </>
@@ -83,7 +98,7 @@ export const RoundResultBoard = ({ game, result, onNext }: { game: GinRummyGame;
     );
 };
 
-const ResultCardRun = ({ cards }: { cards: string[] }) => (
+const ResultCardRun = ({ cards, emptyLabel = "None" }: { cards: string[]; emptyLabel?: string }) => (
     <div className="gin-result-card-run">
         {cards.length > 0 ? cards.map((cardId, index) => {
             const card = deckById.get(cardId);
@@ -92,13 +107,13 @@ const ResultCardRun = ({ cards }: { cards: string[] }) => (
                     {card ? <CardView card={card} /> : <span>{cardId}</span>}
                 </div>
             );
-        }) : <span>None</span>}
+        }) : <span>{emptyLabel}</span>}
     </div>
 );
 
 export const FinishedGinRummyLayout = ({ game }: { game: GinRummyGame }) => {
     const winnerSeat = game.winnerSeat ?? 0;
-    const winnerName = game.seats[winnerSeat]?.displayName ?? `Seat ${winnerSeat + 1}`;
+    const winnerName = seatDisplayName(game, winnerSeat);
     const isMatch = game.config.playMode === "bestOfFiveMatch";
     return (
         <section className="gin-finished-layout">
@@ -106,7 +121,7 @@ export const FinishedGinRummyLayout = ({ game }: { game: GinRummyGame }) => {
             <div className="gin-finished-scores">
                 {[0, 1].map((seat) => (
                     <span key={seat}>
-                        <strong>{game.seats[seat]?.displayName ?? `Seat ${seat + 1}`}</strong>
+                        <strong>{seatDisplayName(game, seat)}</strong>
                         {isMatch ? ` ${game.scores.gamesWon[seat]} games won` : ` ${game.scores.gamePoints[seat]} game score`}
                     </span>
                 ))}
@@ -120,7 +135,7 @@ export const RulesReference = ({ config }: { config: GinRummyConfig }) => (
         <h2>Rules</h2>
         <section>
             <h3>Goal</h3>
-            <p>Two players play hands until someone reaches {config.targetScore} points. {config.playMode === "singleGame" ? "This table is a single game, so no game bonus is awarded." : "This table is a best-of-five match, so games won and running total points are tracked."}</p>
+            <p>Two players play hands until someone reaches {pointLabel(config.targetScore)}. {config.playMode === "singleGame" ? "This table is a single game, so no game bonus is awarded." : "This table is a best-of-five match, so games won and running total points are tracked."}</p>
         </section>
         <section>
             <h3>Cards And Melds</h3>
@@ -147,7 +162,7 @@ export const RulesReference = ({ config }: { config: GinRummyConfig }) => (
         </section>
         <section>
             <h3>Knocking And Go Gin</h3>
-            <p>You may knock when your chosen meld arrangement leaves 10 or fewer deadwood points after the discard. When multiple legal arrangements exist, the knocker chooses the arrangement to reveal.</p>
+            <p>You may knock when your chosen meld arrangement leaves {pointLabel(10)} or fewer after the discard. When multiple legal arrangements exist, the knocker chooses the arrangement to reveal.</p>
             <p>After a knock, the defender reveals melds and may lay off deadwood onto the knocker's melds. The defender's deadwood is automatically minimized. The knocker never lays off onto the defender's melds.</p>
             <p>Go Gin means ending with zero deadwood. The defender cannot lay off against Go Gin. {config.bigGinAllowed ? "Go Big Gin is enabled: after drawing, an 11-card hand that all melds may end the hand for the Go Big Gin bonus." : "Go Big Gin is disabled at this table."}</p>
         </section>
@@ -160,10 +175,10 @@ export const RulesReference = ({ config }: { config: GinRummyConfig }) => (
         <section>
             <h3>Game Scoring</h3>
             {config.playMode === "singleGame" ? (
-                <p>The first player to reach {config.targetScore} points wins this single game. Game bonus and line/box bonus are not applied in single-game play.</p>
+                <p>The first player to reach {pointLabel(config.targetScore)} wins this single game. Game bonus and line/box bonus are not applied in single-game play.</p>
             ) : (
                 <>
-                    <p>The first player to reach {config.targetScore} points wins the game. Game points are recorded as a running sum across the best-of-five match.</p>
+                    <p>The first player to reach {pointLabel(config.targetScore)} wins the game. Game points are recorded as a running sum across the best-of-five match.</p>
                     <p>The game winner receives a 100-point game bonus. {config.lineBonusEnabled ? "Line/box bonus is enabled: each hand won in the game adds 25 points." : "Line/box bonus is disabled."} Shutout doubling is always enabled.</p>
                 </>
             )}

@@ -105,6 +105,7 @@ export interface GinRummyGame {
     roundNumber: number;
     stockCount: number;
     discardTop: Card | null;
+    discardUnderTop?: Card | null;
     discardCount: number;
     handCounts: number[];
     scores: Scores;

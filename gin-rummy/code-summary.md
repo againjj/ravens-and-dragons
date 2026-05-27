@@ -23,6 +23,7 @@ The parent project has two child projects:
   - Keeps the first-hand dealer hidden in public state until the first seat is claimed; the backend chooses and stores that dealer privately, reveals it on the first claim, and adds the optional eleventh card as soon as the dealer is revealed.
   - Auto-deals the next hand when a hand ends without ending the game, while sending the completed hand result only as transient command/stream state so reloads do not reopen old result popups. Game and match endings remain in game-over/match-over public states.
   - Includes viewer-only turn details such as private hands, deadwood, knock options, and the discard-pile card that cannot be immediately re-discarded.
+  - Publishes the card under the discard top in public state so the frontend can reveal the next discard-pile card while the top card is being dragged.
 
 ## Frontend Project
 
@@ -35,11 +36,11 @@ The parent project has two child projects:
 - `src/main/frontend/CreateGinRummyScreen.tsx`
   - Renders the create-game controls from Redux-backed Gin Rummy options.
 - `src/main/frontend/GinRummyPlayScreen.tsx`
-  - Renders Redux-backed play-screen state, game loading/streaming, seat picking, turn display, end-action flow, browser-local hand-result popups, and draw/discard animation orchestration.
+  - Renders Redux-backed play-screen state, game loading/streaming, seat picking, turn display, end-action flow, self-play card reveal prompts, browser-local hand-result popups, and draw/discard animation orchestration.
 - `src/main/frontend/Hand.tsx`
   - Renders hand cards and owns drag/drop placement behavior for drawing, discarding, and rearranging cards.
 - `src/main/frontend/RoundResultBoard.tsx`
-  - Renders end-of-hand results, final game/match layout, score tally, and rules reference content.
+  - Renders end-of-hand results, final game/match layout, aligned meld/layoff/deadwood columns, score tally, and rules reference content.
 - `src/main/frontend/CardView.tsx`, `gin-rummy-cards.ts`, `gin-rummy-client.ts`, `gin-rummy-rules.ts`, and `gin-rummy-types.ts`
   - Provide card rendering, deck helpers, API calls, client-side layout/scoring helpers, meld-arrangement pruning for knock choices, and frontend wire types used by the Gin screens.
 - `src/test/frontend/hand-drag.test.tsx` and `src/test/frontend/gin-rummy-store.test.ts`

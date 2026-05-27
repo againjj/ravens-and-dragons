@@ -1158,6 +1158,7 @@ button:disabled {
     --gin-card-width: 76px;
     --gin-card-height: 112px;
     --gin-card-step: clamp(calc(var(--gin-card-width) / 2), calc((100vw - 318px) / 11), var(--gin-card-width));
+    position: relative;
 }
 
 .gin-create-panel {
@@ -1178,6 +1179,7 @@ button:disabled {
 }
 
 .gin-board-shell {
+    position: relative;
     display: grid;
     grid-template-columns: 168px minmax(0, 1fr) 110px;
     grid-template-rows: 150px 132px 72px 164px;
@@ -1279,7 +1281,7 @@ button:disabled {
     margin-left: calc(var(--gin-card-step) - var(--gin-card-width));
     border: 0;
     background: transparent;
-    transition: transform 500ms ease, margin 500ms ease, opacity 160ms ease;
+    transition: transform 500ms ease, margin 500ms ease, filter 160ms ease;
 }
 
 .gin-card-button:first-child {
@@ -1297,7 +1299,7 @@ button:disabled {
 
 .gin-card-button.is-illegal {
     cursor: not-allowed;
-    opacity: 0.71;
+    filter: brightness(0.72) saturate(0.68);
 }
 
 .gin-card-placeholder {
@@ -1412,6 +1414,17 @@ button:disabled {
     background: rgba(255, 255, 255, 0.36);
 }
 
+.gin-stock.is-illegal,
+.gin-discard.is-illegal {
+    opacity: 1;
+    filter: brightness(0.72) saturate(0.68);
+}
+
+.gin-discard.is-drag-source.is-empty {
+    border-style: solid;
+    background: rgba(255, 255, 255, 0.18);
+}
+
 .gin-table-actions {
     position: absolute;
     inset: 0;
@@ -1425,7 +1438,7 @@ button:disabled {
 }
 
 .gin-turn-indicator {
-    flex: 0 0 88px;
+    flex: 0 0 128px;
     white-space: pre-line;
     text-align: right;
     font-weight: 900;
@@ -1464,6 +1477,10 @@ button:disabled {
     pointer-events: auto;
 }
 
+button.gin-show-cards:not(.square):not(.user-menu-action):not(:disabled):hover {
+    transform: translate(-50%, calc(-20% - 1px));
+}
+
 .gin-score-rules {
     display: grid;
     grid-template-columns: minmax(0, 1fr);
@@ -1485,15 +1502,68 @@ button:disabled {
     gap: 10px;
     max-width: min(760px, calc(100vw - 32px));
     padding: 22px;
+    background: var(--bg);
 }
 
 .gin-result-modal {
-    width: min(1220px, calc(100vw - 32px));
+    --gin-card-width: 76px;
+    --gin-card-height: 112px;
+    --gin-card-step: clamp(calc(var(--gin-card-width) / 2), calc((100vw - 318px) / 11), var(--gin-card-width));
+    --gin-result-card-step: clamp(16px, calc((100% - var(--gin-card-width)) / 9), var(--gin-card-step));
+    width: min(1220px, 100%);
     max-height: calc(100vh - 40px);
     overflow: auto;
     padding: 22px;
     background: rgba(255, 252, 244, 0.98);
     box-shadow: 0 24px 60px rgba(20, 15, 9, 0.32);
+}
+
+.gin-local-backdrop {
+    position: absolute;
+    inset: 0;
+    min-height: 100%;
+    align-items: start;
+    justify-items: center;
+    padding: 20px;
+    background: transparent;
+    z-index: 30;
+}
+
+.gin-local-backdrop::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 100vw;
+    transform: translateX(-50%);
+    background: rgba(42, 28, 18, 0.32);
+}
+
+.gin-local-backdrop > .panel {
+    position: relative;
+    z-index: 1;
+}
+
+.gin-content-dim {
+    position: absolute;
+    inset: 0;
+    z-index: 25;
+    background: rgba(42, 28, 18, 0.32);
+    pointer-events: auto;
+}
+
+.gin-knock-positioner {
+    position: absolute;
+    inset: calc(-1 * var(--layout-gap)) calc(-1 * var(--page-pad-x));
+    z-index: 30;
+    display: grid;
+    place-items: center;
+    pointer-events: none;
+}
+
+.gin-knock-positioner > .panel {
+    pointer-events: auto;
 }
 
 .gin-round-reason-modal {
@@ -1516,10 +1586,10 @@ button:disabled {
 
 .gin-result-board {
     display: grid;
-    width: min(1180px, 100%);
+    width: 100%;
     margin: 0 auto;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(180px, 240px);
-    gap: 18px;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 0.8fr) minmax(0, 1fr) minmax(180px, 230px);
+    gap: 14px;
     align-items: start;
     min-height: 420px;
 }
@@ -1528,6 +1598,16 @@ button:disabled {
 .gin-result-tally,
 .gin-finished-layout {
     display: grid;
+    gap: 12px;
+}
+
+.gin-result-melds {
+    min-width: 0;
+}
+
+.gin-result-card-rows {
+    display: grid;
+    grid-auto-rows: minmax(var(--gin-card-height), auto);
     gap: 12px;
 }
 
@@ -1542,6 +1622,7 @@ button:disabled {
 }
 
 .gin-result-row {
+    min-width: 0;
     min-height: var(--gin-card-height);
 }
 
@@ -1553,13 +1634,15 @@ button:disabled {
 .gin-result-card-run {
     display: flex;
     justify-content: flex-start;
+    width: 100%;
     min-height: var(--gin-card-height);
+    overflow: hidden;
 }
 
 .gin-result-card-slot {
     position: relative;
     flex: 0 0 var(--gin-card-width);
-    margin-left: calc(var(--gin-card-step) - var(--gin-card-width));
+    margin-left: calc(var(--gin-result-card-step) - var(--gin-card-width));
 }
 
 .gin-result-card-slot:first-child {
@@ -1568,6 +1651,7 @@ button:disabled {
 
 .gin-result-card-slot .gin-card {
     width: 100%;
+    height: var(--gin-card-height);
 }
 
 .gin-result-tally {
@@ -1583,9 +1667,9 @@ button:disabled {
 
 .gin-result-tally hr {
     width: 100%;
-    margin: 0;
+    margin: 4px 0;
     border: 0;
-    border-top: 1px solid var(--border-strong);
+    border-top: 2px solid var(--line);
 }
 
 .gin-result-tally button {

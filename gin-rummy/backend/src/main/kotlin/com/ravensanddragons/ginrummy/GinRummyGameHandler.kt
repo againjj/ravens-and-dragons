@@ -88,6 +88,7 @@ data class GinRummyPublicState(
     val roundNumber: Int,
     val stockCount: Int,
     val discardTop: GinRummyCard? = null,
+    val discardUnderTop: GinRummyCard? = null,
     val discardCount: Int = 0,
     val handCounts: List<Int> = listOf(0, 0),
     val scores: GinRummyScores = GinRummyScores(),
@@ -350,6 +351,7 @@ class GinRummyGameHandler(
             currentSeat = startingSeat,
             stockCount = privateState.stock.size,
             discardTop = privateState.discardPile.lastOrNull(),
+            discardUnderTop = privateState.discardPile.underTopOrNull(),
             discardCount = privateState.discardPile.size,
             handCounts = privateState.hands.map { it.size },
             winnerSeat = null,
@@ -381,6 +383,7 @@ class GinRummyGameHandler(
         return publicState.copy(
             stockCount = privateState.stock.size,
             discardTop = privateState.discardPile.lastOrNull(),
+            discardUnderTop = privateState.discardPile.underTopOrNull(),
             discardCount = privateState.discardPile.size,
             handCounts = privateState.hands.map { it.size }
         ) to privateState
@@ -405,6 +408,7 @@ class GinRummyGameHandler(
             phase = if (publicState.config.optionalDealRule) discardOnlyPhase else firstUpcardPhase,
             stockCount = nextPrivate.stock.size,
             discardTop = nextPrivate.discardPile.lastOrNull(),
+            discardUnderTop = nextPrivate.discardPile.underTopOrNull(),
             discardCount = nextPrivate.discardPile.size,
             handCounts = nextPrivate.hands.map { it.size },
             message = waitingMessage(publicState.copy(
@@ -472,6 +476,7 @@ class GinRummyGameHandler(
         return publicState.copy(
             phase = discardPhase,
             discardTop = discard.lastOrNull(),
+            discardUnderTop = discard.underTopOrNull(),
             discardCount = discard.size,
             handCounts = nextPrivate.hands.map { it.size },
             message = "Discard a different card, or knock if legal."
@@ -504,6 +509,7 @@ class GinRummyGameHandler(
         val nextPrivate = privateState.copy(discardPile = discard, hands = hands.map { it.toList() }, drewDiscardCardId = null)
         val afterDiscard = publicState.copy(
             discardTop = card,
+            discardUnderTop = privateState.discardPile.lastOrNull(),
             discardCount = discard.size,
             handCounts = nextPrivate.hands.map { it.size },
             stockCount = nextPrivate.stock.size
@@ -994,6 +1000,9 @@ private fun List<Int>.isConsecutive(): Boolean =
 
 private fun List<Int>.addTo(index: Int, amount: Int): List<Int> =
     mapIndexed { i, value -> if (i == index) value + amount else value }
+
+private fun List<GinRummyCard>.underTopOrNull(): GinRummyCard? =
+    getOrNull(size - 2)
 
 private fun List<List<GinRummyCard>>.mutableHands(): MutableList<MutableList<GinRummyCard>> =
     map { it.toMutableList() }.toMutableList()

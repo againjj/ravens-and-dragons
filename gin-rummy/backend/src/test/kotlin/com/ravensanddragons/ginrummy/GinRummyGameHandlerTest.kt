@@ -276,6 +276,28 @@ class GinRummyGameHandlerTest {
     }
 
     @Test
+    fun publicStateIncludesCardUnderDiscardTop() {
+        val request = objectMapper.createObjectNode().put("optionalDealRule", true)
+        var game = handler.createGame("GIN1234", request, "creator")
+        game = handler.applyCommand(game, command(game.version, "claimSeat").put("seat", 0).put("playerUserId", "u1").put("displayName", "One"), "u1")
+        game = handler.applyCommand(game, command(game.version, "claimSeat").put("seat", 1).put("playerUserId", "u2").put("displayName", "Two"), "u2")
+        val started = objectMapper.treeToValue(game.publicState, GinRummyPublicState::class.java)
+        val firstUser = "u${started.currentSeat + 1}"
+        val firstDiscard = objectMapper.treeToValue(game.privateState, GinRummyPrivateState::class.java).hands[started.currentSeat].first().id
+        game = handler.applyCommand(game, command(game.version, "discard").put("cardId", firstDiscard), firstUser)
+        val afterFirstDiscard = objectMapper.treeToValue(game.publicState, GinRummyPublicState::class.java)
+
+        game = handler.applyCommand(game, command(game.version, "drawStock"), "u${afterFirstDiscard.currentSeat + 1}")
+        val afterDraw = objectMapper.treeToValue(game.publicState, GinRummyPublicState::class.java)
+        val secondDiscard = objectMapper.treeToValue(game.privateState, GinRummyPrivateState::class.java).hands[afterDraw.currentSeat].first().id
+        game = handler.applyCommand(game, command(game.version, "discard").put("cardId", secondDiscard), "u${afterDraw.currentSeat + 1}")
+        val afterSecondDiscard = objectMapper.treeToValue(game.publicState, GinRummyPublicState::class.java)
+
+        assertEquals(secondDiscard, afterSecondDiscard.discardTop!!.id)
+        assertEquals(firstDiscard, afterSecondDiscard.discardUnderTop!!.id)
+    }
+
+    @Test
     fun stockExhaustionDealsNextHandUnderRoundResult() {
         var game = handler.createGame("GIN1234", objectMapper.createObjectNode(), "creator")
         game = handler.applyCommand(game, command(game.version, "claimSeat").put("seat", 0).put("playerUserId", "u1").put("displayName", "One"), "u1")

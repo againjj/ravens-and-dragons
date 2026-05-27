@@ -6,7 +6,7 @@ import { CardView } from "./CardView";
 import { Hand } from "./Hand";
 import { FinishedGinRummyLayout, RoundResultBoard, RulesReference } from "./RoundResultBoard";
 import { fetchGinRummyGame, readGameIdFromLocation } from "./gin-rummy-client";
-import { arrangementLabel, canDiscardCardToPile, discardPileInteractionState, elementCenter, endActionButtonState, findArrangements, findBestDeadwood, handInsertionPoint, lastHandCardPoint } from "./gin-rummy-rules";
+import { arrangementLabel, canDiscardCardToPile, discardPileInteractionState, elementCenter, endActionButtonState, findArrangements, findBestDeadwood, handInsertionPoint, lastHandCardPoint, pointLabel, seatDisplayName } from "./gin-rummy-rules";
 import type { Card, DragSource, EndAction, FlyingCard, FlyDestination, GinRummyGame, KnockChoice } from "./gin-rummy-types";
 import {
     clearDragState,
@@ -112,15 +112,6 @@ export const GinRummyPlayScreen = () => {
     const canShowEndActions = Boolean(game && bottomIsViewerSeat && game.currentSeat === bottomSeat && bottomFaceUp);
     const discardPileState = game ? discardPileInteractionState(canAct, game.phase, Boolean(game.discardTop)) : { canDrawDiscard: false, canDiscardToPile: false, disabled: true };
     const { canDrawDiscard, canDiscardToPile } = discardPileState;
-    const turnIndicatorText = !game
-        ? ""
-        : game.currentSeat < 0
-            ? "Waiting\nfor players"
-        : userSeats.length === 0
-            ? `${game.seats[game.currentSeat]?.displayName ?? "Empty seat"}'s\nturn`
-            : game.currentSeat === bottomSeat
-                ? "Your\nturn"
-                : "Opponent's\nturn";
     const isMatch = game?.config.playMode === "bestOfFiveMatch";
     const allKnockChoices = useMemo(() => {
         if (!game || !canShowEndActions || game.phase !== "discard") return [];
@@ -150,6 +141,17 @@ export const GinRummyPlayScreen = () => {
         return arrangement ? { type: "bigGin", arrangement } : null;
     }, [bottomHand, canShowEndActions, game]);
     const visibleEndAction = bigGinChoice ? "bigGin" : ginChoices.length > 0 ? "gin" : knockOnlyChoices.length > 0 ? "knock" : null;
+    const turnIndicatorText = !game
+        ? ""
+        : game.currentSeat < 0
+            ? "Waiting\nfor players"
+        : userSeats.length === 0
+            ? `${seatDisplayName(game, game.currentSeat, "Empty seat")}'s\nturn`
+        : shouldHideBottom
+            ? "Click\n\"Show Cards\""
+            : game.currentSeat === bottomSeat
+                ? activeTurnPrompt(game.phase, visibleEndAction)
+                : "Opponent's\nturn";
     const roundResultKey = game?.roundResult
         ? `${game.id}:${game.roundResult.gameNumber ?? game.gameNumber}:${game.roundResult.roundNumber ?? game.roundNumber}:${game.roundResult.reason}`
         : null;
@@ -289,7 +291,7 @@ export const GinRummyPlayScreen = () => {
         if (!game) return null;
         const seat = game.seats[seatIndex];
         const isDealer = game.dealerSeat >= 0 && game.dealerSeat === seatIndex;
-        const seatName = seat.displayName;
+        const seatName = seat.displayName ? seatDisplayName(game, seatIndex) : null;
         return (
             <aside className={`gin-seat gin-seat-${position}`}>
                 <div className="gin-seat-name">
@@ -351,7 +353,7 @@ export const GinRummyPlayScreen = () => {
                             <button
                                 ref={stockRef}
                                 type="button"
-                                className="gin-stock"
+                                className={`gin-stock ${!canAct || game.phase !== "draw" ? "is-illegal" : ""}`}
                                 disabled={!canAct || game.phase !== "draw"}
                                 draggable={Boolean(canAct && game.phase === "draw")}
                                 onDragStart={(event) => {
@@ -369,11 +371,26 @@ export const GinRummyPlayScreen = () => {
                             <button
                                 ref={discardRef}
                                 type="button"
-                                className={`gin-discard ${game.discardTop ? "" : "is-empty"}`}
+                                className={`gin-discard ${game.discardTop && (activeDragSource !== "discard" || game.discardUnderTop) ? "" : "is-empty"} ${discardPileState.disabled ? "is-illegal" : ""} ${activeDragSource === "discard" ? "is-drag-source" : ""}`}
                                 disabled={discardPileState.disabled}
                                 draggable={canDrawDiscard}
                                 onDragStart={(event) => {
                                     if (canDrawDiscard && game.discardTop) {
+                                        const dragImage = event.currentTarget.cloneNode(true) as HTMLElement;
+                                        const rect = event.currentTarget.getBoundingClientRect();
+                                        dragImage.classList.remove("is-drag-source");
+                                        dragImage.style.position = "fixed";
+                                        dragImage.style.top = "-1000px";
+                                        dragImage.style.left = "-1000px";
+                                        dragImage.style.width = `${rect.width}px`;
+                                        dragImage.style.height = `${rect.height}px`;
+                                        dragImage.style.margin = "0";
+                                        dragImage.style.pointerEvents = "none";
+                                        dragImage.style.setProperty("--gin-card-width", `${rect.width}px`);
+                                        dragImage.style.setProperty("--gin-card-height", `${rect.height}px`);
+                                        document.body.appendChild(dragImage);
+                                        event.dataTransfer.setDragImage(dragImage, event.clientX - rect.left, event.clientY - rect.top);
+                                        window.setTimeout(() => dragImage.remove(), 0);
                                         dispatch(setActiveDragSource("discard"));
                                         event.dataTransfer.setData("text/plain", game.discardTop.id);
                                         event.dataTransfer.setData("application/x-gin-source", "discard");
@@ -400,7 +417,9 @@ export const GinRummyPlayScreen = () => {
                                     dispatch(clearDragState());
                                 }}
                             >
-                                {game.discardTop ? <CardView card={game.discardTop} /> : null}
+                                {activeDragSource === "discard"
+                                    ? game.discardUnderTop ? <CardView card={game.discardUnderTop} /> : null
+                                    : game.discardTop ? <CardView card={game.discardTop} /> : null}
                             </button>
                             <div className="gin-end-actions">
                                 {renderEndActionButton("knock", "Knock", visibleEndAction === "knock", () => dispatch(setPendingEndAction("knock")))}
@@ -422,7 +441,7 @@ export const GinRummyPlayScreen = () => {
                                     Show Cards
                                 </button>
                             ) : null}
-                            <div className="gin-deadwood">{bottomFaceUp ? `Deadwood: ${findBestDeadwood(bottomHand, game.config.aceHighAllowed)} points` : " "}</div>
+                            <div className="gin-deadwood">{bottomFaceUp ? `Deadwood: ${pointLabel(findBestDeadwood(bottomHand, game.config.aceHighAllowed))}` : " "}</div>
                             <Hand
                                 handRef={bottomHandRef}
                                 cards={bottomHand}
@@ -453,11 +472,25 @@ export const GinRummyPlayScreen = () => {
                         </section>
                     </>
                 )}
+                {knockChoices.length > 0 ? (
+                    <div className="gin-knock-positioner" role="presentation">
+                        <section className="panel gin-knock-modal" role="dialog" aria-modal="true" aria-label="Choose knock arrangement">
+                            <h2>Choose Layoff</h2>
+                            {knockChoices.map((choice, index) => (
+                                <button key={index} type="button" onClick={() => runKnockChoice(choice)}>
+                                    {arrangementLabel(choice.arrangement)}
+                                </button>
+                            ))}
+                        </section>
+                    </div>
+                ) : null}
             </section>
 
             <section className="gin-score-rules">
                 <RulesReference config={game.config} />
             </section>
+
+            {knockChoices.length > 0 ? <div className="gin-content-dim" aria-hidden="true" /> : null}
 
             {activePickerSeat !== null ? createPortal(
                 <div className="seat-player-picker-backdrop" role="presentation">
@@ -496,22 +529,8 @@ export const GinRummyPlayScreen = () => {
                 document.body
             ) : null}
 
-            {knockChoices.length > 0 ? createPortal(
-                <div className="modal-backdrop" role="presentation">
-                    <section className="panel gin-knock-modal" role="dialog" aria-modal="true" aria-label="Choose knock arrangement">
-                        <h2>Choose Layoff</h2>
-                        {knockChoices.map((choice, index) => (
-                            <button key={index} type="button" onClick={() => runKnockChoice(choice)}>
-                                {arrangementLabel(choice.arrangement)}
-                            </button>
-                        ))}
-                    </section>
-                </div>,
-                document.body
-            ) : null}
-
-            {showResultOverlay && game.roundResult && roundResultKey ? createPortal(
-                <div className="modal-backdrop" role="presentation">
+            {showResultOverlay && game.roundResult && roundResultKey ? (
+                <div className="modal-backdrop gin-local-backdrop" role="presentation">
                     <section className="panel gin-result-modal" role="dialog" aria-modal="true" aria-label="Hand result">
                         <RoundResultBoard
                             game={game}
@@ -525,19 +544,17 @@ export const GinRummyPlayScreen = () => {
                             }}
                         />
                     </section>
-                </div>,
-                document.body
+                </div>
             ) : null}
 
-            {showReasonOverlay && game.roundResult && roundResultKey ? createPortal(
-                <div className="modal-backdrop modal-backdrop-stacked" role="presentation">
+            {showReasonOverlay && game.roundResult && roundResultKey ? (
+                <div className="modal-backdrop gin-local-backdrop modal-backdrop-stacked" role="presentation">
                     <section className="panel gin-round-reason-modal" role="dialog" aria-modal="true" aria-label="Hand ended">
                         <h2>Hand Ended</h2>
                         <p>{handEndedMessage(game.roundResult.reason, game.roundResult.knockerSeat, game)}</p>
                         <button type="button" onClick={() => dispatch(setDismissedRoundReasonKey(roundResultKey))}>Continue</button>
                     </section>
-                </div>,
-                document.body
+                </div>
             ) : null}
         </section>
     );
@@ -545,8 +562,16 @@ export const GinRummyPlayScreen = () => {
 
 const handEndedMessage = (reason: string, endingSeat: number | null, game: GinRummyGame): string => {
     if (reason === "Stock exhausted") return "Only two cards remained in stock, so the hand ended in a draw.";
-    const name = endingSeat !== null ? game.seats[endingSeat]?.displayName ?? `Seat ${endingSeat + 1}` : "The other player";
+    const name = endingSeat !== null ? seatDisplayName(game, endingSeat) : "The other player";
     return `${name} ended the hand with ${reason === "Gin" ? "Gin" : reason}.`;
+};
+
+const activeTurnPrompt = (phase: GinRummyGame["phase"], visibleEndAction: EndAction | null): string => {
+    if (phase === "draw" || phase === "firstUpcard") return "Draw\na card";
+    if (visibleEndAction === "bigGin") return "Discard\nor go big gin";
+    if (visibleEndAction === "gin") return "Discard\nor go gin";
+    if (visibleEndAction === "knock") return "Discard\nor knock";
+    return "Discard\na card";
 };
 
 const parseStreamedGame = (event: Event): GinRummyGame | null => {

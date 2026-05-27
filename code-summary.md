@@ -87,7 +87,7 @@ The Gradle wrapper is pinned to Gradle 9.4.1. Java 21 is the project toolchain. 
 - Signed-in player game navigation uses `GET /api/games/mine` and live menu updates use `GET /api/games/mine/stream`.
 - Game commands use `POST /api/games/{gameId}/commands`.
 - Tic-Tac-Toe commands place alternating X/O marks on an empty 3x3 square until a row, column, diagonal, or draw finishes the game.
-- Gin Rummy commands claim human seats, reveal the dealer on the first seated player, draw/pass/discard, reorder hands, knock, gin, big gin, and advance immediately dealt alternating-dealer hands/games/matches while scoring with configured bonuses and sending the just-completed hand result as transient command/stream state for browser-local popups.
+- Gin Rummy commands claim human seats, reveal the dealer on the first seated player, draw/pass/discard, reorder hands, knock, gin, big gin, and advance immediately dealt alternating-dealer hands/games/matches while scoring with configured bonuses and sending the just-completed hand result as transient command/stream state for browser-local popups. Gin Rummy public state also exposes the discard card below the top card so the frontend can keep the discard pile visually accurate while the top discard is being dragged.
 - Seat and bot actions are Ravens command types sent through the command endpoint. Ravens uses a platform-owned player picker to add the current user, another existing player, or a legal bot opponent to open seats.
 - Live updates use `GET /api/games/{gameId}/stream`.
 

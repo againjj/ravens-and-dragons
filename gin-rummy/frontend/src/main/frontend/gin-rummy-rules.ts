@@ -1,5 +1,12 @@
 import { deckById } from "./gin-rummy-cards";
 import type { Card, EndAction, FlyDestination, GinRummyGame, MeldArrangement, Phase, RoundResult, Suit } from "./gin-rummy-types";
+export const seatDisplayName = (game: Pick<GinRummyGame, "seats">, seat: number, fallback = `Seat ${seat + 1}`): string => {
+    const name = game.seats[seat]?.displayName ?? fallback;
+    const userId = game.seats[seat]?.userId;
+    const isSelfPlay = Boolean(userId && game.seats.every((candidate) => candidate.userId === userId));
+    return isSelfPlay ? `${name} (${seat + 1})` : name;
+};
+
 export const discardPileInteractionState = (
     canAct: boolean,
     phase: Phase,
@@ -39,6 +46,7 @@ export const cardLabelById = (cardId: string): string => {
     const card = deckById.get(cardId);
     return card ? cardLabel(card) : cardId;
 };
+export const pointLabel = (points: number): string => `${points} ${points === 1 ? "point" : "points"}`;
 export const elementCenter = (element: HTMLElement | null): FlyDestination | null => {
     const rect = element?.getBoundingClientRect();
     return rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null;
@@ -70,12 +78,12 @@ const deadwoodValue = (card: Card): number => card.rank === "A" ? 1 : ["J", "Q",
 const consecutive = (values: number[]): boolean => values.every((value, index) => index === 0 || value === values[index - 1] + 1);
 export const buildScoreSummary = (game: GinRummyGame, result: RoundResult, knockerSeat: number, defenderSeat: number) => {
     const winnerSeat = result.winnerSeat ?? game.currentSeat;
-    const winnerName = game.seats[winnerSeat]?.displayName ?? `Seat ${winnerSeat + 1}`;
-    const knockerName = game.seats[knockerSeat]?.displayName ?? `Seat ${knockerSeat + 1}`;
-    const defenderName = game.seats[defenderSeat]?.displayName ?? `Seat ${defenderSeat + 1}`;
+    const winnerName = seatDisplayName(game, winnerSeat);
+    const knockerName = seatDisplayName(game, knockerSeat);
+    const defenderName = seatDisplayName(game, defenderSeat);
     const knockerDeadwood = result.knockerDeadwood ?? 0;
     const defenderDeadwood = result.defenderDeadwood ?? 0;
-    const title = resultReasonLabel(result.reason || "Hand");
+    const title = "Hand score";
     const lines: { label: string; value: number }[] = [];
     if (result.reason === "Gin" || result.reason === "Big Gin") {
         lines.push({ label: `${defenderName} Deadwood:`, value: defenderDeadwood });

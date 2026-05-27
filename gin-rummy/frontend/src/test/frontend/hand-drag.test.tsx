@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Hand } from "../../main/frontend/Hand";
-import { buildScoreSummary, canDiscardCardToPile, discardPileInteractionState, endActionButtonState, findArrangements } from "../../main/frontend/gin-rummy-rules";
+import { buildScoreSummary, canDiscardCardToPile, discardPileInteractionState, endActionButtonState, findArrangements, pointLabel, seatDisplayName } from "../../main/frontend/gin-rummy-rules";
 import type { Card, Suit } from "../../main/frontend/gin-rummy-types";
 
 type DragStore = Record<string, string>;
@@ -301,8 +301,27 @@ describe("Gin Rummy scoring summary", () => {
 
         const summary = buildScoreSummary(game, result, 1, 0);
 
+        expect(summary.title).toBe("Hand score");
         expect(summary.lines).toContainEqual({ label: "Guest 500F2F Shutout double:", value: 32 });
         expect(summary.lines.some((line) => line.label.includes("Score adjustment"))).toBe(false);
+    });
+
+    it("adds seat numbers to names in self-play games", () => {
+        const game = {
+            seats: [
+                { userId: "u1", displayName: "JJ" },
+                { userId: "u1", displayName: "JJ" }
+            ]
+        };
+
+        expect(seatDisplayName(game, 0)).toBe("JJ (1)");
+        expect(seatDisplayName(game, 1)).toBe("JJ (2)");
+    });
+
+    it("pluralizes point labels", () => {
+        expect(pointLabel(0)).toBe("0 points");
+        expect(pointLabel(1)).toBe("1 point");
+        expect(pointLabel(2)).toBe("2 points");
     });
 });
 
