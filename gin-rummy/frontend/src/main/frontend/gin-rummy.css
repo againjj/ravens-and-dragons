@@ -13,7 +13,7 @@
 .gin-page {
     --gin-card-width: 76px;
     --gin-card-height: 112px;
-    --gin-card-step: clamp(calc(var(--gin-card-width) / 2), calc((100vw - 318px) / 11), var(--gin-card-width));
+    --gin-card-step: clamp(calc(var(--gin-card-width) / 4), calc((100vw - 318px) / 11), var(--gin-card-width));
     position: relative;
 }
 
@@ -110,7 +110,6 @@
     grid-column: 2 / 3;
     grid-row: 1;
     pointer-events: none;
-    flex-direction: row-reverse;
 }
 
 .gin-bottom-hand-wrap {
@@ -142,15 +141,6 @@
 
 .gin-card-button:first-child {
     margin-left: 0;
-}
-
-.gin-hand-top .gin-card-button {
-    margin-left: 0;
-    margin-right: calc(var(--gin-card-step) - var(--gin-card-width));
-}
-
-.gin-hand-top .gin-card-button:first-child {
-    margin-right: 0;
 }
 
 .gin-card-button.is-illegal {
@@ -189,30 +179,41 @@
 }
 
 .gin-card {
-    display: grid;
-    grid-template-rows: auto 1fr auto;
+    position: relative;
+    display: block;
     padding: 8px;
     background: #fffdf7;
     color: #172033;
     font-weight: 800;
 }
 
-.gin-card span:first-child {
-    justify-self: start;
-    align-self: start;
-    line-height: 1;
+.gin-card-corner {
+    display: grid;
+    gap: 1px;
+    justify-items: center;
+    line-height: 0.9;
+}
+
+.gin-card-corner-top {
+    position: absolute;
+    top: 8px;
+    left: 8px;
 }
 
 .gin-card strong {
+    position: absolute;
+    top: 50%;
+    left: 50%;
     font-size: 2.2rem;
     text-align: center;
-    align-self: center;
+    line-height: 1;
+    transform: translate(-50%, -45%);
 }
 
-.gin-card span:last-child {
-    justify-self: end;
-    align-self: end;
-    line-height: 1;
+.gin-card-corner-bottom {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
     transform: rotate(180deg);
 }
 
@@ -364,8 +365,8 @@ button.gin-show-cards:not(.square):not(.user-menu-action):not(:disabled):hover {
 .gin-result-modal {
     --gin-card-width: 76px;
     --gin-card-height: 112px;
-    --gin-card-step: clamp(calc(var(--gin-card-width) / 2), calc((100vw - 318px) / 11), var(--gin-card-width));
-    --gin-result-card-step: clamp(16px, calc((100% - var(--gin-card-width)) / 9), var(--gin-card-step));
+    --gin-card-step: clamp(calc(var(--gin-card-width) / 4), calc((100vw - 318px) / 11), var(--gin-card-width));
+    --gin-result-card-step: clamp(calc(var(--gin-card-width) / 4), calc((100% - var(--gin-card-width)) / 9), var(--gin-card-width));
     width: min(1220px, 100%);
     max-height: calc(100vh - 40px);
     overflow: auto;
@@ -569,7 +570,7 @@ button.gin-show-cards:not(.square):not(.user-menu-action):not(:disabled):hover {
 
 @media (max-width: 500px) {
     .gin-board-shell {
-        --gin-card-step: clamp(calc(var(--gin-card-width) / 2), calc((100vw - 42px) / 11), var(--gin-card-width));
+        --gin-card-step: clamp(calc(var(--gin-card-width) / 4), calc((100vw - 42px) / 11), var(--gin-card-width));
         grid-template-columns: minmax(96px, 0.42fr) minmax(0, 1fr);
         grid-template-rows: 142px auto auto 158px;
         gap: 10px 12px;
