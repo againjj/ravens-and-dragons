@@ -33,7 +33,7 @@ The app keeps the included-game list declarative by registering each game module
   - Remounts active game play screens when the current `/g/{gameId}` changes, so game packages with local play-screen state do not keep stale finished or modal state after user-menu navigation.
   - Registers the Tic-Tac-Toe, Gin Rummy, and Ravens and Dragons frontend package entries for the lobby.
 - `app/frontend/src/main/frontend/styles/styles.css`
-  - Owns the bundled shared browser styles for the app shell, lobby/auth/profile surfaces, game layout primitives, and included game UI styling, including Gin Rummy board/result modal layout and overlay styling.
+  - Owns the bundled shared browser styles for the app shell, lobby/auth/profile surfaces, and game layout primitives. Game-specific frontend packages own their own detailed UI styling.
 - `app/frontend/src/main/frontend/features/playerGames/playerGamesClient.ts`
   - Loads the signed-in user's unfinished seated games and opens the player-game SSE stream used by the header menu turn badges after the initial list load succeeds.
   - Closes the player-game stream on errors so the browser does not keep retrying while the server is down; the stream is reopened only by a later user action or auth/session change.

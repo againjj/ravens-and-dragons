@@ -307,6 +307,27 @@ class GinRummyGameHandlerTest {
     }
 
     @Test
+    fun selfPlayCanReorderEitherOwnedSeatBySeatNumber() {
+        var game = handler.createGame("GIN1234", objectMapper.createObjectNode(), "creator")
+        game = handler.applyCommand(game, command(game.version, "claimSeat").put("seat", 0).put("playerUserId", "u1").put("displayName", "One"), "u1")
+        game = handler.applyCommand(game, command(game.version, "claimSeat").put("seat", 1).put("playerUserId", "u1").put("displayName", "One"), "u1")
+        val before = objectMapper.treeToValue(game.privateState, GinRummyPrivateState::class.java)
+        val seatOneOrder = before.hands[1].map { it.id }.reversed()
+
+        game = handler.applyCommand(
+            game,
+            command(game.version, "reorderHand")
+                .put("seat", 1)
+                .set("cardIds", objectMapper.valueToTree(seatOneOrder)),
+            "u1"
+        )
+        val after = objectMapper.treeToValue(game.privateState, GinRummyPrivateState::class.java)
+
+        assertEquals(before.hands[0].map { it.id }, after.hands[0].map { it.id })
+        assertEquals(seatOneOrder, after.hands[1].map { it.id })
+    }
+
+    @Test
     fun publicStateIncludesCardUnderDiscardTop() {
         val request = objectMapper.createObjectNode().put("optionalDealRule", true)
         var game = handler.createGame("GIN1234", request, "creator")

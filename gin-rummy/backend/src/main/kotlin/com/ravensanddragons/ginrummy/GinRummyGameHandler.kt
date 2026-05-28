@@ -550,9 +550,12 @@ class GinRummyGameHandler(
     }
 
     private fun reorderHand(publicState: GinRummyPublicState, privateState: GinRummyPrivateState, command: JsonNode, actingUserId: String?): Pair<GinRummyPublicState, GinRummyPrivateState> {
-        val seat = publicState.seats.indexOfFirst { it.userId == actingUserId }
-        if (seat < 0) {
-            throw InvalidCommandException("Only a seated player can reorder cards.")
+        val seat = command.intValue("seat", -1)
+        if (seat !in publicState.seats.indices) {
+            throw InvalidCommandException("Reorder requires a valid seat.")
+        }
+        if (publicState.seats[seat].userId == null || publicState.seats[seat].userId != actingUserId) {
+            throw InvalidCommandException("Only the player in that seat can reorder cards.")
         }
         val order = command.get("cardIds")?.map { it.asText() } ?: throw InvalidCommandException("Reorder requires cardIds.")
         val currentHand = privateState.hands[seat]

@@ -1,4 +1,4 @@
-import { type CSSProperties, useCallback, useEffect, useMemo, useRef } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { notifyServerUnavailable } from "@ravensanddragons/platform-frontend/api-client";
 import { PlayerPicker } from "@ravensanddragons/platform-frontend/player-picker";
@@ -55,6 +55,7 @@ export const GinRummyPlayScreen = () => {
     const bottomHandRef = useRef<HTMLDivElement | null>(null);
     const flyKey = useRef(0);
     const previousGameRef = useRef<GinRummyGame | null>(null);
+    const [pendingHandView, setPendingHandView] = useState<{ seat: number; cards: Card[] } | null>(null);
 
     const loadGame = useCallback(() => {
         if (!gameId) {
@@ -105,6 +106,13 @@ export const GinRummyPlayScreen = () => {
     const topSeat = 1 - bottomSeat;
     const currentTurnKey = game ? `${game.id}:${game.roundNumber}:${game.currentSeat}` : "";
     const bottomHand = game?.viewer?.hands[String(bottomSeat)] ?? [];
+    const pendingHandMatchesBottom = Boolean(
+        pendingHandView
+        && pendingHandView.seat === bottomSeat
+        && pendingHandView.cards.length === bottomHand.length
+        && pendingHandView.cards.every((card) => bottomHand.some((candidate) => candidate.id === card.id))
+    );
+    const visibleBottomHand = pendingHandMatchesBottom ? pendingHandView!.cards : bottomHand;
     const bottomIsViewerSeat = userSeats.includes(bottomSeat);
     const shouldHideBottom = sameUserBothSeats && game?.currentSeat === bottomSeat && revealedTurnKey !== currentTurnKey;
     const bottomFaceUp = bottomIsViewerSeat && !shouldHideBottom;
@@ -263,9 +271,23 @@ export const GinRummyPlayScreen = () => {
         nextOrder.splice(destinationIndex, 0, drawnCard.id);
         animateCard(sourceCard, fromClientX, fromClientY, destination ?? handInsertionPoint(bottomHandRef.current, destinationIndex) ?? bottomHandRef.current);
         if (nextOrder.join("|") !== afterHand.map((card) => card.id).join("|")) {
-            await runCommand({ type: "reorderHand", cardIds: nextOrder }, drawn);
+            const byId = new Map(afterHand.map((card) => [card.id, card]));
+            setPendingHandView({ seat: bottomSeat, cards: nextOrder.map((cardId) => byId.get(cardId)).filter((card): card is Card => Boolean(card)) });
+            await runCommand({ type: "reorderHand", seat: bottomSeat, cardIds: nextOrder }, drawn);
         }
     };
+
+    useEffect(() => {
+        if (!pendingHandView || !game) return;
+        const actualHand = game.viewer?.hands[String(pendingHandView.seat)] ?? [];
+        const pendingIds = pendingHandView.cards.map((card) => card.id);
+        const actualIds = actualHand.map((card) => card.id);
+        const sameOrder = pendingIds.join("|") === actualIds.join("|");
+        const sameCards = pendingIds.length === actualIds.length && pendingIds.every((cardId) => actualIds.includes(cardId));
+        if (sameOrder || !sameCards) {
+            setPendingHandView(null);
+        }
+    }, [game, pendingHandView]);
 
     useEffect(() => {
         if (!game) return;
@@ -445,7 +467,7 @@ export const GinRummyPlayScreen = () => {
                             <div className="gin-deadwood">{bottomFaceUp ? `Deadwood: ${pointLabel(findBestDeadwood(bottomHand, game.config.aceHighAllowed))}` : " "}</div>
                             <Hand
                                 handRef={bottomHandRef}
-                                cards={bottomHand}
+                                cards={visibleBottomHand}
                                 count={game.handCounts[bottomSeat] ?? 0}
                                 faceUp={bottomFaceUp}
                                 position="bottom"
@@ -467,7 +489,11 @@ export const GinRummyPlayScreen = () => {
                                     if (source === "discard" && !game.discardTop) return;
                                     void drawToHand(source, insertIndex, clientX, clientY, destination);
                                 }}
-                                onReorder={(cardIds) => runCommand({ type: "reorderHand", cardIds })}
+                                onReorder={(cardIds) => {
+                                    const byId = new Map(bottomHand.map((card) => [card.id, card]));
+                                    setPendingHandView({ seat: bottomSeat, cards: cardIds.map((cardId) => byId.get(cardId)).filter((card): card is Card => Boolean(card)) });
+                                    return runCommand({ type: "reorderHand", seat: bottomSeat, cardIds });
+                                }}
                                 interactive
                             />
                         </section>

@@ -3,6 +3,7 @@ import { CreateGinRummyScreen } from "./CreateGinRummyScreen";
 import { GinRummyPlayScreen } from "./GinRummyPlayScreen";
 import { createGinRummyGame, playRoutePattern } from "./gin-rummy-client";
 import { GinRummyReduxProvider } from "./gin-rummy-store";
+import "./gin-rummy.css";
 
 const emptyLifecycle = () => undefined;
 const ReduxCreateGinRummyScreen = (props: Parameters<typeof CreateGinRummyScreen>[0]) => (
