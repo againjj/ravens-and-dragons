@@ -158,7 +158,7 @@ export const RulesReference = ({ config }: { config: GinRummyConfig }) => (
             ) : (
                 <p>On the first turn, the non-dealer may take the upcard or pass. If the non-dealer passes, the dealer may take it or pass. If both pass, the non-dealer draws from stock. After that, players alternate turns by drawing from stock or discard, then discarding.</p>
             )}
-            <p>A card drawn from the discard pile cannot be discarded immediately on the same turn. If only two cards remain in stock before someone goes out, the hand ends in a draw and no points are awarded.</p>
+            <p>A card drawn from the discard pile cannot be discarded immediately on the same turn. After a turn ends, if only two cards remain in stock and no one went out, the hand ends in a draw and no points are awarded.</p>
         </section>
         <section>
             <h3>Knocking And Go Gin</h3>

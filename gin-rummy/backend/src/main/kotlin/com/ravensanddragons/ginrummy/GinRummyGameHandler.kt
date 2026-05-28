@@ -448,9 +448,6 @@ class GinRummyGameHandler(
         if (publicState.phase !in setOf(drawPhase, firstUpcardPhase)) {
             throw InvalidCommandException("Draw from stock is not legal right now.")
         }
-        if (privateState.stock.size <= 2) {
-            return finishRoundDraw(publicState, privateState)
-        }
         val hands = privateState.hands.mutableHands()
         val stock = privateState.stock.toMutableList()
         hands[publicState.currentSeat].add(stock.removeLast())
@@ -525,6 +522,9 @@ class GinRummyGameHandler(
                 throw InvalidCommandException("Knocking requires 10 or fewer deadwood points.")
             }
             return finishKnock(afterDiscard, nextPrivate, arrangement, isGin)
+        }
+        if (nextPrivate.stock.size == 2) {
+            return finishRoundDraw(afterDiscard, nextPrivate)
         }
         return afterDiscard.copy(
             phase = drawPhase,

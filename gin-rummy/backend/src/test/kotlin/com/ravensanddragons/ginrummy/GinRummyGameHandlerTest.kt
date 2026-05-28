@@ -350,7 +350,7 @@ class GinRummyGameHandlerTest {
     }
 
     @Test
-    fun stockExhaustionDealsNextHandUnderRoundResult() {
+    fun stockExhaustionDealsNextHandAtEndOfTurnUnderRoundResult() {
         var game = handler.createGame("GIN1234", objectMapper.createObjectNode(), "creator")
         game = handler.applyCommand(game, command(game.version, "claimSeat").put("seat", 0).put("playerUserId", "u1").put("displayName", "One"), "u1")
         game = handler.applyCommand(game, command(game.version, "claimSeat").put("seat", 1).put("playerUserId", "u2").put("displayName", "Two"), "u2")
@@ -360,11 +360,20 @@ class GinRummyGameHandlerTest {
         state = objectMapper.treeToValue(game.publicState, GinRummyPublicState::class.java)
         val privateState = objectMapper.treeToValue(game.privateState, GinRummyPrivateState::class.java)
         val exhausted = game.copy(
-            publicState = objectMapper.valueToTree(state.copy(stockCount = 2)),
-            privateState = objectMapper.valueToTree(privateState.copy(stock = privateState.stock.take(2)))
+            publicState = objectMapper.valueToTree(state.copy(stockCount = 3)),
+            privateState = objectMapper.valueToTree(privateState.copy(stock = privateState.stock.take(3)))
         )
 
-        val updated = handler.applyCommand(exhausted, command(exhausted.version, "drawStock"), "u${state.currentSeat + 1}")
+        val drawn = handler.applyCommand(exhausted, command(exhausted.version, "drawStock"), "u${state.currentSeat + 1}")
+        val afterDraw = objectMapper.treeToValue(drawn.publicState, GinRummyPublicState::class.java)
+        val drawnPrivateState = objectMapper.treeToValue(drawn.privateState, GinRummyPrivateState::class.java)
+        val finalDiscard = drawnPrivateState.hands[afterDraw.currentSeat].first().id
+
+        assertEquals("discard", afterDraw.phase)
+        assertEquals(2, afterDraw.stockCount)
+        assertEquals(null, drawn.publicState.get("roundResult"))
+
+        val updated = handler.applyCommand(drawn, command(drawn.version, "discard").put("cardId", finalDiscard), "u${afterDraw.currentSeat + 1}")
         val next = objectMapper.treeToValue(updated.publicState, GinRummyPublicState::class.java)
         val result = objectMapper.treeToValue(updated.publicState.get("roundResult"), GinRummyRoundResult::class.java)
         val persisted = objectMapper.treeToValue(handler.persistedStateAfterCommand(updated).publicState, GinRummyPublicState::class.java)
