@@ -2,11 +2,16 @@
 
 This file is the canonical list of planned work that is not being implemented immediately. Keep each item issue-tracker-like, link any backing plan files, and remove completed items plus obsolete backing plan files when the work is done.
 
-## Make Browser Password Managers Recognize Login
+## Update the Gin Rummy game scoring
 
-- **Goal:** Make Google Chrome recognize the login screen as a login screen and offer to save local-account passwords.
-- **Why:** Players expect browser password managers to work with local accounts, and the current login flow does not trigger Chrome's save-password prompt.
-- **Notes:** Investigate cross-browser-compatible form and navigation behavior before relying on browser-specific credential APIs.
+- **Goal:** The game scoring must be clear to the user, and include all bonuses, listed correctly.
+- **Notes:** It should list for each player the total hand score, the various itemized bonuses, and the game score.
+
+## Fix the handling of "Server Unavailable"
+
+- **Goal:** The "Server Unavailable" dialog should only appear when there is a real problem that the user needs to know about.
+- **Why:** Triggering too often annoys the user for no purpose.
+- **Notes:** It seems to appear on flakey connections. An auto-reconnect after a pause seems reasonable, and only if that fails, should there be a notice.
 
 ## Prepare Ravens And Dragons For External Game Repos
 
@@ -23,8 +28,7 @@ This file is the canonical list of planned work that is not being implemented im
 
 ## Add Game Skins
 
-- **Goal:** Allow alternate visual skins for the game board and pieces.
-- **Why:** Skins would let the game support alternate themes without changing rules or core play flow.
+- **Goal:** Allow alternate visual skins/themes for the game board and pieces without changing rules or core play flow.
 - **Notes:** Treat this as a UI feature unless a future skin requires rules-specific metadata. Preserve existing gameplay behavior.
 
 ## Use Michelle As A Search Evaluator
