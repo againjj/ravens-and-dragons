@@ -36,7 +36,7 @@ The parent project has two child projects:
 - `src/main/frontend/CreateGinRummyScreen.tsx`
   - Renders the create-game controls from Redux-backed Gin Rummy options.
 - `src/main/frontend/GinRummyPlayScreen.tsx`
-  - Renders Redux-backed play-screen state, game loading/streaming, seat picking, turn display, end-action flow, self-play card reveal prompts, browser-local hand-result popups, and draw/discard animation orchestration.
+  - Renders Redux-backed play-screen state, game loading/streaming, seat picking, turn display, end-action flow, self-play card reveal prompts, browser-local hand-result popups with game-local backdrop handling, and draw/discard animation orchestration.
 - `src/main/frontend/Hand.tsx`
   - Renders hand cards and owns drag/drop placement behavior for drawing, discarding, and rearranging cards.
 - `src/main/frontend/gin-rummy.css`
@@ -45,8 +45,8 @@ The parent project has two child projects:
   - Renders end-of-hand results, final game/match layout, aligned meld/layoff/deadwood columns, score tally, and rules reference content.
 - `src/main/frontend/CardView.tsx`, `gin-rummy-cards.ts`, `gin-rummy-client.ts`, `gin-rummy-rules.ts`, and `gin-rummy-types.ts`
   - Provide card rendering, deck helpers, API calls, client-side layout/scoring helpers, meld-arrangement pruning for knock choices, and frontend wire types used by the Gin screens.
-- `src/test/frontend/hand-drag.test.tsx` and `src/test/frontend/gin-rummy-store.test.ts`
-  - Cover drag insertion, rearrange/discard legality, meld-arrangement pruning, score-summary labeling, related UI helper behavior, and Redux state transitions.
+- `src/test/frontend/hand-drag.test.tsx`, `src/test/frontend/gin-rummy-store.test.ts`, and `src/test/frontend/gin-rummy-play-screen.test.tsx`
+  - Cover drag insertion, rearrange/discard legality, meld-arrangement pruning, score-summary labeling, related UI helper behavior, Redux state transitions, and hand-result overlay backdrop behavior.
 
 ## Boundaries
 

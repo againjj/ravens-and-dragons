@@ -557,7 +557,7 @@ export const GinRummyPlayScreen = () => {
             ) : null}
 
             {showResultOverlay && game.roundResult && roundResultKey ? (
-                <div className="modal-backdrop gin-local-backdrop" role="presentation">
+                <div className="gin-local-backdrop" role="presentation">
                     <section className="panel gin-result-modal" role="dialog" aria-modal="true" aria-label="Hand result">
                         <RoundResultBoard
                             game={game}
@@ -575,7 +575,7 @@ export const GinRummyPlayScreen = () => {
             ) : null}
 
             {showReasonOverlay && game.roundResult && roundResultKey ? (
-                <div className="modal-backdrop gin-local-backdrop modal-backdrop-stacked" role="presentation">
+                <div className="gin-local-backdrop modal-backdrop-stacked" role="presentation">
                     <section className="panel gin-round-reason-modal" role="dialog" aria-modal="true" aria-label="Hand ended">
                         <h2>Hand Ended</h2>
                         <p>{handEndedMessage(game.roundResult.reason, game.roundResult.knockerSeat, game)}</p>

@@ -378,6 +378,7 @@ button.gin-show-cards:not(.square):not(.user-menu-action):not(:disabled):hover {
     position: absolute;
     inset: 0;
     min-height: 100%;
+    display: grid;
     align-items: start;
     justify-items: center;
     padding: 20px;
