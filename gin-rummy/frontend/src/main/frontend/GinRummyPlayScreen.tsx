@@ -166,6 +166,7 @@ export const GinRummyPlayScreen = () => {
         && (game.roundResult.reason === "Stock exhausted" || !viewerEndedHand)
     );
     const finalBoard = Boolean(game && (game.phase === "gameOver" || game.phase === "matchOver"));
+    const hasLocalOverlay = knockChoices.length > 0 || showResultOverlay || showReasonOverlay;
 
     const runCommand = (command: Record<string, unknown>, baseGame = game): Promise<GinRummyGame | null> => {
         if (!baseGame) return Promise.resolve(null);
@@ -490,7 +491,7 @@ export const GinRummyPlayScreen = () => {
                 <RulesReference config={game.config} />
             </section>
 
-            {knockChoices.length > 0 ? <div className="gin-content-dim" aria-hidden="true" /> : null}
+            {hasLocalOverlay ? <div className="gin-content-dim" aria-hidden="true" /> : null}
 
             {activePickerSeat !== null ? createPortal(
                 <div className="seat-player-picker-backdrop" role="presentation">
