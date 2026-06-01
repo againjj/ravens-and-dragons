@@ -20,6 +20,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.concurrent.Executor
 
 class GameSessionServiceTest {
 
@@ -365,7 +366,8 @@ class GameSessionServiceTest {
             val game = service.createGame(CreateGameRequest(ruleConfigurationId = ruleConfigurationId))
             service.claimSide(game.id, Side.dragons, "player-one")
 
-            val updated = service.assignBotOpponent(game.id, botId, "player-one")
+            service.assignBotOpponent(game.id, botId, "player-one")
+            val updated = service.getGame(game.id)
 
             assertEquals(ruleConfigurationId, updated.selectedRuleConfigurationId)
             assertEquals(botId, updated.ravensBotId)
@@ -438,6 +440,48 @@ class GameSessionServiceTest {
     }
 
     @Test
+    fun `bot reply is applied after the human move response`() {
+        val commandFollowUpExecutor = RecordingExecutor()
+        val service = createService(commandFollowUpExecutor = commandFollowUpExecutor)
+        val game = service.createGame(
+            CreateGameRequest(
+                ruleConfigurationId = "sherwood-rules",
+                startingSide = Side.dragons
+            )
+        )
+
+        service.claimSide(game.id, Side.dragons, "player-one")
+        service.assignBotOpponent(game.id, BotRegistry.randomBotId, "player-one")
+        commandFollowUpExecutor.runAll()
+        val readyForHumanMove = service.getGame(game.id)
+        val humanMove = GameRules.getLegalMoves(readyForHumanMove.snapshot).first()
+
+        val afterHumanMove = service.applyCommand(
+            readyForHumanMove.id,
+            GameCommandRequest(
+                expectedVersion = readyForHumanMove.version,
+                type = "move-piece",
+                origin = humanMove.origin,
+                destination = humanMove.destination
+            ),
+            "player-one"
+        )
+
+        assertEquals(readyForHumanMove.snapshot.turns.size + 1, afterHumanMove.snapshot.turns.size)
+        assertTrue(afterHumanMove.canUndo)
+        assertEquals(readyForHumanMove.snapshot.activeSide, afterHumanMove.undoOwnerSide)
+        assertEquals(1, commandFollowUpExecutor.pendingCount)
+
+        commandFollowUpExecutor.runNext()
+        val afterBotMove = service.getGame(readyForHumanMove.id)
+
+        assertEquals(readyForHumanMove.snapshot.turns.size + 2, afterBotMove.snapshot.turns.size)
+        assertEquals(readyForHumanMove.snapshot.activeSide, afterBotMove.snapshot.activeSide)
+        assertTrue(afterBotMove.canUndo)
+        assertEquals(readyForHumanMove.snapshot.activeSide, afterBotMove.undoOwnerSide)
+    }
+
+    @Test
     fun `grouped undo restores the pre human turn snapshot in bot games without replaying the bot turn`() {
         val service = createService()
         val game = service.createGame(
@@ -450,7 +494,7 @@ class GameSessionServiceTest {
         service.claimSide(game.id, Side.ravens, "player-one")
         val withBot = service.assignBotOpponent(game.id, BotRegistry.randomBotId, "player-one")
         val humanMove = GameRules.getLegalMoves(withBot.snapshot).first()
-        val afterHumanMove = service.applyCommand(
+        val afterHumanMoveResponse = service.applyCommand(
             withBot.id,
             GameCommandRequest(
                 expectedVersion = withBot.version,
@@ -460,6 +504,7 @@ class GameSessionServiceTest {
             ),
             "player-one"
         )
+        val afterHumanMove = service.getGame(afterHumanMoveResponse.id)
 
         assertTrue(afterHumanMove.canUndo)
         assertEquals(Side.ravens, afterHumanMove.undoOwnerSide)
@@ -648,6 +693,26 @@ class GameSessionServiceTest {
         }
     }
 
+    private class RecordingExecutor : Executor {
+        private val commands = ArrayDeque<Runnable>()
+        val pendingCount: Int
+            get() = commands.size
+
+        override fun execute(command: Runnable) {
+            commands += command
+        }
+
+        fun runNext() {
+            commands.removeFirst().run()
+        }
+
+        fun runAll() {
+            while (commands.isNotEmpty()) {
+                runNext()
+            }
+        }
+    }
+
     private class FailingEmitter : SseEmitter(0L) {
         var completed: Int = 0
 
@@ -663,7 +728,8 @@ class GameSessionServiceTest {
     private fun createService(
         store: InMemoryGameStore = InMemoryGameStore(),
         clock: Clock = fixedClock(),
-        staleGameThreshold: Duration = GameSessionService.defaultStaleGameThreshold
+        staleGameThreshold: Duration = GameSessionService.defaultStaleGameThreshold,
+        commandFollowUpExecutor: Executor = Executor { it.run() }
     ): GameSessionService = GameSessionService(
         store,
         clock,
@@ -673,7 +739,8 @@ class GameSessionServiceTest {
         BotTurnRunner(
             GameCommandService(clock),
             BotRegistry(FixedRandomIndexSource())
-        )
+        ),
+        commandFollowUpExecutor
     )
 
     private fun createIdleGameId(store: InMemoryGameStore): String {

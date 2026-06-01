@@ -67,7 +67,7 @@ object GameSessionFactory {
             lifecycle = lifecycle,
             snapshot = snapshot,
             gameSlug = gameSlug,
-            canUndo = canUndo(undoEntries, dragonsBotId, ravensBotId, lifecycle),
+            canUndo = canUndo(undoEntries, dragonsBotId, ravensBotId),
             undoOwnerSide = undoEntries.lastOrNull()?.ownerSide,
             availableRuleConfigurations = GameRules.availableRuleConfigurations(),
             selectedRuleConfigurationId = selectedRuleConfigurationId,
@@ -86,14 +86,13 @@ object GameSessionFactory {
     private fun canUndo(
         undoEntries: List<UndoEntry>,
         dragonsBotId: String?,
-        ravensBotId: String?,
-        lifecycle: GameLifecycle
+        ravensBotId: String?
     ): Boolean {
         val lastEntry = undoEntries.lastOrNull() ?: return false
         val hasBotSeat = dragonsBotId != null || ravensBotId != null
         return if (hasBotSeat) {
             lastEntry.kind == UndoEntryKind.humanPlusBot ||
-                (lifecycle == GameLifecycle.finished && lastEntry.kind == UndoEntryKind.humanOnly)
+                lastEntry.kind == UndoEntryKind.humanOnly
         } else {
             lastEntry.kind != UndoEntryKind.botOnly
         }

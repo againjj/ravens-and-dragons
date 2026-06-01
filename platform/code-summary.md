@@ -39,7 +39,7 @@
   - Shared opaque game runtime infrastructure.
   - Defines the `GameHandler` port implemented by game modules.
   - Owns generated game ids, persisted game records, public listing metadata, JDBC storage, session locking, stale cleanup, REST/SSE game routing, and generic JSON request/response delegation.
-  - Defers command-triggered game and player-list SSE fanout until after transaction commit, and supports command-only public payloads that can be returned/broadcast without being persisted.
+  - Defers command-triggered game and player-list SSE fanout until after transaction commit, supports command-only public payloads that can be returned/broadcast without being persisted, and runs handler-supplied post-command follow-up work on a dedicated executor after the command response state is persisted. Follow-up work computes outside the per-game lock and reacquires it only to persist, so a later user command can supersede stale follow-up results.
   - Rechecks newly added player-seat user ids through `PlayerAccountValidator` in the command transaction before writing opaque game JSON, so deleted accounts cannot be seated by stale picker data.
   - Exposes public unfinished game listings and signed-in player-game listings/streams, with shared sorting for both list surfaces.
   - Lets game handlers supply display names, open-seat counts, player-seat user ids, current-user turn flags, and normalized client-facing public state without moving game-specific seat rules or legacy payload conversion into platform.

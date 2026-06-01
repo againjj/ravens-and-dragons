@@ -28,7 +28,7 @@ The parent project has two child projects:
   - Ravens and Dragons game/session DTOs, board pieces, sides, phases, rule summaries, turn records, undo restore-state models, and Ravens command/view request models.
 - `src/main/kotlin/com/ravensanddragons/game/RavensAndDragonsGameHandler.kt`
   - Implements the platform `GameHandler` port for Ravens and Dragons.
-  - Converts opaque platform JSON records into Ravens `GameSession` plus undo state, delegates create/command/view behavior to Ravens services, runs bot replies, and serializes Ravens-owned public/private state back into the platform record.
+  - Converts opaque platform JSON records into Ravens `GameSession` plus undo state, delegates create/command/view behavior to Ravens services, schedules post-commit bot replies, and serializes Ravens-owned public/private state back into the platform record.
   - Normalizes legacy snapshot-only public payloads into full `GameSession` responses for generic game reads and initial stream snapshots, allowing older persisted Ravens games to reopen through the current multi-game shell.
   - Supplies public-listing display data, including open Ravens/Dragons seat counts, while preserving platform-owned listing flags on game updates.
   - Supplies player-game menu data for signed-in users by reporting seated users and whether the active side belongs to the current user.
@@ -113,12 +113,13 @@ Server-only undo history stores compact restore-state entries instead of full sn
 - Active games send mutations to `POST /api/games/{gameId}/commands`.
 - Seat claiming, explicit player-seat assignment, and bot assignment are Ravens command types sent through the same command endpoint.
 - Active games subscribe to `GET /api/games/{gameId}/stream`.
+- Bot replies run as post-command follow-up work: the human command response contains the human move state immediately, and the later bot move is persisted and broadcast over the game stream.
 - Active-game streams close on connection errors and stay disconnected until a later user action or reload refreshes game state, rather than polling while the server is down.
 - Request-scoped auth-aware game metadata is loaded from `GET /api/games/{gameId}/view`.
 - Legacy Ravens games stored with snapshot-only public state are converted to full session-shaped responses when loaded or streamed.
 - Seat ownership gates gameplay actions by claimed side and active turn.
 - The live-game seat panel opens the platform player picker for open seats. The picker can add the current user, add another existing local/OAuth/guest player, or add a supported bot when the acting user owns exactly one human seat and the opposite seat is open. Bot assignment is allowed after play has started, but still requires that one-seat ownership rule.
-- Undo against a bot reverses one full human-plus-bot exchange when available.
+- Undo against a bot is available after the human move while the bot reply is pending, and after the bot reply it reverses the full human-plus-bot exchange.
 
 ## Tests
 

@@ -27,6 +27,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.Executor
 
 typealias GameIdGenerator = com.ravensanddragons.platform.game.runtime.GameIdGenerator
 
@@ -36,7 +37,8 @@ class GameSessionService(
     staleGameThreshold: Duration,
     gameCommandService: GameCommandService,
     botRegistry: BotRegistry,
-    botTurnRunner: BotTurnRunner
+    botTurnRunner: BotTurnRunner,
+    commandFollowUpExecutor: Executor = Executor { it.run() }
 ) {
     companion object {
         val defaultStaleGameThreshold: Duration =
@@ -58,7 +60,8 @@ class GameSessionService(
                 clock = clock
             )
         ),
-        playerAccountValidator = NoopPlayerAccountValidator
+        playerAccountValidator = NoopPlayerAccountValidator,
+        commandFollowUpExecutor = commandFollowUpExecutor
     )
 
     fun createGame(request: CreateGameRequest = CreateGameRequest(), createdByUserId: String? = null): GameSession =

@@ -2,6 +2,8 @@ package com.ravensanddragons.platform.game.runtime
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.ObjectNode
+import org.slf4j.LoggerFactory
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -13,6 +15,7 @@ import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executor
 
 @Service
 class GameSessionService(
@@ -21,9 +24,12 @@ class GameSessionService(
     @Value("\${platform.games.stale-threshold:\${ravens-and-dragons.games.stale-threshold:1008h}}")
     private val staleGameThreshold: Duration,
     gameHandlers: List<GameHandler>,
-    private val playerAccountValidator: PlayerAccountValidator
+    private val playerAccountValidator: PlayerAccountValidator,
+    @Qualifier("commandFollowUpExecutor")
+    private val commandFollowUpExecutor: Executor
 ) {
     companion object {
+        private val logger = LoggerFactory.getLogger(GameSessionService::class.java)
         val defaultStaleGameThreshold: Duration = Duration.ofDays(42)
         private const val finishedLifecycle = "finished"
     }
@@ -102,9 +108,13 @@ class GameSessionService(
         playerAccountValidator.requirePlayerAccountsExist(newPlayerUserIds(handler, current, persistableState))
         val commandPublicState = handler.commandPublicState(commandResult, persistableState)
         val persisted = persistAndBroadcast(gameId, persistableState, commandPublicState)
-        val finalState = handler.afterCommandPersisted(persisted) { game -> persistAndBroadcast(gameId, game) }
-        afterCommit { broadcastPlayerGamesFor(current, finalState) }
-        if (finalState == persisted) commandPublicState else finalState.publicState
+        afterCommit {
+            broadcastPlayerGamesFor(current, persisted)
+            commandFollowUpExecutor.execute {
+                runCommandFollowUp(gameId)
+            }
+        }
+        commandPublicState
     }
 
     fun clearUserReferences(userId: String) {
@@ -208,14 +218,60 @@ class GameSessionService(
     }
 
     private fun persistAndBroadcast(gameId: String, game: GameRecord, broadcastPublicState: JsonNode = game.publicState): GameRecord {
+        putWithVersionCheck(gameId, game)
+        afterCommit { broadcast(gameId, broadcastPublicState) }
+        return game
+    }
+
+    private fun runCommandFollowUp(gameId: String) {
+        try {
+            val current = withGameLock(gameId) {
+                gameStore.get(gameId) ?: throw GameNotFoundException(gameId)
+            }
+            val handler = requireHandler(current.gameSlug)
+            val finalState = handler.afterCommandCommitted(current) { game ->
+                withGameLock(gameId) {
+                    persistAndBroadcastCommitted(gameId, game)
+                }
+            }
+            if (finalState != current) {
+                withGameLock(gameId) {
+                    val latest = gameStore.get(gameId)
+                    if (latest?.version == finalState.version) {
+                        broadcastPlayerGamesFor(current, finalState)
+                    }
+                }
+            }
+        } catch (_: GameNotFoundException) {
+            // The game may have been cleaned up before an async follow-up ran.
+        } catch (_: VersionConflictException) {
+            // A later command, such as undo, superseded this queued follow-up.
+        } catch (exception: RuntimeException) {
+            logger.warn("Post-command follow-up failed for game {}", gameId, exception)
+        }
+    }
+
+    private fun persistAndBroadcastCommitted(
+        gameId: String,
+        game: GameRecord,
+        broadcastPublicState: JsonNode = game.publicState
+    ): GameRecord {
+        putWithVersionCheck(gameId, game)
+        broadcast(gameId, broadcastPublicState)
+        return game
+    }
+
+    private fun putWithVersionCheck(gameId: String, game: GameRecord) {
+        val latest = gameStore.get(gameId) ?: throw GameNotFoundException(gameId)
+        if (latest.version != game.version - 1) {
+            throw VersionConflictException(latest.publicState)
+        }
         try {
             gameStore.put(game)
         } catch (_: ConcurrentGameUpdateException) {
-            val latest = gameStore.get(gameId) ?: throw GameNotFoundException(gameId)
-            throw VersionConflictException(latest.publicState)
+            val updated = gameStore.get(gameId) ?: throw GameNotFoundException(gameId)
+            throw VersionConflictException(updated.publicState)
         }
-        afterCommit { broadcast(gameId, broadcastPublicState) }
-        return game
     }
 
     private fun afterCommit(action: () -> Unit) {

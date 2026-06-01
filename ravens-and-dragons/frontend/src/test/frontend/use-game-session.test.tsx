@@ -43,6 +43,25 @@ describe("useGameSession", () => {
         expect(connectGameStreamMock.mock.calls[0][1]).toBe("game-404");
     });
 
+    test("keeps the stream open after the connection state changes", () => {
+        const { store } = renderWithStore(<HookHarness />, {
+            preloadedState: {
+                game: {
+                    view: "game",
+                    currentGameId: "game-404",
+                    session: createSession({ id: "game-404" })
+                }
+            }
+        });
+
+        act(() => {
+            store.dispatch(gameActions.streamConnected());
+        });
+
+        expect(closeStreamMock).not.toHaveBeenCalled();
+        expect(connectGameStreamMock).toHaveBeenCalledTimes(1);
+    });
+
     test("disconnects the stream when returning to the lobby", () => {
         const { store } = renderWithStore(<HookHarness />, {
             preloadedState: {

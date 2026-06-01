@@ -183,7 +183,8 @@ class JdbcGameStoreTest {
             BotTurnRunner(
                 GameCommandService(clock),
                 BotRegistry(FixedRandomIndexSource())
-            )
+            ),
+            java.util.concurrent.Executor { it.run() }
         )
 
         val created = firstService.createGame(CreateGameRequest(board = mapOf("a1" to Piece.dragon)))
@@ -201,7 +202,8 @@ class JdbcGameStoreTest {
             BotTurnRunner(
                 GameCommandService(clock),
                 BotRegistry(FixedRandomIndexSource())
-            )
+            ),
+            java.util.concurrent.Executor { it.run() }
         )
         val reloaded = restartedService.getGame(created.id)
 

@@ -122,14 +122,14 @@ class RavensAndDragonsGameHandler(
             updated.toGameRecord(publiclyListed = current.publiclyListed)
         }
 
-    override fun afterCommandPersisted(
-        persisted: PlatformGameRecord,
+    override fun afterCommandCommitted(
+        current: PlatformGameRecord,
         persist: (PlatformGameRecord) -> PlatformGameRecord
     ): PlatformGameRecord {
-        val storedGame = persisted.toStoredGame()
+        val storedGame = current.toStoredGame()
         return botTurnRunner.runBotTurns(storedGame) { game ->
-            persist(game.toGameRecord(publiclyListed = persisted.publiclyListed)).toStoredGame()
-        }.toGameRecord(publiclyListed = persisted.publiclyListed)
+            persist(game.toGameRecord(publiclyListed = current.publiclyListed)).toStoredGame()
+        }.toGameRecord(publiclyListed = current.publiclyListed)
     }
 
     override fun gameView(current: PlatformGameRecord, currentUserId: String?): JsonNode {
