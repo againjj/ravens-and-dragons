@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useAppDispatch, useAppSelector } from "./app/hooks.js";
+import ayazianGamesLogoUrl from "./assets/AyazianGamesLogo.png";
 import { AuthPanel } from "./components/AuthPanel.js";
 import { LobbyScreen, type PublicGameListing } from "./components/LobbyScreen.js";
 import { ProfileScreen } from "./components/ProfileScreen.js";
@@ -39,6 +40,12 @@ interface AppProps {
 
 const registeredGameEntries: GameEntry<AppDispatch>[] = [ravensAndDragonsGameEntry, ticTacToeGameEntry, ginRummyGameEntry];
 const appTitle = "Ayazian Games";
+
+const HeaderLogo = () => (
+    <span className="header-logo-clip">
+        <img className="header-logo" src={ayazianGamesLogoUrl} alt={appTitle} />
+    </span>
+);
 
 const fetchPublicGames = async (): Promise<PublicGameListing[]> => {
     const response = await fetch("/api/games/public");
@@ -402,7 +409,9 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
                             ) : null}
                             <h1>
                                 {page === "login" ? (
-                                    <span className="header-home-link">Ayazian Games</span>
+                                    <span className="header-home-link">
+                                        <HeaderLogo />
+                                    </span>
                                 ) : (
                                     <a
                                         className="header-home-link"
@@ -412,7 +421,7 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
                                             navigateToLobby();
                                         }}
                                     >
-                                        Ayazian Games
+                                        <HeaderLogo />
                                     </a>
                                 )}
                             </h1>

@@ -31,6 +31,7 @@ The app keeps the included-game list declarative by registering each game module
   - Replaces transient login URLs when authenticated users are redirected to their `next` target so `/login?next=...` does not remain in browser history after sign-in.
   - Classifies shell-level async failures so expired sessions redirect to login, server/network failures show a server-unavailable dialog, and failed lobby/menu loads are not silently rendered as empty lists.
   - Remounts active game play screens when the current `/g/{gameId}` changes, so game packages with local play-screen state do not keep stale finished or modal state after user-menu navigation.
+  - Renders the header brand with the app-owned `AyazianGamesLogo.png` asset while keeping the accessible brand text as `Ayazian Games`.
   - Registers the Tic-Tac-Toe, Gin Rummy, and Ravens and Dragons frontend package entries for the lobby.
 - `app/frontend/src/main/frontend/styles/styles.css`
   - Owns the bundled shared browser styles for the app shell, lobby/auth/profile surfaces, and game layout primitives. Game-specific frontend packages own their own detailed UI styling.
@@ -72,7 +73,7 @@ The app keeps the included-game list declarative by registering each game module
 - `server.port` defaults to `8080` unless overridden by `PORT`.
 - Railway deployment starts `ravens-and-dragons.jar`.
 - The lobby can open a selected public game or a typed game id; public game rows use per-row gradients with a darker selected state, and missing typed ids report feedback without navigating away from the lobby.
-- The shared app header keeps the `Ayazian Games` title visually unchanged while linking it back to `/lobby` after login, leaves it inert on the login page, keeps the signed-in display name as plain text, and places a hamburger menu beside the title for profile/lobby/game/logout navigation plus live turn badges.
+- The shared app header keeps the `Ayazian Games` logo linked back to `/lobby` after login, leaves it inert on the login page, keeps the signed-in display name as plain text, and places a hamburger menu beside the brand for profile/lobby/game/logout navigation plus live turn badges.
 - The login screen requires matching signup password confirmation, and successful local account creation leaves the browser signed out with an account-created popup so the user must sign in.
 - The browser tab title uses `Ayazian Games` for the lobby and loading states, then adds route-specific specifiers for login, profile, create flows, and live games.
 - Navigating to the lobby from the header/menu rechecks auth so stale client sessions redirect to login instead of showing an empty lobby.

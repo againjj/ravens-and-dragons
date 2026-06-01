@@ -93,7 +93,7 @@ The Gradle wrapper is pinned to Gradle 9.4.1. Java 21 is the project toolchain. 
 
 Games persist in the configured database, so clients can reopen the same game after server restart. SSE fanout remains in memory per app instance, and frontend streams close on connection errors rather than retrying automatically.
 
-The shared browser chrome keeps the `Ayazian Games` header title linked back to the lobby after login, renders route-specific browser tab titles under the `Ayazian Games` brand, keeps the signed-in display name as plain text, and exposes profile/lobby/game/logout navigation through a turn-aware hamburger menu beside the header title. App-owned bundled styles keep compact button/dropdown styling, public lobby game-list row gradients with a darker selected row, and the shared 500px phone layout breakpoint; game modules own their detailed game-specific UI styling.
+The shared browser chrome keeps an `Ayazian Games` logo linked back to the lobby after login, renders route-specific browser tab titles under the `Ayazian Games` brand, keeps the signed-in display name as plain text, and exposes profile/lobby/game/logout navigation through a turn-aware hamburger menu beside the header brand. App-owned bundled styles keep compact button/dropdown styling, public lobby game-list row gradients with a darker selected row, and the shared 500px phone layout breakpoint; game modules own their detailed game-specific UI styling.
 
 ## Runtime Configuration
 
