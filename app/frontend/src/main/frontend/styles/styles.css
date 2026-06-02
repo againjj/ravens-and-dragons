@@ -11,10 +11,14 @@
     --raven: #263238;
     --gold: #d5a021;
     --shadow: 0 18px 40px rgba(45, 28, 14, 0.16);
+    --app-background:
+        radial-gradient(circle at top, rgba(213, 160, 33, 0.26), transparent 30%),
+        linear-gradient(180deg, #f7f1e7 0%, #e9dcc7 100%);
     --page-pad-x: 18px;
     --page-pad-y: 16px;
     --layout-gap: 16px;
     --panel-gap: 14px;
+    --panel-padding: 18px;
     --label-col-width: 30px;
     --label-row-height: 30px;
     --board-label-gap: 8px;
@@ -44,9 +48,7 @@ body {
 body {
     font-family: "Avenir Next", "Segoe UI", sans-serif;
     color: var(--line);
-    background:
-        radial-gradient(circle at top, rgba(213, 160, 33, 0.26), transparent 30%),
-        linear-gradient(180deg, #f7f1e7 0%, #e9dcc7 100%);
+    background: var(--app-background);
 }
 
 .page {
@@ -55,6 +57,7 @@ body {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr) auto;
     overflow: hidden;
+    background: var(--app-background);
 }
 
 .hero {
@@ -455,6 +458,7 @@ h3 {
     border: 1px solid rgba(58, 46, 32, 0.12);
     border-radius: 22px;
     backdrop-filter: blur(8px);
+    padding: var(--panel-padding);
 }
 
 .modal-backdrop {
@@ -908,7 +912,7 @@ button:disabled {
 .seat-player-picker-backdrop {
     position: fixed;
     inset: 0;
-    z-index: 50;
+    z-index: 2000;
     display: grid;
     place-items: center;
     padding: 20px;
@@ -1150,38 +1154,6 @@ button:disabled {
 
 .turns-spacer.is-empty {
     min-height: 24px;
-}
-
-.page:fullscreen .panel {
-    border-radius: 18px;
-}
-
-.page:fullscreen {
-    background:
-        radial-gradient(circle at top, rgba(213, 160, 33, 0.26), transparent 30%),
-        linear-gradient(180deg, #f7f1e7 0%, #e9dcc7 100%);
-}
-
-.page:fullscreen .subtitle,
-.page:fullscreen .legend p,
-.page:fullscreen .turns ol,
-.page:fullscreen .status {
-    font-size: 0.95rem;
-    line-height: 1.35;
-}
-
-.page:fullscreen .controls {
-    gap: 10px;
-}
-
-.page:fullscreen button {
-    padding: 5px 16px;
-}
-
-.page:fullscreen .icon-button {
-    width: 32px;
-    height: 32px;
-    padding: 0;
 }
 
 @media (max-width: 500px) {

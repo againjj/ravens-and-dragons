@@ -2,6 +2,7 @@ package com.ravensanddragons
 
 import com.ravensanddragons.game.RavensAndDragonsGameModuleDefinition
 import com.ravensanddragons.ginrummy.GinRummyGameModuleDefinition
+import com.ravensanddragons.lunarbase.LunarBaseGameModuleDefinition
 import com.ravensanddragons.platform.game.GameModuleRegistry
 import com.ravensanddragons.tictactoe.TicTacToeGameModuleDefinition
 import org.springframework.beans.factory.annotation.Value
@@ -24,6 +25,7 @@ class RavensAndDragonsApplication {
             listOf(
                 TicTacToeGameModuleDefinition,
                 GinRummyGameModuleDefinition,
+                LunarBaseGameModuleDefinition,
                 RavensAndDragonsGameModuleDefinition
             )
         )

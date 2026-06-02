@@ -18,6 +18,8 @@ import { selectCurrentUser } from "../features/host/hostAuthSelectors.js";
 import { playerAccountMissingMessage } from "../features/game/gameThunks.js";
 import type { Side } from "../game-types.js";
 
+const portalRoot = () => document.fullscreenElement ?? document.body;
+
 interface SeatPanelProps {
     onAssignBotOpponent: (botId: string) => void;
     onAssignPlayerSeat?: (side: Side, playerUserId: string) => void;
@@ -148,7 +150,7 @@ export const SeatPanel = ({ onAssignBotOpponent, onAssignPlayerSeat = () => {}, 
                                 />
                             </section>
                         </div>,
-                        document.body
+                        portalRoot()
                     )
                     : null}
             </>

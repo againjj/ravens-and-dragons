@@ -22,6 +22,7 @@ import { fetchPlayerGames, openPlayerGamesStream, type PlayerGameListing } from 
 import { ravensAndDragonsGameEntry } from "ravens-and-dragons-frontend";
 import { ticTacToeGameEntry } from "tic-tac-toe-frontend";
 import { ginRummyGameEntry } from "gin-rummy-frontend";
+import { lunarBaseGameEntry } from "lunar-base-frontend";
 import {
     authSessionExpiredEventType,
     createResponseError,
@@ -38,7 +39,7 @@ interface AppProps {
     gameEntries?: GameEntry<AppDispatch>[];
 }
 
-const registeredGameEntries: GameEntry<AppDispatch>[] = [ravensAndDragonsGameEntry, ticTacToeGameEntry, ginRummyGameEntry];
+const registeredGameEntries: GameEntry<AppDispatch>[] = [ravensAndDragonsGameEntry, ticTacToeGameEntry, ginRummyGameEntry, lunarBaseGameEntry];
 const appTitle = "Ayazian Games";
 
 const HeaderLogo = () => (

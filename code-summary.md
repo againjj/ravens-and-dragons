@@ -2,12 +2,13 @@
 
 ## Overview
 
-This repository is a Spring Boot 3.3 + Kotlin 2.1 service that hosts browser-based games. It is organized as a Gradle multi-project build with five top-level projects:
+This repository is a Spring Boot 3.3 + Kotlin 2.1 service that hosts browser-based games. It is organized as a Gradle multi-project build with six top-level projects:
 
 - `app/`: parent project for the runnable Spring Boot backend, deployed frontend shell, and deployable jar assembly.
 - `platform/`: parent project for shared service infrastructure such as auth, web error handling, route fallback, the game module contract, and shared frontend package code.
 - `tic-tac-toe/`: the Tic-Tac-Toe game module, including backend 3x3 board rules/API handling and frontend create/play UI.
 - `gin-rummy/`: the Gin Rummy game module, including backend card rules/scoring/API handling and frontend create/play UI.
+- `lunar-base/`: the Lunar Base game module, including backend card/deck/private-hand rules/API handling and frontend create/play UI.
 - `ravens-and-dragons/`: the Ravens and Dragons game module, including backend rules/APIs, frontend UI, bots, machine training, assets, and tests.
 
 The backend supports multiple persisted game sessions addressed by game id and broadcasts live updates over server-sent events per game. The frontend opens on a lobby, can route into `/{gameSlug}/create` for a local draft setup flow, and opens live games at `/g/{gameId}`. Game creation now posts through a slugged API path so the hosting service can distinguish the game type from the session id.
@@ -17,15 +18,15 @@ The platform auth surface exposes signed-in player summaries for shared player p
 The runnable app now assembles Ravens and Dragons through a platform-owned game module contract and opaque game runtime. Platform owns generic game ids, persistence, REST/SSE routing, stale cleanup, and handler dispatch. Game handlers supply client-facing public state for generic game reads and initial stream snapshots so a module can normalize older persisted payloads before the frontend resolves the game entry. Ravens and Dragons owns every Ravens-shaped concept, including board pieces, sides, snapshots, command semantics, undo payloads, bot turns, and game-view metadata.
 Command-triggered game and player-list stream events are sent after the database transaction commits. Game handlers can mark parts of a command result as command-only public state, so immediate command responses and SSE events may include transient details while later reads load the persisted state without them. Game handlers can also schedule post-commit follow-up work through the runtime; Ravens and Dragons uses this to return the human command state immediately and then persist/broadcast bot replies separately. Follow-up work computes outside the per-game lock and stale follow-up results are discarded if another command updates the game first.
 
-The repository is structured so each game lives in its own sub-project. The current checkout contains three game modules, Tic-Tac-Toe, Gin Rummy, and Ravens and Dragons, and the app registers each module explicitly.
+The repository is structured so each game lives in its own sub-project. The current checkout contains four game modules, Tic-Tac-Toe, Gin Rummy, Lunar Base, and Ravens and Dragons, and the app registers each module explicitly.
 
-The React app shell now lives under `app/frontend` and renders Tic-Tac-Toe, Gin Rummy, and Ravens and Dragons through a frontend game entry contract supplied by the shared `@ravensanddragons/platform-frontend` package. The package also owns shared auth wire types, auth API helpers, browser shell hooks, and generic create-option typing that future frontend game bundles can reuse.
+The React app shell now lives under `app/frontend` and renders Tic-Tac-Toe, Gin Rummy, Lunar Base, and Ravens and Dragons through a frontend game entry contract supplied by the shared `@ravensanddragons/platform-frontend` package. The package also owns shared auth wire types, auth API helpers, browser shell hooks, and generic create-option typing that future frontend game bundles can reuse.
 Frontend API helpers classify unauthorized, domain, and network/server failures so shell and game surfaces can redirect expired sessions to login, show server-down notices, and avoid silently replacing failed loads with empty lists. Live SSE streams are closed on errors; menu and game streams wait for a later user action or reload before reconnecting instead of polling the server while it is down.
 
 ## Project Files
 
 - `settings.gradle.kts`
-  - Includes `:platform`, `:platform:backend`, `:platform:frontend`, `:tic-tac-toe`, `:tic-tac-toe:backend`, `:tic-tac-toe:frontend`, `:gin-rummy`, `:gin-rummy:backend`, `:gin-rummy:frontend`, `:ravens-and-dragons`, `:ravens-and-dragons:backend`, `:ravens-and-dragons:frontend`, `:app`, `:app:backend`, and `:app:frontend`.
+  - Includes `:platform`, `:platform:backend`, `:platform:frontend`, `:tic-tac-toe`, `:tic-tac-toe:backend`, `:tic-tac-toe:frontend`, `:gin-rummy`, `:gin-rummy:backend`, `:gin-rummy:frontend`, `:lunar-base`, `:lunar-base:backend`, `:lunar-base:frontend`, `:ravens-and-dragons`, `:ravens-and-dragons:backend`, `:ravens-and-dragons:frontend`, `:app`, `:app:backend`, and `:app:frontend`.
 - `build.gradle.kts`
   - Owns shared plugin versions, repositories, aggregate lifecycle tasks, root convenience tasks, and deployment-facing jar copy behavior.
   - Gives subproject jar artifacts path-derived names so the assembled Spring Boot jar can include multiple `backend` modules without duplicate `BOOT-INF/lib` entries.
@@ -88,6 +89,7 @@ The Gradle wrapper is pinned to Gradle 9.4.1. Java 21 is the project toolchain. 
 - Game commands use `POST /api/games/{gameId}/commands`.
 - Tic-Tac-Toe commands place alternating X/O marks on an empty 3x3 square until a row, column, diagonal, or draw finishes the game.
 - Gin Rummy commands claim human seats, reveal the dealer on the first seated player, draw/pass/discard, reorder hands, knock, gin, big gin, and advance immediately dealt alternating-dealer hands/games/matches while scoring with configured bonuses and sending the just-completed hand result as transient command/stream state for browser-local popups. Gin Rummy public state also exposes the discard card below the top card so the frontend can keep the discard pile visually accurate while the top discard is being dragged.
+- Lunar Base commands claim seats, draw from stock, take supply cards, discard agent/influence cards, play module cards onto player boards, pass turns, and end the game while keeping private hands in viewer-specific game views.
 - Seat and bot actions are Ravens command types sent through the command endpoint. Ravens uses a platform-owned player picker to add the current user, another existing player, or a legal bot opponent to open seats.
 - Live updates use `GET /api/games/{gameId}/stream`.
 
@@ -114,5 +116,6 @@ Read these before changing the corresponding project:
 - `app/AGENTS.md` and `app/code-summary.md`
 - `tic-tac-toe/AGENTS.md` and `tic-tac-toe/code-summary.md`
 - `gin-rummy/AGENTS.md` and `gin-rummy/code-summary.md`
+- `lunar-base/AGENTS.md` and `lunar-base/code-summary.md`
 - `platform/AGENTS.md` and `platform/code-summary.md`
 - `ravens-and-dragons/AGENTS.md` and `ravens-and-dragons/code-summary.md`

@@ -7,6 +7,7 @@ Ravens and Dragons is a Spring Boot and Kotlin web app for playing browser-based
 - Create a new game from a draft setup or open an existing game by ID
 - Play the included Tic-Tac-Toe game, where X moves first on a 3x3 board and the game ends on a win or draw
 - Play the included Gin Rummy game with human seats, configurable match/scoring rules, drag-reorderable hands, draw/discard turns, end-of-turn stock draw handling, knocking, gin, Big Gin, hand-result summaries, and in-game rule references
+- Play the included Lunar Base game with 2-6 players, optional influence cards, private hands, a shared supply/stock/discard area, zoomable table, and module placement on player boards
 - Use a shared `Ayazian Games` app shell with compact fixed header/footer chrome, lobby-linked header title after login, route-aware browser tab titles, a turn-aware username menu, gradient-styled public lobby rows, and scrollable page content
 - Play in the browser with live updates shared across tabs and clients, including header turn badges for unfinished games where you have a seat
 - When the server is unavailable, the frontend shows a server-down notice and closes live streams instead of silently clearing lists or polling until the server returns
@@ -174,6 +175,9 @@ The stale-game eviction threshold defaults to six weeks, and the cleanup schedul
 - `gin-rummy`: parent game module for the Gin Rummy game
 - `gin-rummy/backend`: Gin Rummy game module definition, card rules, meld/deadwood solving, scoring, command handling, and JVM tests
 - `gin-rummy/frontend`: Gin Rummy frontend game entry, create/play UI, hand interactions, and frontend tests
+- `lunar-base`: parent game module for the Lunar Base game
+- `lunar-base/backend`: Lunar Base game module definition, deck setup, private hands, command handling, and JVM tests
+- `lunar-base/frontend`: Lunar Base frontend game entry, create/play UI, player panels, zoomable table, and frontend tests
 - `platform`: parent shared-service project that aggregates backend and frontend child projects
 - `platform/backend`: shared-service backend project for auth, OAuth provider metadata, route fallback, generic web exception handling, the game module contract, and opaque game runtime
 - `platform/frontend`: shared frontend package for auth API helpers, game-entry contracts, player picking, and browser hooks
@@ -186,4 +190,4 @@ The stale-game eviction threshold defaults to six weeks, and the cleanup schedul
 - `platform/backend/src/main/kotlin/com/ravensanddragons/auth`: authentication and account management
 - `ravens-and-dragons/frontend/src/main/frontend`: Ravens game frontend entry, create/play UI, Redux state, and browser-side helpers
 - `code-summary.md`: service-wide architecture and implementation summary
-- `app/code-summary.md`, `platform/code-summary.md`, `tic-tac-toe/code-summary.md`, `gin-rummy/code-summary.md`, and `ravens-and-dragons/code-summary.md`: project-level implementation summaries
+- `app/code-summary.md`, `platform/code-summary.md`, `tic-tac-toe/code-summary.md`, `gin-rummy/code-summary.md`, `lunar-base/code-summary.md`, and `ravens-and-dragons/code-summary.md`: project-level implementation summaries

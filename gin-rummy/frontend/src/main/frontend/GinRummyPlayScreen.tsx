@@ -30,6 +30,8 @@ import {
 } from "./gin-rummy-slice";
 import { useGinRummyDispatch, useGinRummySelector } from "./gin-rummy-store";
 
+const portalRoot = () => document.fullscreenElement ?? document.body;
+
 export const GinRummyPlayScreen = () => {
     const dispatch = useGinRummyDispatch();
     const gameId = useMemo(readGameIdFromLocation, []);
@@ -537,7 +539,7 @@ export const GinRummyPlayScreen = () => {
                         />
                     </section>
                 </div>,
-                document.body
+                portalRoot()
             ) : null}
 
             {flyingCard ? createPortal(
@@ -553,7 +555,7 @@ export const GinRummyPlayScreen = () => {
                 >
                     {flyingCard.card ? <CardView card={flyingCard.card} /> : <div className="gin-card-back" />}
                 </div>,
-                document.body
+                portalRoot()
             ) : null}
 
             {showResultOverlay && game.roundResult && roundResultKey ? (

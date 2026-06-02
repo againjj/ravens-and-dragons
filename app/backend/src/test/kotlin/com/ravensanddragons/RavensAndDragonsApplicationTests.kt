@@ -33,7 +33,7 @@ class RavensAndDragonsApplicationTests(
         val module = gameModuleRegistry.requireModule("ravens-and-dragons")
 
         assertAll(
-            { assertEquals(listOf("tic-tac-toe", "gin-rummy", "ravens-and-dragons"), gameModuleRegistry.modules.map { it.identity.slug }) },
+            { assertEquals(listOf("tic-tac-toe", "gin-rummy", "lunar-base", "ravens-and-dragons"), gameModuleRegistry.modules.map { it.identity.slug }) },
             { assertEquals("Ravens and Dragons", module.identity.displayName) },
             { assertEquals("/ravens-and-dragons/create", module.routes.browserCreatePath) },
             { assertEquals("/g/{gameId}", module.routes.browserPlayPathPattern) },
@@ -146,6 +146,46 @@ class RavensAndDragonsApplicationTests(
             },
             { assertEquals("/gin-rummy/create", module.smokeCheck.browserEntryPath) },
             { assertEquals("/api/games/gin-rummy", module.smokeCheck.apiEntryPath) }
+        )
+    }
+
+    @Test
+    fun assemblesLunarBaseGameModule() {
+        val module = gameModuleRegistry.requireModule("lunar-base")
+
+        assertAll(
+            { assertEquals("Lunar Base", module.identity.displayName) },
+            { assertEquals("/lunar-base/create", module.routes.browserCreatePath) },
+            { assertEquals("/g/{gameId}", module.routes.browserPlayPathPattern) },
+            { assertEquals("/api/games/{gameSlug}", module.routes.apiBasePath) },
+            { assertEquals("lunar-base", module.persistence.migrationNamespace) },
+            {
+                assertEquals(
+                    setOf(
+                        "id",
+                        "game_slug",
+                        "version",
+                        "created_at",
+                        "updated_at",
+                        "last_accessed_at",
+                        "lifecycle",
+                        "created_by_user_id",
+                        "publicly_listed"
+                    ),
+                    module.persistence.platformMetadataFields
+                )
+            },
+            {
+                assertEquals(
+                    setOf(
+                        "public_state_json",
+                        "private_state_json"
+                    ),
+                    module.persistence.opaquePayloadNames
+                )
+            },
+            { assertEquals("/lunar-base/create", module.smokeCheck.browserEntryPath) },
+            { assertEquals("/api/games/lunar-base", module.smokeCheck.apiEntryPath) }
         )
     }
 }

@@ -1,22 +1,23 @@
 {
-  "name": "app-frontend",
+  "name": "lunar-base-frontend",
   "type": "module",
   "private": true,
+  "exports": {
+    ".": {
+      "types": "./src/main/frontend/lunar-base-entry.tsx",
+      "default": "./src/main/frontend/lunar-base-entry.tsx"
+    }
+  },
   "scripts": {
-    "build": "tsc && vite build",
-    "dev": "vite",
+    "build": "tsc",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "@ravensanddragons/platform-frontend": "file:../../platform/frontend",
-    "@reduxjs/toolkit": "2.8.2",
-    "gin-rummy-frontend": "file:../../gin-rummy/frontend",
-    "lunar-base-frontend": "file:../../lunar-base/frontend",
-    "ravens-and-dragons-frontend": "file:../../ravens-and-dragons/frontend",
+    "@reduxjs/toolkit": "^2.12.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "react-redux": "9.2.0",
-    "tic-tac-toe-frontend": "file:../../tic-tac-toe/frontend"
+    "react-redux": "^9.3.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",
