@@ -20,6 +20,15 @@ The parent project has two child projects:
 - `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseGameHandler.kt`
   - Implements the platform `GameHandler` port for Lunar Base.
   - Creates the configured 2-6 player game, builds and deals the deck, keeps hidden hands in private state, exposes viewer-specific hand contents through `gameView`, validates commands, manages stock/discard refill, module board placement, supply compaction/refill, turn passing, and game ending.
+- `src/main/kotlin/com/ravensanddragons/lunarbase/cards/`
+  - Owns an additive Kotlin card-definition DSL and immutable definition model for script-loaded Lunar Base decks.
+  - Uses separate DSL builder and definition types for agents, influences, modules, stations, and the single station front so invalid card fields are unavailable on the wrong card type.
+  - Supports `.kts` deck syntax, including card colors, orb halves, achievements, declarative actions, static effects, triggered effects, and separate number versus flip-station action amounts.
+  - The DSL is not wired into gameplay, persistence, or frontend rendering yet; current game creation still uses the existing placeholder card generation in `LunarBaseGameHandler`.
+- `src/test/resources/card-sets/standard-cards.kts`
+  - Backend test-resource copy of the standard card script used to validate script loading without depending on exploratory thought files.
+- `src/test/kotlin/com/ravensanddragons/lunarbase/cards/LunarBaseCardScriptTest.kt`
+  - Loads `src/test/resources/card-sets/standard-cards.kts` as a Kotlin script whose final expression returns a deck definition, spot-checks representative card data, and verifies DSL validation rules for station fronts, station counts, non-station counts, and required fields.
 
 ## Frontend Project
 
