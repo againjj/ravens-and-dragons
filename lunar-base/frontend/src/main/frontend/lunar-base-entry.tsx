@@ -19,11 +19,18 @@ import "./lunar-base.css";
 type CardType = "station" | "module" | "agent" | "influence";
 type Orientation = "vertical" | "horizontal";
 type CardRotation = 0 | 90 | 180 | 270;
+type OrbHalfPosition = "top" | "topLeft" | "topRight" | "bottomLeft" | "bottomRight" | "bottom";
 
 interface LunarBaseCard {
     id: string;
-    number: number;
     type: CardType;
+    name?: string;
+    color?: LunarBaseColorName | null;
+    orbs?: LunarBaseColorName[];
+    orbHalves?: Partial<Record<OrbHalfPosition, LunarBaseColorName | null>>;
+    flipped?: boolean;
+    stationBackName?: string | null;
+    stationBackOrbs?: LunarBaseColorName[];
 }
 
 interface LunarBaseSeat {
@@ -128,8 +135,6 @@ const lunarBaseColors = {
     orange: { rgb: "232, 150, 65", css: "rgb(232, 150, 65)", tint: "rgb(252, 239, 226)" }
 } as const;
 type LunarBaseColorName = keyof typeof lunarBaseColors;
-const moduleTintOrder: LunarBaseColorName[] = ["red", "blue", "yellow", "gray"];
-
 const handEndCardKey = (game: LunarBaseGame, playerIndex: number): string | null => {
     if (game.viewer?.seatIndex === playerIndex) {
         const hand = game.viewer.hand;
@@ -208,8 +213,14 @@ const cardTintColor = (card: LunarBaseCard | null): string | null => {
     if (!card) return null;
     if (card.type === "station" || card.type === "agent") return lunarBaseColors.gray.tint;
     if (card.type === "influence") return lunarBaseColors.orange.tint;
-    return lunarBaseColors[moduleTintOrder[card.number % moduleTintOrder.length]].tint;
+    return lunarBaseColors[card.color ?? "gray"].tint;
 };
+
+const cardDisplayName = (card: LunarBaseCard): string =>
+    card.type === "station" && card.flipped ? card.stationBackName ?? card.name ?? card.type : card.name ?? card.type;
+
+const cardDisplayOrbs = (card: LunarBaseCard): LunarBaseColorName[] =>
+    card.type === "station" && card.flipped ? card.stationBackOrbs ?? [] : card.orbs ?? [];
 
 const readGameIdFromLocation = (): string | null => {
     const routeGameId = window.location.pathname.match(playRoutePattern)?.[1] ?? null;
@@ -319,12 +330,50 @@ const CardView = ({
     } as CSSProperties}>
         {faceDown || empty || !card ? null : (
             <>
-                <span className="lunar-card-number">{card.number}</span>
+                <OrbHalvesView card={card} />
+                <span className="lunar-card-name">{cardDisplayName(card)}</span>
                 <span className="lunar-card-type">{card.type}</span>
+                <OrbsView card={card} />
             </>
         )}
     </div>
 );
+
+const orbHalfPositions: OrbHalfPosition[] = ["top", "topLeft", "topRight", "bottomLeft", "bottomRight", "bottom"];
+
+const OrbHalvesView = ({ card }: { card: LunarBaseCard }) => (
+    <>
+        {orbHalfPositions.map((position) => {
+            const color = card.orbHalves?.[position];
+            if (!color || !(color in lunarBaseColors)) return null;
+            return (
+                <span
+                    key={position}
+                    className={`lunar-orb-half ${position}`}
+                    style={{ "--lunar-orb-half-color": lunarBaseColors[color].css } as CSSProperties}
+                    aria-hidden="true"
+                />
+            );
+        })}
+    </>
+);
+
+const OrbsView = ({ card }: { card: LunarBaseCard }) => {
+    const orbs = cardDisplayOrbs(card).filter((color) => color in lunarBaseColors);
+    if (orbs.length === 0) return null;
+    return (
+        <span className="lunar-card-orbs" aria-label={`Orbs: ${orbs.join(", ")}`}>
+            {orbs.map((color, index) => (
+                <span
+                    key={`${color}-${index}`}
+                    className="lunar-card-orb"
+                    style={{ "--lunar-card-orb-color": lunarBaseColors[color].css } as CSSProperties}
+                    aria-hidden="true"
+                />
+            ))}
+        </span>
+    );
+};
 
 const OrbValue = ({ color, value }: { color: Exclude<LunarBaseColorName, "orange">; value: number }) => (
     <span className="lunar-orb-value">
@@ -377,18 +426,90 @@ const boardBounds = (cards: LunarBaseBoardCard[]) => {
     };
 };
 
-const legalPlacement = (board: LunarBaseBoardCard[], x: number, y: number, orientation: Orientation): boolean => {
+const legalPlacement = (board: LunarBaseBoardCard[], card: LunarBaseCard, x: number, y: number, rotation: CardRotation): boolean => {
+    const orientation = rotationToOrientation(rotation);
     const occupied = new Set(board.flatMap(coveredCells).map(([cx, cy]) => `${cx}:${cy}`));
     const cells = orientation === "horizontal" ? [[x, y], [x + 1, y]] : [[x, y], [x, y + 1]];
     if (cells.some(([cx, cy]) => occupied.has(`${cx}:${cy}`))) {
         return false;
     }
-    return cells.some(([cx, cy]) => [
+    const touches = cells.some(([cx, cy]) => [
         `${cx - 1}:${cy}`,
         `${cx + 1}:${cy}`,
         `${cx}:${cy - 1}`,
         `${cx}:${cy + 1}`
     ].some((key) => occupied.has(key)));
+    if (!touches) return false;
+    return orbHalvesMatch({ card, x, y, rotation }, board);
+};
+
+const orbHalvesMatch = (candidate: LunarBaseBoardCard, board: LunarBaseBoardCard[]): boolean => {
+    const candidateCells = new Set(coveredCells(candidate).map(([x, y]) => `${x}:${y}`));
+    const candidateOrbs = orbHalfSlots(candidate);
+    let hasMatchingOrbHalfPair = false;
+    const allTouchedEdgesMatch = board.every((existing) => {
+        const existingCells = new Set(coveredCells(existing).map(([x, y]) => `${x}:${y}`));
+        const existingOrbs = orbHalfSlots(existing);
+        return Array.from(candidateCells).every((cellKey) => {
+            const [x, y] = cellKey.split(":").map(Number);
+            return [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]].every(([nx, ny]) => {
+                if (!existingCells.has(`${nx}:${ny}`)) return true;
+                const slot = sharedOrbSlot([x, y], [nx, ny]);
+                const candidateColor = candidateOrbs.get(slot);
+                const existingColor = existingOrbs.get(slot);
+                if (candidateColor && existingColor && orbColorsMatch(candidateColor, existingColor)) {
+                    hasMatchingOrbHalfPair = true;
+                }
+                return orbColorsMatch(candidateColor, existingColor);
+            });
+        });
+    });
+    return allTouchedEdgesMatch && hasMatchingOrbHalfPair;
+};
+
+const orbColorsMatch = (first: LunarBaseColorName | undefined, second: LunarBaseColorName | undefined): boolean => {
+    if (!first || !second) return first === second;
+    if (first === "gray" || second === "gray") return true;
+    return first === second;
+};
+
+const sharedOrbSlot = ([x, y]: [number, number], [nx, ny]: [number, number]): string => {
+    if (nx === x + 1) return `${(x + 1) * 2}:${y * 2 + 1}`;
+    if (nx === x - 1) return `${x * 2}:${y * 2 + 1}`;
+    if (ny === y + 1) return `${x * 2 + 1}:${(y + 1) * 2}`;
+    return `${x * 2 + 1}:${y * 2}`;
+};
+
+const orbHalfLocalPoint = (position: OrbHalfPosition): [number, number] => {
+    switch (position) {
+        case "top": return [0, -1];
+        case "topLeft": return [-0.5, -0.5];
+        case "topRight": return [0.5, -0.5];
+        case "bottomLeft": return [-0.5, 0.5];
+        case "bottomRight": return [0.5, 0.5];
+        case "bottom": return [0, 1];
+    }
+};
+
+const rotatePoint = ([x, y]: [number, number], rotation: CardRotation): [number, number] => {
+    if (rotation === 90) return [-y, x];
+    if (rotation === 180) return [-x, -y];
+    if (rotation === 270) return [y, -x];
+    return [x, y];
+};
+
+const orbHalfSlots = (boardCard: LunarBaseBoardCard): Map<string, LunarBaseColorName> => {
+    const horizontal = rotationToOrientation(boardCard.rotation) === "horizontal";
+    const centerX = boardCard.x + (horizontal ? 1 : 0.5);
+    const centerY = boardCard.y + (horizontal ? 0.5 : 1);
+    const slots = new Map<string, LunarBaseColorName>();
+    orbHalfPositions.forEach((position) => {
+        const color = boardCard.card.orbHalves?.[position];
+        if (!color) return;
+        const [localX, localY] = rotatePoint(orbHalfLocalPoint(position), boardCard.rotation);
+        slots.set(`${Math.round((centerX + localX) * 2)}:${Math.round((centerY + localY) * 2)}`, color);
+    });
+    return slots;
 };
 
 const snapFromPoint = (
@@ -396,11 +517,13 @@ const snapFromPoint = (
     bounds: ReturnType<typeof boardBounds>,
     clientX: number,
     clientY: number,
-    orientation: Orientation,
+    rotation: CardRotation,
+    card: LunarBaseCard,
     element: HTMLElement | null,
     zoom: number
 ) => {
     if (!element) return null;
+    const orientation = rotationToOrientation(rotation);
     const rect = element.getBoundingClientRect();
     const localX = (clientX - rect.left) / zoom;
     const localY = (clientY - rect.top) / zoom;
@@ -411,7 +534,7 @@ const snapFromPoint = (
     const candidates = orientation === "vertical"
         ? [{ x: gridX, y: gridY - 1 }, { x: gridX, y: gridY }]
         : [{ x: gridX - 1, y: gridY }, { x: gridX, y: gridY }];
-    const legalCandidates = candidates.filter((candidate) => legalPlacement(board, candidate.x, candidate.y, orientation));
+    const legalCandidates = candidates.filter((candidate) => legalPlacement(board, card, candidate.x, candidate.y, rotation));
     if (legalCandidates.length === 1) {
         return legalCandidates[0];
     }
@@ -465,6 +588,7 @@ const PlayerBoard = ({
     selected,
     zoom,
     canAcceptDrag,
+    draggedCard,
     draggedRotation,
     onPlaySelected,
     onClearSelected,
@@ -473,9 +597,10 @@ const PlayerBoard = ({
     hiddenAnimationDestinations
 }: {
     board: LunarBaseBoardCard[];
-    selected: { rotation: CardRotation } | null;
+    selected: { card: LunarBaseCard; rotation: CardRotation } | null;
     zoom: number;
     canAcceptDrag: boolean;
+    draggedCard: LunarBaseCard | null;
     draggedRotation: CardRotation | null;
     onPlaySelected: (x: number, y: number, destination: { x: number; y: number } | null) => void;
     onClearSelected: () => void;
@@ -496,7 +621,7 @@ const PlayerBoard = ({
             style={{ width: columns * gridSquare, height: rows * gridSquare } as CSSProperties}
             onClick={(event) => {
                 if (!selected) return;
-                const snap = snapFromPoint(board, bounds, event.clientX, event.clientY, rotationToOrientation(selected.rotation), ref.current, zoom);
+                const snap = snapFromPoint(board, bounds, event.clientX, event.clientY, selected.rotation, selected.card, ref.current, zoom);
                 if (snap) {
                     setHover(null);
                     onPlaySelected(snap.x, snap.y, boardCardCenter(bounds, snap.x, snap.y, selected.rotation, ref.current, zoom));
@@ -507,8 +632,7 @@ const PlayerBoard = ({
             }}
             onMouseMove={(event) => {
                 if (!selected) return;
-                const orientation = rotationToOrientation(selected.rotation);
-                const snap = snapFromPoint(board, bounds, event.clientX, event.clientY, orientation, ref.current, zoom);
+                const snap = snapFromPoint(board, bounds, event.clientX, event.clientY, selected.rotation, selected.card, ref.current, zoom);
                 setHover(snap ? { ...snap, rotation: selected.rotation } : null);
             }}
             onDragOver={(event) => {
@@ -517,8 +641,7 @@ const PlayerBoard = ({
                     return;
                 }
                 const rotation = draggedRotation ?? normalizeRotation(Number(event.dataTransfer.getData("rotation")));
-                const orientation = rotationToOrientation(rotation);
-                const snap = snapFromPoint(board, bounds, event.clientX, event.clientY, orientation, ref.current, zoom);
+                const snap = draggedCard ? snapFromPoint(board, bounds, event.clientX, event.clientY, rotation, draggedCard, ref.current, zoom) : null;
                 setHover(snap ? { ...snap, rotation } : null);
                 if (snap) event.preventDefault();
             }}
@@ -528,8 +651,7 @@ const PlayerBoard = ({
                     return;
                 }
                 const rotation = draggedRotation ?? normalizeRotation(Number(event.dataTransfer.getData("rotation")));
-                const orientation = rotationToOrientation(rotation);
-                const snap = snapFromPoint(board, bounds, event.clientX, event.clientY, orientation, ref.current, zoom);
+                const snap = draggedCard ? snapFromPoint(board, bounds, event.clientX, event.clientY, rotation, draggedCard, ref.current, zoom) : null;
                 setHover(null);
                 if (!snap) return;
                 event.preventDefault();
@@ -1051,7 +1173,7 @@ const LunarBasePlayScreen = () => {
                             <section className="lunar-areas">
                                 {currentPlayerOrder.map((playerIndex) => {
                                     const isViewer = playerIndex === viewerSeat;
-                                    const cards = isViewer ? hand : Array.from({ length: game.players[playerIndex].handCount }, (_, index) => ({ id: `back-${playerIndex}-${index}`, number: 0, type: "module" as CardType }));
+                                    const cards = isViewer ? hand : Array.from({ length: game.players[playerIndex].handCount }, (_, index) => ({ id: `back-${playerIndex}-${index}`, type: "module" as CardType }));
                                     return (
                                         <section key={playerIndex} className="lunar-player-area">
                                             <h2>{game.seats[playerIndex].displayName ?? `Player ${playerIndex + 1}`}</h2>
@@ -1143,10 +1265,12 @@ const LunarBasePlayScreen = () => {
                                             <PlayerBoard
                                                 board={game.players[playerIndex].board}
                                                 selected={isViewer && selectedHandCard && selectedCard ? {
+                                                    card: selectedHandCard,
                                                     rotation: selectedCard.rotation
                                                 } : null}
                                                 zoom={zoom}
                                                 canAcceptDrag={Boolean(isViewer && draggingSource === "hand" && draggingHandCard?.type === "module")}
+                                                draggedCard={isViewer && draggingHandCard?.type === "module" ? draggingHandCard : null}
                                                 draggedRotation={draggingRotation}
                                                 onBoardCardRef={(cardId, element) => {
                                                     if (element) {

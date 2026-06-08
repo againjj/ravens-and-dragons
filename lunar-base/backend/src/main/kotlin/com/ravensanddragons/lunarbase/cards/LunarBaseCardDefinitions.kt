@@ -15,6 +15,14 @@ data class LunarBaseDeckDefinition(
         require((modules + agents + influences).sumOf { it.count } >= 30) {
             "At least 30 non-station cards are required."
         }
+        val duplicateNames = (listOf(stationFront) + stations + modules + agents + influences)
+            .groupBy { it.name }
+            .filterValues { it.size > 1 }
+            .keys
+            .sorted()
+        require(duplicateNames.isEmpty()) {
+            "Card names must be unique. Duplicate names: ${duplicateNames.joinToString(", ")}."
+        }
     }
 }
 
@@ -96,6 +104,7 @@ data class LunarBaseStationCardDefinition(
 data class LunarBaseStationFrontCardDefinition(
     override val name: String,
     val orbHalves: LunarBaseOrbHalves,
+    val orbs: List<LunarBaseCardColor> = emptyList(),
     val mainAction: List<LunarBaseCardAction>,
     val achievements: List<LunarBaseAchievement> = emptyList(),
     val colonists: Int = 0

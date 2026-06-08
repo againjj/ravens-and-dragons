@@ -320,6 +320,9 @@ class LunarBaseStationFrontCardBuilder {
     /** Achievement icons printed on this station front. */
     var achievements: List<LunarBaseAchievement> = emptyList()
 
+    /** Explicit whole-orb colors supplied by this station front. */
+    var orbs: List<LunarBaseCardColor> = emptyList()
+
     /** Colonist count printed on this station front. */
     var colonists: Int = 0
 
@@ -344,6 +347,7 @@ class LunarBaseStationFrontCardBuilder {
         return LunarBaseStationFrontCardDefinition(
             name = storedName,
             orbHalves = resolvedOrbHalves,
+            orbs = orbs,
             mainAction = requireNotNull(mainAction) { "Station front mainAction is required." },
             achievements = achievements,
             colonists = colonists

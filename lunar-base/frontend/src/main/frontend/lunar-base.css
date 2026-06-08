@@ -250,9 +250,11 @@
 }
 
 .lunar-card {
+    --lunar-card-orb-diameter: 21px;
     position: relative;
     width: 84px;
     height: 168px;
+    padding: 20px 8px;
     box-sizing: border-box;
     border: 1px solid #0f172a;
     border-radius: 6px;
@@ -263,6 +265,7 @@
     place-items: center;
     align-content: center;
     gap: 8px;
+    text-align: center;
     user-select: none;
     overflow: visible;
     transform-origin: center;
@@ -296,14 +299,94 @@
     pointer-events: none;
 }
 
-.lunar-card-number {
+.lunar-card-name {
     font-weight: 700;
-    font-size: 1.3rem;
+    font-size: 0.82rem;
+    line-height: 1.08;
+    overflow-wrap: anywhere;
 }
 
 .lunar-card-type {
     font-size: 0.9rem;
     text-transform: capitalize;
+}
+
+.lunar-card-orbs {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    min-height: var(--lunar-card-orb-diameter);
+}
+
+.lunar-card-orb {
+    width: var(--lunar-card-orb-diameter);
+    height: var(--lunar-card-orb-diameter);
+    box-sizing: border-box;
+    border: 1px solid #0f172a;
+    border-radius: 50%;
+    background: var(--lunar-card-orb-color);
+}
+
+.lunar-orb-half {
+    --lunar-orb-half-diameter: var(--lunar-card-orb-diameter);
+    position: absolute;
+    z-index: 1;
+    box-sizing: border-box;
+    background: var(--lunar-orb-half-color);
+    border: 1px solid #0f172a;
+    pointer-events: none;
+}
+
+.lunar-orb-half.top,
+.lunar-orb-half.bottom {
+    width: var(--lunar-orb-half-diameter);
+    height: calc(var(--lunar-orb-half-diameter) / 2);
+    left: 50%;
+}
+
+.lunar-orb-half.top {
+    top: -1px;
+    border-radius: 0 0 var(--lunar-orb-half-diameter) var(--lunar-orb-half-diameter);
+    transform: translateX(-50%);
+}
+
+.lunar-orb-half.bottom {
+    bottom: -1px;
+    border-radius: var(--lunar-orb-half-diameter) var(--lunar-orb-half-diameter) 0 0;
+    transform: translateX(-50%);
+}
+
+.lunar-orb-half.topLeft,
+.lunar-orb-half.bottomLeft,
+.lunar-orb-half.topRight,
+.lunar-orb-half.bottomRight {
+    width: calc(var(--lunar-orb-half-diameter) / 2);
+    height: var(--lunar-orb-half-diameter);
+    top: var(--lunar-orb-half-y);
+}
+
+.lunar-orb-half.topLeft,
+.lunar-orb-half.bottomLeft {
+    left: -1px;
+    border-radius: 0 var(--lunar-orb-half-diameter) var(--lunar-orb-half-diameter) 0;
+    transform: translateY(-50%);
+}
+
+.lunar-orb-half.topRight,
+.lunar-orb-half.bottomRight {
+    right: -1px;
+    border-radius: var(--lunar-orb-half-diameter) 0 0 var(--lunar-orb-half-diameter);
+    transform: translateY(-50%);
+}
+
+.lunar-orb-half.topLeft,
+.lunar-orb-half.topRight {
+    --lunar-orb-half-y: 41px;
+}
+
+.lunar-orb-half.bottomLeft,
+.lunar-orb-half.bottomRight {
+    --lunar-orb-half-y: 125px;
 }
 
 .lunar-board {

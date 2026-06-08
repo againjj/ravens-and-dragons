@@ -18,13 +18,13 @@ kotlin {
 
 dependencies {
     implementation(project(":platform:backend"))
+    implementation("org.jetbrains.kotlin:kotlin-scripting-common:2.1.21")
+    implementation("org.jetbrains.kotlin:kotlin-scripting-jvm:2.1.21")
+    implementation("org.jetbrains.kotlin:kotlin-scripting-compiler-embeddable:2.1.21")
+    implementation("org.jetbrains.kotlin:kotlin-scripting-jvm-host:2.1.21")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test:3.3.4")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
-    testImplementation("org.jetbrains.kotlin:kotlin-scripting-common:2.1.21")
-    testImplementation("org.jetbrains.kotlin:kotlin-scripting-jvm:2.1.21")
-    testImplementation("org.jetbrains.kotlin:kotlin-scripting-compiler-embeddable:2.1.21")
-    testImplementation("org.jetbrains.kotlin:kotlin-scripting-jvm-host:2.1.21")
 }
 
 tasks.withType<KotlinCompile> {

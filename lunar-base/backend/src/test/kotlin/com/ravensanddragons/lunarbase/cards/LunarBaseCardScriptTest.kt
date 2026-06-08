@@ -1,19 +1,9 @@
 package com.ravensanddragons.lunarbase.cards
 
-import java.io.File
-import kotlin.script.experimental.api.ResultValue
-import kotlin.script.experimental.api.ScriptCompilationConfiguration
-import kotlin.script.experimental.api.ScriptEvaluationConfiguration
-import kotlin.script.experimental.api.defaultImports
-import kotlin.script.experimental.api.valueOrThrow
-import kotlin.script.experimental.host.toScriptSource
-import kotlin.script.experimental.jvm.dependenciesFromCurrentContext
-import kotlin.script.experimental.jvm.jvm
-import kotlin.script.experimental.jvmhost.BasicJvmScriptingHost
 import kotlin.test.Test
 import kotlin.test.assertEquals
-import kotlin.test.assertIs
 import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
 
 class LunarBaseCardScriptTest {
     @Test
@@ -142,6 +132,32 @@ class LunarBaseCardScriptTest {
     }
 
     @Test
+    fun deckRequiresUniqueCardNames() {
+        val exception = assertFailsWith<IllegalArgumentException> {
+            deck {
+                stationFront {
+                    name = "Front"
+                    orbHalves { top = gray }
+                    mainAction { draw { 1 } }
+                }
+                station {
+                    count = 6
+                    name = "Duplicate"
+                    mainAction { draw { 1 } }
+                }
+                module {
+                    count = 30
+                    name = "Duplicate"
+                    orbHalves { top = gray }
+                    cardCost = listOf()
+                }
+            }
+        }
+
+        assertEquals("Card names must be unique. Duplicate names: Duplicate.", exception.message)
+    }
+
+    @Test
     fun cardBuildersRequireExplicitRequiredFields() {
         val missingAgentCount = assertFailsWith<IllegalArgumentException> {
             deck {
@@ -186,30 +202,7 @@ class LunarBaseCardScriptTest {
     }
 
     private fun loadStandardDeckScript(): LunarBaseDeckDefinition {
-        val scriptPath = File(
-            requireNotNull(javaClass.classLoader.getResource("card-sets/standard-cards.kts")) {
-                "Missing backend standard-cards.kts test resource."
-            }.toURI()
-        )
-        val result = BasicJvmScriptingHost().eval(
-            script = scriptPath.toScriptSource(),
-            compilationConfiguration = ScriptCompilationConfiguration {
-                defaultImports(
-                    "com.ravensanddragons.lunarbase.cards.*"
-                )
-                jvm {
-                    dependenciesFromCurrentContext(wholeClasspath = true)
-                }
-            },
-            evaluationConfiguration = ScriptEvaluationConfiguration()
-        )
-        val evaluation = result.valueOrThrow()
-        val returnValue = evaluation.returnValue
-        if (returnValue !is ResultValue.Value) {
-            error("Expected standard-cards.kts to return a deck, but got ${returnValue::class.simpleName}.")
-        }
-        return returnValue.value as? LunarBaseDeckDefinition
-            ?: error("Expected standard-cards.kts to return ${LunarBaseDeckDefinition::class.simpleName}, but got ${returnValue.value?.let { it::class.qualifiedName }}.")
+        return LunarBaseStandardDeck.definition
     }
 
 }
