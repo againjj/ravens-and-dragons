@@ -19,7 +19,7 @@ The parent project has two child projects:
   - Declares the `lunar-base` slug and `/lunar-base/create` browser route.
 - `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseGameHandler.kt`
   - Implements the platform `GameHandler` port for Lunar Base.
-  - Creates the configured 2-6 player game, builds and deals the deck, keeps hidden hands in private state, exposes viewer-specific hand contents through `gameView`, validates commands, manages stock/discard refill, module board placement, supply compaction/refill, turn passing, and game ending.
+  - Creates the configured 2-6 player game, builds and deals the deck, keeps hidden hands in private state, exposes viewer-specific hand contents through `gameView`, validates commands, manages stock/discard refill, module board placement, supply compaction/refill that keeps influence cards while dealing a full replacement supply, turn passing, and game ending.
 - `src/main/kotlin/com/ravensanddragons/lunarbase/cards/`
   - Owns an additive Kotlin card-definition DSL and immutable definition model for script-loaded Lunar Base decks.
   - Uses separate DSL builder and definition types for agents, influences, modules, stations, and the single station front so invalid card fields are unavailable on the wrong card type.
@@ -37,7 +37,7 @@ The parent project has two child projects:
   - Typechecks and tests the Lunar Base frontend package with Gradle-managed Node/npm.
 - `src/main/frontend/lunar-base-entry.tsx`
   - Exports `lunarBaseGameEntry` through the package entrypoint for the app-owned frontend shell.
-  - Owns the Lunar Base create screen, play screen, player panels, card/table rendering, zoom control, click interaction, drag/drop interaction, and client-only card movement animation styling.
+  - Owns the Lunar Base create screen, play screen, player panels, shared Lunar Base color definitions, card/table rendering and tint selection, zoom control, click interaction, drag/drop interaction, and client-only card movement animation styling.
 - `src/main/frontend/lunar-base.css`
   - Owns Lunar Base-specific layout, card, board, responsive, and animation styles.
 

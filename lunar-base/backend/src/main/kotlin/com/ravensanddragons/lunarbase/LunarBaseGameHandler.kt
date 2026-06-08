@@ -343,7 +343,8 @@ class LunarBaseGameHandler(
         if (public.supply.filterNotNull().all { it.type == influenceType }) {
             val keptInfluences = public.supply.filterNotNull()
             public = public.copy(supply = keptInfluences)
-            while (public.supply.size < supplySize(public.config.playerCount)) {
+            val refillTarget = keptInfluences.size + supplySize(public.config.playerCount)
+            while (public.supply.size < refillTarget) {
                 private = ensureStock(private, gameId, public.version + public.supply.size)
                 val nextCard = private.stock.firstOrNull() ?: break
                 public = public.copy(supply = public.supply + nextCard)

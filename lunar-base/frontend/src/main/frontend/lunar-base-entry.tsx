@@ -99,6 +99,9 @@ interface CardMovementAnimation {
     fromX: number;
     fromY: number;
     destination: AnimationDestination;
+    toX?: number;
+    toY?: number;
+    hiddenDestinationKey?: string | null;
 }
 interface SelectedCard {
     cardId: string;
@@ -114,7 +117,18 @@ const minZoom = 0.45;
 const maxZoom = 1.4;
 const portalRoot = () => document.fullscreenElement ?? document.body;
 const rectCenter = (rect: DOMRect) => ({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
+const cardGap = 8;
 const layoutAnimationSelector = "[data-lunar-animate]";
+const cardAnimationDurationMs = 500;
+const lunarBaseColors = {
+    red: { rgb: "199, 53, 63", css: "rgb(199, 53, 63)", tint: "rgb(246, 225, 227)" },
+    blue: { rgb: "69, 137, 198", css: "rgb(69, 137, 198)", tint: "rgb(225, 237, 247)" },
+    yellow: { rgb: "242, 186, 71", css: "rgb(242, 186, 71)", tint: "rgb(253, 245, 229)" },
+    gray: { rgb: "200, 200, 200", css: "rgb(200, 200, 200)", tint: "rgb(241, 241, 241)" },
+    orange: { rgb: "232, 150, 65", css: "rgb(232, 150, 65)", tint: "rgb(252, 239, 226)" }
+} as const;
+type LunarBaseColorName = keyof typeof lunarBaseColors;
+const moduleTintOrder: LunarBaseColorName[] = ["red", "blue", "yellow", "gray"];
 
 const handEndCardKey = (game: LunarBaseGame, playerIndex: number): string | null => {
     if (game.viewer?.seatIndex === playerIndex) {
@@ -138,6 +152,32 @@ const handEndRect = (
 
 const handAreaRectsFromRefs = (refs: Map<number, HTMLElement>): Map<number, DOMRect> =>
     new Map(Array.from(refs.entries()).map(([playerIndex, element]) => [playerIndex, element.getBoundingClientRect()]));
+
+const viewerHandDestinationPoint = (
+    game: LunarBaseGame,
+    handCardRefs: Map<string, HTMLElement>,
+    handAreaRefs: Map<number, HTMLElement>
+): { x: number; y: number } | null => {
+    const viewerSeat = game.viewer?.seatIndex;
+    if (viewerSeat === null || viewerSeat === undefined) return null;
+    const hand = game.viewer?.hand ?? [];
+    const lastCard = hand.length > 0 ? hand[hand.length - 1] : null;
+    const lastCardRect = lastCard ? handCardRefs.get(lastCard.id)?.getBoundingClientRect() : null;
+    if (lastCardRect) {
+        return { x: lastCardRect.left + lastCardRect.width / 2 + cardWidth + cardGap, y: lastCardRect.top + lastCardRect.height / 2 };
+    }
+    const handAreaRect = handAreaRefs.get(viewerSeat)?.getBoundingClientRect();
+    return handAreaRect ? { x: handAreaRect.left + cardWidth / 2, y: handAreaRect.top + cardWidth } : null;
+};
+
+const animationSourceKey = (animation: CardMovementAnimation, game: LunarBaseGame): string | null => {
+    if (!animation.card) return null;
+    if (animation.destination.type === "handCard") {
+        return `supply-${animation.card.id}`;
+    }
+    const viewerSeat = game.viewer?.seatIndex;
+    return viewerSeat === null || viewerSeat === undefined ? null : `hand-${viewerSeat}-${animation.card.id}`;
+};
 
 const removedSupplyCards = (previous: LunarBaseGame, current: LunarBaseGame): LunarBaseCard[] => {
     const currentIds = new Set(current.supply.filter((card): card is LunarBaseCard => Boolean(card)).map((card) => card.id));
@@ -163,6 +203,13 @@ const rotationToOrientation = (rotation: CardRotation): Orientation =>
 
 const isDiscardableFromHand = (card: LunarBaseCard | null | undefined): card is LunarBaseCard =>
     card?.type === "agent" || card?.type === "influence";
+
+const cardTintColor = (card: LunarBaseCard | null): string | null => {
+    if (!card) return null;
+    if (card.type === "station" || card.type === "agent") return lunarBaseColors.gray.tint;
+    if (card.type === "influence") return lunarBaseColors.orange.tint;
+    return lunarBaseColors[moduleTintOrder[card.number % moduleTintOrder.length]].tint;
+};
 
 const readGameIdFromLocation = (): string | null => {
     const routeGameId = window.location.pathname.match(playRoutePattern)?.[1] ?? null;
@@ -266,7 +313,10 @@ const CardView = ({
         faceDown ? "is-back" : "",
         selected ? "is-selected" : "",
         empty ? "is-empty" : ""
-    ].filter(Boolean).join(" ")} style={{ "--lunar-card-rotation": `${visualRotation}deg` } as CSSProperties}>
+    ].filter(Boolean).join(" ")} style={{
+        "--lunar-card-rotation": `${visualRotation}deg`,
+        "--lunar-card-tint": cardTintColor(card) ?? undefined
+    } as CSSProperties}>
         {faceDown || empty || !card ? null : (
             <>
                 <span className="lunar-card-number">{card.number}</span>
@@ -274,6 +324,12 @@ const CardView = ({
             </>
         )}
     </div>
+);
+
+const OrbValue = ({ color, value }: { color: Exclude<LunarBaseColorName, "orange">; value: number }) => (
+    <span className="lunar-orb-value">
+        {value} <span className="lunar-orb-swatch" style={{ "--lunar-orb-color": lunarBaseColors[color].css } as CSSProperties} aria-label={color} />
+    </span>
 );
 
 const PlayerPanel = ({
@@ -297,10 +353,10 @@ const PlayerPanel = ({
                 {seat.userId ? <strong>{seat.displayName ?? `Player ${playerIndex + 1}`}</strong> : <button type="button" onClick={() => onOpenPicker(playerIndex)}>Add Player</button>}
                 {isCurrentPlayer ? <span>(Current player)</span> : null}
             </div>
-            <p>Orbs: red {player.orbs.red}, blue {player.orbs.blue}, yellow {player.orbs.yellow}, gray {player.orbs.gray}</p>
-            <p>Credits: {player.credits}/20</p>
-            <p>Colonists: {player.colonists}/10</p>
-            <p>Achievements: {player.achievements}/5</p>
+            <p>Orbs: <OrbValue color="red" value={player.orbs.red} />, <OrbValue color="blue" value={player.orbs.blue} />, <OrbValue color="yellow" value={player.orbs.yellow} />, <OrbValue color="gray" value={player.orbs.gray} /></p>
+            <p>Lunar credits: {player.credits}/20</p>
+            <p>Colonists housed: {player.colonists}/10</p>
+            <p>Scientific achievements: {player.achievements}/5</p>
             {isCurrentUser ? <p>Influences in hand: {player.influenceHandCount}/4</p> : null}
         </section>
     );
@@ -367,6 +423,22 @@ const snapFromPoint = (
     return null;
 };
 
+const boardCardCenter = (
+    bounds: ReturnType<typeof boardBounds>,
+    x: number,
+    y: number,
+    rotation: CardRotation,
+    element: HTMLElement | null,
+    zoom: number
+): { x: number; y: number } | null => {
+    if (!element) return null;
+    const rect = element.getBoundingClientRect();
+    const isHorizontal = rotationToOrientation(rotation) === "horizontal";
+    const centerX = (x - bounds.minX + (isHorizontal ? 1 : 0.5)) * gridSquare * zoom;
+    const centerY = (y - bounds.minY + (isHorizontal ? 0.5 : 1)) * gridSquare * zoom;
+    return { x: rect.left + centerX, y: rect.top + centerY };
+};
+
 const setScaledDragImage = (event: DragEvent<HTMLElement>, zoom: number, rotation: CardRotation = 0) => {
     const card = event.currentTarget.querySelector(".lunar-card")?.cloneNode(true);
     if (!(card instanceof HTMLElement)) {
@@ -397,17 +469,19 @@ const PlayerBoard = ({
     onPlaySelected,
     onClearSelected,
     onDropCard,
-    onBoardCardRef
+    onBoardCardRef,
+    hiddenAnimationDestinations
 }: {
     board: LunarBaseBoardCard[];
     selected: { rotation: CardRotation } | null;
     zoom: number;
     canAcceptDrag: boolean;
     draggedRotation: CardRotation | null;
-    onPlaySelected: (x: number, y: number) => void;
+    onPlaySelected: (x: number, y: number, destination: { x: number; y: number } | null) => void;
     onClearSelected: () => void;
-    onDropCard: (event: DragEvent<HTMLDivElement>, x: number, y: number, rotation: CardRotation) => void;
+    onDropCard: (event: DragEvent<HTMLDivElement>, x: number, y: number, rotation: CardRotation, destination: { x: number; y: number } | null) => void;
     onBoardCardRef: (cardId: string, element: HTMLElement | null) => void;
+    hiddenAnimationDestinations: Set<string>;
 }) => {
     const ref = useRef<HTMLDivElement | null>(null);
     const bounds = useMemo(() => boardBounds(board), [board]);
@@ -425,7 +499,7 @@ const PlayerBoard = ({
                 const snap = snapFromPoint(board, bounds, event.clientX, event.clientY, rotationToOrientation(selected.rotation), ref.current, zoom);
                 if (snap) {
                     setHover(null);
-                    onPlaySelected(snap.x, snap.y);
+                    onPlaySelected(snap.x, snap.y, boardCardCenter(bounds, snap.x, snap.y, selected.rotation, ref.current, zoom));
                 } else {
                     setHover(null);
                     onClearSelected();
@@ -459,7 +533,7 @@ const PlayerBoard = ({
                 setHover(null);
                 if (!snap) return;
                 event.preventDefault();
-                onDropCard(event, snap.x, snap.y, rotation);
+                onDropCard(event, snap.x, snap.y, rotation, boardCardCenter(bounds, snap.x, snap.y, rotation, ref.current, zoom));
             }}
             onMouseLeave={() => setHover(null)}
             onDragLeave={() => setHover(null)}
@@ -470,7 +544,11 @@ const PlayerBoard = ({
                     data-lunar-animate={`board-${played.card.id}`}
                     data-movement="board card layout"
                     ref={(element) => onBoardCardRef(played.card.id, element)}
-                    className={["lunar-board-card", rotationToOrientation(played.rotation)].join(" ")}
+                    className={[
+                        "lunar-board-card",
+                        rotationToOrientation(played.rotation),
+                        hiddenAnimationDestinations.has(`board-${played.card.id}`) ? "is-animation-destination-hidden" : ""
+                    ].filter(Boolean).join(" ")}
                     style={{
                         left: (played.x - bounds.minX) * gridSquare,
                         top: (played.y - bounds.minY) * gridSquare
@@ -507,6 +585,8 @@ const LunarBasePlayScreen = () => {
     const [draggingSource, setDraggingSource] = useState<DragSource | null>(null);
     const [draggingRotation, setDraggingRotation] = useState<CardRotation | null>(null);
     const [flyingCards, setFlyingCards] = useState<FlyingCard[]>([]);
+    const [hiddenAnimationDestinations, setHiddenAnimationDestinations] = useState<Set<string>>(() => new Set());
+    const [discardAnimationPlaceholder, setDiscardAnimationPlaceholder] = useState<LunarBaseCard | null>(null);
     const flyKey = useRef(0);
     const handCardRefs = useRef(new Map<string, HTMLElement>());
     const boardCardRefs = useRef(new Map<string, HTMLElement>());
@@ -516,6 +596,7 @@ const LunarBasePlayScreen = () => {
     const previousHandAreaRects = useRef(new Map<number, DOMRect>());
     const previousGame = useRef<LunarBaseGame | null>(null);
     const suppressedLayoutAnimations = useRef(new Set<string>());
+    const commandAnimationPending = useRef(false);
 
     const captureLayoutSnapshot = () => {
         previousLayoutRects.current = new Map(
@@ -524,9 +605,32 @@ const LunarBasePlayScreen = () => {
         previousHandAreaRects.current = handAreaRectsFromRefs(handAreaRefs.current);
     };
 
+    const hideAnimationDestination = (key: string | null, discardPlaceholder?: LunarBaseCard | null) => {
+        if (!key) return;
+        setHiddenAnimationDestinations((current) => new Set(current).add(key));
+        if (key === "discard" && discardPlaceholder !== undefined) {
+            setDiscardAnimationPlaceholder(discardPlaceholder);
+        }
+    };
+
+    const showAnimationDestination = (key: string | null) => {
+        if (!key) return;
+        setHiddenAnimationDestinations((current) => {
+            const nextHidden = new Set(current);
+            nextHidden.delete(key);
+            return nextHidden;
+        });
+        if (key === "discard") {
+            setDiscardAnimationPlaceholder(null);
+        }
+    };
+
     const loadGame = useCallback(() => {
         if (!gameId) {
             setMessage("Game ID is missing.");
+            return;
+        }
+        if (commandAnimationPending.current) {
             return;
         }
         void fetchLunarBaseGame(gameId)
@@ -595,7 +699,8 @@ const LunarBasePlayScreen = () => {
                             rotation: boardCard.rotation,
                             fromX: from.x,
                             fromY: from.y,
-                            destination: { type: "boardCard", cardId: boardCard.card.id }
+                            destination: { type: "boardCard", cardId: boardCard.card.id },
+                            hiddenDestinationKey: `board-${boardCard.card.id}`
                         }, to.x, to.y);
                     });
                     return;
@@ -610,8 +715,10 @@ const LunarBasePlayScreen = () => {
                             card: game.discardTop,
                             fromX: from.x,
                             fromY: from.y,
-                            destination: { type: "discard" }
+                            destination: { type: "discard" },
+                            hiddenDestinationKey: "discard"
                         }, to.x, to.y);
+                        setDiscardAnimationPlaceholder(oldGame.discardTop);
                     }
                     return;
                 }
@@ -627,7 +734,8 @@ const LunarBasePlayScreen = () => {
                             card: supplyCard,
                             fromX: from.x,
                             fromY: from.y,
-                            destination: { type: "viewerHandEnd" }
+                            destination: { type: "viewerHandEnd" },
+                            hiddenDestinationKey: handEndCardKey(game, playerIndex)
                         }, to.x, to.y);
                         return;
                     }
@@ -639,7 +747,8 @@ const LunarBasePlayScreen = () => {
                             faceDown: true,
                             fromX: from.x,
                             fromY: from.y,
-                            destination: { type: "viewerHandEnd" }
+                            destination: { type: "viewerHandEnd" },
+                            hiddenDestinationKey: handEndCardKey(game, playerIndex)
                         }, to.x, to.y);
                     }
                 }
@@ -670,53 +779,79 @@ const LunarBasePlayScreen = () => {
         previousGame.current = game;
     }, [game, zoom]);
 
-    const destinationElement = (destination: AnimationDestination, currentGame: LunarBaseGame): HTMLElement | null => {
-        if (destination.type === "discard") {
-            return discardRef.current;
+    const currentAnimationDestinationPoint = (animation: CardMovementAnimation): { x: number; y: number } | null => {
+        if (animation.toX !== undefined && animation.toY !== undefined) {
+            return { x: animation.toX, y: animation.toY };
         }
-        if (destination.type === "boardCard") {
-            return boardCardRefs.current.get(destination.cardId) ?? null;
+        if (!game) return null;
+        if (animation.destination.type === "discard") {
+            const rect = discardRef.current?.getBoundingClientRect();
+            return rect ? rectCenter(rect) : null;
         }
-        if (destination.type === "handCard") {
-            return handCardRefs.current.get(destination.cardId) ?? null;
+        if (animation.destination.type === "viewerHandEnd" || animation.destination.type === "handCard") {
+            return viewerHandDestinationPoint(game, handCardRefs.current, handAreaRefs.current);
         }
-        const hand = currentGame.viewer?.hand ?? [];
-        const lastHandCard = hand.length > 0 ? hand[hand.length - 1] : null;
-        return lastHandCard ? handCardRefs.current.get(lastHandCard.id) ?? null : null;
+        return null;
     };
 
     const runCommand = (command: Record<string, unknown>, animation?: CardMovementAnimation) => {
         if (!game || isSubmitting) return;
         setIsSubmitting(true);
+        const animationDestination = animation ? currentAnimationDestinationPoint(animation) : null;
+        if (animation) {
+            commandAnimationPending.current = true;
+        }
         if (animation?.destination.type === "boardCard") {
             suppressedLayoutAnimations.current.add(`board-${animation.destination.cardId}`);
         }
         void sendCommand(game, command)
             .then((updated) => {
+                if (animation && animationDestination) {
+                    const sourceKey = animationSourceKey(animation, game);
+                    hideAnimationDestination(sourceKey);
+                    animateCard(animation, animationDestination.x, animationDestination.y, null, () => {
+                        showAnimationDestination(sourceKey);
+                        captureLayoutSnapshot();
+                        setGame(updated);
+                        setMessage(updated.message);
+                        commandAnimationPending.current = false;
+                        setIsSubmitting(false);
+                    });
+                    return;
+                }
+                commandAnimationPending.current = false;
                 captureLayoutSnapshot();
                 setGame(updated);
                 setMessage(updated.message);
-                if (animation) {
-                    window.requestAnimationFrame(() => {
-                        window.requestAnimationFrame(() => {
-                            const destination = destinationElement(animation.destination, updated)?.getBoundingClientRect();
-                            if (destination) {
-                                const to = rectCenter(destination);
-                                animateCard(animation, to.x, to.y);
-                            }
-                        });
-                    });
-                }
+                setIsSubmitting(false);
             })
-            .catch((error: unknown) => handleAsyncError(error, setMessage, "Unable to update Lunar Base."))
-            .finally(() => setIsSubmitting(false));
+            .catch((error: unknown) => {
+                commandAnimationPending.current = false;
+                handleAsyncError(error, setMessage, "Unable to update Lunar Base.");
+            })
+            .finally(() => {
+                if (!commandAnimationPending.current) {
+                    setIsSubmitting(false);
+                }
+            });
     };
 
-    const animateCard = (animation: CardMovementAnimation, toX: number, toY: number) => {
+    const animateCard = (
+        animation: CardMovementAnimation,
+        toX: number,
+        toY: number,
+        hiddenDestinationKey = animation.hiddenDestinationKey ?? null,
+        onComplete?: () => void
+    ) => {
         const next = { key: flyKey.current + 1, ...animation, toX, toY };
         flyKey.current = next.key;
+        hideAnimationDestination(hiddenDestinationKey);
         setFlyingCards((current) => [...current, next]);
-        window.setTimeout(() => setFlyingCards((current) => current.filter((card) => card.key !== next.key)), 500);
+        window.setTimeout(() => {
+            setFlyingCards((current) => current.filter((card) => card.key !== next.key));
+            showAnimationDestination(hiddenDestinationKey);
+            onComplete?.();
+        }, cardAnimationDurationMs);
     };
 
     if (!game) {
@@ -732,6 +867,8 @@ const LunarBasePlayScreen = () => {
     const draggingHandCard = draggingCardId ? hand.find((card) => card.id === draggingCardId) ?? null : null;
     const supplyTopRowCount = Math.ceil(game.supply.length / 2);
     const supplyRows = [game.supply.slice(0, supplyTopRowCount), game.supply.slice(supplyTopRowCount)];
+    const animationHiddenClass = (key: string) => hiddenAnimationDestinations.has(key) ? "is-animation-destination-hidden" : "";
+    const displayedDiscardTop = hiddenAnimationDestinations.has("discard") ? discardAnimationPlaceholder : game.discardTop;
 
     const claimSeat = (seatIndex: number, playerUserId: string | null, displayName: string) => {
         runCommand({ type: "claimSeat", seatIndex, playerUserId: playerUserId ?? currentUserId, displayName });
@@ -806,7 +943,11 @@ const LunarBasePlayScreen = () => {
                                                     }}
                                                 >
                                                     {card ? (
-                                                        <span data-lunar-animate={`supply-${card.id}`} data-movement="supply card layout">
+                                                        <span
+                                                            data-lunar-animate={`supply-${card.id}`}
+                                                            data-movement="supply card layout"
+                                                            className={animationHiddenClass(`supply-${card.id}`)}
+                                                        >
                                                             <CardView card={card} />
                                                         </span>
                                                     ) : null}
@@ -899,8 +1040,11 @@ const LunarBasePlayScreen = () => {
                                         setDraggingRotation(null);
                                     }}
                                 >
-                                    <span data-lunar-animate="discard" data-movement="discard pile layout">
-                                        <CardView card={game.discardTop} empty={!game.discardTop} />
+                                    <span
+                                        data-lunar-animate="discard"
+                                        data-movement="discard pile layout"
+                                    >
+                                        <CardView card={displayedDiscardTop} empty={!displayedDiscardTop} />
                                     </span>
                                 </div>
                             </section>
@@ -959,7 +1103,8 @@ const LunarBasePlayScreen = () => {
                                                         type="button"
                                                         className={[
                                                             draggingCardId === card.id ? "is-dragging" : "",
-                                                            selectedCard?.cardId === card.id ? "is-selected" : ""
+                                                            selectedCard?.cardId === card.id ? "is-selected" : "",
+                                                            animationHiddenClass(`hand-${playerIndex}-${card.id}`)
                                                         ].filter(Boolean).join(" ")}
                                                         disabled={!isViewer || !canAct}
                                                         draggable={isViewer && canAct}
@@ -1010,7 +1155,7 @@ const LunarBasePlayScreen = () => {
                                                         boardCardRefs.current.delete(cardId);
                                                     }
                                                 }}
-                                                onPlaySelected={(x, y) => {
+                                                onPlaySelected={(x, y, destination) => {
                                                     if (selectedHandCard && selectedCard) {
                                                         const fromElement = handCardRefs.current.get(selectedHandCard.id);
                                                         const from = fromElement ? rectCenter(fromElement.getBoundingClientRect()) : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
@@ -1026,13 +1171,15 @@ const LunarBasePlayScreen = () => {
                                                             rotation: selectedCard.rotation,
                                                             fromX: from.x,
                                                             fromY: from.y,
-                                                            destination: { type: "boardCard", cardId: selectedHandCard.id }
+                                                            destination: { type: "boardCard", cardId: selectedHandCard.id },
+                                                            toX: destination?.x,
+                                                            toY: destination?.y
                                                         });
                                                         setSelectedCard(null);
                                                     }
                                                 }}
                                                 onClearSelected={() => setSelectedCard(null)}
-                                                onDropCard={(event, x, y, rotation) => {
+                                                onDropCard={(event, x, y, rotation, destination) => {
                                                     if (!isViewer) return;
                                                     const cardId = event.dataTransfer.getData("cardId");
                                                     const card = hand.find((candidate) => candidate.id === cardId);
@@ -1045,7 +1192,9 @@ const LunarBasePlayScreen = () => {
                                                                 rotation,
                                                                 fromX: event.clientX,
                                                                 fromY: event.clientY,
-                                                                destination: { type: "boardCard", cardId }
+                                                                destination: { type: "boardCard", cardId },
+                                                                toX: destination?.x,
+                                                                toY: destination?.y
                                                             }
                                                         );
                                                         setSelectedCard(null);
@@ -1054,6 +1203,7 @@ const LunarBasePlayScreen = () => {
                                                     setDraggingSource(null);
                                                     setDraggingRotation(null);
                                                 }}
+                                                hiddenAnimationDestinations={hiddenAnimationDestinations}
                                             />
                                         </section>
                                     );

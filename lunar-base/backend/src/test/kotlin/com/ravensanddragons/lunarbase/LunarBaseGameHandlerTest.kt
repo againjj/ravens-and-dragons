@@ -119,6 +119,40 @@ class LunarBaseGameHandlerTest {
         assertEquals(270, boardCard.rotation)
     }
 
+    @Test
+    fun refillingSupplyDealsFullSupplySizeWithoutCountingKeptInfluences() {
+        val game = handler.createGame("LUNAR01", createRequest(playerCount = 2, useInfluences = true), "creator")
+        val publicState = game.readPublicState()
+        val privateState = game.readPrivateState()
+        val keptInfluences = listOf(
+            LunarBaseCard(id = "influence-kept-1", number = 79, type = "influence"),
+            LunarBaseCard(id = "influence-kept-2", number = 80, type = "influence")
+        )
+        val stock = List(8) { index -> LunarBaseCard(id = "module-refill-${index + 1}", number = index + 10, type = "module") }
+        val refillReadyGame = game.copy(
+            publicState = objectMapper.valueToTree(
+                publicState.copy(
+                    seats = listOf(
+                        LunarBaseSeat(userId = "user-1", displayName = "Ada"),
+                        LunarBaseSeat(userId = "user-2", displayName = "Ben")
+                    ),
+                    supply = keptInfluences,
+                    stockCount = stock.size
+                )
+            ),
+            privateState = objectMapper.valueToTree(privateState.copy(stock = stock))
+        )
+
+        val passed = handler.applyCommand(refillReadyGame, command("passTurn", publicState.version), "user-1")
+        val nextPublic = passed.readPublicState()
+        val nextPrivate = passed.readPrivateState()
+
+        assertEquals(7, nextPublic.supply.size)
+        assertEquals(keptInfluences, nextPublic.supply.take(2))
+        assertEquals(stock.take(5), nextPublic.supply.drop(2))
+        assertEquals(stock.drop(5), nextPrivate.stock)
+    }
+
     private fun createRequest(playerCount: Int = 2, useInfluences: Boolean = false): JsonNode =
         objectMapper.createObjectNode()
             .put("playerCount", playerCount)

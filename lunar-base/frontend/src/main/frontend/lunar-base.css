@@ -123,6 +123,21 @@
     font-size: 0.9rem;
 }
 
+.lunar-orb-value {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.25em;
+}
+
+.lunar-orb-swatch {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    border-radius: 50%;
+    background: var(--lunar-orb-color);
+    transform: translateY(0.12em);
+}
+
 .lunar-player-name {
     display: grid;
     gap: 2px;
@@ -241,7 +256,7 @@
     box-sizing: border-box;
     border: 1px solid #0f172a;
     border-radius: 6px;
-    background: #ffffff;
+    background: var(--lunar-card-tint, #ffffff);
     color: #000000;
     font-weight: 400;
     display: grid;
@@ -255,13 +270,17 @@
     transition: transform 0.5s linear;
 }
 
+.is-animation-destination-hidden {
+    visibility: hidden;
+}
+
 .lunar-card.is-back {
     background: rgb(0, 0, 64);
 }
 
 .lunar-card.is-empty {
     background: #ffffff;
-    opacity: 0.25;
+    border-color: #cbd5e1;
 }
 
 .lunar-card.is-selected {
