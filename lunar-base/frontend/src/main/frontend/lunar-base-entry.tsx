@@ -120,8 +120,11 @@ const playRoutePattern = /^\/g\/([^/]+)$/;
 const emptyLifecycle = () => undefined;
 const cardWidth = 84;
 const gridSquare = cardWidth;
-const minZoom = 0.45;
-const maxZoom = 1.4;
+const zoomSteps = [25, 50, 65, 80, 90, 100, 110, 125, 150, 200, 250, 300, 400];
+const minZoomPercent = 10;
+const maxZoomPercent = 1000;
+const minZoom = minZoomPercent / 100;
+const maxZoom = maxZoomPercent / 100;
 const portalRoot = () => document.fullscreenElement ?? document.body;
 const rectCenter = (rect: DOMRect) => ({ x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 });
 const cardGap = 8;
@@ -202,6 +205,40 @@ const normalizeRotation = (rotation: number): CardRotation =>
 
 const nextRotation = (rotation: CardRotation): CardRotation =>
     (rotation === 0 ? 90 : rotation === 90 ? 180 : rotation === 180 ? 270 : 0);
+
+const sanitizeZoomText = (value: string): string => {
+    const digits = value.replace(/\D/g, "");
+    return digits ? `${digits}${value.trim().endsWith("%") ? "%" : ""}` : "";
+};
+
+const zoomTextToPercent = (value: string): number | null => {
+    const digits = value.replace(/\D/g, "");
+    return digits ? Number(digits) : null;
+};
+
+const clipZoomPercent = (value: number): number =>
+    Math.min(maxZoomPercent, Math.max(minZoomPercent, value));
+
+const zoomPercentToZoom = (value: number): number =>
+    clipZoomPercent(value) / 100;
+
+const zoomToPercent = (zoom: number): number =>
+    Math.round(zoom * 100);
+
+const nextZoomStep = (zoom: number, direction: -1 | 1): number => {
+    const currentPercent = zoomToPercent(zoom);
+    if (direction > 0) {
+        return (zoomSteps.find((step) => step > currentPercent) ?? zoomSteps[zoomSteps.length - 1]) / 100;
+    }
+    return ([...zoomSteps].reverse().find((step) => step < currentPercent) ?? zoomSteps[0]) / 100;
+};
+
+const boardCardRectAtPoint = (point: { x: number; y: number }, rotation: CardRotation | undefined, zoom: number): DOMRect => {
+    const isHorizontal = rotation === 90 || rotation === 270;
+    const width = (isHorizontal ? cardWidth * 2 : cardWidth) * zoom;
+    const height = (isHorizontal ? cardWidth : cardWidth * 2) * zoom;
+    return new DOMRect(point.x - width / 2, point.y - height / 2, width, height);
+};
 
 const rotationToOrientation = (rotation: CardRotation): Orientation =>
     rotation === 90 || rotation === 270 ? "horizontal" : "vertical";
@@ -310,7 +347,8 @@ const CardView = ({
     selected = false,
     rotation = 0,
     visualRotation = rotation,
-    empty = false
+    empty = false,
+    instantRotation = false
 }: {
     card: LunarBaseCard | null;
     faceDown?: boolean;
@@ -318,12 +356,14 @@ const CardView = ({
     rotation?: CardRotation;
     visualRotation?: number;
     empty?: boolean;
+    instantRotation?: boolean;
 }) => (
     <div className={[
         "lunar-card",
         faceDown ? "is-back" : "",
         selected ? "is-selected" : "",
-        empty ? "is-empty" : ""
+        empty ? "is-empty" : "",
+        instantRotation ? "is-rotation-instant" : ""
     ].filter(Boolean).join(" ")} style={{
         "--lunar-card-rotation": `${visualRotation}deg`,
         "--lunar-card-tint": cardTintColor(card) ?? undefined
@@ -702,6 +742,7 @@ const LunarBasePlayScreen = () => {
     const [players, setPlayers] = useState<AuthUserSummary[]>([]);
     const [activePickerSeat, setActivePickerSeat] = useState<number | null>(null);
     const [zoom, setZoom] = useState(() => Math.min(1, Math.max(minZoom, window.innerWidth / (cardWidth * 10 + 48))));
+    const [zoomText, setZoomText] = useState(() => `${zoomToPercent(Math.min(1, Math.max(minZoom, window.innerWidth / (cardWidth * 10 + 48))))}%`);
     const [selectedCard, setSelectedCard] = useState<SelectedCard | null>(null);
     const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
     const [draggingSource, setDraggingSource] = useState<DragSource | null>(null);
@@ -709,7 +750,9 @@ const LunarBasePlayScreen = () => {
     const [flyingCards, setFlyingCards] = useState<FlyingCard[]>([]);
     const [hiddenAnimationDestinations, setHiddenAnimationDestinations] = useState<Set<string>>(() => new Set());
     const [discardAnimationPlaceholder, setDiscardAnimationPlaceholder] = useState<LunarBaseCard | null>(null);
+    const [instantRotationCardIds, setInstantRotationCardIds] = useState<Set<string>>(() => new Set());
     const flyKey = useRef(0);
+    const tableScrollRef = useRef<HTMLDivElement | null>(null);
     const handCardRefs = useRef(new Map<string, HTMLElement>());
     const boardCardRefs = useRef(new Map<string, HTMLElement>());
     const discardRef = useRef<HTMLDivElement | null>(null);
@@ -719,6 +762,36 @@ const LunarBasePlayScreen = () => {
     const previousGame = useRef<LunarBaseGame | null>(null);
     const suppressedLayoutAnimations = useRef(new Set<string>());
     const commandAnimationPending = useRef(false);
+
+    const setZoomPreservingCenter = (nextZoom: number) => {
+        const scroller = tableScrollRef.current;
+        const previousZoom = zoom;
+        const clippedZoom = Math.min(maxZoom, Math.max(minZoom, nextZoom));
+        if (!scroller || clippedZoom === previousZoom) {
+            setZoom(clippedZoom);
+            setZoomText(`${zoomToPercent(clippedZoom)}%`);
+            return;
+        }
+
+        const centerX = (scroller.scrollLeft + scroller.clientWidth / 2) / previousZoom;
+        const centerY = (scroller.scrollTop + scroller.clientHeight / 2) / previousZoom;
+        setZoom(clippedZoom);
+        setZoomText(`${zoomToPercent(clippedZoom)}%`);
+        requestAnimationFrame(() => {
+            scroller.scrollLeft = centerX * clippedZoom - scroller.clientWidth / 2;
+            scroller.scrollTop = centerY * clippedZoom - scroller.clientHeight / 2;
+            previousLayoutRects.current = new Map(
+                Array.from(document.querySelectorAll<HTMLElement>(layoutAnimationSelector)).map((element) => [element.dataset.lunarAnimate ?? "", element.getBoundingClientRect()])
+            );
+            previousHandAreaRects.current = handAreaRectsFromRefs(handAreaRefs.current);
+        });
+    };
+
+    const finishZoomInput = () => {
+        const percent = zoomTextToPercent(zoomText);
+        const nextPercent = percent === null ? zoomToPercent(zoom) : clipZoomPercent(percent);
+        setZoomPreservingCenter(nextPercent / 100);
+    };
 
     const captureLayoutSnapshot = () => {
         previousLayoutRects.current = new Map(
@@ -788,6 +861,28 @@ const LunarBasePlayScreen = () => {
         };
         return () => stream.close();
     }, [gameId, loadGame]);
+
+    useEffect(() => {
+        if (!selectedCard || selectedCard.visualRotation === 0 || selectedCard.visualRotation % 360 !== 0) {
+            return;
+        }
+        const cardId = selectedCard.cardId;
+        const visualRotation = selectedCard.visualRotation;
+        const timer = window.setTimeout(() => {
+            setInstantRotationCardIds((current) => new Set(current).add(cardId));
+            setSelectedCard((current) => current?.cardId === cardId && current.visualRotation === visualRotation
+                ? { ...current, visualRotation: 0 }
+                : current);
+            requestAnimationFrame(() => {
+                setInstantRotationCardIds((current) => {
+                    const next = new Set(current);
+                    next.delete(cardId);
+                    return next;
+                });
+            });
+        }, cardAnimationDurationMs);
+        return () => window.clearTimeout(timer);
+    }, [selectedCard]);
 
     useLayoutEffect(() => {
         if (!game) return;
@@ -899,7 +994,7 @@ const LunarBasePlayScreen = () => {
             suppressedLayoutAnimations.current.clear();
         }
         previousGame.current = game;
-    }, [game, zoom]);
+    }, [game]);
 
     const currentAnimationDestinationPoint = (animation: CardMovementAnimation): { x: number; y: number } | null => {
         if (animation.toX !== undefined && animation.toY !== undefined) {
@@ -923,9 +1018,6 @@ const LunarBasePlayScreen = () => {
         if (animation) {
             commandAnimationPending.current = true;
         }
-        if (animation?.destination.type === "boardCard") {
-            suppressedLayoutAnimations.current.add(`board-${animation.destination.cardId}`);
-        }
         void sendCommand(game, command)
             .then((updated) => {
                 if (animation && animationDestination) {
@@ -934,6 +1026,12 @@ const LunarBasePlayScreen = () => {
                     animateCard(animation, animationDestination.x, animationDestination.y, null, () => {
                         showAnimationDestination(sourceKey);
                         captureLayoutSnapshot();
+                        if (animation.destination.type === "boardCard") {
+                            previousLayoutRects.current.set(
+                                `board-${animation.destination.cardId}`,
+                                boardCardRectAtPoint(animationDestination, animation.rotation, zoom)
+                            );
+                        }
                         setGame(updated);
                         setMessage(updated.message);
                         commandAnimationPending.current = false;
@@ -1021,11 +1119,30 @@ const LunarBasePlayScreen = () => {
             <div className="lunar-game-ports">
                 <section className="lunar-table-port" aria-label="Lunar Base table">
                     <div className="lunar-zoom-control">
-                        <button type="button" onClick={() => setZoom((value) => Math.max(minZoom, value - 0.1))}>-</button>
-                        <span>{Math.round(zoom * 100)}%</span>
-                        <button type="button" onClick={() => setZoom((value) => Math.min(maxZoom, value + 0.1))}>+</button>
+                        <button type="button" aria-label="Zoom out" onClick={() => setZoomPreservingCenter(nextZoomStep(zoom, -1))}>-</button>
+                        <input
+                            aria-label="Zoom"
+                            inputMode="numeric"
+                            value={zoomText}
+                            onChange={(event) => {
+                                const nextText = sanitizeZoomText(event.target.value);
+                                setZoomText(nextText);
+                                const percent = zoomTextToPercent(nextText);
+                                if (percent !== null) {
+                                    setZoomPreservingCenter(zoomPercentToZoom(percent));
+                                    setZoomText(nextText);
+                                }
+                            }}
+                            onBlur={finishZoomInput}
+                            onKeyDown={(event) => {
+                                if (event.key === "Enter") {
+                                    event.currentTarget.blur();
+                                }
+                            }}
+                        />
+                        <button type="button" aria-label="Zoom in" onClick={() => setZoomPreservingCenter(nextZoomStep(zoom, 1))}>+</button>
                     </div>
-                    <div className="lunar-table-scroll">
+                    <div className="lunar-table-scroll" ref={tableScrollRef}>
                         <div
                             className="lunar-table-surface"
                             style={{ "--lunar-zoom": zoom } as CSSProperties}
@@ -1117,7 +1234,7 @@ const LunarBasePlayScreen = () => {
                                     }}
                                 >
                                     <span data-lunar-animate="stock" data-movement="stock pile layout">
-                                        <CardView card={null} faceDown />
+                                        <CardView card={null} faceDown={game.stockCount > 0} empty={game.stockCount === 0} />
                                     </span>
                                 </button>
                                 <div
@@ -1258,6 +1375,7 @@ const LunarBasePlayScreen = () => {
                                                             selected={selectedCard?.cardId === card.id}
                                                             rotation={selectedCard?.cardId === card.id ? selectedCard.rotation : 0}
                                                             visualRotation={selectedCard?.cardId === card.id ? selectedCard.visualRotation : 0}
+                                                            instantRotation={instantRotationCardIds.has(card.id)}
                                                         />
                                                     </button>
                                                 ))}

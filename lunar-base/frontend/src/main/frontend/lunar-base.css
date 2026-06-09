@@ -52,10 +52,10 @@
 
 .lunar-player-port {
     display: grid;
-    gap: 10px;
+    gap: 6px;
     overflow-y: auto;
     align-content: start;
-    padding: 28px 36px 28px 28px;
+    padding: 10px 12px;
     background: transparent;
 }
 
@@ -92,13 +92,16 @@
     gap: 8px;
 }
 
-.lunar-zoom-control span {
+.lunar-zoom-control input {
     min-width: 52px;
+    width: 64px;
     text-align: center;
     padding: 5px 8px;
     background: rgba(255, 255, 255, 0.92);
     border: 1px solid rgba(15, 23, 42, 0.18);
     border-radius: 6px;
+    color: #0f172a;
+    font: inherit;
 }
 
 .lunar-table-surface {
@@ -115,7 +118,7 @@
 .lunar-player-panel {
     display: grid;
     gap: 4px;
-    padding: 12px;
+    padding: 8px 10px;
 }
 
 .lunar-player-panel p {
@@ -177,6 +180,14 @@
 
 .lunar-supply-slot:disabled {
     cursor: default;
+}
+
+.lunar-supply-slot:disabled,
+.lunar-pile:disabled,
+.lunar-hand > button:disabled {
+    color: inherit;
+    opacity: 1;
+    filter: none;
 }
 
 .lunar-supply-slot > [data-lunar-animate],
@@ -297,6 +308,10 @@
     border-radius: 9px;
     box-shadow: 0 0 0 4px #facc15;
     pointer-events: none;
+}
+
+.lunar-card.is-rotation-instant {
+    transition: none;
 }
 
 .lunar-card-name {
