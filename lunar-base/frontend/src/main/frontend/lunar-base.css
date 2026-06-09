@@ -55,7 +55,7 @@
     gap: 6px;
     overflow-y: auto;
     align-content: start;
-    padding: 10px 12px;
+    padding: 10px;
     background: transparent;
 }
 
@@ -118,7 +118,7 @@
 .lunar-player-panel {
     display: grid;
     gap: 4px;
-    padding: 8px 10px;
+    padding: 8px;
 }
 
 .lunar-player-panel p {
@@ -249,6 +249,13 @@
     overflow: visible;
 }
 
+.lunar-hand > button:disabled {
+    cursor: default;
+    color: inherit;
+    opacity: 1;
+    filter: none;
+}
+
 .lunar-hand > button.is-selected {
     z-index: 2;
 }
@@ -271,20 +278,19 @@
 .lunar-card {
     --lunar-card-orb-diameter: 21px;
     --lunar-card-cost-diameter: calc(var(--lunar-card-orb-diameter) / 3);
+    --lunar-card-side-connector-top: 38px;
+    --lunar-card-side-connector-bottom: 136px;
     position: relative;
     width: 84px;
     height: 168px;
-    padding: 18px 7px;
+    padding: 0;
     box-sizing: border-box;
     border: 1px solid #0f172a;
     border-radius: 6px;
     background: var(--lunar-card-tint, #ffffff);
     color: #000000;
     font-weight: 400;
-    display: grid;
-    place-items: center;
-    align-content: center;
-    gap: 6px;
+    display: block;
     text-align: center;
     user-select: none;
     overflow: visible;
@@ -324,15 +330,28 @@
 }
 
 .lunar-card-name {
+    position: absolute;
+    top: var(--lunar-card-side-connector-top);
+    left: 8px;
+    right: 8px;
+    z-index: 2;
     font-weight: 700;
-    font-size: 0.82rem;
+    font-size: 0.615rem;
     line-height: 1.08;
     overflow-wrap: anywhere;
 }
 
 .lunar-card-type {
-    font-size: 0.82rem;
+    position: absolute;
+    top: 5px;
+    left: 5px;
+    z-index: 2;
+    max-width: 48px;
+    font-size: 0.41rem;
+    line-height: 1;
+    text-align: left;
     text-transform: capitalize;
+    overflow-wrap: anywhere;
 }
 
 .lunar-card-cost {
@@ -362,10 +381,16 @@
 }
 
 .lunar-card-orbs {
+    position: absolute;
+    left: 7px;
+    right: 7px;
+    top: 50%;
+    z-index: 2;
     display: flex;
     justify-content: center;
     gap: 4px;
     min-height: var(--lunar-card-orb-diameter);
+    transform: translateY(-50%);
 }
 
 .lunar-card-orb {
@@ -378,6 +403,11 @@
 }
 
 .lunar-card-depictions {
+    position: absolute;
+    left: 6px;
+    right: 6px;
+    top: var(--lunar-card-side-connector-bottom);
+    z-index: 2;
     display: flex;
     min-height: 17px;
     max-width: 100%;
@@ -509,7 +539,7 @@
     position: fixed;
     left: 0;
     top: 0;
-    z-index: 1000;
+    z-index: 900;
     pointer-events: none;
     animation: lunar-card-fly 0.5s ease both;
 }

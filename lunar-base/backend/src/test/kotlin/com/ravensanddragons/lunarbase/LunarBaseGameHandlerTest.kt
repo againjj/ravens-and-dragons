@@ -75,6 +75,22 @@ class LunarBaseGameHandlerTest {
     }
 
     @Test
+    fun rejectsClaimingMoreThanOneSeatForTheSameUser() {
+        var game = handler.createGame("LUNAR01", createRequest(), "creator")
+        game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")
+
+        val exception = assertThrows<InvalidCommandException> {
+            handler.applyCommand(
+                game,
+                command("claimSeat", 2).put("seatIndex", 1).put("playerUserId", "user-1").put("displayName", "Ada"),
+                "user-1"
+            )
+        }
+
+        assertEquals("That player is already seated.", exception.message)
+    }
+
+    @Test
     fun gameViewAddsCatalogOrbsFromCardName() {
         var game = handler.createGame("LUNAR01", createRequest(), "creator")
         game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")

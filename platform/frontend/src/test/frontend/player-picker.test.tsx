@@ -56,4 +56,28 @@ describe("PlayerPicker", () => {
         expect(screen.getByRole<HTMLButtonElement>("button", { name: "Add Player" }).disabled).toBe(true);
         expect(screen.queryByRole("button", { name: "Add Bot" })).toBeNull();
     });
+
+    it("disables Add Myself when the current user cannot be added", async () => {
+        const user = userEvent.setup();
+        const onAddMyself = vi.fn();
+
+        render(
+            <PlayerPicker
+                players={[]}
+                bots={[]}
+                addMyselfDisabled={true}
+                onAddMyself={onAddMyself}
+                onAddPlayer={vi.fn()}
+                onAddBot={vi.fn()}
+                onCancel={vi.fn()}
+            />
+        );
+
+        const addMyself = screen.getByRole<HTMLButtonElement>("button", { name: "Add Myself" });
+        expect(addMyself.disabled).toBe(true);
+
+        await user.click(addMyself);
+
+        expect(onAddMyself).not.toHaveBeenCalled();
+    });
 });

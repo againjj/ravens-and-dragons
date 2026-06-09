@@ -9,6 +9,7 @@ export interface PlayerPickerOption {
 export interface PlayerPickerProps {
     players: AuthUserSummary[];
     bots: PlayerPickerOption[];
+    addMyselfDisabled?: boolean;
     onAddMyself: () => void;
     onAddPlayer: (playerUserId: string) => void;
     onAddBot: (botId: string) => void;
@@ -18,6 +19,7 @@ export interface PlayerPickerProps {
 export const PlayerPicker = ({
     players,
     bots,
+    addMyselfDisabled = false,
     onAddMyself,
     onAddPlayer,
     onAddBot,
@@ -41,7 +43,7 @@ export const PlayerPicker = ({
     return createElement(
         "div",
         { className: "player-picker" },
-        createElement("button", { type: "button", onClick: onAddMyself }, "Add Myself"),
+        createElement("button", { type: "button", disabled: addMyselfDisabled, onClick: onAddMyself }, "Add Myself"),
         createElement(
             "div",
             { className: "select-shell" },

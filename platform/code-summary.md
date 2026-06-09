@@ -50,6 +50,7 @@
   - Local npm package `@ravensanddragons/platform-frontend`.
   - Keeps source under `src/main/frontend`, generated package output under `dist`, and frontend tests under `src/test/frontend`.
   - Exports shared auth wire types, auth API helpers, frontend game-entry contracts including generic `GameStartOptions`, the shared player picker, route helpers, and reusable browser shell hooks.
+  - The shared player picker supports disabling the `Add Myself` action when a game-specific seating rule makes that action unavailable.
   - Classifies frontend API failures with status-aware request errors plus shared session-expired and server-unavailable browser events used by the shell and game modules.
   - Tests API error classification, OAuth URL building, shared route helpers, and player-picker interaction behavior.
 - `platform/docs/game-runtime-api.md`

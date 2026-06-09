@@ -271,6 +271,9 @@ class LunarBaseGameHandler(
             throw InvalidCommandException("That seat is already claimed.")
         }
         val playerUserId = command.textValue("playerUserId", actingUserId)
+        if (publicState.seats.any { it.userId == playerUserId }) {
+            throw InvalidCommandException("That player is already seated.")
+        }
         val displayName = command.textValue("displayName", "Player")
         val nextSeats = publicState.seats.toMutableList()
         nextSeats[seatIndex] = LunarBaseSeat(userId = playerUserId, displayName = displayName)

@@ -1,5 +1,5 @@
 import { createElement, Fragment, useEffect, useState } from "react";
-export const PlayerPicker = ({ players, bots, onAddMyself, onAddPlayer, onAddBot, onCancel }) => {
+export const PlayerPicker = ({ players, bots, addMyselfDisabled = false, onAddMyself, onAddPlayer, onAddBot, onCancel }) => {
     const [selectedPlayerId, setSelectedPlayerId] = useState(players[0]?.id ?? "");
     const [selectedBotId, setSelectedBotId] = useState(bots[0]?.id ?? "");
     useEffect(() => {
@@ -12,7 +12,7 @@ export const PlayerPicker = ({ players, bots, onAddMyself, onAddPlayer, onAddBot
             setSelectedBotId(bots[0]?.id ?? "");
         }
     }, [bots, selectedBotId]);
-    return createElement("div", { className: "player-picker" }, createElement("button", { type: "button", onClick: onAddMyself }, "Add Myself"), createElement("div", { className: "select-shell" }, createElement("select", {
+    return createElement("div", { className: "player-picker" }, createElement("button", { type: "button", disabled: addMyselfDisabled, onClick: onAddMyself }, "Add Myself"), createElement("div", { className: "select-shell" }, createElement("select", {
         "aria-label": "Choose player",
         value: selectedPlayerId,
         onChange: (event) => {
