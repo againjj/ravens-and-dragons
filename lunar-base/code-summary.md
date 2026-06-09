@@ -39,6 +39,7 @@ The parent project has two child projects:
 - `src/main/frontend/lunar-base-entry.tsx`
   - Exports `lunarBaseGameEntry` through the package entrypoint for the app-owned frontend shell.
   - Owns the Lunar Base create screen, play screen, player panels, shared Lunar Base color definitions, card/table rendering with standard card names/colors/orb halves/whole orbs and station flipped-state display, frontend placement hints with orb-half matching, editable zoom control, click interaction, drag/drop interaction, and client-only card movement animation styling for hand, pile, supply, and board movement.
+  - Keeps animated command source cards hidden as soon as a pending command starts, so module cards played from hand stay hidden through the server-response gap and fly animation.
 - `src/main/frontend/lunar-base.css`
   - Owns Lunar Base-specific layout, card, board, responsive, and animation styles.
 

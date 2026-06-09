@@ -1,5 +1,5 @@
 import "@testing-library/jest-dom/vitest";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { lunarBaseGameEntry } from "../../main/frontend/lunar-base-entry";
@@ -137,6 +137,55 @@ describe("lunarBaseGameEntry", () => {
             ],
             { duration: 500, easing: "ease" }
         );
+    });
+
+    it("keeps a played hand module hidden while the play animation is pending", async () => {
+        let resolveCommand: (response: Response) => void = () => {};
+        const commandResponse = new Promise<Response>((resolve) => {
+            resolveCommand = resolve;
+        });
+        let commandCalls = 0;
+        vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+            const url = String(input);
+            if (url.includes("/commands")) {
+                commandCalls += 1;
+                return commandResponse;
+            }
+            if (url.includes("/view")) {
+                return jsonResponse(servedGame);
+            }
+            if (url.includes("/api/auth/session")) {
+                return jsonResponse({ user: { id: "player-1", displayName: "Ada" } });
+            }
+            if (url.includes("/api/auth/users")) {
+                return jsonResponse([]);
+            }
+            return jsonResponse({});
+        }));
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        const cardText = await screen.findByText("Solar Lab");
+        const cardButton = cardText.closest("button");
+        const board = document.querySelector<HTMLElement>(".lunar-board");
+        expect(cardButton).not.toBeNull();
+        expect(board).not.toBeNull();
+
+        await act(async () => {
+            fireEvent.click(cardText);
+        });
+        await waitFor(() => expect(cardButton).toHaveClass("is-selected"));
+        await act(async () => {
+            fireEvent.click(board!, { clientX: 10, clientY: 94 });
+        });
+        expect(commandCalls).toBe(1);
+
+        await waitFor(() => expect(cardButton).toHaveClass("is-animation-destination-hidden"));
+
+        await act(async () => {
+            servedGame = lunarBaseGameWithPlayedModule();
+            resolveCommand(jsonResponse({}));
+        });
     });
 
     it("normalizes a selected module back to zero rotation after a full spin", async () => {

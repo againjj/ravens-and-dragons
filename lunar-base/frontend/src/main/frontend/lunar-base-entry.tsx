@@ -1015,14 +1015,14 @@ const LunarBasePlayScreen = () => {
         if (!game || isSubmitting) return;
         setIsSubmitting(true);
         const animationDestination = animation ? currentAnimationDestinationPoint(animation) : null;
+        const sourceKey = animation && animationDestination ? animationSourceKey(animation, game) : null;
         if (animation) {
             commandAnimationPending.current = true;
+            hideAnimationDestination(sourceKey);
         }
         void sendCommand(game, command)
             .then((updated) => {
                 if (animation && animationDestination) {
-                    const sourceKey = animationSourceKey(animation, game);
-                    hideAnimationDestination(sourceKey);
                     animateCard(animation, animationDestination.x, animationDestination.y, null, () => {
                         showAnimationDestination(sourceKey);
                         captureLayoutSnapshot();
@@ -1047,6 +1047,7 @@ const LunarBasePlayScreen = () => {
             })
             .catch((error: unknown) => {
                 commandAnimationPending.current = false;
+                showAnimationDestination(sourceKey);
                 handleAsyncError(error, setMessage, "Unable to update Lunar Base.");
             })
             .finally(() => {
