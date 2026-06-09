@@ -176,6 +176,60 @@ class LunarBaseGameHandlerTest {
     }
 
     @Test
+    fun playingModuleUpdatesCompletedOrbCounts() {
+        var game = handler.createGame("LUNAR01", createRequest(), "creator")
+        game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")
+        game = putCardInCurrentPlayersHand(
+            game,
+            LunarBaseCard(id = "module-orbs", type = "module", name = "Asteroid Grinder")
+        )
+
+        val played = handler.applyCommand(
+            game,
+            command("playModule", game.readPublicState().version)
+                .put("cardId", "module-orbs")
+                .put("x", 1)
+                .put("y", 0)
+                .put("rotation", 0),
+            "user-1"
+        )
+
+        assertEquals(LunarBaseResources(yellow = 2), played.readClientPublicState().players[0].orbs)
+    }
+
+    @Test
+    fun publicStateRecomputesCompletedOrbCountsFromBoard() {
+        val game = handler.createGame("LUNAR01", createRequest(), "creator")
+        val publicState = game.readClientPublicState()
+        val station = publicState.players[0].board[0].card.copy(
+            flipped = true,
+            stationBackName = "The Oasis"
+        )
+        val nextPublicState = publicState.copy(
+            players = publicState.players.replaceAt(
+                0,
+                publicState.players[0].copy(
+                    orbs = LunarBaseResources(red = 99, blue = 99, yellow = 99, gray = 99),
+                    board = listOf(
+                        LunarBaseBoardCard(station, 0, 0, 0),
+                        LunarBaseBoardCard(
+                            matchingModule("module-gray-pair").copy(
+                                orbHalves = LunarBaseCardOrbHalves(topLeft = "gray", bottomLeft = "gray")
+                            ),
+                            1,
+                            0,
+                            0
+                        )
+                    )
+                )
+            )
+        )
+        val staleCountGame = game.copy(publicState = objectMapper.valueToTree(nextPublicState))
+
+        assertEquals(LunarBaseResources(red = 1, blue = 1, yellow = 1, gray = 1), staleCountGame.readClientPublicState().players[0].orbs)
+    }
+
+    @Test
     fun playingModuleRejectsMismatchedOrbHalves() {
         var game = handler.createGame("LUNAR01", createRequest(), "creator")
         game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")

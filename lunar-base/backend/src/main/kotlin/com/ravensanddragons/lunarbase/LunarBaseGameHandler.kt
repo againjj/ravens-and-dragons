@@ -383,7 +383,7 @@ class LunarBaseGameHandler(
                 private = private.copy(stock = private.stock.drop(1))
             }
         }
-        return public.withPrivateCounts(private) to private
+        return public.withPrivateCounts(private).withBoardOrbCounts() to private
     }
 
     private fun ensureStock(privateState: LunarBasePrivateState, gameId: String, version: Long): LunarBasePrivateState {
@@ -425,6 +425,39 @@ class LunarBaseGameHandler(
             discardTop = privateState.discard.firstOrNull(),
             discardCount = privateState.discard.size
         )
+
+    private fun LunarBasePublicState.withBoardOrbCounts(): LunarBasePublicState =
+        copy(
+            players = players.map { player ->
+                player.copy(orbs = player.board.completedOrbCounts())
+            }
+        )
+
+    private fun List<LunarBaseBoardCard>.completedOrbCounts(): LunarBaseResources {
+        val wholeOrbs = flatMap { it.card.orbs }
+        val joinedOrbs = flatMap { it.orbHalfSlots().entries }
+            .groupBy({ it.key }, { it.value })
+            .values
+            .mapNotNull { colors -> colors.takeIf { it.size == 2 }?.let { completedOrbColor(it[0], it[1]) } }
+        return (wholeOrbs + joinedOrbs).fold(LunarBaseResources()) { resources, color ->
+            when (color) {
+                "red" -> resources.copy(red = resources.red + 1)
+                "blue" -> resources.copy(blue = resources.blue + 1)
+                "yellow" -> resources.copy(yellow = resources.yellow + 1)
+                "gray" -> resources.copy(gray = resources.gray + 1)
+                else -> resources
+            }
+        }
+    }
+
+    private fun completedOrbColor(first: String, second: String): String? =
+        when {
+            first == grayColor && second == grayColor -> grayColor
+            first == grayColor -> second
+            second == grayColor -> first
+            first == second -> first
+            else -> null
+        }
 
     private fun LunarBaseBoardCard.coveredCells(): List<Pair<Int, Int>> =
         if (rotation.isHorizontal()) listOf(x to y, x + 1 to y) else listOf(x to y, x to y + 1)
@@ -513,7 +546,7 @@ class LunarBaseGameHandler(
         this == 90 || this == 270
 
     private fun GameRecord.toPublicState(): LunarBasePublicState =
-        objectMapper.treeToValue(publicState, LunarBasePublicState::class.java).normalizeCatalogCards()
+        objectMapper.treeToValue(publicState, LunarBasePublicState::class.java).normalizeCatalogCards().withBoardOrbCounts()
 
     private fun GameRecord.toPrivateState(): LunarBasePrivateState =
         objectMapper.treeToValue(privateState, LunarBasePrivateState::class.java).normalizeCatalogCards()
