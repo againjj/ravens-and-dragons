@@ -183,8 +183,7 @@
 }
 
 .lunar-supply-slot:disabled,
-.lunar-pile:disabled,
-.lunar-hand > button:disabled {
+.lunar-pile:disabled {
     color: inherit;
     opacity: 1;
     filter: none;
@@ -243,6 +242,9 @@
     flex: 0 0 84px;
     display: grid;
     place-items: center;
+    color: inherit;
+    opacity: 1;
+    filter: none;
     transition: transform 0.5s ease, opacity 0.2s ease;
     overflow: visible;
 }
@@ -255,6 +257,12 @@
     opacity: 0;
 }
 
+.lunar-hand > button.is-unplayable {
+    cursor: default;
+    opacity: 0.42;
+    filter: grayscale(0.45);
+}
+
 .lunar-empty-hand {
     align-self: center;
     color: #64748b;
@@ -262,6 +270,7 @@
 
 .lunar-card {
     --lunar-card-orb-diameter: 21px;
+    --lunar-card-cost-diameter: calc(var(--lunar-card-orb-diameter) / 3);
     position: relative;
     width: 84px;
     height: 168px;
@@ -326,6 +335,32 @@
     text-transform: capitalize;
 }
 
+.lunar-card-cost {
+    position: absolute;
+    right: 5px;
+    top: 5px;
+    z-index: 2;
+    display: grid;
+    justify-items: end;
+    gap: 2px;
+    pointer-events: none;
+}
+
+.lunar-card-cost-row {
+    display: flex;
+    justify-content: flex-end;
+    gap: 2px;
+}
+
+.lunar-card-cost-pip {
+    width: var(--lunar-card-cost-diameter);
+    height: var(--lunar-card-cost-diameter);
+    box-sizing: border-box;
+    border: 1px solid #0f172a;
+    border-radius: 50%;
+    background: var(--lunar-card-cost-color);
+}
+
 .lunar-card-orbs {
     display: flex;
     justify-content: center;
@@ -363,66 +398,66 @@
     font-size: 1.35em;
 }
 
-.lunar-orb-half {
-    --lunar-orb-half-diameter: var(--lunar-card-orb-diameter);
+.lunar-connector {
+    --lunar-connector-diameter: var(--lunar-card-orb-diameter);
     position: absolute;
     z-index: 1;
     box-sizing: border-box;
-    background: var(--lunar-orb-half-color);
+    background: var(--lunar-connector-color);
     border: 1px solid #0f172a;
     pointer-events: none;
 }
 
-.lunar-orb-half.top,
-.lunar-orb-half.bottom {
-    width: var(--lunar-orb-half-diameter);
-    height: calc(var(--lunar-orb-half-diameter) / 2);
+.lunar-connector.top,
+.lunar-connector.bottom {
+    width: var(--lunar-connector-diameter);
+    height: calc(var(--lunar-connector-diameter) / 2);
     left: 50%;
 }
 
-.lunar-orb-half.top {
+.lunar-connector.top {
     top: -1px;
-    border-radius: 0 0 var(--lunar-orb-half-diameter) var(--lunar-orb-half-diameter);
+    border-radius: 0 0 var(--lunar-connector-diameter) var(--lunar-connector-diameter);
     transform: translateX(-50%);
 }
 
-.lunar-orb-half.bottom {
+.lunar-connector.bottom {
     bottom: -1px;
-    border-radius: var(--lunar-orb-half-diameter) var(--lunar-orb-half-diameter) 0 0;
+    border-radius: var(--lunar-connector-diameter) var(--lunar-connector-diameter) 0 0;
     transform: translateX(-50%);
 }
 
-.lunar-orb-half.topLeft,
-.lunar-orb-half.bottomLeft,
-.lunar-orb-half.topRight,
-.lunar-orb-half.bottomRight {
-    width: calc(var(--lunar-orb-half-diameter) / 2);
-    height: var(--lunar-orb-half-diameter);
-    top: var(--lunar-orb-half-y);
+.lunar-connector.topLeft,
+.lunar-connector.bottomLeft,
+.lunar-connector.topRight,
+.lunar-connector.bottomRight {
+    width: calc(var(--lunar-connector-diameter) / 2);
+    height: var(--lunar-connector-diameter);
+    top: var(--lunar-connector-y);
 }
 
-.lunar-orb-half.topLeft,
-.lunar-orb-half.bottomLeft {
+.lunar-connector.topLeft,
+.lunar-connector.bottomLeft {
     left: -1px;
-    border-radius: 0 var(--lunar-orb-half-diameter) var(--lunar-orb-half-diameter) 0;
+    border-radius: 0 var(--lunar-connector-diameter) var(--lunar-connector-diameter) 0;
     transform: translateY(-50%);
 }
 
-.lunar-orb-half.topRight,
-.lunar-orb-half.bottomRight {
+.lunar-connector.topRight,
+.lunar-connector.bottomRight {
     right: -1px;
-    border-radius: var(--lunar-orb-half-diameter) 0 0 var(--lunar-orb-half-diameter);
+    border-radius: var(--lunar-connector-diameter) 0 0 var(--lunar-connector-diameter);
     transform: translateY(-50%);
 }
 
-.lunar-orb-half.topLeft,
-.lunar-orb-half.topRight {
-    --lunar-orb-half-y: 41px;
+.lunar-connector.topLeft,
+.lunar-connector.topRight {
+    --lunar-connector-y: 41px;
 }
 
-.lunar-orb-half.bottomLeft,
-.lunar-orb-half.bottomRight {
-    --lunar-orb-half-y: 125px;
+.lunar-connector.bottomLeft,
+.lunar-connector.bottomRight {
+    --lunar-connector-y: 125px;
 }
 
 .lunar-board {

@@ -227,7 +227,7 @@ class LunarBaseModuleCardBuilder : LunarBaseNamedCardBuilder("Module") {
     var colonists: Int = 0
 
     private var storedCardCost: List<LunarBaseCardColor>? = null
-    private var orbHalves: LunarBaseOrbHalves? = null
+    private var connectors: LunarBaseConnectors? = null
     private var onPlaying: List<LunarBaseCardAction> = emptyList()
     private var mainAction: List<LunarBaseCardAction> = emptyList()
 
@@ -238,9 +238,9 @@ class LunarBaseModuleCardBuilder : LunarBaseNamedCardBuilder("Module") {
             storedCardCost = value
         }
 
-    /** Defines half-orb positions printed on this module. At least one position is required. */
-    fun orbHalves(block: LunarBaseOrbHalvesBuilder.() -> Unit) {
-        orbHalves = LunarBaseOrbHalvesBuilder().apply(block).build()
+    /** Defines connector positions printed on this module. At least one position is required. */
+    fun connectors(block: LunarBaseConnectorsBuilder.() -> Unit) {
+        connectors = LunarBaseConnectorsBuilder().apply(block).build()
     }
 
     /** Defines optional actions performed when this module is played. */
@@ -254,15 +254,15 @@ class LunarBaseModuleCardBuilder : LunarBaseNamedCardBuilder("Module") {
     }
 
     fun build(): LunarBaseModuleCardDefinition {
-        val resolvedOrbHalves = requireNotNull(orbHalves) { "Module orbHalves is required." }
-        require(resolvedOrbHalves.hasAnySpecified()) { "Module orbHalves must specify at least one position." }
+        val resolvedConnectors = requireNotNull(connectors) { "Module connectors are required." }
+        require(resolvedConnectors.hasAnySpecified()) { "Module connectors must specify at least one position." }
         return LunarBaseModuleCardDefinition(
             count = requireCount(),
             name = requireName(),
             cardCost = requireNotNull(storedCardCost) { "Module cardCost is required." },
             flavorText = flavorText,
             cardColor = cardColor,
-            orbHalves = resolvedOrbHalves,
+            connectors = resolvedConnectors,
             orbs = orbs,
             effect = effect,
             onPlaying = onPlaying,
@@ -326,12 +326,12 @@ class LunarBaseStationFrontCardBuilder {
     /** Colonist count printed on this station front. */
     var colonists: Int = 0
 
-    private var orbHalves: LunarBaseOrbHalves? = null
+    private var connectors: LunarBaseConnectors? = null
     private var mainAction: List<LunarBaseCardAction>? = null
 
-    /** Defines half-orb positions printed on this station front. At least one position is required. */
-    fun orbHalves(block: LunarBaseOrbHalvesBuilder.() -> Unit) {
-        orbHalves = LunarBaseOrbHalvesBuilder().apply(block).build()
+    /** Defines connector positions printed on this station front. At least one position is required. */
+    fun connectors(block: LunarBaseConnectorsBuilder.() -> Unit) {
+        connectors = LunarBaseConnectorsBuilder().apply(block).build()
     }
 
     /** Defines the station front's required main action. */
@@ -340,13 +340,13 @@ class LunarBaseStationFrontCardBuilder {
     }
 
     fun build(): LunarBaseStationFrontCardDefinition {
-        val resolvedOrbHalves = requireNotNull(orbHalves) { "Station front orbHalves is required." }
-        require(resolvedOrbHalves.hasAnySpecified()) { "Station front orbHalves must specify at least one position." }
+        val resolvedConnectors = requireNotNull(connectors) { "Station front connectors are required." }
+        require(resolvedConnectors.hasAnySpecified()) { "Station front connectors must specify at least one position." }
         require(nameWasSet) { "Station front name is required." }
         require(storedName.isNotBlank()) { "Station front name must be non-empty." }
         return LunarBaseStationFrontCardDefinition(
             name = storedName,
-            orbHalves = resolvedOrbHalves,
+            connectors = resolvedConnectors,
             orbs = orbs,
             mainAction = requireNotNull(mainAction) { "Station front mainAction is required." },
             achievements = achievements,
@@ -355,29 +355,29 @@ class LunarBaseStationFrontCardBuilder {
     }
 }
 
-/** Builds half-orb positions for a module or station-front card definition. */
+/** Builds connector positions for a module or station-front card definition. */
 @LunarBaseCardDsl
-class LunarBaseOrbHalvesBuilder {
-    /** Top half-orb color. */
+class LunarBaseConnectorsBuilder {
+    /** Top connector color. */
     var top: LunarBaseCardColor? = null
 
-    /** Top-left half-orb color. */
+    /** Top-left connector color. */
     var topLeft: LunarBaseCardColor? = null
 
-    /** Top-right half-orb color. */
+    /** Top-right connector color. */
     var topRight: LunarBaseCardColor? = null
 
-    /** Bottom-left half-orb color. */
+    /** Bottom-left connector color. */
     var bottomLeft: LunarBaseCardColor? = null
 
-    /** Bottom-right half-orb color. */
+    /** Bottom-right connector color. */
     var bottomRight: LunarBaseCardColor? = null
 
-    /** Bottom half-orb color. */
+    /** Bottom connector color. */
     var bottom: LunarBaseCardColor? = null
 
-    fun build(): LunarBaseOrbHalves =
-        LunarBaseOrbHalves(
+    fun build(): LunarBaseConnectors =
+        LunarBaseConnectors(
             top = top,
             topLeft = topLeft,
             topRight = topRight,

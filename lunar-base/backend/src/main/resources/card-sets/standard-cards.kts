@@ -164,7 +164,7 @@ deck {
         name = "Asteroid Grinder"
         flavorText = "The moon has significant gravity, asteroids do not"
         cardColor = yellow
-        orbHalves {
+        connectors {
             top = yellow
             topLeft = yellow
             bottomLeft = yellow
@@ -177,7 +177,7 @@ deck {
         name = "Bacon Printer"
         flavorText = "Deepfake meat"
         cardColor = red
-        orbHalves {
+        connectors {
             top = red
             topRight = red
             bottomRight = red
@@ -192,7 +192,7 @@ deck {
         count = 2
         name = "Beruang Engineers"
         cardColor = blue
-        orbHalves {
+        connectors {
             topLeft = blue
             bottomLeft = yellow
             bottom = blue
@@ -206,7 +206,7 @@ deck {
         name = "Experimental Borehole"
         flavorText = "You know the drill?"
         cardColor = red
-        orbHalves {
+        connectors {
             topRight = red
             bottomRight = red
             bottom = red
@@ -219,7 +219,7 @@ deck {
         name = "Lang Huan Concrete"
         flavorText = "The boys were soon back to working for food and shelter... on the moon"
         cardColor = yellow
-        orbHalves {
+        connectors {
             bottomLeft = gray
             bottom = yellow
         }
@@ -231,7 +231,7 @@ deck {
         name = "Depot"
         flavorText = "Oil-fingers have a fridge full of cold alcohol-fee beer"
         cardColor = blue
-        orbHalves {
+        connectors {
             top = blue
             topRight = blue
             bottomRight = blue
@@ -244,7 +244,7 @@ deck {
         count = 1
         name = "Chandrasekhar Dome"
         cardColor = blue
-        orbHalves {
+        connectors {
             topLeft = yellow
             topRight = red
             bottomLeft = yellow
@@ -259,7 +259,7 @@ deck {
         count = 1
         name = "Hayashi Dome"
         cardColor = blue
-        orbHalves {
+        connectors {
             topLeft = yellow
             topRight = red
             bottomLeft = yellow
@@ -274,7 +274,7 @@ deck {
         count = 1
         name = "Oort Dome"
         cardColor = blue
-        orbHalves {
+        connectors {
             topLeft = yellow
             topRight = red
             bottomLeft = yellow
@@ -289,7 +289,7 @@ deck {
         count = 1
         name = "Struve Dome"
         cardColor = blue
-        orbHalves {
+        connectors {
             topLeft = yellow
             topRight = red
             bottomLeft = yellow
@@ -305,7 +305,7 @@ deck {
         name = "Helium Factory"
         flavorText = "Helium-3 is the new gold"
         cardColor = yellow
-        orbHalves {
+        connectors {
             top = yellow
             topLeft = yellow
             bottomLeft = yellow
@@ -319,7 +319,7 @@ deck {
         count = 2
         name = "Fusion Reactor"
         cardColor = blue
-        orbHalves {
+        connectors {
             top = red
             topLeft = red
             topRight = blue
@@ -337,7 +337,7 @@ deck {
         name = "Inflatable Habitat"
         flavorText = "Smells like a new car"
         cardColor = blue
-        orbHalves {
+        connectors {
             top = gray
             topRight = blue
             bottomRight = blue
@@ -350,7 +350,7 @@ deck {
         name = "Indigo Egregore"
         flavorText = "Civilization under construction. Refugees welcome."
         cardColor = blue
-        orbHalves {
+        connectors {
             top = blue
             bottomLeft = blue
             bottomRight = blue
@@ -364,7 +364,7 @@ deck {
         name = "Artificial Intellect"
         flavorText = "Economy became just one more game that the computer wins"
         cardColor = red
-        orbHalves {
+        connectors {
             top = red
             topLeft = red
             topRight = red
@@ -381,7 +381,7 @@ deck {
         name = "Laika Memorial"
         flavorText = "1954 (Earth)–1957 (Space)"
         cardColor = red
-        orbHalves {
+        connectors {
             top = gray
             topLeft = gray
             bottomLeft = gray
@@ -395,7 +395,7 @@ deck {
         count = 2
         name = "Lunar Capital"
         cardColor = blue
-        orbHalves {
+        connectors {
             top = blue
             topLeft = blue
             topRight = blue
@@ -412,7 +412,7 @@ deck {
         name = "Rover"
         flavorText = "Theft alarm not included"
         cardColor = red
-        orbHalves {
+        connectors {
             topLeft = red
             bottomLeft = red
             bottom = yellow
@@ -426,7 +426,7 @@ deck {
         name = "Satellite"
         flavorText = "A satellite photo is better than a thousand words"
         cardColor = red
-        orbHalves {
+        connectors {
             top = yellow
             topRight = red
         }
@@ -437,7 +437,7 @@ deck {
     module {
         count = 2
         name = "Space Elevator"
-        orbHalves {
+        connectors {
             top = gray
             topLeft = gray
             topRight = gray
@@ -455,7 +455,7 @@ deck {
         name = "Smart Spaceship"
         flavorText = "Optimized fusion means faster delivery of pizzas"
         cardColor = red
-        orbHalves {
+        connectors {
             top = gray
             topLeft = red
             topRight = red
@@ -471,7 +471,7 @@ deck {
         name = "J. Lagg Telescope"
         flavorText = "Coming soon"
         cardColor = red
-        orbHalves {
+        connectors {
             topLeft = red
             topRight = red
             bottomLeft = red
@@ -486,7 +486,7 @@ deck {
         name = "Underground Headquarters"
         flavorText = "A shadow government won't stay in the shadows forever"
         cardColor = blue
-        orbHalves {
+        connectors {
             topRight = blue
             bottomRight = blue
             bottom = blue
@@ -497,7 +497,7 @@ deck {
     }
     stationFront {
         name = "Terran Outpost"
-        orbHalves {
+        connectors {
             top = red
             topLeft = blue
             topRight = gray

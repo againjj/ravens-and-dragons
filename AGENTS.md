@@ -30,6 +30,7 @@ This file contains repository-wide instructions for AI-assisted work in this pro
 - This rule overrides any general instruction to assume the user wants code changes by default.
 - Preserve existing behavior unless the user explicitly asks to change gameplay, UX, build workflow, persistence, or routing.
 - Prefer small, reviewable refactors over broad rewrites.
+- When choosing between a narrow tweak and a change that makes the code simpler, more understandable, and less bug prone, choose the simpler and more maintainable change.
 - Keep the codebase easy to extend for future rule and service-boundary changes.
 - When in doubt, optimize for clarity and testability over cleverness.
 

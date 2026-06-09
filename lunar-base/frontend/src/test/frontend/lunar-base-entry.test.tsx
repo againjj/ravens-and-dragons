@@ -120,6 +120,57 @@ describe("lunarBaseGameEntry", () => {
         expect(await screen.findByLabelText("2 colonists; achievements 3, 14")).toHaveTextContent("🧑‍🚀🧑‍🚀❸⓮");
     });
 
+    it("renders card costs as colored pips", async () => {
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+
+        const cost = await screen.findByLabelText("Cost: blue, yellow, red, gray, red");
+        expect(cost.querySelectorAll(".lunar-card-cost-row")).toHaveLength(2);
+        expect(cost.querySelectorAll(".lunar-card-cost-row")[0].querySelectorAll(".lunar-card-cost-pip")).toHaveLength(3);
+        expect(cost.querySelectorAll(".lunar-card-cost-row")[1].querySelectorAll(".lunar-card-cost-pip")).toHaveLength(2);
+    });
+
+    it("plays agents instead of discarding them", async () => {
+        servedGame = lunarBaseGame({
+            hand: [{ id: "agent-1", type: "agent", name: "Field Medic", cardCost: ["yellow"] }]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        await userEvent.click(await screen.findByText("Field Medic"));
+
+        await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+            "/api/games/lunar-1/commands",
+            expect.objectContaining({
+                body: JSON.stringify({ type: "playAgent", cardId: "agent-1", expectedVersion: 1 })
+            })
+        ));
+    });
+
+    it("dims and disables an unaffordable hand module on the current player's turn", async () => {
+        servedGame = lunarBaseGame({
+            credits: 0,
+            hand: [{ id: "module-expensive", type: "module", name: "Costly Lab", color: "blue", cardCost: ["blue", "yellow"], connectors: { topRight: "gray", bottomRight: "gray" } }]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        const card = await screen.findByText("Costly Lab");
+        const cardButton = card.closest("button");
+        expect(cardButton).not.toBeNull();
+        expect(cardButton).toBeDisabled();
+        expect(cardButton).toHaveClass("is-unplayable");
+
+        fireEvent.click(cardButton!);
+        const board = document.querySelector<HTMLElement>(".lunar-board");
+        expect(board).not.toBeNull();
+
+        fireEvent.mouseMove(board!, { clientX: 10, clientY: 94 });
+
+        expect(document.querySelector(".lunar-board-hover")).toBeNull();
+    });
+
     it("animates a newly played module with the shifted board", async () => {
         const animate = vi.fn();
         HTMLElement.prototype.animate = animate;
@@ -225,7 +276,10 @@ const jsonResponse = (body: unknown): Response => ({
     json: async () => body
 }) as Response;
 
-const lunarBaseGame = () => ({
+const lunarBaseGame = ({
+    credits = 5,
+    hand = [{ id: "module-1", type: "module", name: "Solar Lab", color: "blue", cardCost: ["blue", "yellow", "red", "gray", "red"], connectors: { topRight: "gray", bottomRight: "gray" }, colonists: 2, achievements: [3, 14] }]
+}: { credits?: number; hand?: Array<Record<string, unknown>> } = {}) => ({
     id: "lunar-1",
     gameSlug: "lunar-base",
     version: 1,
@@ -239,13 +293,13 @@ const lunarBaseGame = () => ({
     players: [
         {
             orbs: { red: 0, blue: 0, yellow: 0, gray: 0 },
-            credits: 0,
+            credits,
             colonists: 0,
             achievements: 0,
             handCount: 1,
             influenceHandCount: 0,
             board: [{
-                card: { id: "station-1", type: "station", name: "Station", orbHalves: { topLeft: "gray", bottomLeft: "gray" } },
+                card: { id: "station-1", type: "station", name: "Station", connectors: { topLeft: "gray", bottomLeft: "gray" } },
                 x: 0,
                 y: 0,
                 rotation: 0
@@ -259,7 +313,7 @@ const lunarBaseGame = () => ({
             handCount: 0,
             influenceHandCount: 0,
             board: [{
-                card: { id: "station-2", type: "station", name: "Station", orbHalves: { topLeft: "gray", bottomLeft: "gray" } },
+                card: { id: "station-2", type: "station", name: "Station", connectors: { topLeft: "gray", bottomLeft: "gray" } },
                 x: 0,
                 y: 0,
                 rotation: 0
@@ -274,7 +328,7 @@ const lunarBaseGame = () => ({
     viewer: {
         userId: "player-1",
         seatIndex: 0,
-        hand: [{ id: "module-1", type: "module", name: "Solar Lab", color: "blue", orbHalves: { topRight: "gray", bottomRight: "gray" }, colonists: 2, achievements: [3, 14] }]
+        hand
     }
 });
 
@@ -289,7 +343,7 @@ const lunarBaseGameWithPlayedModule = () => {
             board: [
                 ...player.board,
                 {
-                    card: { id: "module-1", type: "module" as const, name: "Solar Lab", color: "blue" as const, orbHalves: { topRight: "gray" as const, bottomRight: "gray" as const }, colonists: 2, achievements: [3, 14] },
+                    card: { id: "module-1", type: "module" as const, name: "Solar Lab", color: "blue" as const, cardCost: ["blue" as const, "yellow" as const, "red" as const, "gray" as const, "red" as const], connectors: { topRight: "gray" as const, bottomRight: "gray" as const }, colonists: 2, achievements: [3, 14] },
                     x: -1,
                     y: 0,
                     rotation: 0 as const

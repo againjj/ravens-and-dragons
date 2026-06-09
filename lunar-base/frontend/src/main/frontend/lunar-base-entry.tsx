@@ -19,15 +19,16 @@ import "./lunar-base.css";
 type CardType = "station" | "module" | "agent" | "influence";
 type Orientation = "vertical" | "horizontal";
 type CardRotation = 0 | 90 | 180 | 270;
-type OrbHalfPosition = "top" | "topLeft" | "topRight" | "bottomLeft" | "bottomRight" | "bottom";
+type ConnectorPosition = "top" | "topLeft" | "topRight" | "bottomLeft" | "bottomRight" | "bottom";
 
 interface LunarBaseCard {
     id: string;
     type: CardType;
     name?: string;
     color?: LunarBaseColorName | null;
+    cardCost?: LunarBaseColorName[];
     orbs?: LunarBaseColorName[];
-    orbHalves?: Partial<Record<OrbHalfPosition, LunarBaseColorName | null>>;
+    connectors?: Partial<Record<ConnectorPosition, LunarBaseColorName | null>>;
     colonists?: number;
     achievements?: number[];
     flipped?: boolean;
@@ -140,6 +141,10 @@ const lunarBaseColors = {
     orange: { rgb: "232, 150, 65", css: "rgb(232, 150, 65)", tint: "rgb(252, 239, 226)" }
 } as const;
 type LunarBaseColorName = keyof typeof lunarBaseColors;
+type LunarBaseResourceColorName = Exclude<LunarBaseColorName, "orange">;
+const lunarBaseResourceColorNames = ["red", "blue", "yellow", "gray"] as const;
+const isLunarBaseResourceColor = (color: LunarBaseColorName): color is LunarBaseResourceColorName =>
+    lunarBaseResourceColorNames.includes(color as LunarBaseResourceColorName);
 const handEndCardKey = (game: LunarBaseGame, playerIndex: number): string | null => {
     if (game.viewer?.seatIndex === playerIndex) {
         const hand = game.viewer.hand;
@@ -246,7 +251,10 @@ const rotationToOrientation = (rotation: CardRotation): Orientation =>
     rotation === 90 || rotation === 270 ? "horizontal" : "vertical";
 
 const isDiscardableFromHand = (card: LunarBaseCard | null | undefined): card is LunarBaseCard =>
-    card?.type === "agent" || card?.type === "influence";
+    card?.type === "influence";
+
+const isPlayableAgentFromHand = (card: LunarBaseCard | null | undefined): card is LunarBaseCard =>
+    card?.type === "agent";
 
 const cardTintColor = (card: LunarBaseCard | null): string | null => {
     if (!card) return null;
@@ -260,6 +268,38 @@ const cardDisplayName = (card: LunarBaseCard): string =>
 
 const cardDisplayOrbs = (card: LunarBaseCard): LunarBaseColorName[] =>
     card.type === "station" && card.flipped ? card.stationBackOrbs ?? [] : card.orbs ?? [];
+
+const creditCost = (card: LunarBaseCard, orbs: LunarBasePlayer["orbs"]): number => {
+    const counts: Record<LunarBaseResourceColorName, number> = { red: 0, blue: 0, yellow: 0, gray: 0 };
+    (card.cardCost ?? []).forEach((color) => {
+        if (isLunarBaseResourceColor(color)) counts[color] += 1;
+    });
+    const coloredRemainder =
+        Math.max(0, counts.red - orbs.red) +
+        Math.max(0, counts.blue - orbs.blue) +
+        Math.max(0, counts.yellow - orbs.yellow) +
+        counts.gray;
+    return Math.max(0, coloredRemainder - orbs.gray);
+};
+
+const canPlayCard = (card: LunarBaseCard, player: LunarBasePlayer): boolean =>
+    creditCost(card, player.orbs) <= player.credits;
+
+const canPlayHandCard = (card: LunarBaseCard, player: LunarBasePlayer): boolean => {
+    if (card.type === "module" || card.type === "agent") return canPlayCard(card, player);
+    if (card.type === "influence") return true;
+    return false;
+};
+
+const costRows = (cost: LunarBaseColorName[]): LunarBaseColorName[][] => {
+    if (cost.length === 0) return [];
+    const firstRowCount = Math.min(cost.length, cost.length <= 4 ? 2 : 3);
+    const rows = [cost.slice(0, firstRowCount)];
+    for (let index = firstRowCount; index < cost.length; index += 3) {
+        rows.push(cost.slice(index, index + 3));
+    }
+    return rows;
+};
 
 const blackCircledNumbers = ["", "❶", "❷", "❸", "❹", "❺", "❻", "❼", "❽", "❾", "❿", "⓫", "⓬", "⓭", "⓮", "⓯", "⓰", "⓱", "⓲", "⓳", "⓴"];
 
@@ -377,7 +417,8 @@ const CardView = ({
     } as CSSProperties}>
         {faceDown || empty || !card ? null : (
             <>
-                <OrbHalvesView card={card} />
+                <CardCostView card={card} />
+                <ConnectorsView card={card} />
                 <span className="lunar-card-name">{cardDisplayName(card)}</span>
                 <span className="lunar-card-type">{card.type}</span>
                 <OrbsView card={card} />
@@ -387,18 +428,40 @@ const CardView = ({
     </div>
 );
 
-const orbHalfPositions: OrbHalfPosition[] = ["top", "topLeft", "topRight", "bottomLeft", "bottomRight", "bottom"];
+const CardCostView = ({ card }: { card: LunarBaseCard }) => {
+    const cost = (card.cardCost ?? []).filter((color) => color in lunarBaseColors);
+    const rows = costRows(cost);
+    if (rows.length === 0) return null;
+    return (
+        <span className="lunar-card-cost" aria-label={`Cost: ${cost.join(", ")}`}>
+            {rows.map((row, rowIndex) => (
+                <span key={rowIndex} className="lunar-card-cost-row">
+                    {row.map((color, index) => (
+                        <span
+                            key={`${color}-${rowIndex}-${index}`}
+                            className="lunar-card-cost-pip"
+                            style={{ "--lunar-card-cost-color": lunarBaseColors[color].css } as CSSProperties}
+                            aria-hidden="true"
+                        />
+                    ))}
+                </span>
+            ))}
+        </span>
+    );
+};
 
-const OrbHalvesView = ({ card }: { card: LunarBaseCard }) => (
+const connectorPositions: ConnectorPosition[] = ["top", "topLeft", "topRight", "bottomLeft", "bottomRight", "bottom"];
+
+const ConnectorsView = ({ card }: { card: LunarBaseCard }) => (
     <>
-        {orbHalfPositions.map((position) => {
-            const color = card.orbHalves?.[position];
+        {connectorPositions.map((position) => {
+            const color = card.connectors?.[position];
             if (!color || !(color in lunarBaseColors)) return null;
             return (
                 <span
                     key={position}
-                    className={`lunar-orb-half ${position}`}
-                    style={{ "--lunar-orb-half-color": lunarBaseColors[color].css } as CSSProperties}
+                    className={`lunar-connector ${position}`}
+                    style={{ "--lunar-connector-color": lunarBaseColors[color].css } as CSSProperties}
                     aria-hidden="true"
                 />
             );
@@ -514,16 +577,16 @@ const legalPlacement = (board: LunarBaseBoardCard[], card: LunarBaseCard, x: num
         `${cx}:${cy + 1}`
     ].some((key) => occupied.has(key)));
     if (!touches) return false;
-    return orbHalvesMatch({ card, x, y, rotation }, board);
+    return connectorsMatch({ card, x, y, rotation }, board);
 };
 
-const orbHalvesMatch = (candidate: LunarBaseBoardCard, board: LunarBaseBoardCard[]): boolean => {
+const connectorsMatch = (candidate: LunarBaseBoardCard, board: LunarBaseBoardCard[]): boolean => {
     const candidateCells = new Set(coveredCells(candidate).map(([x, y]) => `${x}:${y}`));
-    const candidateOrbs = orbHalfSlots(candidate);
-    let hasMatchingOrbHalfPair = false;
+    const candidateOrbs = connectorSlots(candidate);
+    let hasMatchingConnectorPair = false;
     const allTouchedEdgesMatch = board.every((existing) => {
         const existingCells = new Set(coveredCells(existing).map(([x, y]) => `${x}:${y}`));
-        const existingOrbs = orbHalfSlots(existing);
+        const existingOrbs = connectorSlots(existing);
         return Array.from(candidateCells).every((cellKey) => {
             const [x, y] = cellKey.split(":").map(Number);
             return [[x - 1, y], [x + 1, y], [x, y - 1], [x, y + 1]].every(([nx, ny]) => {
@@ -532,13 +595,13 @@ const orbHalvesMatch = (candidate: LunarBaseBoardCard, board: LunarBaseBoardCard
                 const candidateColor = candidateOrbs.get(slot);
                 const existingColor = existingOrbs.get(slot);
                 if (candidateColor && existingColor && orbColorsMatch(candidateColor, existingColor)) {
-                    hasMatchingOrbHalfPair = true;
+                    hasMatchingConnectorPair = true;
                 }
                 return orbColorsMatch(candidateColor, existingColor);
             });
         });
     });
-    return allTouchedEdgesMatch && hasMatchingOrbHalfPair;
+    return allTouchedEdgesMatch && hasMatchingConnectorPair;
 };
 
 const orbColorsMatch = (first: LunarBaseColorName | undefined, second: LunarBaseColorName | undefined): boolean => {
@@ -554,7 +617,7 @@ const sharedOrbSlot = ([x, y]: [number, number], [nx, ny]: [number, number]): st
     return `${x * 2 + 1}:${y * 2}`;
 };
 
-const orbHalfLocalPoint = (position: OrbHalfPosition): [number, number] => {
+const connectorLocalPoint = (position: ConnectorPosition): [number, number] => {
     switch (position) {
         case "top": return [0, -1];
         case "topLeft": return [-0.5, -0.5];
@@ -572,15 +635,15 @@ const rotatePoint = ([x, y]: [number, number], rotation: CardRotation): [number,
     return [x, y];
 };
 
-const orbHalfSlots = (boardCard: LunarBaseBoardCard): Map<string, LunarBaseColorName> => {
+const connectorSlots = (boardCard: LunarBaseBoardCard): Map<string, LunarBaseColorName> => {
     const horizontal = rotationToOrientation(boardCard.rotation) === "horizontal";
     const centerX = boardCard.x + (horizontal ? 1 : 0.5);
     const centerY = boardCard.y + (horizontal ? 0.5 : 1);
     const slots = new Map<string, LunarBaseColorName>();
-    orbHalfPositions.forEach((position) => {
-        const color = boardCard.card.orbHalves?.[position];
+    connectorPositions.forEach((position) => {
+        const color = boardCard.card.connectors?.[position];
         if (!color) return;
-        const [localX, localY] = rotatePoint(orbHalfLocalPoint(position), boardCard.rotation);
+        const [localX, localY] = rotatePoint(connectorLocalPoint(position), boardCard.rotation);
         slots.set(`${Math.round((centerX + localX) * 2)}:${Math.round((centerY + localY) * 2)}`, color);
     });
     return slots;
@@ -1120,6 +1183,13 @@ const LunarBasePlayScreen = () => {
     const canAct = viewerSeat === game.currentPlayerIndex && game.lifecycle === "active" && !isSubmitting;
     const selectedHandCard = selectedCard ? hand.find((card) => card.id === selectedCard.cardId) ?? null : null;
     const draggingHandCard = draggingCardId ? hand.find((card) => card.id === draggingCardId) ?? null : null;
+    const viewerPlayer = viewerSeat === null ? null : game.players[viewerSeat] ?? null;
+    const selectedPlayableModule = selectedHandCard && selectedCard && viewerPlayer && selectedHandCard.type === "module" && canPlayCard(selectedHandCard, viewerPlayer)
+        ? { card: selectedHandCard, rotation: selectedCard.rotation }
+        : null;
+    const draggedPlayableModule = draggingHandCard && viewerPlayer && draggingHandCard.type === "module" && canPlayCard(draggingHandCard, viewerPlayer)
+        ? draggingHandCard
+        : null;
     const supplyTopRowCount = Math.ceil(game.supply.length / 2);
     const supplyRows = [game.supply.slice(0, supplyTopRowCount), game.supply.slice(supplyTopRowCount)];
     const animationHiddenClass = (key: string) => hiddenAnimationDestinations.has(key) ? "is-animation-destination-hidden" : "";
@@ -1132,6 +1202,7 @@ const LunarBasePlayScreen = () => {
 
     const clickHandCard = (card: LunarBaseCard, event: MouseEvent<HTMLElement>) => {
         if (!canAct) return;
+        if (!viewerPlayer || !canPlayHandCard(card, viewerPlayer)) return;
         if (selectedCard && selectedCard.cardId !== card.id) {
             setSelectedCard(null);
             return;
@@ -1144,8 +1215,8 @@ const LunarBasePlayScreen = () => {
         }
         const from = rectCenter(event.currentTarget.getBoundingClientRect());
         runCommand(
-            { type: "discardHandCard", cardId: card.id },
-            { annotation: "click hand agent/influence to discard", card, fromX: from.x, fromY: from.y, destination: { type: "discard" } }
+            { type: card.type === "agent" ? "playAgent" : "discardHandCard", cardId: card.id },
+            { annotation: card.type === "agent" ? "click hand agent to play" : "click hand influence to discard", card, fromX: from.x, fromY: from.y, destination: { type: "discard" } }
         );
     };
 
@@ -1289,20 +1360,20 @@ const LunarBasePlayScreen = () => {
                                     }}
                                     onDragOver={(event) => {
                                         const card = hand.find((candidate) => candidate.id === draggingCardId);
-                                        if (draggingSource === "hand" && isDiscardableFromHand(card)) {
+                                        if (draggingSource === "hand" && (isDiscardableFromHand(card) || isPlayableAgentFromHand(card))) {
                                             event.preventDefault();
                                         }
                                     }}
                                     onDrop={(event) => {
                                         const card = hand.find((candidate) => candidate.id === draggingCardId);
-                                        if (draggingSource !== "hand" || !isDiscardableFromHand(card)) {
+                                        if (draggingSource !== "hand" || (!isDiscardableFromHand(card) && !isPlayableAgentFromHand(card))) {
                                             return;
                                         }
                                         event.preventDefault();
                                         runCommand(
-                                            { type: "discardHandCard", cardId: card.id },
+                                            { type: card.type === "agent" ? "playAgent" : "discardHandCard", cardId: card.id },
                                             {
-                                                annotation: "drop hand agent/influence to discard",
+                                                annotation: card.type === "agent" ? "drop hand agent to play" : "drop hand influence to discard",
                                                 card,
                                                 fromX: event.clientX,
                                                 fromY: event.clientY,
@@ -1362,68 +1433,70 @@ const LunarBasePlayScreen = () => {
                                                     }
                                                 }}
                                             >
-                                                {cards.length === 0 ? <span className="lunar-empty-hand">Empty hand</span> : cards.map((card) => (
-                                                    <button
-                                                        key={card.id}
-                                                        data-lunar-animate={`hand-${playerIndex}-${card.id}`}
-                                                        data-movement={isViewer ? "viewer hand card layout" : "opponent hand card layout"}
-                                                        ref={(element) => {
-                                                            if (element) {
-                                                                handCardRefs.current.set(card.id, element);
-                                                            } else {
-                                                                handCardRefs.current.delete(card.id);
-                                                            }
-                                                        }}
-                                                        type="button"
-                                                        className={[
-                                                            draggingCardId === card.id ? "is-dragging" : "",
-                                                            selectedCard?.cardId === card.id ? "is-selected" : "",
-                                                            animationHiddenClass(`hand-${playerIndex}-${card.id}`)
-                                                        ].filter(Boolean).join(" ")}
-                                                        disabled={!isViewer || !canAct}
-                                                        draggable={isViewer && canAct}
-                                                        onClick={(event) => {
-                                                            event.stopPropagation();
-                                                            if (isViewer) clickHandCard(card, event);
-                                                        }}
-                                                        onDragStart={(event) => {
-                                                            if (!isViewer) return;
-                                                            setDraggingCardId(card.id);
-                                                            setDraggingSource("hand");
-                                                            const rotation = selectedCard?.cardId === card.id ? selectedCard.rotation : 0;
-                                                            setDraggingRotation(rotation);
-                                                            setScaledDragImage(event, zoom, rotation);
-                                                            event.dataTransfer.setData("source", "hand");
-                                                            event.dataTransfer.setData("cardId", card.id);
-                                                            event.dataTransfer.setData("rotation", String(rotation));
-                                                            event.dataTransfer.effectAllowed = "move";
-                                                        }}
-                                                        onDragEnd={() => {
-                                                            setDraggingCardId(null);
-                                                            setDraggingSource(null);
-                                                            setDraggingRotation(null);
-                                                        }}
-                                                    >
-                                                        <CardView
-                                                            card={isViewer ? card : null}
-                                                            faceDown={!isViewer}
-                                                            selected={selectedCard?.cardId === card.id}
-                                                            rotation={selectedCard?.cardId === card.id ? selectedCard.rotation : 0}
-                                                            visualRotation={selectedCard?.cardId === card.id ? selectedCard.visualRotation : 0}
-                                                            instantRotation={instantRotationCardIds.has(card.id)}
-                                                        />
-                                                    </button>
-                                                ))}
+                                                {cards.length === 0 ? <span className="lunar-empty-hand">Empty hand</span> : cards.map((card) => {
+                                                    const playableHandCard = Boolean(isViewer && canAct && viewerPlayer && canPlayHandCard(card, viewerPlayer));
+                                                    const unplayableHandCard = Boolean(isViewer && canAct && !playableHandCard);
+                                                    return (
+                                                        <button
+                                                            key={card.id}
+                                                            data-lunar-animate={`hand-${playerIndex}-${card.id}`}
+                                                            data-movement={isViewer ? "viewer hand card layout" : "opponent hand card layout"}
+                                                            ref={(element) => {
+                                                                if (element) {
+                                                                    handCardRefs.current.set(card.id, element);
+                                                                } else {
+                                                                    handCardRefs.current.delete(card.id);
+                                                                }
+                                                            }}
+                                                            type="button"
+                                                            className={[
+                                                                draggingCardId === card.id ? "is-dragging" : "",
+                                                                selectedCard?.cardId === card.id ? "is-selected" : "",
+                                                                unplayableHandCard ? "is-unplayable" : "",
+                                                                animationHiddenClass(`hand-${playerIndex}-${card.id}`)
+                                                            ].filter(Boolean).join(" ")}
+                                                            disabled={!isViewer || !canAct || !playableHandCard}
+                                                            draggable={playableHandCard}
+                                                            onClick={(event) => {
+                                                                event.stopPropagation();
+                                                                if (isViewer) clickHandCard(card, event);
+                                                            }}
+                                                            onDragStart={(event) => {
+                                                                if (!isViewer || !playableHandCard) return;
+                                                                setDraggingCardId(card.id);
+                                                                setDraggingSource("hand");
+                                                                const rotation = selectedCard?.cardId === card.id ? selectedCard.rotation : 0;
+                                                                setDraggingRotation(rotation);
+                                                                setScaledDragImage(event, zoom, rotation);
+                                                                event.dataTransfer.setData("source", "hand");
+                                                                event.dataTransfer.setData("cardId", card.id);
+                                                                event.dataTransfer.setData("rotation", String(rotation));
+                                                                event.dataTransfer.effectAllowed = "move";
+                                                            }}
+                                                            onDragEnd={() => {
+                                                                setDraggingCardId(null);
+                                                                setDraggingSource(null);
+                                                                setDraggingRotation(null);
+                                                            }}
+                                                        >
+                                                            <CardView
+                                                                card={isViewer ? card : null}
+                                                                faceDown={!isViewer}
+                                                                selected={selectedCard?.cardId === card.id}
+                                                                rotation={selectedCard?.cardId === card.id ? selectedCard.rotation : 0}
+                                                                visualRotation={selectedCard?.cardId === card.id ? selectedCard.visualRotation : 0}
+                                                                instantRotation={instantRotationCardIds.has(card.id)}
+                                                            />
+                                                        </button>
+                                                    );
+                                                })}
                                             </div>
                                             <PlayerBoard
                                                 board={game.players[playerIndex].board}
-                                                selected={isViewer && selectedHandCard && selectedCard ? {
-                                                    card: selectedHandCard,
-                                                    rotation: selectedCard.rotation
-                                                } : null}
+                                                selected={isViewer ? selectedPlayableModule : null}
                                                 zoom={zoom}
-                                                canAcceptDrag={Boolean(isViewer && draggingSource === "hand" && draggingHandCard?.type === "module")}
-                                                draggedCard={isViewer && draggingHandCard?.type === "module" ? draggingHandCard : null}
+                                                canAcceptDrag={Boolean(isViewer && draggingSource === "hand" && draggedPlayableModule)}
+                                                draggedCard={isViewer ? draggedPlayableModule : null}
                                                 draggedRotation={draggingRotation}
                                                 onBoardCardRef={(cardId, element) => {
                                                     if (element) {

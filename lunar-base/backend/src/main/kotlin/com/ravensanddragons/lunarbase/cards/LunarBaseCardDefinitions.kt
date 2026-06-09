@@ -69,7 +69,7 @@ data class LunarBaseModuleCardDefinition(
     val cardCost: List<LunarBaseCardColor>,
     val flavorText: String? = null,
     val cardColor: LunarBaseCardColor = LunarBaseCardColor.GRAY,
-    val orbHalves: LunarBaseOrbHalves,
+    val connectors: LunarBaseConnectors,
     val orbs: List<LunarBaseCardColor> = emptyList(),
     val effect: LunarBaseCardEffect? = null,
     val onPlaying: List<LunarBaseCardAction> = emptyList(),
@@ -80,7 +80,7 @@ data class LunarBaseModuleCardDefinition(
     init {
         requirePositiveCount(count, "Module")
         requireNonBlankName(name, "Module")
-        require(orbHalves.hasAnySpecified()) { "Module orbHalves must specify at least one position." }
+        require(connectors.hasAnySpecified()) { "Module connectors must specify at least one position." }
     }
 }
 
@@ -100,10 +100,10 @@ data class LunarBaseStationCardDefinition(
     }
 }
 
-/** The single shared station front must define half-orbs and a main action. */
+/** The single shared station front must define connectors and a main action. */
 data class LunarBaseStationFrontCardDefinition(
     override val name: String,
-    val orbHalves: LunarBaseOrbHalves,
+    val connectors: LunarBaseConnectors,
     val orbs: List<LunarBaseCardColor> = emptyList(),
     val mainAction: List<LunarBaseCardAction>,
     val achievements: List<LunarBaseAchievement> = emptyList(),
@@ -113,7 +113,7 @@ data class LunarBaseStationFrontCardDefinition(
 
     init {
         requireNonBlankName(name, "Station front")
-        require(orbHalves.hasAnySpecified()) { "Station front orbHalves must specify at least one position." }
+        require(connectors.hasAnySpecified()) { "Station front connectors must specify at least one position." }
         require(mainAction.isNotEmpty()) { "Station front mainAction is required." }
     }
 }
@@ -134,8 +134,8 @@ enum class LunarBaseCardColor {
     GRAY
 }
 
-/** Half-orb positions available on module and station-front cards. */
-data class LunarBaseOrbHalves(
+/** Connector positions available on module and station-front cards. */
+data class LunarBaseConnectors(
     val top: LunarBaseCardColor? = null,
     val topLeft: LunarBaseCardColor? = null,
     val topRight: LunarBaseCardColor? = null,
@@ -143,7 +143,7 @@ data class LunarBaseOrbHalves(
     val bottomRight: LunarBaseCardColor? = null,
     val bottom: LunarBaseCardColor? = null
 ) {
-    /** True when at least one half-orb position was set. */
+    /** True when at least one connector position was set. */
     fun hasAnySpecified(): Boolean =
         listOf(top, topLeft, topRight, bottomLeft, bottomRight, bottom).any { it != null }
 }

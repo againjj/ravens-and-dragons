@@ -44,10 +44,10 @@ class LunarBaseGameHandlerTest {
         assertEquals("The Oasis", rawStationCard.get("name").asText())
         assertEquals(false, rawStationCard.has("number"))
         assertEquals(false, rawStationCard.has("orbs"))
-        assertEquals(false, rawStationCard.has("orbHalves"))
+        assertEquals(false, rawStationCard.has("connectors"))
         assertEquals(false, rawStationCard.has("stationBackName"))
-        assertEquals("gray", publicState.players[0].board[0].card.orbHalves?.topRight)
-        assertEquals("yellow", publicState.players[0].board[0].card.orbHalves?.bottomRight)
+        assertEquals("gray", publicState.players[0].board[0].card.connectors?.topRight)
+        assertEquals("yellow", publicState.players[0].board[0].card.connectors?.bottomRight)
         assertEquals(0, publicState.players[0].board[0].rotation)
         assertEquals(0, publicState.players[1].board[0].rotation)
         assertEquals(4, privateState.unseenStations.size)
@@ -179,7 +179,7 @@ class LunarBaseGameHandlerTest {
     }
 
     @Test
-    fun playingModuleAllowsMatchingOrbHalves() {
+    fun playingModuleAllowsMatchingConnectors() {
         var game = handler.createGame("LUNAR01", createRequest(), "creator")
         game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")
         game = putCardInCurrentPlayersHand(game, matchingModule("module-match"))
@@ -220,6 +220,84 @@ class LunarBaseGameHandlerTest {
     }
 
     @Test
+    fun playingModulePaysCreditCostAfterOrbDiscounts() {
+        var game = handler.createGame("LUNAR01", createRequest(), "creator")
+        game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")
+        game = putCardInCurrentPlayersHand(
+            game,
+            matchingModule("module-cost").copy(cardCost = listOf("red", "blue", "yellow"))
+        )
+        game = replaceCurrentPlayer(game) { player ->
+            player.copy(credits = 1, board = flippedCurrentStationBoard(game.readPublicState()))
+        }
+
+        val played = handler.applyCommand(
+            game,
+                command("playModule", game.readPublicState().version)
+                    .put("cardId", "module-cost")
+                    .put("x", 1)
+                    .put("y", 0)
+                .put("rotation", 0),
+            "user-1"
+        )
+
+        assertEquals(0, played.readPublicState().players[0].credits)
+    }
+
+    @Test
+    fun playingModuleRejectsInsufficientCreditsAfterOrbDiscounts() {
+        var game = handler.createGame("LUNAR01", createRequest(), "creator")
+        game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")
+        game = putCardInCurrentPlayersHand(
+            game,
+            matchingModule("module-too-expensive").copy(cardCost = listOf("red", "red", "blue", "yellow", "yellow"))
+        )
+        game = replaceCurrentPlayer(game) { player ->
+            player.copy(credits = 2, board = flippedCurrentStationBoard(game.readPublicState()))
+        }
+
+        val exception = assertThrows<InvalidCommandException> {
+            handler.applyCommand(
+                game,
+                command("playModule", game.readPublicState().version)
+                    .put("cardId", "module-too-expensive")
+                    .put("x", 1)
+                    .put("y", 0)
+                    .put("rotation", 0),
+                "user-1"
+            )
+        }
+
+        assertEquals("You do not have enough credits to play that card.", exception.message)
+    }
+
+    @Test
+    fun playingAgentPaysCostAndMovesToDiscard() {
+        var game = handler.createGame("LUNAR01", createRequest(), "creator")
+        game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")
+        game = putCardInCurrentPlayersHand(
+            game,
+            LunarBaseCard(id = "agent-cost", type = "agent", name = "Guest Scientist", cardCost = listOf("blue", "yellow"))
+        )
+        game = replaceCurrentPlayer(game) { player ->
+            player.copy(credits = 0, board = boardWithCompletedYellowAndGrayOrbs(game.readPublicState()))
+        }
+
+        val played = handler.applyCommand(
+            game,
+            command("playAgent", game.readPublicState().version).put("cardId", "agent-cost"),
+            "user-1"
+        )
+        val publicState = played.readPublicState()
+        val privateState = played.readPrivateState()
+
+        assertEquals(0, publicState.players[0].credits)
+        assertEquals("Played an agent.", publicState.message)
+        assertEquals("agent-cost", privateState.discard.first().id)
+        assertEquals(false, privateState.hands[0].any { it.id == "agent-cost" })
+    }
+
+    @Test
     fun publicStateRecomputesBoardSummariesFromBoard() {
         val game = handler.createGame("LUNAR01", createRequest(), "creator")
         val publicState = game.readClientPublicState()
@@ -230,7 +308,7 @@ class LunarBaseGameHandlerTest {
             achievements = listOf(1)
         )
         val matchingDome = matchingModule("module-gray-pair").copy(
-            orbHalves = LunarBaseCardOrbHalves(topLeft = "gray", bottomLeft = "gray"),
+            connectors = LunarBaseCardConnectors(topLeft = "gray", topRight = "gray", bottomLeft = "gray", bottomRight = "yellow"),
             colonists = 1,
             achievements = listOf(12, 5)
         )
@@ -257,12 +335,12 @@ class LunarBaseGameHandlerTest {
     }
 
     @Test
-    fun playingModuleRejectsMismatchedOrbHalves() {
+    fun playingModuleRejectsMismatchedConnectors() {
         var game = handler.createGame("LUNAR01", createRequest(), "creator")
         game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")
         game = putCardInCurrentPlayersHand(
             game,
-            matchingModule("module-mismatch").copy(orbHalves = LunarBaseCardOrbHalves(topLeft = "red", bottomLeft = "red", top = "red"))
+            matchingModule("module-mismatch").copy(connectors = LunarBaseCardConnectors(topLeft = "red", bottomLeft = "red", top = "red"))
         )
 
         val exception = assertThrows<InvalidCommandException> {
@@ -277,16 +355,16 @@ class LunarBaseGameHandlerTest {
             )
         }
 
-        assertEquals("A played card's orb halves must match adjacent cards.", exception.message)
+        assertEquals("A played card's connectors must match adjacent cards.", exception.message)
     }
 
     @Test
-    fun playingModuleRejectsPlacementWithoutAnyMatchingOrbHalfPair() {
+    fun playingModuleRejectsPlacementWithoutAnyMatchingConnectorPair() {
         var game = handler.createGame("LUNAR01", createRequest(), "creator")
         game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")
         game = putCardInCurrentPlayersHand(
             game,
-            matchingModule("module-no-pair").copy(orbHalves = LunarBaseCardOrbHalves(top = "red"))
+            matchingModule("module-no-pair").copy(connectors = LunarBaseCardConnectors(top = "red"))
         )
 
         val exception = assertThrows<InvalidCommandException> {
@@ -301,7 +379,7 @@ class LunarBaseGameHandlerTest {
             )
         }
 
-        assertEquals("A played card's orb halves must match adjacent cards.", exception.message)
+        assertEquals("A played card's connectors must match adjacent cards.", exception.message)
     }
 
     @Test
@@ -330,6 +408,13 @@ class LunarBaseGameHandlerTest {
                         LunarBaseSeat(userId = "user-1", displayName = "Ada"),
                         LunarBaseSeat(userId = "user-2", displayName = "Ben")
                     ),
+                    players = publicState.players.replaceAt(
+                        0,
+                        publicState.players[0].copy(
+                            credits = 3,
+                            board = boardWithCompletedYellowAndGrayOrbs(publicState)
+                        )
+                    ),
                     supply = keptInfluences,
                     stockCount = stock.size
                 )
@@ -342,6 +427,7 @@ class LunarBaseGameHandlerTest {
         val nextPrivate = passed.readPrivateState()
 
         assertEquals(7, nextPublic.supply.size)
+        assertEquals(5, nextPublic.players[0].credits)
         assertEquals(keptInfluences.map { it.id }, nextPublic.supply.take(2).map { it?.id })
         assertEquals(stock.take(5).map { it.id }, nextPublic.supply.drop(2).map { it?.id })
         assertEquals(stock.drop(5).map { it.id }, nextPrivate.stock.map { it.id })
@@ -381,13 +467,45 @@ class LunarBaseGameHandlerTest {
         )
     }
 
+    private fun replaceCurrentPlayer(game: GameRecord, transform: (LunarBasePlayerPublic) -> LunarBasePlayerPublic): GameRecord {
+        val publicState = game.readPublicState()
+        val nextPublic = publicState.copy(players = publicState.players.replaceAt(0, transform(publicState.players[0])))
+        return game.copy(publicState = objectMapper.valueToTree(nextPublic))
+    }
+
+    private fun boardWithCompletedYellowAndGrayOrbs(publicState: LunarBasePublicState): List<LunarBaseBoardCard> {
+        val station = publicState.players[0].board[0].card.copy(
+            flipped = true,
+            stationBackName = "The Oasis",
+            colonists = 2,
+            achievements = listOf(1)
+        )
+        val matchingDome = matchingModule("module-gray-pair").copy(
+            connectors = LunarBaseCardConnectors(topLeft = "gray", bottomLeft = "gray"),
+            colonists = 1,
+            achievements = listOf(12, 5)
+        )
+        return listOf(
+            LunarBaseBoardCard(station, 0, 0, 0),
+            LunarBaseBoardCard(matchingDome, 1, 0, 0)
+        )
+    }
+
+    private fun flippedCurrentStationBoard(publicState: LunarBasePublicState): List<LunarBaseBoardCard> {
+        val station = publicState.players[0].board[0].card.copy(
+            flipped = true,
+            stationBackName = "The Oasis"
+        )
+        return listOf(LunarBaseBoardCard(station, 0, 0, 0))
+    }
+
     private fun matchingModule(id: String): LunarBaseCard =
         LunarBaseCard(
             id = id,
             type = "module",
             name = "Matching Module",
             color = "red",
-            orbHalves = LunarBaseCardOrbHalves(top = "red", topLeft = "red", bottomLeft = "yellow")
+            connectors = LunarBaseCardConnectors(top = "red", topLeft = "red", bottomLeft = "yellow")
         )
 
     private fun ensureCurrentPlayerHasModule(game: GameRecord): GameRecord {

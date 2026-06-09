@@ -40,9 +40,9 @@ class LunarBaseCardScriptTest {
 
         val asteroidGrinder = deck.modules.single { it.name == "Asteroid Grinder" }
         assertEquals(yellow, asteroidGrinder.cardColor)
-        assertEquals(yellow, asteroidGrinder.orbHalves.top)
-        assertEquals(yellow, asteroidGrinder.orbHalves.topLeft)
-        assertEquals(yellow, asteroidGrinder.orbHalves.bottomLeft)
+        assertEquals(yellow, asteroidGrinder.connectors.top)
+        assertEquals(yellow, asteroidGrinder.connectors.topLeft)
+        assertEquals(yellow, asteroidGrinder.connectors.bottomLeft)
         assertEquals(listOf(yellow, yellow), asteroidGrinder.cardCost)
 
         val spaceElevator = deck.modules.single { it.name == "Space Elevator" }
@@ -70,7 +70,7 @@ class LunarBaseCardScriptTest {
                 module {
                     count = 30
                     name = "Module"
-                    orbHalves { top = gray }
+                    connectors { top = gray }
                     cardCost = listOf()
                 }
             }
@@ -85,7 +85,7 @@ class LunarBaseCardScriptTest {
             deck {
                 stationFront {
                     name = "Front"
-                    orbHalves { top = gray }
+                    connectors { top = gray }
                     mainAction { draw { 1 } }
                 }
                 station {
@@ -96,7 +96,7 @@ class LunarBaseCardScriptTest {
                 module {
                     count = 30
                     name = "Module"
-                    orbHalves { top = gray }
+                    connectors { top = gray }
                     cardCost = listOf()
                 }
             }
@@ -111,7 +111,7 @@ class LunarBaseCardScriptTest {
             deck {
                 stationFront {
                     name = "Front"
-                    orbHalves { top = gray }
+                    connectors { top = gray }
                     mainAction { draw { 1 } }
                 }
                 station {
@@ -122,7 +122,7 @@ class LunarBaseCardScriptTest {
                 module {
                     count = 29
                     name = "Module"
-                    orbHalves { top = gray }
+                    connectors { top = gray }
                     cardCost = listOf()
                 }
             }
@@ -137,7 +137,7 @@ class LunarBaseCardScriptTest {
             deck {
                 stationFront {
                     name = "Front"
-                    orbHalves { top = gray }
+                    connectors { top = gray }
                     mainAction { draw { 1 } }
                 }
                 station {
@@ -148,7 +148,7 @@ class LunarBaseCardScriptTest {
                 module {
                     count = 30
                     name = "Duplicate"
-                    orbHalves { top = gray }
+                    connectors { top = gray }
                     cardCost = listOf()
                 }
             }
@@ -163,7 +163,7 @@ class LunarBaseCardScriptTest {
             deck {
                 stationFront {
                     name = "Front"
-                    orbHalves { top = gray }
+                    connectors { top = gray }
                     mainAction { draw { 1 } }
                 }
                 station {
@@ -184,7 +184,7 @@ class LunarBaseCardScriptTest {
             deck {
                 stationFront {
                     name = "Front"
-                    orbHalves { top = gray }
+                    connectors { top = gray }
                     mainAction { draw { 1 } }
                 }
                 station {
