@@ -19,7 +19,7 @@ The parent project has two child projects:
   - Declares the `lunar-base` slug and `/lunar-base/create` browser route.
 - `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseGameHandler.kt`
   - Implements the platform `GameHandler` port for Lunar Base.
-  - Creates the configured 2-6 player game, expands the standard card script into counted physical station/module/agent/influence cards whose persisted card identity is just the unique catalog name plus instance state, deals private hands, enriches client-facing card views by name with catalog colors/orb halves/whole orbs/station flipped display, derives public completed-orb counts from each player board, validates commands, manages stock/discard refill, module board placement with orb-half matching, supply compaction/refill that keeps influence cards while dealing a full replacement supply, turn passing, and game ending.
+  - Creates the configured 2-6 player game, expands the standard card script into counted physical station/module/agent/influence cards whose persisted card identity is just the unique catalog name plus instance state, deals private hands, enriches client-facing card views by name with catalog colors/orb halves/whole orbs/station flipped display/colonists/achievement ordinals, derives public completed-orb counts, housed colonists, and unique scientific-achievement counts from each player board, validates commands, manages stock/discard refill, module board placement with orb-half matching, supply compaction/refill that keeps influence cards while dealing a full replacement supply, turn passing, and game ending.
 - `src/main/kotlin/com/ravensanddragons/lunarbase/cards/`
   - Owns an additive Kotlin card-definition DSL and immutable definition model for script-loaded Lunar Base decks.
   - Uses separate DSL builder and definition types for agents, influences, modules, stations, and the single station front so invalid card fields are unavailable on the wrong card type.
@@ -38,7 +38,7 @@ The parent project has two child projects:
   - Typechecks and tests the Lunar Base frontend package with Gradle-managed Node/npm.
 - `src/main/frontend/lunar-base-entry.tsx`
   - Exports `lunarBaseGameEntry` through the package entrypoint for the app-owned frontend shell.
-  - Owns the Lunar Base create screen, play screen, player panels, shared Lunar Base color definitions, card/table rendering with standard card names/colors/orb halves/whole orbs and station flipped-state display, frontend placement hints with orb-half matching, editable zoom control, click interaction, drag/drop interaction, and client-only card movement animation styling for hand, pile, supply, and board movement.
+  - Owns the Lunar Base create screen, play screen, player panels, shared Lunar Base color definitions, card/table rendering with standard card names/colors/orb halves/whole orbs, colonist/achievement depictions, and station flipped-state display, frontend placement hints with orb-half matching, editable zoom control, click interaction, drag/drop interaction, and client-only card movement animation styling for hand, pile, supply, and board movement.
   - Keeps animated command source cards hidden as soon as a pending command starts, so module cards played from hand stay hidden through the server-response gap and fly animation.
 - `src/main/frontend/lunar-base.css`
   - Owns Lunar Base-specific layout, card, board, responsive, and animation styles.

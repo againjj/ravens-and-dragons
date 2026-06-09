@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.ravensanddragons.lunarbase.cards.LunarBaseCardColor
 import com.ravensanddragons.lunarbase.cards.LunarBaseCardDefinition
+import com.ravensanddragons.lunarbase.cards.LunarBaseAchievement
 import com.ravensanddragons.lunarbase.cards.LunarBaseOrbHalves
 import com.ravensanddragons.lunarbase.cards.LunarBaseStandardDeck
 import com.ravensanddragons.platform.game.runtime.GameHandler
@@ -44,6 +45,8 @@ data class LunarBaseCard(
     val color: String? = null,
     val orbs: List<String> = emptyList(),
     val orbHalves: LunarBaseCardOrbHalves? = null,
+    val colonists: Int = 0,
+    val achievements: List<Int> = emptyList(),
     val flipped: Boolean = false,
     val stationBackName: String? = null,
     val stationBackOrbs: List<String> = emptyList()
@@ -383,7 +386,7 @@ class LunarBaseGameHandler(
                 private = private.copy(stock = private.stock.drop(1))
             }
         }
-        return public.withPrivateCounts(private).withBoardOrbCounts() to private
+        return public.withPrivateCounts(private).withBoardSummaries() to private
     }
 
     private fun ensureStock(privateState: LunarBasePrivateState, gameId: String, version: Long): LunarBasePrivateState {
@@ -426,10 +429,14 @@ class LunarBaseGameHandler(
             discardCount = privateState.discard.size
         )
 
-    private fun LunarBasePublicState.withBoardOrbCounts(): LunarBasePublicState =
+    private fun LunarBasePublicState.withBoardSummaries(): LunarBasePublicState =
         copy(
             players = players.map { player ->
-                player.copy(orbs = player.board.completedOrbCounts())
+                player.copy(
+                    orbs = player.board.completedOrbCounts(),
+                    colonists = player.board.sumOf { it.card.colonists },
+                    achievements = player.board.flatMap { it.card.achievements }.toSet().size
+                )
             }
         )
 
@@ -546,7 +553,7 @@ class LunarBaseGameHandler(
         this == 90 || this == 270
 
     private fun GameRecord.toPublicState(): LunarBasePublicState =
-        objectMapper.treeToValue(publicState, LunarBasePublicState::class.java).normalizeCatalogCards().withBoardOrbCounts()
+        objectMapper.treeToValue(publicState, LunarBasePublicState::class.java).normalizeCatalogCards().withBoardSummaries()
 
     private fun GameRecord.toPrivateState(): LunarBasePrivateState =
         objectMapper.treeToValue(privateState, LunarBasePrivateState::class.java).normalizeCatalogCards()
@@ -577,6 +584,8 @@ class LunarBaseGameHandler(
                     name = if (flipped) definition.name else stationFront.name,
                     orbs = if (flipped) definition.orbs.map { it.toCardColorName() } else stationFront.orbs.map { it.toCardColorName() },
                     orbHalves = stationFront.orbHalves.toCardOrbHalves(),
+                    colonists = if (flipped) definition.colonists else stationFront.colonists,
+                    achievements = if (flipped) definition.achievements.toCardAchievementOrdinals() else stationFront.achievements.toCardAchievementOrdinals(),
                     stationBackName = stationBackName ?: definition.name,
                     stationBackOrbs = if (stationBackOrbs.isNotEmpty()) stationBackOrbs else definition.orbs.map { it.toCardColorName() }
                 )
@@ -585,7 +594,9 @@ class LunarBaseGameHandler(
                 name = definition.name,
                 color = color ?: definition.cardColor.toCardColorName(),
                 orbs = if (orbs.isNotEmpty()) orbs else definition.orbs.map { it.toCardColorName() },
-                orbHalves = if (orbHalves?.hasAnySpecified() == true) orbHalves else definition.orbHalves.toCardOrbHalves()
+                orbHalves = if (orbHalves?.hasAnySpecified() == true) orbHalves else definition.orbHalves.toCardOrbHalves(),
+                colonists = definition.colonists,
+                achievements = definition.achievements.toCardAchievementOrdinals()
             )
             is com.ravensanddragons.lunarbase.cards.LunarBaseAgentCardDefinition -> copy(
                 name = definition.name
@@ -710,6 +721,9 @@ class LunarBaseGameHandler(
 
     private fun LunarBaseCardColor.toCardColorName(): String =
         name.lowercase()
+
+    private fun List<LunarBaseAchievement>.toCardAchievementOrdinals(): List<Int> =
+        map { it.ordinal + 1 }
 
     private fun randomFor(gameId: String, salt: String): Random =
         Random("$gameId:$salt".hashCode())

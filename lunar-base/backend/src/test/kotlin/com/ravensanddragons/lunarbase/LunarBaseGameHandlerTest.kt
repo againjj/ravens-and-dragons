@@ -97,6 +97,28 @@ class LunarBaseGameHandlerTest {
     }
 
     @Test
+    fun gameViewAddsCatalogColonistsAndAchievementOrdinalsFromCardName() {
+        var game = handler.createGame("LUNAR01", createRequest(), "creator")
+        game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")
+        val baconPrinter = LunarBaseCard(
+            id = "bacon-printer",
+            type = "module",
+            name = "Bacon Printer"
+        )
+        val privateState = game.readPrivateState().copy(hands = game.readPrivateState().hands.replaceAt(0, listOf(baconPrinter)))
+        val publicState = game.readPublicState().copy(players = game.readPublicState().players.replaceAt(0, game.readPublicState().players[0].copy(handCount = 1)))
+        game = game.copy(
+            publicState = objectMapper.valueToTree(publicState),
+            privateState = objectMapper.valueToTree(privateState)
+        )
+
+        val handCard = handler.gameView(game, "user-1").get("viewer").get("hand").single()
+
+        assertEquals(1, handCard.get("colonists").asInt())
+        assertEquals(listOf(6), handCard.get("achievements").map { it.asInt() })
+    }
+
+    @Test
     fun passTurnMovesToNextPlayer() {
         var game = handler.createGame("LUNAR01", createRequest(), "creator")
         game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")
@@ -198,35 +220,40 @@ class LunarBaseGameHandlerTest {
     }
 
     @Test
-    fun publicStateRecomputesCompletedOrbCountsFromBoard() {
+    fun publicStateRecomputesBoardSummariesFromBoard() {
         val game = handler.createGame("LUNAR01", createRequest(), "creator")
         val publicState = game.readClientPublicState()
         val station = publicState.players[0].board[0].card.copy(
             flipped = true,
-            stationBackName = "The Oasis"
+            stationBackName = "The Oasis",
+            colonists = 2,
+            achievements = listOf(1)
+        )
+        val matchingDome = matchingModule("module-gray-pair").copy(
+            orbHalves = LunarBaseCardOrbHalves(topLeft = "gray", bottomLeft = "gray"),
+            colonists = 1,
+            achievements = listOf(12, 5)
         )
         val nextPublicState = publicState.copy(
             players = publicState.players.replaceAt(
                 0,
                 publicState.players[0].copy(
                     orbs = LunarBaseResources(red = 99, blue = 99, yellow = 99, gray = 99),
+                    colonists = 99,
+                    achievements = 99,
                     board = listOf(
                         LunarBaseBoardCard(station, 0, 0, 0),
-                        LunarBaseBoardCard(
-                            matchingModule("module-gray-pair").copy(
-                                orbHalves = LunarBaseCardOrbHalves(topLeft = "gray", bottomLeft = "gray")
-                            ),
-                            1,
-                            0,
-                            0
-                        )
+                        LunarBaseBoardCard(matchingDome, 1, 0, 0)
                     )
                 )
             )
         )
         val staleCountGame = game.copy(publicState = objectMapper.valueToTree(nextPublicState))
 
-        assertEquals(LunarBaseResources(red = 1, blue = 1, yellow = 1, gray = 1), staleCountGame.readClientPublicState().players[0].orbs)
+        val player = staleCountGame.readClientPublicState().players[0]
+        assertEquals(LunarBaseResources(red = 1, blue = 1, yellow = 1, gray = 1), player.orbs)
+        assertEquals(2, player.colonists)
+        assertEquals(2, player.achievements)
     }
 
     @Test

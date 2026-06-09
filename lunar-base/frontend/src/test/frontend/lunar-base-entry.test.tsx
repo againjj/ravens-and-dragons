@@ -112,6 +112,14 @@ describe("lunarBaseGameEntry", () => {
         expect(stockCard).not.toHaveClass("is-back");
     });
 
+    it("renders card colonist and achievement depictions", async () => {
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+
+        expect(await screen.findByLabelText("2 colonists; achievements 3, 14")).toHaveTextContent("🧑‍🚀🧑‍🚀❸⓮");
+    });
+
     it("animates a newly played module with the shifted board", async () => {
         const animate = vi.fn();
         HTMLElement.prototype.animate = animate;
@@ -266,7 +274,7 @@ const lunarBaseGame = () => ({
     viewer: {
         userId: "player-1",
         seatIndex: 0,
-        hand: [{ id: "module-1", type: "module", name: "Solar Lab", color: "blue", orbHalves: { topRight: "gray", bottomRight: "gray" } }]
+        hand: [{ id: "module-1", type: "module", name: "Solar Lab", color: "blue", orbHalves: { topRight: "gray", bottomRight: "gray" }, colonists: 2, achievements: [3, 14] }]
     }
 });
 
@@ -281,7 +289,7 @@ const lunarBaseGameWithPlayedModule = () => {
             board: [
                 ...player.board,
                 {
-                    card: { id: "module-1", type: "module" as const, name: "Solar Lab", color: "blue" as const, orbHalves: { topRight: "gray" as const, bottomRight: "gray" as const } },
+                    card: { id: "module-1", type: "module" as const, name: "Solar Lab", color: "blue" as const, orbHalves: { topRight: "gray" as const, bottomRight: "gray" as const }, colonists: 2, achievements: [3, 14] },
                     x: -1,
                     y: 0,
                     rotation: 0 as const

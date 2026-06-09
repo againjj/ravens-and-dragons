@@ -28,6 +28,8 @@ interface LunarBaseCard {
     color?: LunarBaseColorName | null;
     orbs?: LunarBaseColorName[];
     orbHalves?: Partial<Record<OrbHalfPosition, LunarBaseColorName | null>>;
+    colonists?: number;
+    achievements?: number[];
     flipped?: boolean;
     stationBackName?: string | null;
     stationBackOrbs?: LunarBaseColorName[];
@@ -259,6 +261,11 @@ const cardDisplayName = (card: LunarBaseCard): string =>
 const cardDisplayOrbs = (card: LunarBaseCard): LunarBaseColorName[] =>
     card.type === "station" && card.flipped ? card.stationBackOrbs ?? [] : card.orbs ?? [];
 
+const blackCircledNumbers = ["", "❶", "❷", "❸", "❹", "❺", "❻", "❼", "❽", "❾", "❿", "⓫", "⓬", "⓭", "⓮", "⓯", "⓰", "⓱", "⓲", "⓳", "⓴"];
+
+const achievementGlyph = (achievement: number): string =>
+    blackCircledNumbers[achievement] ?? String(achievement);
+
 const readGameIdFromLocation = (): string | null => {
     const routeGameId = window.location.pathname.match(playRoutePattern)?.[1] ?? null;
     return routeGameId ? decodeURIComponent(routeGameId) : null;
@@ -374,6 +381,7 @@ const CardView = ({
                 <span className="lunar-card-name">{cardDisplayName(card)}</span>
                 <span className="lunar-card-type">{card.type}</span>
                 <OrbsView card={card} />
+                <CardDepictionsView card={card} />
             </>
         )}
     </div>
@@ -411,6 +419,32 @@ const OrbsView = ({ card }: { card: LunarBaseCard }) => {
                     aria-hidden="true"
                 />
             ))}
+        </span>
+    );
+};
+
+const CardDepictionsView = ({ card }: { card: LunarBaseCard }) => {
+    const colonists = Math.max(0, card.colonists ?? 0);
+    const achievements = card.achievements ?? [];
+    if (colonists === 0 && achievements.length === 0) return null;
+    return (
+        <span
+            className="lunar-card-depictions"
+            aria-label={[
+                colonists > 0 ? `${colonists} colonist${colonists === 1 ? "" : "s"}` : null,
+                achievements.length > 0 ? `achievements ${achievements.join(", ")}` : null
+            ].filter(Boolean).join("; ")}
+        >
+            {colonists > 0 ? (
+                <span className="lunar-card-colonists" style={{ "--lunar-card-depiction-color": lunarBaseColors.blue.css } as CSSProperties}>
+                    {Array.from({ length: colonists }, () => "🧑‍🚀").join("")}
+                </span>
+            ) : null}
+            {achievements.length > 0 ? (
+                <span className="lunar-card-achievements" style={{ "--lunar-card-depiction-color": lunarBaseColors.red.css } as CSSProperties}>
+                    {achievements.map(achievementGlyph).join("")}
+                </span>
+            ) : null}
         </span>
     );
 };

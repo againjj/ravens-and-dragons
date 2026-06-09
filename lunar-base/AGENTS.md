@@ -19,3 +19,7 @@ This file contains instructions for work inside the `lunar-base/` game module.
 - The deck has 6 station, 48 module, 24 agent, and 8 influence cards.
 - Player hands are private. Public state may expose hand counts and influence counts, but not hidden card identities.
 - Keep card movement, board placement, deck refill, and turn rules in this game module rather than in `platform/` or `app/`.
+
+## Palette Rules
+
+- In Lunar Base work, `<red>`, `<blue>`, `<yellow>`, `<gray>`, and `<orange>` always refer to the Lunar Base palette colors. The palette should always be the base reference for those colors rather than duplicating separate literal color values.

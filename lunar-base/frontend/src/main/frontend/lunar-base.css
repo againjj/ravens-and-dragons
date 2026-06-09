@@ -265,7 +265,7 @@
     position: relative;
     width: 84px;
     height: 168px;
-    padding: 20px 8px;
+    padding: 18px 7px;
     box-sizing: border-box;
     border: 1px solid #0f172a;
     border-radius: 6px;
@@ -275,7 +275,7 @@
     display: grid;
     place-items: center;
     align-content: center;
-    gap: 8px;
+    gap: 6px;
     text-align: center;
     user-select: none;
     overflow: visible;
@@ -322,7 +322,7 @@
 }
 
 .lunar-card-type {
-    font-size: 0.9rem;
+    font-size: 0.82rem;
     text-transform: capitalize;
 }
 
@@ -340,6 +340,27 @@
     border: 1px solid #0f172a;
     border-radius: 50%;
     background: var(--lunar-card-orb-color);
+}
+
+.lunar-card-depictions {
+    display: flex;
+    min-height: 17px;
+    max-width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    font-size: 0.8rem;
+    line-height: 1;
+    white-space: nowrap;
+}
+
+.lunar-card-colonists {
+    color: var(--lunar-card-depiction-color);
+}
+
+.lunar-card-achievements {
+    color: var(--lunar-card-depiction-color);
+    font-size: 1.35em;
 }
 
 .lunar-orb-half {
