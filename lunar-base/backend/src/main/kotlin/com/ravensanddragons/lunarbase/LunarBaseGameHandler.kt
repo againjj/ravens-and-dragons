@@ -4,9 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.annotation.JsonInclude
+import com.ravensanddragons.lunarbase.cards.LunarBaseAchievement
 import com.ravensanddragons.lunarbase.cards.LunarBaseCardColor
 import com.ravensanddragons.lunarbase.cards.LunarBaseCardDefinition
-import com.ravensanddragons.lunarbase.cards.LunarBaseAchievement
 import com.ravensanddragons.lunarbase.cards.LunarBaseConnectors
 import com.ravensanddragons.lunarbase.cards.LunarBaseStandardDeck
 import com.ravensanddragons.platform.game.runtime.GameHandler
@@ -53,10 +53,15 @@ data class LunarBaseCard(
     val stationFrontOrbs: List<String> = emptyList(),
     val stationFrontColonists: Int = 0,
     val stationFrontAchievements: List<Int> = emptyList(),
+    val stationFrontMainActionText: String? = null,
     val stationBackName: String? = null,
     val stationBackOrbs: List<String> = emptyList(),
     val stationBackColonists: Int = 0,
-    val stationBackAchievements: List<Int> = emptyList()
+    val stationBackAchievements: List<Int> = emptyList(),
+    val stationBackMainActionText: String? = null,
+    val mainActionText: String? = null,
+    val onPlayingText: String? = null,
+    val effectText: String? = null
 )
 
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
@@ -665,10 +670,13 @@ class LunarBaseGameHandler(
                     stationFrontOrbs = stationFront.orbs.map { it.toCardColorName() },
                     stationFrontColonists = stationFront.colonists,
                     stationFrontAchievements = stationFront.achievements.toCardAchievementOrdinals(),
+                    stationFrontMainActionText = stationFront.mainAction.toActionText(),
                     stationBackName = stationBackName ?: definition.name,
                     stationBackOrbs = if (stationBackOrbs.isNotEmpty()) stationBackOrbs else definition.orbs.map { it.toCardColorName() },
                     stationBackColonists = if (stationBackColonists > 0) stationBackColonists else definition.colonists,
-                    stationBackAchievements = if (stationBackAchievements.isNotEmpty()) stationBackAchievements else definition.achievements.toCardAchievementOrdinals()
+                    stationBackAchievements = if (stationBackAchievements.isNotEmpty()) stationBackAchievements else definition.achievements.toCardAchievementOrdinals(),
+                    stationBackMainActionText = definition.mainAction.toActionText(),
+                    mainActionText = if (flipped) definition.mainAction.toActionText() else stationFront.mainAction.toActionText()
                 )
             }
             is com.ravensanddragons.lunarbase.cards.LunarBaseModuleCardDefinition -> copy(
@@ -678,15 +686,20 @@ class LunarBaseGameHandler(
                 orbs = if (orbs.isNotEmpty()) orbs else definition.orbs.map { it.toCardColorName() },
                 connectors = if (connectors?.hasAnySpecified() == true) connectors else definition.connectors.toCardConnectors(),
                 colonists = definition.colonists,
-                achievements = definition.achievements.toCardAchievementOrdinals()
+                achievements = definition.achievements.toCardAchievementOrdinals(),
+                onPlayingText = definition.onPlaying.toActionText(),
+                mainActionText = definition.mainAction.toActionText(),
+                effectText = definition.effect?.toEffectText()
             )
             is com.ravensanddragons.lunarbase.cards.LunarBaseAgentCardDefinition -> copy(
                 name = definition.name,
-                cardCost = definition.cardCost.map { it.toCardColorName() }
+                cardCost = definition.cardCost.map { it.toCardColorName() },
+                onPlayingText = definition.onPlaying.toActionText()
             )
             is com.ravensanddragons.lunarbase.cards.LunarBaseInfluenceCardDefinition -> copy(
                 name = definition.name,
-                cardCost = emptyList()
+                cardCost = emptyList(),
+                effectText = definition.effect.toEffectText()
             )
             else -> this
         }

@@ -131,6 +131,46 @@ describe("lunarBaseGameEntry", () => {
         expect(cost.querySelectorAll(".lunar-card-cost-row")[1].querySelectorAll(".lunar-card-cost-pip")).toHaveLength(2);
     });
 
+    it("renders action badges and shows catalog-derived action text on hover", async () => {
+        servedGame = lunarBaseGame({
+            hand: [{
+                id: "agent-1",
+                type: "agent",
+                name: "Field Medic",
+                cardCost: ["yellow"],
+                onPlayingText: "Draw 1 card\nBuild 1 module"
+            }, {
+                id: "influence-1",
+                type: "influence",
+                name: "Lunar Alliance",
+                effectText: "Forbid stealing credits"
+            }]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        const badge = await screen.findByLabelText("ON PLAYING");
+
+        expect(badge).toHaveTextContent(/ON\s*PLAYING/);
+
+        fireEvent.mouseEnter(badge, { clientX: 50, clientY: 60 });
+
+        expect(await screen.findByRole("tooltip")).toHaveTextContent("ON PLAYING");
+        const tooltip = screen.getByRole("tooltip");
+        expect(tooltip).toHaveTextContent("Draw 1 cardBuild 1 module");
+        expect(tooltip.querySelectorAll("br")).toHaveLength(1);
+        expect(tooltip.querySelectorAll(".lunar-card-action-tooltip-line")).toHaveLength(2);
+
+        fireEvent.mouseLeave(badge);
+        const effectBadge = screen.getByLabelText("EFFECT");
+        expect(effectBadge).toHaveTextContent("EFFECT");
+
+        fireEvent.mouseEnter(effectBadge, { clientX: 70, clientY: 80 });
+
+        expect(await screen.findByRole("tooltip")).toHaveTextContent("EFFECT");
+        expect(screen.getByRole("tooltip")).toHaveTextContent("Forbid stealing credits");
+    });
+
     it("reveals the other side of only the viewer station without sending a command", async () => {
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
 
@@ -501,10 +541,13 @@ const lunarBaseGame = ({
                     achievements: stationFlipped ? [12] : [],
                     flipped: stationFlipped,
                     stationFrontName: "Terran Outpost",
+                    stationFrontMainActionText: "Choose one:\nBuild 1 module\nDraw 1 card",
                     stationBackName: "The Oasis",
                     stationBackOrbs: ["blue", "red"],
                     stationBackColonists: 1,
-                    stationBackAchievements: [12]
+                    stationBackAchievements: [12],
+                    stationBackMainActionText: "Draft 2 cards",
+                    mainActionText: stationFlipped ? "Draft 2 cards" : "Choose one:\nBuild 1 module\nDraw 1 card"
                 },
                 x: 0,
                 y: 0,

@@ -1,4 +1,4 @@
-import { type CSSProperties, type DragEvent, type MouseEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Fragment, type CSSProperties, type DragEvent, type MouseEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
     createResponseError,
@@ -36,10 +36,15 @@ interface LunarBaseCard {
     stationFrontOrbs?: LunarBaseColorName[];
     stationFrontColonists?: number;
     stationFrontAchievements?: number[];
+    stationFrontMainActionText?: string | null;
     stationBackName?: string | null;
     stationBackOrbs?: LunarBaseColorName[];
     stationBackColonists?: number;
     stationBackAchievements?: number[];
+    stationBackMainActionText?: string | null;
+    mainActionText?: string | null;
+    onPlayingText?: string | null;
+    effectText?: string | null;
 }
 
 interface LunarBaseSeat {
@@ -132,6 +137,7 @@ interface StationRevealState {
     cardId: string;
     phase: "revealing" | "revealed" | "hiding";
 }
+type ActionTooltipCorner = "bottomRight" | "bottomLeft" | "topRight" | "topLeft";
 
 const playRoutePattern = /^\/g\/([^/]+)$/;
 const emptyLifecycle = () => undefined;
@@ -304,6 +310,18 @@ const cardDisplayAchievements = (card: LunarBaseCard): number[] =>
         : card.type === "station"
             ? card.stationFrontAchievements ?? []
             : card.achievements ?? [];
+
+const cardDisplayAction = (card: LunarBaseCard): { label: "MAIN ACTION" | "ON PLAYING" | "EFFECT"; text: string } | null => {
+    const mainActionText = card.type === "station" && card.flipped
+        ? card.stationBackMainActionText ?? card.mainActionText
+        : card.type === "station"
+            ? card.stationFrontMainActionText ?? card.mainActionText
+            : card.mainActionText;
+    if (mainActionText) return { label: "MAIN ACTION", text: mainActionText };
+    if (card.onPlayingText) return { label: "ON PLAYING", text: card.onPlayingText };
+    if (card.effectText) return { label: "EFFECT", text: card.effectText };
+    return null;
+};
 
 const stationOppositeSideCard = (card: LunarBaseCard): LunarBaseCard =>
     card.type === "station" ? { ...card, flipped: !card.flipped } : card;
@@ -485,6 +503,7 @@ const CardView = ({
                 <span className="lunar-card-name">{cardDisplayName(card)}</span>
                 <span className="lunar-card-type">{card.type}</span>
                 <OrbsView card={card} />
+                <CardActionView card={card} />
                 <CardDepictionsView card={card} />
             </>
         )}
@@ -546,6 +565,129 @@ const OrbsView = ({ card }: { card: LunarBaseCard }) => {
                 />
             ))}
         </span>
+    );
+};
+
+const actionTooltipCorners: ActionTooltipCorner[] = ["bottomRight", "bottomLeft", "topRight", "topLeft"];
+
+const actionTooltipPosition = (
+    mouse: { x: number; y: number },
+    size: { width: number; height: number },
+    corner: ActionTooltipCorner
+) => {
+    switch (corner) {
+        case "bottomRight":
+            return { left: mouse.x, top: mouse.y };
+        case "bottomLeft":
+            return { left: mouse.x - size.width, top: mouse.y };
+        case "topRight":
+            return { left: mouse.x, top: mouse.y - size.height };
+        case "topLeft":
+            return { left: mouse.x - size.width, top: mouse.y - size.height };
+    }
+};
+
+const actionTooltipFits = (
+    mouse: { x: number; y: number },
+    size: { width: number; height: number },
+    corner: ActionTooltipCorner
+): boolean => {
+    const position = actionTooltipPosition(mouse, size, corner);
+    const viewportWidth = document.documentElement.clientWidth || window.innerWidth;
+    const viewportHeight = document.documentElement.clientHeight || window.innerHeight;
+    return position.left >= 0 &&
+        position.top >= 0 &&
+        position.left + size.width <= viewportWidth &&
+        position.top + size.height <= viewportHeight;
+};
+
+const bestActionTooltipCorner = (
+    mouse: { x: number; y: number },
+    size: { width: number; height: number },
+    current: ActionTooltipCorner
+): ActionTooltipCorner => {
+    if (actionTooltipFits(mouse, size, current)) return current;
+    return actionTooltipCorners.find((corner) => actionTooltipFits(mouse, size, corner)) ?? "bottomRight";
+};
+
+const ActionTooltipText = ({ text }: { text: string }) => (
+    <span className="lunar-card-action-tooltip-text">
+        {text.split("\n").map((line, index) => (
+            <Fragment key={index}>
+                {index > 0 ? <br /> : null}
+                <span className="lunar-card-action-tooltip-line">{line}</span>
+            </Fragment>
+        ))}
+    </span>
+);
+
+const CardActionView = ({ card }: { card: LunarBaseCard }) => {
+    const action = cardDisplayAction(card);
+    const tooltipRef = useRef<HTMLDivElement | null>(null);
+    const [tooltip, setTooltip] = useState<{
+        mouse: { x: number; y: number };
+        corner: ActionTooltipCorner;
+    } | null>(null);
+
+    useLayoutEffect(() => {
+        if (!tooltip || !tooltipRef.current) return;
+        const rect = tooltipRef.current.getBoundingClientRect();
+        const nextCorner = bestActionTooltipCorner(tooltip.mouse, { width: rect.width, height: rect.height }, tooltip.corner);
+        if (nextCorner !== tooltip.corner) {
+            setTooltip({ ...tooltip, corner: nextCorner });
+        }
+    }, [tooltip]);
+
+    if (!action) return null;
+
+    const tooltipPosition = tooltip
+        ? actionTooltipPosition(
+            tooltip.mouse,
+            {
+                width: tooltipRef.current?.getBoundingClientRect().width ?? 0,
+                height: tooltipRef.current?.getBoundingClientRect().height ?? 0
+            },
+            tooltip.corner
+        )
+        : null;
+
+    return (
+        <>
+            <span
+                className="lunar-card-action-badge"
+                aria-label={action.label}
+                onMouseEnter={(event) => setTooltip({ mouse: { x: event.clientX, y: event.clientY }, corner: "bottomRight" })}
+                onMouseMove={(event) => {
+                    const size = tooltipRef.current?.getBoundingClientRect();
+                    setTooltip((current) => {
+                        const corner = current?.corner ?? "bottomRight";
+                        const mouse = { x: event.clientX, y: event.clientY };
+                        return {
+                            mouse,
+                            corner: size ? bestActionTooltipCorner(mouse, { width: size.width, height: size.height }, corner) : corner
+                        };
+                    });
+                }}
+                onMouseLeave={() => setTooltip(null)}
+            >
+                {action.label.replace(" ", "\n")}
+            </span>
+            {tooltip && tooltipPosition ? createPortal(
+                <div
+                    ref={tooltipRef}
+                    className="lunar-card-action-tooltip"
+                    style={{
+                        "--lunar-action-tooltip-left": `${tooltipPosition.left}px`,
+                        "--lunar-action-tooltip-top": `${tooltipPosition.top}px`
+                    } as CSSProperties}
+                    role="tooltip"
+                >
+                    <strong>{action.label}</strong>
+                    <ActionTooltipText text={action.text} />
+                </div>,
+                portalRoot()
+            ) : null}
+        </>
     );
 };
 

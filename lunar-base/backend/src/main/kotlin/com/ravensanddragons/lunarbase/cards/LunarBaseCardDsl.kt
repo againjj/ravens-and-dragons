@@ -256,6 +256,12 @@ class LunarBaseModuleCardBuilder : LunarBaseNamedCardBuilder("Module") {
     fun build(): LunarBaseModuleCardDefinition {
         val resolvedConnectors = requireNotNull(connectors) { "Module connectors are required." }
         require(resolvedConnectors.hasAnySpecified()) { "Module connectors must specify at least one position." }
+        require(onPlaying.isEmpty() || mainAction.isEmpty()) {
+            "Module cannot define both onPlaying and mainAction."
+        }
+        require(effect == null || (onPlaying.isEmpty() && mainAction.isEmpty())) {
+            "Module cannot define effect with onPlaying or mainAction."
+        }
         return LunarBaseModuleCardDefinition(
             count = requireCount(),
             name = requireName(),

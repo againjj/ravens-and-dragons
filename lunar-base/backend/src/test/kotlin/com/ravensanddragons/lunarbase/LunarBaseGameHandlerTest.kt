@@ -138,6 +138,81 @@ class LunarBaseGameHandlerTest {
     }
 
     @Test
+    fun gameViewBuildsReadableCatalogActionText() {
+        var game = handler.createGame("LUNAR01", createRequest(), "creator")
+        game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")
+        val actionCards = listOf(
+            LunarBaseCard(id = "space-unicorn", type = "agent", name = "Space Unicorn"),
+            LunarBaseCard(id = "fusion-reactor", type = "module", name = "Fusion Reactor"),
+            LunarBaseCard(id = "satellite", type = "module", name = "Satellite"),
+            LunarBaseCard(id = "crazy-president", type = "agent", name = "Crazy President"),
+            LunarBaseCard(id = "lunar-capital", type = "module", name = "Lunar Capital"),
+            LunarBaseCard(id = "double-agent", type = "agent", name = "Double Agent"),
+            LunarBaseCard(id = "spybot", type = "agent", name = "Spybot.py"),
+            LunarBaseCard(id = "artificial-intellect", type = "module", name = "Artificial Intellect"),
+            LunarBaseCard(id = "lunar-alliance", type = "influence", name = "Lunar Alliance"),
+            LunarBaseCard(id = "entropic-cascade", type = "influence", name = "Entropic Cascade")
+        )
+        val privateState = game.readPrivateState().copy(hands = game.readPrivateState().hands.replaceAt(0, actionCards))
+        val publicState = game.readPublicState().copy(players = game.readPublicState().players.replaceAt(0, game.readPublicState().players[0].copy(handCount = actionCards.size)))
+        game = game.copy(
+            publicState = objectMapper.valueToTree(publicState),
+            privateState = objectMapper.valueToTree(privateState)
+        )
+
+        val cardsByName = handler.gameView(game, "user-1")
+            .get("viewer")
+            .get("hand")
+            .associateBy { it.get("name").asText() }
+        val station = handler.publicState(game).at("/players/0/board/0/card")
+
+        assertEquals(
+            "Choose one:\nDraft 1 card\nBuild 2 modules; Draw 1 card",
+            station.get("mainActionText").asText()
+        )
+        assertEquals(
+            "Build 1 module\nDraw 1 card\nDiscard 1 card",
+            cardsByName.getValue("Fusion Reactor").get("mainActionText").asText()
+        )
+        assertEquals(
+            "Draw 1 card\nGain credits equal to your hand size",
+            cardsByName.getValue("Space Unicorn").get("onPlayingText").asText()
+        )
+        assertEquals(
+            "Resell cards equal to the number of influences in the supply",
+            cardsByName.getValue("Satellite").get("onPlayingText").asText()
+        )
+        assertEquals(
+            "Each player: Flip your station",
+            cardsByName.getValue("Crazy President").get("onPlayingText").asText()
+        )
+        assertEquals(
+            "Flip any number of stations",
+            cardsByName.getValue("Lunar Capital").get("onPlayingText").asText()
+        )
+        assertEquals(
+            "Neighbors of target: Flip your station",
+            cardsByName.getValue("Double Agent").get("onPlayingText").asText()
+        )
+        assertEquals(
+            "Choose an opponent\nView chosen player's hand\nChoose one:\nDraw 1 card\nChosen player: Discard 1 card",
+            cardsByName.getValue("Spybot.py").get("onPlayingText").asText()
+        )
+        assertEquals(
+            "Red orbs gain credits as well as yellow orbs",
+            cardsByName.getValue("Artificial Intellect").get("effectText").asText()
+        )
+        assertEquals(
+            "Stealing credits is forbidden",
+            cardsByName.getValue("Lunar Alliance").get("effectText").asText()
+        )
+        assertEquals(
+            "When this influence is discarded:\nDraw 4 cards; Discard 3 cards",
+            cardsByName.getValue("Entropic Cascade").get("effectText").asText()
+        )
+    }
+
+    @Test
     fun passTurnMovesToNextPlayer() {
         var game = handler.createGame("LUNAR01", createRequest(), "creator")
         game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")

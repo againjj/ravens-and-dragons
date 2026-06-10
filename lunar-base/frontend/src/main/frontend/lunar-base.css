@@ -413,6 +413,68 @@
     background: var(--lunar-card-orb-color);
 }
 
+.lunar-card-action-badge {
+    position: absolute;
+    top: 106px;
+    left: 50%;
+    z-index: 3;
+    display: grid;
+    place-items: center;
+    width: 46px;
+    height: 24px;
+    box-sizing: border-box;
+    border: 1px solid #0f172a;
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.84);
+    color: #0f172a;
+    font-size: 0.39rem;
+    font-weight: 800;
+    line-height: 1.05;
+    text-align: center;
+    white-space: pre-line;
+    transform: translateX(-50%);
+    cursor: help;
+}
+
+.lunar-card-action-tooltip {
+    position: fixed;
+    left: var(--lunar-action-tooltip-left);
+    top: var(--lunar-action-tooltip-top);
+    z-index: 1000;
+    display: grid;
+    gap: 6px;
+    width: max-content;
+    max-width: min(280px, calc(100vw - 16px));
+    box-sizing: border-box;
+    padding: 9px 10px;
+    border: 1px solid rgba(15, 23, 42, 0.28);
+    border-radius: 7px;
+    background: rgba(255, 255, 255, 0.96);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, 0.22);
+    color: #0f172a;
+    font-size: 0.78rem;
+    line-height: 1.25;
+    text-align: left;
+    pointer-events: none;
+}
+
+.lunar-card-action-tooltip strong {
+    font-size: 0.7rem;
+    letter-spacing: 0;
+}
+
+.lunar-card-action-tooltip-text {
+    display: block;
+}
+
+.lunar-card-action-tooltip-line {
+    display: inline-block;
+    max-width: 100%;
+    padding-left: 1em;
+    text-indent: -1em;
+    vertical-align: top;
+}
+
 .lunar-card-depictions {
     position: absolute;
     left: 6px;

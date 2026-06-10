@@ -201,6 +201,85 @@ class LunarBaseCardScriptTest {
         assertEquals("Influence effect is required.", missingInfluenceEffect.message)
     }
 
+    @Test
+    fun modulesCannotDefineBothOnPlayingAndMainAction() {
+        val exception = assertFailsWith<IllegalArgumentException> {
+            deck {
+                stationFront {
+                    name = "Front"
+                    connectors { top = gray }
+                    mainAction { draw { 1 } }
+                }
+                station {
+                    count = 6
+                    name = "Station"
+                    mainAction { draw { 1 } }
+                }
+                module {
+                    count = 30
+                    name = "Module"
+                    connectors { top = gray }
+                    cardCost = listOf()
+                    onPlaying { draw { 1 } }
+                    mainAction { build { 1 } }
+                }
+            }
+        }
+
+        assertEquals("Module cannot define both onPlaying and mainAction.", exception.message)
+    }
+
+    @Test
+    fun modulesCannotDefineEffectWithOnPlayingOrMainAction() {
+        val effectWithOnPlaying = assertFailsWith<IllegalArgumentException> {
+            deck {
+                stationFront {
+                    name = "Front"
+                    connectors { top = gray }
+                    mainAction { draw { 1 } }
+                }
+                station {
+                    count = 6
+                    name = "Station"
+                    mainAction { draw { 1 } }
+                }
+                module {
+                    count = 30
+                    name = "Module"
+                    connectors { top = gray }
+                    cardCost = listOf()
+                    effect = staticEffect { redOrbsGainCredits }
+                    onPlaying { draw { 1 } }
+                }
+            }
+        }
+        assertEquals("Module cannot define effect with onPlaying or mainAction.", effectWithOnPlaying.message)
+
+        val effectWithMainAction = assertFailsWith<IllegalArgumentException> {
+            deck {
+                stationFront {
+                    name = "Front"
+                    connectors { top = gray }
+                    mainAction { draw { 1 } }
+                }
+                station {
+                    count = 6
+                    name = "Station"
+                    mainAction { draw { 1 } }
+                }
+                module {
+                    count = 30
+                    name = "Module"
+                    connectors { top = gray }
+                    cardCost = listOf()
+                    effect = staticEffect { redOrbsGainCredits }
+                    mainAction { draw { 1 } }
+                }
+            }
+        }
+        assertEquals("Module cannot define effect with onPlaying or mainAction.", effectWithMainAction.message)
+    }
+
     private fun loadStandardDeckScript(): LunarBaseDeckDefinition {
         return LunarBaseStandardDeck.definition
     }

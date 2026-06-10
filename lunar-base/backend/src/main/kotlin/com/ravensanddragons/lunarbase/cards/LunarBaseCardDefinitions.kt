@@ -81,6 +81,12 @@ data class LunarBaseModuleCardDefinition(
         requirePositiveCount(count, "Module")
         requireNonBlankName(name, "Module")
         require(connectors.hasAnySpecified()) { "Module connectors must specify at least one position." }
+        require(onPlaying.isEmpty() || mainAction.isEmpty()) {
+            "Module cannot define both onPlaying and mainAction."
+        }
+        require(effect == null || (onPlaying.isEmpty() && mainAction.isEmpty())) {
+            "Module cannot define effect with onPlaying or mainAction."
+        }
     }
 }
 
