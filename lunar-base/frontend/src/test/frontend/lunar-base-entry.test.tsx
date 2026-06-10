@@ -131,6 +131,87 @@ describe("lunarBaseGameEntry", () => {
         expect(cost.querySelectorAll(".lunar-card-cost-row")[1].querySelectorAll(".lunar-card-cost-pip")).toHaveLength(2);
     });
 
+    it("reveals the other side of only the viewer station without sending a command", async () => {
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        expect(await screen.findAllByText("Terran Outpost")).toHaveLength(2);
+
+        vi.useFakeTimers();
+        fireEvent.click(screen.getByRole("button", { name: "Reveal other station side" }));
+
+        expect(screen.getByText("The Oasis")).toBeInTheDocument();
+        expect(screen.getByLabelText("1 colonist; achievements 12")).toHaveTextContent("🧑‍🚀⓬");
+        expect(screen.getByRole("button", { name: "Hide revealed station side" })).toBeInTheDocument();
+
+        act(() => {
+            vi.advanceTimersByTime(500);
+        });
+
+        expect(screen.getByRole("button", { name: "Hide revealed station side" })).toBeInTheDocument();
+        expect(vi.mocked(fetch)).not.toHaveBeenCalledWith(
+            "/api/games/lunar-1/commands",
+            expect.anything()
+        );
+
+        fireEvent.click(screen.getByRole("button", { name: "Hide revealed station side" }));
+        expect(screen.queryByRole("button", { name: "Hide revealed station side" })).not.toBeInTheDocument();
+
+        act(() => {
+            vi.advanceTimersByTime(500);
+        });
+
+        expect(screen.getAllByText("Terran Outpost")).toHaveLength(2);
+    });
+
+    it("reveals the Terran Outpost side when the viewer station is flipped", async () => {
+        servedGame = lunarBaseGame({ stationFlipped: true });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        await screen.findByText("The Oasis");
+
+        vi.useFakeTimers();
+        fireEvent.click(screen.getByRole("button", { name: "Reveal other station side" }));
+        act(() => {
+            vi.advanceTimersByTime(500);
+        });
+
+        expect(screen.getAllByText("Terran Outpost")).toHaveLength(2);
+        expect(screen.queryByLabelText("1 colonist; achievements 12")).not.toBeInTheDocument();
+    });
+
+    it("shows the station flip control only on the viewer turn and sends a flip command", async () => {
+        const animate = vi.fn();
+        HTMLElement.prototype.animate = animate;
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        expect(await screen.findAllByText("Terran Outpost")).toHaveLength(2);
+
+        await userEvent.click(screen.getByRole("button", { name: "Flip station" }));
+
+        expect(screen.getByText("The Oasis")).toBeInTheDocument();
+        expect(animate).not.toHaveBeenCalled();
+        await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+            "/api/games/lunar-1/commands",
+            expect.objectContaining({
+                body: JSON.stringify({ type: "flipStation", expectedVersion: 1 })
+            })
+        ));
+    });
+
+    it("hides the station flip control when it is not the viewer turn", async () => {
+        servedGame = lunarBaseGame({ currentPlayerIndex: 1 });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        expect(await screen.findAllByText("Terran Outpost")).toHaveLength(2);
+
+        expect(screen.getByRole("button", { name: "Reveal other station side" })).toBeInTheDocument();
+        expect(screen.queryByRole("button", { name: "Flip station" })).not.toBeInTheDocument();
+    });
+
     it("plays agents instead of discarding them", async () => {
         servedGame = lunarBaseGame({
             hand: [{ id: "agent-1", type: "agent", name: "Field Medic", cardCost: ["yellow"] }]
@@ -388,8 +469,9 @@ const lunarBaseGame = ({
     hand = [{ id: "module-1", type: "module", name: "Solar Lab", color: "blue", cardCost: ["blue", "yellow", "red", "gray", "red"], connectors: { topRight: "gray", bottomRight: "gray" }, colonists: 2, achievements: [3, 14] }],
     supply = [],
     currentPlayerIndex = 0,
-    viewerSeat = 0
-}: { credits?: number; hand?: Array<Record<string, unknown>>; supply?: Array<Record<string, unknown> | null>; currentPlayerIndex?: number; viewerSeat?: number } = {}) => ({
+    viewerSeat = 0,
+    stationFlipped = false
+}: { credits?: number; hand?: Array<Record<string, unknown>>; supply?: Array<Record<string, unknown> | null>; currentPlayerIndex?: number; viewerSeat?: number; stationFlipped?: boolean } = {}) => ({
     id: "lunar-1",
     gameSlug: "lunar-base",
     version: 1,
@@ -409,7 +491,21 @@ const lunarBaseGame = ({
             handCount: 1,
             influenceHandCount: 0,
             board: [{
-                card: { id: "station-1", type: "station", name: "Station", connectors: { topLeft: "gray", bottomLeft: "gray" } },
+                card: {
+                    id: "station-1",
+                    type: "station",
+                    name: stationFlipped ? "The Oasis" : "Terran Outpost",
+                    connectors: { topLeft: "gray", bottomLeft: "gray" },
+                    orbs: stationFlipped ? ["blue", "red"] : [],
+                    colonists: stationFlipped ? 1 : 0,
+                    achievements: stationFlipped ? [12] : [],
+                    flipped: stationFlipped,
+                    stationFrontName: "Terran Outpost",
+                    stationBackName: "The Oasis",
+                    stationBackOrbs: ["blue", "red"],
+                    stationBackColonists: 1,
+                    stationBackAchievements: [12]
+                },
                 x: 0,
                 y: 0,
                 rotation: 0
@@ -423,7 +519,7 @@ const lunarBaseGame = ({
             handCount: 0,
             influenceHandCount: 0,
             board: [{
-                card: { id: "station-2", type: "station", name: "Station", connectors: { topLeft: "gray", bottomLeft: "gray" } },
+                card: { id: "station-2", type: "station", name: "Terran Outpost", connectors: { topLeft: "gray", bottomLeft: "gray" }, stationBackName: "The Crater", stationBackOrbs: ["yellow", "gray"] },
                 x: 0,
                 y: 0,
                 rotation: 0

@@ -49,8 +49,14 @@ data class LunarBaseCard(
     val colonists: Int = 0,
     val achievements: List<Int> = emptyList(),
     val flipped: Boolean = false,
+    val stationFrontName: String? = null,
+    val stationFrontOrbs: List<String> = emptyList(),
+    val stationFrontColonists: Int = 0,
+    val stationFrontAchievements: List<Int> = emptyList(),
     val stationBackName: String? = null,
-    val stationBackOrbs: List<String> = emptyList()
+    val stationBackOrbs: List<String> = emptyList(),
+    val stationBackColonists: Int = 0,
+    val stationBackAchievements: List<Int> = emptyList()
 )
 
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
@@ -180,6 +186,7 @@ class LunarBaseGameHandler(
             "discardHandCard" -> discardHandCard(publicState, privateState, command, actingUserId)
             "playAgent" -> playAgent(publicState, privateState, command, actingUserId)
             "playModule" -> playModule(publicState, privateState, command, actingUserId)
+            "flipStation" -> flipStation(publicState, privateState, actingUserId)
             "passTurn" -> publicState.requireCurrentPlayer(actingUserId).let {
                 publicState.copy(
                     currentPlayerIndex = nextPlayerIndex(publicState.currentPlayerIndex, publicState.config.playerCount),
@@ -409,6 +416,26 @@ class LunarBaseGameHandler(
         return publicState.copy(players = nextPlayers, message = "Played a module.").withPrivateCounts(nextPrivate) to nextPrivate
     }
 
+    private fun flipStation(
+        publicState: LunarBasePublicState,
+        privateState: LunarBasePrivateState,
+        actingUserId: String?
+    ): Pair<LunarBasePublicState, LunarBasePrivateState> {
+        val seat = publicState.requireCurrentPlayer(actingUserId)
+        val player = publicState.players[seat]
+        val nextBoard = player.board.mapIndexed { index, boardCard ->
+            if (index == 0 && boardCard.card.type == stationType) {
+                boardCard.copy(card = boardCard.card.copy(flipped = !boardCard.card.flipped))
+            } else {
+                boardCard
+            }
+        }
+        return publicState.copy(
+            players = publicState.players.replaceAt(seat, player.copy(board = nextBoard)),
+            message = "Flipped station."
+        ) to privateState
+    }
+
     private fun normalizeAfterMove(
         publicState: LunarBasePublicState,
         privateState: LunarBasePrivateState,
@@ -634,8 +661,14 @@ class LunarBaseGameHandler(
                     connectors = stationFront.connectors.toCardConnectors(),
                     colonists = if (flipped) definition.colonists else stationFront.colonists,
                     achievements = if (flipped) definition.achievements.toCardAchievementOrdinals() else stationFront.achievements.toCardAchievementOrdinals(),
+                    stationFrontName = stationFront.name,
+                    stationFrontOrbs = stationFront.orbs.map { it.toCardColorName() },
+                    stationFrontColonists = stationFront.colonists,
+                    stationFrontAchievements = stationFront.achievements.toCardAchievementOrdinals(),
                     stationBackName = stationBackName ?: definition.name,
-                    stationBackOrbs = if (stationBackOrbs.isNotEmpty()) stationBackOrbs else definition.orbs.map { it.toCardColorName() }
+                    stationBackOrbs = if (stationBackOrbs.isNotEmpty()) stationBackOrbs else definition.orbs.map { it.toCardColorName() },
+                    stationBackColonists = if (stationBackColonists > 0) stationBackColonists else definition.colonists,
+                    stationBackAchievements = if (stationBackAchievements.isNotEmpty()) stationBackAchievements else definition.achievements.toCardAchievementOrdinals()
                 )
             }
             is com.ravensanddragons.lunarbase.cards.LunarBaseModuleCardDefinition -> copy(

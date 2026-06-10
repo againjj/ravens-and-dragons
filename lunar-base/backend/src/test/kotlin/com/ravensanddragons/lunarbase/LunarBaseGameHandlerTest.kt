@@ -39,8 +39,11 @@ class LunarBaseGameHandlerTest {
         assertEquals(false, publicState.players[0].board[0].card.flipped)
         assertEquals("Terran Outpost", publicState.players[0].board[0].card.name)
         assertEquals(emptyList(), publicState.players[0].board[0].card.orbs)
+        assertEquals("Terran Outpost", publicState.players[0].board[0].card.stationFrontName)
         assertEquals("The Oasis", publicState.players[0].board[0].card.stationBackName)
         assertEquals(listOf("blue", "red"), publicState.players[0].board[0].card.stationBackOrbs)
+        assertEquals(1, publicState.players[0].board[0].card.stationBackColonists)
+        assertEquals(listOf(12), publicState.players[0].board[0].card.stationBackAchievements)
         assertEquals("The Oasis", rawStationCard.get("name").asText())
         assertEquals(false, rawStationCard.has("number"))
         assertEquals(false, rawStationCard.has("orbs"))
@@ -143,6 +146,48 @@ class LunarBaseGameHandlerTest {
         val passed = handler.applyCommand(game, command("passTurn", 3), "user-1")
 
         assertEquals(1, passed.readPublicState().currentPlayerIndex)
+    }
+
+    @Test
+    fun flippingStationTogglesCurrentPlayersPublicStationSide() {
+        var game = handler.createGame("LUNAR01", createRequest(), "creator")
+        game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")
+        game = handler.applyCommand(game, command("claimSeat", 2).put("seatIndex", 1).put("playerUserId", "user-2").put("displayName", "Ben"), "user-1")
+
+        val flipped = handler.applyCommand(game, command("flipStation", 3), "user-1")
+        val publicState = flipped.readClientPublicState()
+
+        assertEquals(true, publicState.players[0].board[0].card.flipped)
+        assertEquals("The Oasis", publicState.players[0].board[0].card.name)
+        assertEquals(listOf("blue", "red"), publicState.players[0].board[0].card.orbs)
+        assertEquals(1, publicState.players[0].board[0].card.colonists)
+        assertEquals(listOf(12), publicState.players[0].board[0].card.achievements)
+        assertEquals(false, publicState.players[1].board[0].card.flipped)
+        assertEquals("Flipped station.", publicState.message)
+    }
+
+    @Test
+    fun flippingStationRejectsNonCurrentPlayer() {
+        var game = handler.createGame("LUNAR01", createRequest(), "creator")
+        game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")
+        game = handler.applyCommand(game, command("claimSeat", 2).put("seatIndex", 1).put("playerUserId", "user-2").put("displayName", "Ben"), "user-1")
+
+        val exception = assertThrows<InvalidCommandException> {
+            handler.applyCommand(game, command("flipStation", 3), "user-2")
+        }
+
+        assertEquals("It is not your turn.", exception.message)
+    }
+
+    @Test
+    fun flippingStationRejectsUnseatedUser() {
+        val game = handler.createGame("LUNAR01", createRequest(), "creator")
+
+        val exception = assertThrows<InvalidCommandException> {
+            handler.applyCommand(game, command("flipStation", 1), "stranger")
+        }
+
+        assertEquals("You are not seated in this game.", exception.message)
     }
 
     @Test

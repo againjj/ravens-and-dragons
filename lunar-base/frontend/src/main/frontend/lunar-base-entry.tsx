@@ -32,8 +32,14 @@ interface LunarBaseCard {
     colonists?: number;
     achievements?: number[];
     flipped?: boolean;
+    stationFrontName?: string | null;
+    stationFrontOrbs?: LunarBaseColorName[];
+    stationFrontColonists?: number;
+    stationFrontAchievements?: number[];
     stationBackName?: string | null;
     stationBackOrbs?: LunarBaseColorName[];
+    stationBackColonists?: number;
+    stationBackAchievements?: number[];
 }
 
 interface LunarBaseSeat {
@@ -117,6 +123,14 @@ interface SelectedCard {
     cardId: string;
     rotation: CardRotation;
     visualRotation: number;
+}
+interface StationFlipAnimation {
+    from: LunarBaseCard;
+    to: LunarBaseCard;
+}
+interface StationRevealState {
+    cardId: string;
+    phase: "revealing" | "revealed" | "hiding";
 }
 
 const playRoutePattern = /^\/g\/([^/]+)$/;
@@ -264,10 +278,35 @@ const cardTintColor = (card: LunarBaseCard | null): string | null => {
 };
 
 const cardDisplayName = (card: LunarBaseCard): string =>
-    card.type === "station" && card.flipped ? card.stationBackName ?? card.name ?? card.type : card.name ?? card.type;
+    card.type === "station" && card.flipped
+        ? card.stationBackName ?? card.name ?? card.type
+        : card.type === "station"
+            ? card.stationFrontName ?? card.name ?? card.type
+            : card.name ?? card.type;
 
 const cardDisplayOrbs = (card: LunarBaseCard): LunarBaseColorName[] =>
-    card.type === "station" && card.flipped ? card.stationBackOrbs ?? [] : card.orbs ?? [];
+    card.type === "station" && card.flipped
+        ? card.stationBackOrbs ?? []
+        : card.type === "station"
+            ? card.stationFrontOrbs ?? []
+            : card.orbs ?? [];
+
+const cardDisplayColonists = (card: LunarBaseCard): number =>
+    card.type === "station" && card.flipped
+        ? card.stationBackColonists ?? card.colonists ?? 0
+        : card.type === "station"
+            ? card.stationFrontColonists ?? 0
+            : card.colonists ?? 0;
+
+const cardDisplayAchievements = (card: LunarBaseCard): number[] =>
+    card.type === "station" && card.flipped
+        ? card.stationBackAchievements ?? card.achievements ?? []
+        : card.type === "station"
+            ? card.stationFrontAchievements ?? []
+            : card.achievements ?? [];
+
+const stationOppositeSideCard = (card: LunarBaseCard): LunarBaseCard =>
+    card.type === "station" ? { ...card, flipped: !card.flipped } : card;
 
 const creditCost = (card: LunarBaseCard, orbs: LunarBasePlayer["orbs"]): number => {
     const counts: Record<LunarBaseResourceColorName, number> = { red: 0, blue: 0, yellow: 0, gray: 0 };
@@ -416,7 +455,8 @@ const CardView = ({
     rotation = 0,
     visualRotation = rotation,
     empty = false,
-    instantRotation = false
+    instantRotation = false,
+    className = ""
 }: {
     card: LunarBaseCard | null;
     faceDown?: boolean;
@@ -425,13 +465,15 @@ const CardView = ({
     visualRotation?: number;
     empty?: boolean;
     instantRotation?: boolean;
+    className?: string;
 }) => (
     <div className={[
         "lunar-card",
         faceDown ? "is-back" : "",
         selected ? "is-selected" : "",
         empty ? "is-empty" : "",
-        instantRotation ? "is-rotation-instant" : ""
+        instantRotation ? "is-rotation-instant" : "",
+        className
     ].filter(Boolean).join(" ")} style={{
         "--lunar-card-rotation": `${visualRotation}deg`,
         "--lunar-card-tint": cardTintColor(card) ?? undefined
@@ -508,8 +550,8 @@ const OrbsView = ({ card }: { card: LunarBaseCard }) => {
 };
 
 const CardDepictionsView = ({ card }: { card: LunarBaseCard }) => {
-    const colonists = Math.max(0, card.colonists ?? 0);
-    const achievements = card.achievements ?? [];
+    const colonists = Math.max(0, cardDisplayColonists(card));
+    const achievements = cardDisplayAchievements(card);
     if (colonists === 0 && achievements.length === 0) return null;
     return (
         <span
@@ -532,6 +574,38 @@ const CardDepictionsView = ({ card }: { card: LunarBaseCard }) => {
         </span>
     );
 };
+
+const MagnifyIcon = () => (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <circle cx="10.5" cy="10.5" r="5.5" />
+        <path d="M15 15l5 5" />
+    </svg>
+);
+
+const CircularArrowIcon = () => (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+        <path d="M17.3 17.3A7.5 7.5 0 1 1 17.3 6.7" />
+        <path d="M18.8 8.2L13.3 9.2" />
+        <path d="M18.8 8.2L17.8 2.7" />
+    </svg>
+);
+
+const StationFlipCardView = ({
+    animation,
+    rotation
+}: {
+    animation: StationFlipAnimation;
+    rotation: CardRotation;
+}) => (
+    <span className="lunar-flip-stage" style={{ "--lunar-card-rotation": `${rotation}deg` } as CSSProperties}>
+        <span className="lunar-flip-face is-flip-front">
+            <CardView card={animation.from} />
+        </span>
+        <span className="lunar-flip-face is-flip-back">
+            <CardView card={animation.to} />
+        </span>
+    </span>
+);
 
 const OrbValue = ({ color, value }: { color: Exclude<LunarBaseColorName, "orange">; value: number }) => (
     <span className="lunar-orb-value">
@@ -746,8 +820,14 @@ const PlayerBoard = ({
     selected,
     zoom,
     canAcceptDrag,
+    canShowStationControls,
+    canFlipStation,
+    revealedStationCardId,
+    stationFlipAnimations,
     draggedCard,
     draggedRotation,
+    onRevealStation,
+    onFlipStation,
     onPlaySelected,
     onClearSelected,
     onDropCard,
@@ -758,8 +838,14 @@ const PlayerBoard = ({
     selected: { card: LunarBaseCard; rotation: CardRotation } | null;
     zoom: number;
     canAcceptDrag: boolean;
+    canShowStationControls: boolean;
+    canFlipStation: boolean;
+    revealedStationCardId: string | null;
+    stationFlipAnimations: Map<string, StationFlipAnimation>;
     draggedCard: LunarBaseCard | null;
     draggedRotation: CardRotation | null;
+    onRevealStation: (cardId: string) => void;
+    onFlipStation: (cardId: string) => void;
     onPlaySelected: (x: number, y: number, destination: { x: number; y: number } | null) => void;
     onClearSelected: () => void;
     onDropCard: (event: DragEvent<HTMLDivElement>, x: number, y: number, rotation: CardRotation, destination: { x: number; y: number } | null) => void;
@@ -818,25 +904,68 @@ const PlayerBoard = ({
             onMouseLeave={() => setHover(null)}
             onDragLeave={() => setHover(null)}
         >
-            {board.map((played) => (
-                <div
-                    key={played.card.id}
-                    data-lunar-animate={`board-${played.card.id}`}
-                    data-movement="board card layout"
-                    ref={(element) => onBoardCardRef(played.card.id, element)}
-                    className={[
-                        "lunar-board-card",
-                        rotationToOrientation(played.rotation),
-                        hiddenAnimationDestinations.has(`board-${played.card.id}`) ? "is-animation-destination-hidden" : ""
-                    ].filter(Boolean).join(" ")}
-                    style={{
-                        left: (played.x - bounds.minX) * gridSquare,
-                        top: (played.y - bounds.minY) * gridSquare
-                    } as CSSProperties}
-                >
-                    <CardView card={played.card} rotation={played.rotation} />
-                </div>
-            ))}
+            {board.map((played) => {
+                const isStation = played.card.type === "station";
+                const isRevealedStation = revealedStationCardId === played.card.id;
+                const stationFlipAnimation = stationFlipAnimations.get(played.card.id) ?? null;
+                const displayedCard = isRevealedStation ? stationOppositeSideCard(played.card) : played.card;
+                const stationControls = canShowStationControls && isStation;
+                return (
+                    <div
+                        key={played.card.id}
+                        data-lunar-animate={`board-${played.card.id}`}
+                        data-movement="board card layout"
+                        ref={(element) => onBoardCardRef(played.card.id, element)}
+                        className={[
+                            "lunar-board-card",
+                            rotationToOrientation(played.rotation),
+                            stationControls ? "has-station-controls" : "",
+                            isRevealedStation ? "is-station-revealed" : "",
+                            hiddenAnimationDestinations.has(`board-${played.card.id}`) ? "is-animation-destination-hidden" : ""
+                        ].filter(Boolean).join(" ")}
+                        style={{
+                            left: (played.x - bounds.minX) * gridSquare,
+                            top: (played.y - bounds.minY) * gridSquare
+                        } as CSSProperties}
+                    >
+                        {stationFlipAnimation ? (
+                            <StationFlipCardView animation={stationFlipAnimation} rotation={played.rotation} />
+                        ) : (
+                            <CardView card={displayedCard} rotation={played.rotation} />
+                        )}
+                        {stationControls ? (
+                            <div className="lunar-station-controls" aria-label="Station controls">
+                                <button
+                                    type="button"
+                                    className="lunar-station-control"
+                                    aria-label="Reveal other station side"
+                                    title="Reveal other side"
+                                    onClick={(event) => {
+                                        event.stopPropagation();
+                                        onRevealStation(played.card.id);
+                                    }}
+                                >
+                                    <MagnifyIcon />
+                                </button>
+                                {canFlipStation ? (
+                                    <button
+                                        type="button"
+                                        className="lunar-station-control"
+                                        aria-label="Flip station"
+                                        title="Flip station"
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            onFlipStation(played.card.id);
+                                        }}
+                                    >
+                                        <CircularArrowIcon />
+                                    </button>
+                                ) : null}
+                            </div>
+                        ) : null}
+                    </div>
+                );
+            })}
             {hover ? (
                 <div
                     className={["lunar-board-hover", rotationToOrientation(hover.rotation)].join(" ")}
@@ -870,6 +999,8 @@ const LunarBasePlayScreen = () => {
     const [hiddenAnimationDestinations, setHiddenAnimationDestinations] = useState<Set<string>>(() => new Set());
     const [discardAnimationPlaceholder, setDiscardAnimationPlaceholder] = useState<LunarBaseCard | null>(null);
     const [instantRotationCardIds, setInstantRotationCardIds] = useState<Set<string>>(() => new Set());
+    const [stationReveal, setStationReveal] = useState<StationRevealState | null>(null);
+    const [stationFlipAnimations, setStationFlipAnimations] = useState<Map<string, StationFlipAnimation>>(() => new Map());
     const flyKey = useRef(0);
     const tableScrollRef = useRef<HTMLDivElement | null>(null);
     const handCardRefs = useRef(new Map<string, HTMLElement>());
@@ -1002,6 +1133,12 @@ const LunarBasePlayScreen = () => {
         }, cardAnimationDurationMs);
         return () => window.clearTimeout(timer);
     }, [selectedCard]);
+
+    useEffect(() => {
+        if (!game || !stationReveal) return;
+        const stillPresent = game.players.some((player) => player.board.some((boardCard) => boardCard.card.id === stationReveal.cardId));
+        if (!stillPresent) setStationReveal(null);
+    }, [game, stationReveal]);
 
     useLayoutEffect(() => {
         if (!game) return;
@@ -1278,10 +1415,96 @@ const LunarBasePlayScreen = () => {
         );
     };
 
+    const animateStationFlip = (cardId: string, from: LunarBaseCard, to: LunarBaseCard, onComplete?: () => void) => {
+        setStationFlipAnimations((current) => new Map(current).set(cardId, { from, to }));
+        window.setTimeout(() => {
+            setStationFlipAnimations((current) => {
+                const next = new Map(current);
+                next.delete(cardId);
+                return next;
+            });
+            onComplete?.();
+        }, cardAnimationDurationMs);
+    };
+
+    const updateLocalStation = (cardId: string, card: LunarBaseCard) => {
+        captureLayoutSnapshot();
+        setGame((current) => {
+            if (!current) return current;
+            return {
+                ...current,
+                players: current.players.map((player) => ({
+                    ...player,
+                    board: player.board.map((boardCard) => boardCard.card.id === cardId ? { ...boardCard, card } : boardCard)
+                }))
+            };
+        });
+    };
+
+    const beginStationSideChange = (cardId: string, from: LunarBaseCard, to: LunarBaseCard, onComplete?: () => void) => {
+        setSelectedCard(null);
+        animateStationFlip(cardId, from, to, onComplete);
+    };
+
+    const flipStation = (cardId: string) => {
+        if (!canAct) return;
+        if (stationReveal || stationFlipAnimations.has(cardId)) return;
+        const station = viewerPlayer?.board.find((boardCard) => boardCard.card.id === cardId)?.card;
+        if (!station) return;
+        const nextStation = stationOppositeSideCard(station);
+        beginStationSideChange(cardId, station, nextStation);
+        updateLocalStation(cardId, nextStation);
+        runCommand({ type: "flipStation" });
+    };
+
+    const revealStation = (cardId: string) => {
+        if (stationReveal?.phase === "revealed") {
+            closeRevealedStation();
+            return;
+        }
+        if (stationReveal || stationFlipAnimations.has(cardId)) return;
+        const station = viewerPlayer?.board.find((boardCard) => boardCard.card.id === cardId)?.card;
+        if (!station) {
+            setSelectedCard(null);
+            return;
+        }
+        setStationReveal({ cardId, phase: "revealing" });
+        beginStationSideChange(cardId, station, stationOppositeSideCard(station), () => {
+            setStationReveal((current) => current?.cardId === cardId && current.phase === "revealing"
+                ? { cardId, phase: "revealed" }
+                : current);
+        });
+    };
+
+    const closeRevealedStation = () => {
+        if (stationReveal?.phase !== "revealed") return;
+        const cardId = stationReveal.cardId;
+        const station = viewerPlayer?.board.find((boardCard) => boardCard.card.id === cardId)?.card;
+        setStationReveal({ cardId, phase: "hiding" });
+        if (station) {
+            beginStationSideChange(cardId, stationOppositeSideCard(station), station, () => {
+                setStationReveal((current) => current?.cardId === cardId && current.phase === "hiding" ? null : current);
+            });
+            return;
+        }
+        setStationReveal(null);
+    };
+
+    const revealedStationCardId = stationReveal && stationReveal.phase !== "hiding" ? stationReveal.cardId : null;
+    const revealDimmerVisible = stationReveal?.phase === "revealing" || stationReveal?.phase === "revealed";
+
     return (
         <section className="game-page lunar-page">
             <div className="lunar-game-ports">
                 <section className="lunar-table-port" aria-label="Lunar Base table">
+                    {revealDimmerVisible ? (
+                        <button
+                            type="button"
+                            className="lunar-reveal-dimmer"
+                            aria-label="Hide revealed station side"
+                            onClick={closeRevealedStation}
+                        />
+                    ) : null}
                     <div className="lunar-zoom-control">
                         <button type="button" aria-label="Zoom out" onClick={() => setZoomPreservingCenter(nextZoomStep(zoom, -1))}>-</button>
                         <input
@@ -1311,6 +1534,11 @@ const LunarBasePlayScreen = () => {
                             className="lunar-table-surface"
                             style={{ "--lunar-zoom": zoom } as CSSProperties}
                             onClick={() => {
+                                if (stationReveal?.phase === "revealed") {
+                                    closeRevealedStation();
+                                    return;
+                                }
+                                if (stationReveal) return;
                                 if (selectedCard) setSelectedCard(null);
                             }}
                             onDragOver={(event) => {
@@ -1582,8 +1810,14 @@ const LunarBasePlayScreen = () => {
                                                 selected={isViewer ? selectedPlayableModule : null}
                                                 zoom={zoom}
                                                 canAcceptDrag={Boolean(isViewer && draggingSource === "hand" && draggedPlayableModule)}
+                                                canShowStationControls={isViewer && viewerSeat !== null && !stationReveal}
+                                                canFlipStation={isViewer && canAct}
+                                                revealedStationCardId={isViewer ? revealedStationCardId : null}
+                                                stationFlipAnimations={stationFlipAnimations}
                                                 draggedCard={isViewer ? draggedPlayableModule : null}
                                                 draggedRotation={draggingRotation}
+                                                onRevealStation={revealStation}
+                                                onFlipStation={flipStation}
                                                 onBoardCardRef={(cardId, element) => {
                                                     if (element) {
                                                         boardCardRefs.current.set(cardId, element);
