@@ -75,6 +75,10 @@ class LunarBaseGameHandlerTest {
         val strangerView = handler.gameView(claimed, "stranger")
         assertEquals(true, strangerView.get("viewer").get("seatIndex").isNull)
         assertEquals(0, strangerView.get("viewer").get("hand").size())
+
+        val anonymousView = handler.gameView(claimed, null)
+        assertEquals(true, anonymousView.get("viewer").get("seatIndex").isNull)
+        assertEquals(0, anonymousView.get("viewer").get("hand").size())
     }
 
     @Test

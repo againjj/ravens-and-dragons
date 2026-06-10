@@ -456,7 +456,7 @@ abstract class LunarBaseActionListBuilder {
     @OverloadResolutionByLambdaReturnType
     @JvmName("buildLiteral")
     fun build(amount: LunarBaseAmountBuilder.() -> Int) {
-        actions += LunarBaseBuildAction(LunarBaseLiteralAmount(LunarBaseAmountBuilder().amount()))
+        addLiteralAmountAction(amount, ::LunarBaseBuildAction)
     }
 
     /** Build some number of modules. */
@@ -464,7 +464,7 @@ abstract class LunarBaseActionListBuilder {
     @OverloadResolutionByLambdaReturnType
     @JvmName("buildAugmented")
     fun build(amount: LunarBaseAmountBuilder.() -> LunarBaseAmount) {
-        actions += LunarBaseBuildAction(LunarBaseAmountBuilder().amount())
+        addAugmentedAmountAction(amount, ::LunarBaseBuildAction)
     }
 
     /** Discard some number of cards. */
@@ -472,7 +472,7 @@ abstract class LunarBaseActionListBuilder {
     @OverloadResolutionByLambdaReturnType
     @JvmName("discardLiteral")
     fun discard(amount: LunarBaseAmountBuilder.() -> Int) {
-        actions += LunarBaseDiscardAction(LunarBaseLiteralAmount(LunarBaseAmountBuilder().amount()))
+        addLiteralAmountAction(amount, ::LunarBaseDiscardAction)
     }
 
     /** Discard some number of cards. */
@@ -480,7 +480,7 @@ abstract class LunarBaseActionListBuilder {
     @OverloadResolutionByLambdaReturnType
     @JvmName("discardAugmented")
     fun discard(amount: LunarBaseAmountBuilder.() -> LunarBaseAmount) {
-        actions += LunarBaseDiscardAction(LunarBaseAmountBuilder().amount())
+        addAugmentedAmountAction(amount, ::LunarBaseDiscardAction)
     }
 
     /** Draft some number of cards. */
@@ -488,7 +488,7 @@ abstract class LunarBaseActionListBuilder {
     @OverloadResolutionByLambdaReturnType
     @JvmName("draftLiteral")
     fun draft(amount: LunarBaseAmountBuilder.() -> Int) {
-        actions += LunarBaseDraftAction(LunarBaseLiteralAmount(LunarBaseAmountBuilder().amount()))
+        addLiteralAmountAction(amount, ::LunarBaseDraftAction)
     }
 
     /** Draft some number of cards. */
@@ -496,7 +496,7 @@ abstract class LunarBaseActionListBuilder {
     @OverloadResolutionByLambdaReturnType
     @JvmName("draftAugmented")
     fun draft(amount: LunarBaseAmountBuilder.() -> LunarBaseAmount) {
-        actions += LunarBaseDraftAction(LunarBaseAmountBuilder().amount())
+        addAugmentedAmountAction(amount, ::LunarBaseDraftAction)
     }
 
     /** Draw some number of cards. */
@@ -504,7 +504,7 @@ abstract class LunarBaseActionListBuilder {
     @OverloadResolutionByLambdaReturnType
     @JvmName("drawLiteral")
     fun draw(amount: LunarBaseAmountBuilder.() -> Int) {
-        actions += LunarBaseDrawAction(LunarBaseLiteralAmount(LunarBaseAmountBuilder().amount()))
+        addLiteralAmountAction(amount, ::LunarBaseDrawAction)
     }
 
     /** Draw some number of cards. */
@@ -512,7 +512,7 @@ abstract class LunarBaseActionListBuilder {
     @OverloadResolutionByLambdaReturnType
     @JvmName("drawAugmented")
     fun draw(amount: LunarBaseAmountBuilder.() -> LunarBaseAmount) {
-        actions += LunarBaseDrawAction(LunarBaseAmountBuilder().amount())
+        addAugmentedAmountAction(amount, ::LunarBaseDrawAction)
     }
 
     /** Flip some number of stations. */
@@ -520,7 +520,7 @@ abstract class LunarBaseActionListBuilder {
     @OverloadResolutionByLambdaReturnType
     @JvmName("flipStationLiteral")
     fun flipStation(amount: LunarBaseFlipStationAmountBuilder.() -> Int) {
-        actions += LunarBaseFlipStationAction(LunarBaseLiteralFlipStationAmount(LunarBaseFlipStationAmountBuilder().amount()))
+        addLiteralFlipStationAction(amount)
     }
 
     /** Flip some number of stations. */
@@ -528,7 +528,7 @@ abstract class LunarBaseActionListBuilder {
     @OverloadResolutionByLambdaReturnType
     @JvmName("flipStationAugmented")
     fun flipStation(amount: LunarBaseFlipStationAmountBuilder.() -> LunarBaseFlipStationAmount) {
-        actions += LunarBaseFlipStationAction(LunarBaseFlipStationAmountBuilder().amount())
+        addAugmentedFlipStationAction(amount)
     }
 
     /** Flip your station to a named side. */
@@ -541,7 +541,7 @@ abstract class LunarBaseActionListBuilder {
     @OverloadResolutionByLambdaReturnType
     @JvmName("gainCreditsLiteral")
     fun gainCredits(amount: LunarBaseAmountBuilder.() -> Int) {
-        actions += LunarBaseGainCreditsAction(LunarBaseLiteralAmount(LunarBaseAmountBuilder().amount()))
+        addLiteralAmountAction(amount, ::LunarBaseGainCreditsAction)
     }
 
     /** Gain some number of credits. */
@@ -549,7 +549,7 @@ abstract class LunarBaseActionListBuilder {
     @OverloadResolutionByLambdaReturnType
     @JvmName("gainCreditsAugmented")
     fun gainCredits(amount: LunarBaseAmountBuilder.() -> LunarBaseAmount) {
-        actions += LunarBaseGainCreditsAction(LunarBaseAmountBuilder().amount())
+        addAugmentedAmountAction(amount, ::LunarBaseGainCreditsAction)
     }
 
     /** Lose some number of credits. */
@@ -557,7 +557,7 @@ abstract class LunarBaseActionListBuilder {
     @OverloadResolutionByLambdaReturnType
     @JvmName("loseCreditsLiteral")
     fun loseCredits(amount: LunarBaseAmountBuilder.() -> Int) {
-        actions += LunarBaseLoseCreditsAction(LunarBaseLiteralAmount(LunarBaseAmountBuilder().amount()))
+        addLiteralAmountAction(amount, ::LunarBaseLoseCreditsAction)
     }
 
     /** Lose some number of credits. */
@@ -565,7 +565,7 @@ abstract class LunarBaseActionListBuilder {
     @OverloadResolutionByLambdaReturnType
     @JvmName("loseCreditsAugmented")
     fun loseCredits(amount: LunarBaseAmountBuilder.() -> LunarBaseAmount) {
-        actions += LunarBaseLoseCreditsAction(LunarBaseAmountBuilder().amount())
+        addAugmentedAmountAction(amount, ::LunarBaseLoseCreditsAction)
     }
 
     /** Resell some number of cards. */
@@ -573,7 +573,7 @@ abstract class LunarBaseActionListBuilder {
     @OverloadResolutionByLambdaReturnType
     @JvmName("resellLiteral")
     fun resell(amount: LunarBaseAmountBuilder.() -> Int) {
-        actions += LunarBaseResellAction(LunarBaseLiteralAmount(LunarBaseAmountBuilder().amount()))
+        addLiteralAmountAction(amount, ::LunarBaseResellAction)
     }
 
     /** Resell some number of cards. */
@@ -581,7 +581,7 @@ abstract class LunarBaseActionListBuilder {
     @OverloadResolutionByLambdaReturnType
     @JvmName("resellAugmented")
     fun resell(amount: LunarBaseAmountBuilder.() -> LunarBaseAmount) {
-        actions += LunarBaseResellAction(LunarBaseAmountBuilder().amount())
+        addAugmentedAmountAction(amount, ::LunarBaseResellAction)
     }
 
     /** Steal some number of credits. */
@@ -589,7 +589,7 @@ abstract class LunarBaseActionListBuilder {
     @OverloadResolutionByLambdaReturnType
     @JvmName("stealCreditsLiteral")
     fun stealCredits(amount: LunarBaseAmountBuilder.() -> Int) {
-        actions += LunarBaseStealCreditsAction(LunarBaseLiteralAmount(LunarBaseAmountBuilder().amount()))
+        addLiteralAmountAction(amount, ::LunarBaseStealCreditsAction)
     }
 
     /** Steal some number of credits. */
@@ -597,7 +597,7 @@ abstract class LunarBaseActionListBuilder {
     @OverloadResolutionByLambdaReturnType
     @JvmName("stealCreditsAugmented")
     fun stealCredits(amount: LunarBaseAmountBuilder.() -> LunarBaseAmount) {
-        actions += LunarBaseStealCreditsAction(LunarBaseAmountBuilder().amount())
+        addAugmentedAmountAction(amount, ::LunarBaseStealCreditsAction)
     }
 
     /** Steal the named module. */
@@ -614,6 +614,30 @@ abstract class LunarBaseActionListBuilder {
 
     private fun scoped(scope: LunarBaseActionScope, block: LunarBaseActionBuilder.() -> Unit) {
         actions += LunarBaseScopedAction(scope, LunarBaseActionBuilder().apply(block).build())
+    }
+
+    private fun addLiteralAmountAction(
+        amount: LunarBaseAmountBuilder.() -> Int,
+        action: (LunarBaseAmount) -> LunarBaseCardAction
+    ) {
+        actions += action(LunarBaseLiteralAmount(LunarBaseAmountBuilder().amount()))
+    }
+
+    private fun addAugmentedAmountAction(
+        amount: LunarBaseAmountBuilder.() -> LunarBaseAmount,
+        action: (LunarBaseAmount) -> LunarBaseCardAction
+    ) {
+        actions += action(LunarBaseAmountBuilder().amount())
+    }
+
+    private fun addLiteralFlipStationAction(amount: LunarBaseFlipStationAmountBuilder.() -> Int) {
+        actions += LunarBaseFlipStationAction(
+            LunarBaseLiteralFlipStationAmount(LunarBaseFlipStationAmountBuilder().amount())
+        )
+    }
+
+    private fun addAugmentedFlipStationAction(amount: LunarBaseFlipStationAmountBuilder.() -> LunarBaseFlipStationAmount) {
+        actions += LunarBaseFlipStationAction(LunarBaseFlipStationAmountBuilder().amount())
     }
 }
 

@@ -3,12 +3,6 @@ package com.ravensanddragons.lunarbase
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ObjectNode
-import com.fasterxml.jackson.annotation.JsonInclude
-import com.ravensanddragons.lunarbase.cards.LunarBaseAchievement
-import com.ravensanddragons.lunarbase.cards.LunarBaseCardColor
-import com.ravensanddragons.lunarbase.cards.LunarBaseCardDefinition
-import com.ravensanddragons.lunarbase.cards.LunarBaseConnectors
-import com.ravensanddragons.lunarbase.cards.LunarBaseStandardDeck
 import com.ravensanddragons.platform.game.runtime.GameHandler
 import com.ravensanddragons.platform.game.runtime.GameRecord
 import com.ravensanddragons.platform.game.runtime.InvalidCommandException
@@ -18,107 +12,6 @@ import com.ravensanddragons.platform.game.runtime.VersionConflictException
 import org.springframework.stereotype.Component
 import java.time.Clock
 import java.time.Instant
-import kotlin.random.Random
-
-data class LunarBaseConfig(
-    val playerCount: Int,
-    val useInfluences: Boolean
-)
-
-data class LunarBaseSeat(
-    val userId: String? = null,
-    val displayName: String? = null
-)
-
-data class LunarBaseResources(
-    val red: Int = 0,
-    val blue: Int = 0,
-    val yellow: Int = 0,
-    val gray: Int = 0
-)
-
-@JsonInclude(JsonInclude.Include.NON_DEFAULT)
-data class LunarBaseCard(
-    val id: String,
-    val type: String,
-    val name: String,
-    val color: String? = null,
-    val cardCost: List<String> = emptyList(),
-    val orbs: List<String> = emptyList(),
-    val connectors: LunarBaseCardConnectors? = null,
-    val colonists: Int = 0,
-    val achievements: List<Int> = emptyList(),
-    val flipped: Boolean = false,
-    val stationFrontName: String? = null,
-    val stationFrontOrbs: List<String> = emptyList(),
-    val stationFrontColonists: Int = 0,
-    val stationFrontAchievements: List<Int> = emptyList(),
-    val stationFrontMainActionText: String? = null,
-    val stationBackName: String? = null,
-    val stationBackOrbs: List<String> = emptyList(),
-    val stationBackColonists: Int = 0,
-    val stationBackAchievements: List<Int> = emptyList(),
-    val stationBackMainActionText: String? = null,
-    val mainActionText: String? = null,
-    val onPlayingText: String? = null,
-    val effectText: String? = null
-)
-
-@JsonInclude(JsonInclude.Include.NON_DEFAULT)
-data class LunarBaseCardConnectors(
-    val top: String? = null,
-    val topLeft: String? = null,
-    val topRight: String? = null,
-    val bottomLeft: String? = null,
-    val bottomRight: String? = null,
-    val bottom: String? = null
-) {
-    fun hasAnySpecified(): Boolean =
-        listOf(top, topLeft, topRight, bottomLeft, bottomRight, bottom).any { it != null }
-}
-
-data class LunarBaseBoardCard(
-    val card: LunarBaseCard,
-    val x: Int,
-    val y: Int,
-    val rotation: Int
-)
-
-data class LunarBasePlayerPublic(
-    val orbs: LunarBaseResources = LunarBaseResources(),
-    val credits: Int = 3,
-    val colonists: Int = 0,
-    val achievements: Int = 0,
-    val handCount: Int = 0,
-    val influenceHandCount: Int = 0,
-    val board: List<LunarBaseBoardCard> = emptyList()
-)
-
-data class LunarBasePublicState(
-    val id: String,
-    val gameSlug: String,
-    val version: Long,
-    val createdAt: Instant,
-    val updatedAt: Instant,
-    val lifecycle: String,
-    val config: LunarBaseConfig,
-    val seats: List<LunarBaseSeat>,
-    val currentPlayerIndex: Int,
-    val players: List<LunarBasePlayerPublic>,
-    val supply: List<LunarBaseCard?>,
-    val stockCount: Int,
-    val discardTop: LunarBaseCard? = null,
-    val discardCount: Int = 0,
-    val createdByUserId: String? = null,
-    val message: String? = null
-)
-
-data class LunarBasePrivateState(
-    val hands: List<List<LunarBaseCard>>,
-    val stock: List<LunarBaseCard>,
-    val discard: List<LunarBaseCard>,
-    val unseenStations: List<LunarBaseCard> = emptyList()
-)
 
 @Component
 class LunarBaseGameHandler(
@@ -192,7 +85,8 @@ class LunarBaseGameHandler(
             "playAgent" -> playAgent(publicState, privateState, command, actingUserId)
             "playModule" -> playModule(publicState, privateState, command, actingUserId)
             "flipStation" -> flipStation(publicState, privateState, actingUserId)
-            "passTurn" -> publicState.requireCurrentPlayer(actingUserId).let {
+            "passTurn" -> {
+                publicState.requireCurrentPlayer(actingUserId)
                 publicState.copy(
                     currentPlayerIndex = nextPlayerIndex(publicState.currentPlayerIndex, publicState.config.playerCount),
                     message = "Turn passed."
@@ -213,7 +107,9 @@ class LunarBaseGameHandler(
     override fun gameView(current: GameRecord, currentUserId: String?): JsonNode {
         val publicState = current.toPublicState()
         val privateState = current.toPrivateState()
-        val viewerSeat = publicState.seats.indexOfFirst { it.userId == currentUserId }.takeIf { it >= 0 }
+        val viewerSeat = currentUserId?.let { userId ->
+            publicState.seats.indexOfFirst { it.userId == userId }.takeIf { it >= 0 }
+        }
         val viewerNode = objectMapper.createObjectNode()
         viewerNode.put("userId", currentUserId)
         if (viewerSeat != null) {
@@ -384,26 +280,19 @@ class LunarBaseGameHandler(
         val x = command.requiredInt("x")
         val y = command.requiredInt("y")
         val rotation = command.requiredInt("rotation")
-        if (rotation !in setOf(0, 90, 180, 270)) {
-            throw InvalidCommandException("Module rotation must be 0, 90, 180, or 270.")
-        }
         val hand = privateState.hands[seat]
         val card = hand.firstOrNull { it.id == cardId } ?: throw InvalidCommandException("That card is not in your hand.")
         if (card.type != moduleType) {
             throw InvalidCommandException("Only module cards can be played on the board.")
         }
         val board = publicState.players[seat].board
-        val occupied = board.flatMap { it.coveredCells() }.toSet()
-        val nextCells = LunarBaseBoardCard(card, x, y, rotation).coveredCells()
-        if (nextCells.any { it in occupied }) {
-            throw InvalidCommandException("That board position overlaps another card.")
-        }
-        if (board.isNotEmpty() && nextCells.none { cell -> cell.neighbors().any { it in occupied } }) {
-            throw InvalidCommandException("A played card must touch another card.")
-        }
         val candidate = LunarBaseBoardCard(card, x, y, rotation)
-        if (!connectorsMatch(candidate, board)) {
-            throw InvalidCommandException("A played card's connectors must match adjacent cards.")
+        when (validateModulePlacement(board, candidate)) {
+            PlacementValidationResult.VALID -> Unit
+            PlacementValidationResult.INVALID_ROTATION -> throw InvalidCommandException("Module rotation must be 0, 90, 180, or 270.")
+            PlacementValidationResult.OVERLAPS_CARD -> throw InvalidCommandException("That board position overlaps another card.")
+            PlacementValidationResult.DOES_NOT_TOUCH_BOARD -> throw InvalidCommandException("A played card must touch another card.")
+            PlacementValidationResult.CONNECTORS_DO_NOT_MATCH -> throw InvalidCommandException("A played card's connectors must match adjacent cards.")
         }
         val player = publicState.players[seat]
         val creditCost = card.creditCost(player.orbs)
@@ -495,120 +384,6 @@ class LunarBaseGameHandler(
         return seat
     }
 
-    private fun LunarBasePublicState.withPrivateCounts(privateState: LunarBasePrivateState): LunarBasePublicState =
-        copy(
-            players = players.mapIndexed { index, player ->
-                player.copy(
-                    handCount = privateState.hands.getOrElse(index) { emptyList() }.size,
-                    influenceHandCount = privateState.hands.getOrElse(index) { emptyList() }.count { it.type == influenceType }
-                )
-            },
-            stockCount = privateState.stock.size,
-            discardTop = privateState.discard.firstOrNull(),
-            discardCount = privateState.discard.size
-        )
-
-    private fun LunarBasePublicState.withBoardSummaries(): LunarBasePublicState =
-        copy(
-            players = players.map { player ->
-                player.copy(
-                    orbs = player.board.completedOrbCounts(),
-                    colonists = player.board.sumOf { it.card.colonists },
-                    achievements = player.board.flatMap { it.card.achievements }.toSet().size
-                )
-            }
-        )
-
-    private fun List<LunarBaseBoardCard>.completedOrbCounts(): LunarBaseResources {
-        val wholeOrbs = flatMap { it.card.orbs }
-        val joinedOrbs = flatMap { it.connectorSlots().entries }
-            .groupBy({ it.key }, { it.value })
-            .values
-            .mapNotNull { colors -> colors.takeIf { it.size == 2 }?.let { completedOrbColor(it[0], it[1]) } }
-        return (wholeOrbs + joinedOrbs).fold(LunarBaseResources()) { resources, color ->
-            when (color) {
-                "red" -> resources.copy(red = resources.red + 1)
-                "blue" -> resources.copy(blue = resources.blue + 1)
-                "yellow" -> resources.copy(yellow = resources.yellow + 1)
-                "gray" -> resources.copy(gray = resources.gray + 1)
-                else -> resources
-            }
-        }
-    }
-
-    private fun completedOrbColor(first: String, second: String): String? =
-        when {
-            first == grayColor && second == grayColor -> grayColor
-            first == grayColor -> second
-            second == grayColor -> first
-            first == second -> first
-            else -> null
-        }
-
-    private fun LunarBaseBoardCard.coveredCells(): List<Pair<Int, Int>> =
-        if (rotation.isHorizontal()) listOf(x to y, x + 1 to y) else listOf(x to y, x to y + 1)
-
-    private fun Pair<Int, Int>.neighbors(): List<Pair<Int, Int>> =
-        listOf(first - 1 to second, first + 1 to second, first to second - 1, first to second + 1)
-
-    private fun connectorsMatch(candidate: LunarBaseBoardCard, board: List<LunarBaseBoardCard>): Boolean {
-        val candidateCells = candidate.coveredCells().toSet()
-        val candidateOrbs = candidate.connectorSlots()
-        val existingOrbs = board.associateWith { it.coveredCells().toSet() }
-        var hasMatchingConnectorPair = false
-        val allTouchedEdgesMatch = existingOrbs.all { (existing, existingCells) ->
-            val existingSlots = existing.connectorSlots()
-            candidateCells.all { cell ->
-                cell.neighbors().filter { it in existingCells }.all { neighbor ->
-                    val slot = sharedOrbSlot(cell, neighbor)
-                    val candidateColor = candidateOrbs[slot]
-                    val existingColor = existingSlots[slot]
-                    if (candidateColor != null && existingColor != null && orbColorsMatch(candidateColor, existingColor)) {
-                        hasMatchingConnectorPair = true
-                    }
-                    orbColorsMatch(candidateColor, existingColor)
-                }
-            }
-        }
-        return allTouchedEdgesMatch && hasMatchingConnectorPair
-    }
-
-    private fun sharedOrbSlot(first: Pair<Int, Int>, second: Pair<Int, Int>): OrbSlot {
-        val x = first.first
-        val y = first.second
-        val nx = second.first
-        val ny = second.second
-        return when {
-            nx == x + 1 -> OrbSlot((x + 1) * 2, y * 2 + 1)
-            nx == x - 1 -> OrbSlot(x * 2, y * 2 + 1)
-            ny == y + 1 -> OrbSlot(x * 2 + 1, (y + 1) * 2)
-            ny == y - 1 -> OrbSlot(x * 2 + 1, y * 2)
-            else -> error("Cells do not share an edge: $first and $second.")
-        }
-    }
-
-    private fun orbColorsMatch(first: String?, second: String?): Boolean =
-        when {
-            first == null || second == null -> first == second
-            first == grayColor || second == grayColor -> true
-            else -> first == second
-        }
-
-    private fun LunarBaseBoardCard.connectorSlots(): Map<OrbSlot, String> {
-        val horizontal = rotation.isHorizontal()
-        val centerX = if (horizontal) x + 1.0 else x + 0.5
-        val centerY = if (horizontal) y + 0.5 else y + 1.0
-        return (card.connectors?.entries() ?: emptyList()).mapNotNull { (position, color) ->
-            color ?: return@mapNotNull null
-            val local = position.localPoint()
-            val rotated = local.rotate(rotation)
-            OrbSlot(
-                x2 = ((centerX + rotated.first) * 2).toInt(),
-                y2 = ((centerY + rotated.second) * 2).toInt()
-            ) to color
-        }.toMap()
-    }
-
     private fun requireExpectedVersion(state: LunarBasePublicState, command: JsonNode) {
         val expectedVersion = command.get("expectedVersion")?.asLong()
             ?: throw InvalidCommandException("Lunar Base commands require expectedVersion.")
@@ -628,96 +403,11 @@ class LunarBaseGameHandler(
     private fun JsonNode.textValue(name: String, fallback: String): String =
         get(name)?.asText()?.takeIf { it.isNotBlank() } ?: fallback
 
-    private fun Int.isHorizontal(): Boolean =
-        this == 90 || this == 270
-
     private fun GameRecord.toPublicState(): LunarBasePublicState =
         objectMapper.treeToValue(publicState, LunarBasePublicState::class.java).normalizeCatalogCards().withBoardSummaries()
 
     private fun GameRecord.toPrivateState(): LunarBasePrivateState =
         objectMapper.treeToValue(privateState, LunarBasePrivateState::class.java).normalizeCatalogCards()
-
-    private fun LunarBasePublicState.normalizeCatalogCards(): LunarBasePublicState =
-        copy(
-            players = players.map { player ->
-                player.copy(board = player.board.map { boardCard -> boardCard.copy(card = boardCard.card.withCatalogMetadata()) })
-            },
-            supply = supply.map { card -> card?.withCatalogMetadata() },
-            discardTop = discardTop?.withCatalogMetadata()
-        )
-
-    private fun LunarBasePrivateState.normalizeCatalogCards(): LunarBasePrivateState =
-        copy(
-            hands = hands.map { hand -> hand.map { it.withCatalogMetadata() } },
-            stock = stock.map { it.withCatalogMetadata() },
-            discard = discard.map { it.withCatalogMetadata() },
-            unseenStations = unseenStations.map { it.withCatalogMetadata() }
-        )
-
-    private fun LunarBaseCard.withCatalogMetadata(): LunarBaseCard {
-        val definition = catalogDefinition(this) ?: return this
-        return when (definition) {
-            is com.ravensanddragons.lunarbase.cards.LunarBaseStationCardDefinition -> {
-                val stationFront = LunarBaseStandardDeck.definition.stationFront
-                copy(
-                    name = if (flipped) definition.name else stationFront.name,
-                    cardCost = emptyList(),
-                    orbs = if (flipped) definition.orbs.map { it.toCardColorName() } else stationFront.orbs.map { it.toCardColorName() },
-                    connectors = stationFront.connectors.toCardConnectors(),
-                    colonists = if (flipped) definition.colonists else stationFront.colonists,
-                    achievements = if (flipped) definition.achievements.toCardAchievementOrdinals() else stationFront.achievements.toCardAchievementOrdinals(),
-                    stationFrontName = stationFront.name,
-                    stationFrontOrbs = stationFront.orbs.map { it.toCardColorName() },
-                    stationFrontColonists = stationFront.colonists,
-                    stationFrontAchievements = stationFront.achievements.toCardAchievementOrdinals(),
-                    stationFrontMainActionText = stationFront.mainAction.toActionText(),
-                    stationBackName = stationBackName ?: definition.name,
-                    stationBackOrbs = if (stationBackOrbs.isNotEmpty()) stationBackOrbs else definition.orbs.map { it.toCardColorName() },
-                    stationBackColonists = if (stationBackColonists > 0) stationBackColonists else definition.colonists,
-                    stationBackAchievements = if (stationBackAchievements.isNotEmpty()) stationBackAchievements else definition.achievements.toCardAchievementOrdinals(),
-                    stationBackMainActionText = definition.mainAction.toActionText(),
-                    mainActionText = if (flipped) definition.mainAction.toActionText() else stationFront.mainAction.toActionText()
-                )
-            }
-            is com.ravensanddragons.lunarbase.cards.LunarBaseModuleCardDefinition -> copy(
-                name = definition.name,
-                color = color ?: definition.cardColor.toCardColorName(),
-                cardCost = definition.cardCost.map { it.toCardColorName() },
-                orbs = if (orbs.isNotEmpty()) orbs else definition.orbs.map { it.toCardColorName() },
-                connectors = if (connectors?.hasAnySpecified() == true) connectors else definition.connectors.toCardConnectors(),
-                colonists = definition.colonists,
-                achievements = definition.achievements.toCardAchievementOrdinals(),
-                onPlayingText = definition.onPlaying.toActionText(),
-                mainActionText = definition.mainAction.toActionText(),
-                effectText = definition.effect?.toEffectText()
-            )
-            is com.ravensanddragons.lunarbase.cards.LunarBaseAgentCardDefinition -> copy(
-                name = definition.name,
-                cardCost = definition.cardCost.map { it.toCardColorName() },
-                onPlayingText = definition.onPlaying.toActionText()
-            )
-            is com.ravensanddragons.lunarbase.cards.LunarBaseInfluenceCardDefinition -> copy(
-                name = definition.name,
-                cardCost = emptyList(),
-                effectText = definition.effect.toEffectText()
-            )
-            else -> this
-        }
-    }
-
-    private fun catalogDefinition(card: LunarBaseCard): LunarBaseCardDefinition? {
-        val deck = LunarBaseStandardDeck.definition
-        if (card.type == stationType && card.stationBackName != null) {
-            return deck.stations.singleOrNull { it.name == card.stationBackName }
-        }
-        return when (card.type) {
-            stationType -> deck.stations.singleOrNull { it.name == card.name }
-            moduleType -> deck.modules.singleOrNull { it.name == card.name }
-            agentType -> deck.agents.singleOrNull { it.name == card.name }
-            influenceType -> deck.influences.singleOrNull { it.name == card.name }
-            else -> null
-        }
-    }
 
     private fun toRecord(
         publicState: LunarBasePublicState,
@@ -739,155 +429,4 @@ class LunarBaseGameHandler(
             publiclyListed = publiclyListed
         )
 
-    private fun <T> List<T>.replaceAt(index: Int, value: T): List<T> =
-        mapIndexed { currentIndex, current -> if (currentIndex == index) value else current }
-
-    private fun buildNonStationCards(useInfluences: Boolean): List<LunarBaseCard> {
-        val standardDeck = LunarBaseStandardDeck.definition
-        return expandDefinitions(moduleType, standardDeck.modules) +
-            expandDefinitions(agentType, standardDeck.agents) +
-            if (useInfluences) expandDefinitions(influenceType, standardDeck.influences) else emptyList()
-    }
-
-    private fun LunarBasePublicState.toPersistedState(): LunarBasePublicState =
-        copy(
-            players = players.map { player ->
-                player.copy(board = player.board.map { boardCard -> boardCard.copy(card = boardCard.card.toPersistedCard()) })
-            },
-            supply = supply.map { it?.toPersistedCard() },
-            discardTop = discardTop?.toPersistedCard()
-        )
-
-    private fun LunarBasePrivateState.toPersistedState(): LunarBasePrivateState =
-        copy(
-            hands = hands.map { hand -> hand.map { it.toPersistedCard() } },
-            stock = stock.map { it.toPersistedCard() },
-            discard = discard.map { it.toPersistedCard() },
-            unseenStations = unseenStations.map { it.toPersistedCard() }
-        )
-
-    private fun LunarBaseCard.toPersistedCard(): LunarBaseCard =
-        LunarBaseCard(
-            id = id,
-            type = type,
-            name = persistedCatalogName(),
-            flipped = flipped
-        )
-
-    private fun LunarBaseCard.creditCost(orbs: LunarBaseResources): Int {
-        val costCounts = cardCost.groupingBy { it }.eachCount()
-        val coloredRemainder =
-            maxOf(0, costCounts.getOrDefault("red", 0) - orbs.red) +
-                maxOf(0, costCounts.getOrDefault("blue", 0) - orbs.blue) +
-                maxOf(0, costCounts.getOrDefault("yellow", 0) - orbs.yellow) +
-                costCounts.getOrDefault("gray", 0)
-        return maxOf(0, coloredRemainder - orbs.gray)
-    }
-
-    private fun LunarBaseCard.persistedCatalogName(): String =
-        if (type == stationType) {
-            stationBackName ?: name
-        } else {
-            name
-        }
-
-    private fun buildStationCards(): List<LunarBaseCard> =
-        LunarBaseStandardDeck.definition.stations.flatMapIndexed { definitionIndex, definition ->
-            List(definition.count) { copyIndex ->
-                LunarBaseCard(
-                    id = "$stationType-${definitionIndex + 1}-${copyIndex + 1}",
-                    type = stationType,
-                    name = definition.name
-                )
-            }
-        }
-
-    private fun expandDefinitions(
-        type: String,
-        definitions: List<LunarBaseCardDefinition>
-    ): List<LunarBaseCard> =
-        definitions.flatMapIndexed { definitionIndex, definition ->
-            List(definition.count) { copyIndex ->
-                LunarBaseCard(
-                    id = "$type-${definitionIndex + 1}-${copyIndex + 1}",
-                    type = type,
-                    name = definition.name
-                )
-            }
-        }
-
-    private fun LunarBaseConnectors.toCardConnectors(): LunarBaseCardConnectors =
-        LunarBaseCardConnectors(
-            top = top?.toCardColorName(),
-            topLeft = topLeft?.toCardColorName(),
-            topRight = topRight?.toCardColorName(),
-            bottomLeft = bottomLeft?.toCardColorName(),
-            bottomRight = bottomRight?.toCardColorName(),
-            bottom = bottom?.toCardColorName()
-        )
-
-    private fun LunarBaseCardColor.toCardColorName(): String =
-        name.lowercase()
-
-    private fun List<LunarBaseAchievement>.toCardAchievementOrdinals(): List<Int> =
-        map { it.ordinal + 1 }
-
-    private fun randomFor(gameId: String, salt: String): Random =
-        Random("$gameId:$salt".hashCode())
-
-    private fun supplySize(playerCount: Int): Int = 3 + playerCount
-
-    private fun nextPlayerIndex(current: Int, playerCount: Int): Int = (current + 1) % playerCount
-
-    private companion object {
-        const val activeLifecycle = "active"
-        const val finishedLifecycle = "finished"
-        const val minPlayers = 2
-        const val maxPlayers = 6
-        const val initialHandSize = 3
-        const val stationType = "station"
-        const val moduleType = "module"
-        const val agentType = "agent"
-        const val influenceType = "influence"
-        const val grayColor = "gray"
-    }
 }
-
-private data class OrbSlot(val x2: Int, val y2: Int)
-
-private enum class LunarBaseConnectorPosition {
-    TOP,
-    TOP_LEFT,
-    TOP_RIGHT,
-    BOTTOM_LEFT,
-    BOTTOM_RIGHT,
-    BOTTOM
-}
-
-private fun LunarBaseCardConnectors.entries(): List<Pair<LunarBaseConnectorPosition, String?>> =
-    listOf(
-        LunarBaseConnectorPosition.TOP to top,
-        LunarBaseConnectorPosition.TOP_LEFT to topLeft,
-        LunarBaseConnectorPosition.TOP_RIGHT to topRight,
-        LunarBaseConnectorPosition.BOTTOM_LEFT to bottomLeft,
-        LunarBaseConnectorPosition.BOTTOM_RIGHT to bottomRight,
-        LunarBaseConnectorPosition.BOTTOM to bottom
-    )
-
-private fun LunarBaseConnectorPosition.localPoint(): Pair<Double, Double> =
-    when (this) {
-        LunarBaseConnectorPosition.TOP -> 0.0 to -1.0
-        LunarBaseConnectorPosition.TOP_LEFT -> -0.5 to -0.5
-        LunarBaseConnectorPosition.TOP_RIGHT -> 0.5 to -0.5
-        LunarBaseConnectorPosition.BOTTOM_LEFT -> -0.5 to 0.5
-        LunarBaseConnectorPosition.BOTTOM_RIGHT -> 0.5 to 0.5
-        LunarBaseConnectorPosition.BOTTOM -> 0.0 to 1.0
-    }
-
-private fun Pair<Double, Double>.rotate(rotation: Int): Pair<Double, Double> =
-    when (rotation) {
-        90 -> -second to first
-        180 -> -first to -second
-        270 -> second to -first
-        else -> this
-    }
