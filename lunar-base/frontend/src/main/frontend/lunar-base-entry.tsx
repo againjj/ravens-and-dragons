@@ -14,7 +14,7 @@ import type { AuthUserSummary } from "@ravensanddragons/platform-frontend/auth-t
 import { buildGameCreatePath, type GameEntry, type GameStartOptions } from "@ravensanddragons/platform-frontend/game-entry";
 import { PlayerPicker } from "@ravensanddragons/platform-frontend/player-picker";
 import { CardView } from "./LunarBaseCard";
-import { PlayerBoard, setScaledDragImage } from "./LunarBasePlayerBoard";
+import { PlayerBoard, setScaledDragImage, type DragImageMetrics, type PlayerBoardHandle } from "./LunarBasePlayerBoard";
 import { createLunarBaseGame, fetchLunarBaseGame, sendCommand } from "./lunar-base-api";
 import { boardCardRectAtPoint, canPlayHandCard, nextRotation, normalizeRotation } from "./lunar-base-board-rules";
 import { cardAnimationDurationMs, cardGap, cardWidth, emptyLifecycle, layoutAnimationSelector, maxZoom, minZoom, playRoutePattern, portalRoot, rectCenter } from "./lunar-base-constants";
@@ -44,6 +44,12 @@ const handEndRect = (
 
 const handAreaRectsFromRefs = (refs: Map<number, HTMLElement>): Map<number, DOMRect> =>
     new Map(Array.from(refs.entries()).map(([playerIndex, element]) => [playerIndex, element.getBoundingClientRect()]));
+
+const animatedElementRect = (key: string): DOMRect | null => {
+    const element = Array.from(document.querySelectorAll<HTMLElement>("[data-lunar-animate]"))
+        .find((candidate) => candidate.dataset.lunarAnimate === key);
+    return element?.getBoundingClientRect() ?? null;
+};
 
 const viewerHandDestinationPoint = (
     game: LunarBaseGame,
@@ -175,6 +181,8 @@ const LunarBasePlayScreen = () => {
     const [draggingSupply, setDraggingSupply] = useState<{ slotIndex: number; card: LunarBaseCard } | null>(null);
     const [draggingSource, setDraggingSource] = useState<DragSource | null>(null);
     const [draggingRotation, setDraggingRotation] = useState<CardRotation | null>(null);
+    const [draggingSourceKey, setDraggingSourceKey] = useState<string | null>(null);
+    const [dragImageMetrics, setDragImageMetrics] = useState<DragImageMetrics | null>(null);
     const [flyingCards, setFlyingCards] = useState<FlyingCard[]>([]);
     const [hiddenAnimationDestinations, setHiddenAnimationDestinations] = useState<Set<string>>(() => new Set());
     const [discardAnimationPlaceholder, setDiscardAnimationPlaceholder] = useState<LunarBaseCard | null>(null);
@@ -184,11 +192,14 @@ const LunarBasePlayScreen = () => {
     const flyKey = useRef(0);
     const tableScrollRef = useRef<HTMLDivElement | null>(null);
     const handCardRefs = useRef(new Map<string, HTMLElement>());
+    const boardRefs = useRef(new Map<number, PlayerBoardHandle>());
     const discardRef = useRef<HTMLDivElement | null>(null);
     const handAreaRefs = useRef(new Map<number, HTMLElement>());
     const previousLayoutRects = useRef(new Map<string, DOMRect>());
     const previousHandAreaRects = useRef(new Map<number, DOMRect>());
     const previousGame = useRef<LunarBaseGame | null>(null);
+    const dragImageMetricsRef = useRef<DragImageMetrics | null>(null);
+    const returningDragRef = useRef(false);
     const suppressedLayoutAnimations = useRef(new Set<string>());
     const commandAnimationPending = useRef(false);
 
@@ -532,6 +543,8 @@ const LunarBasePlayScreen = () => {
     const supplyTopRowCount = Math.ceil(game.supply.length / 2);
     const supplyRows = [game.supply.slice(0, supplyTopRowCount), game.supply.slice(supplyTopRowCount)];
     const animationHiddenClass = (key: string) => hiddenAnimationDestinations.has(key) ? "is-animation-destination-hidden" : "";
+    const draggingSourceClass = (key: string) => draggingSourceKey === key ? "is-dragging-source" : "";
+    const displayedStockCount = draggingSourceKey === "stock" ? Math.max(0, game.stockCount - 1) : game.stockCount;
     const displayedDiscardTop = hiddenAnimationDestinations.has("discard") ? discardAnimationPlaceholder : game.discardTop;
 
     const claimSeat = (seatIndex: number, playerUserId: string | null, displayName: string) => {
@@ -540,38 +553,134 @@ const LunarBasePlayScreen = () => {
     };
 
     const clearDragState = () => {
+        returningDragRef.current = false;
         setDraggingCardId(null);
         setDraggingSupply(null);
         setDraggingSource(null);
         setDraggingRotation(null);
+        setDraggingSourceKey(null);
+        setDragImageMetrics(null);
+        dragImageMetricsRef.current = null;
     };
 
-    const returnDraggedHandCard = (event: DragEvent<HTMLElement>) => {
+    const dragCenterFromEvent = (event: DragEvent<HTMLElement>) => {
+        const dataOffsetX = Number(event.dataTransfer.getData("centerOffsetX"));
+        const dataOffsetY = Number(event.dataTransfer.getData("centerOffsetY"));
+        const currentMetrics = dragImageMetricsRef.current ?? dragImageMetrics;
+        const centerOffsetX = currentMetrics?.centerOffsetX ?? (Number.isFinite(dataOffsetX) ? dataOffsetX : 0);
+        const centerOffsetY = currentMetrics?.centerOffsetY ?? (Number.isFinite(dataOffsetY) ? dataOffsetY : 0);
+        const clientX = Number.isFinite(event.clientX) ? event.clientX : 0;
+        const clientY = Number.isFinite(event.clientY) ? event.clientY : 0;
+        return {
+            x: clientX + centerOffsetX,
+            y: clientY + centerOffsetY
+        };
+    };
+
+    const beginCardDrag = (
+        event: DragEvent<HTMLElement>,
+        {
+            source,
+            sourceKey,
+            cardId,
+            slotIndex,
+            supplyCard,
+            rotation = 0
+        }: {
+            source: DragSource;
+            sourceKey: string;
+            cardId?: string;
+            slotIndex?: number;
+            supplyCard?: LunarBaseCard;
+            rotation?: CardRotation;
+        }
+    ) => {
+        const metrics = setScaledDragImage(event, zoom, rotation) ?? null;
+        dragImageMetricsRef.current = metrics;
+        setDraggingSource(source);
+        setDraggingSourceKey(sourceKey);
+        setDraggingRotation(source === "hand" ? rotation : null);
+        setDragImageMetrics(metrics);
+        setDraggingCardId(cardId ?? null);
+        setDraggingSupply(source === "supply" && slotIndex !== undefined && supplyCard ? { slotIndex, card: supplyCard } : null);
+        event.dataTransfer.setData("source", source);
+        event.dataTransfer.setData("centerOffsetX", String(metrics?.centerOffsetX ?? 0));
+        event.dataTransfer.setData("centerOffsetY", String(metrics?.centerOffsetY ?? 0));
+        if (cardId) event.dataTransfer.setData("cardId", cardId);
+        if (slotIndex !== undefined) event.dataTransfer.setData("slotIndex", String(slotIndex));
+        event.dataTransfer.setData("rotation", String(rotation));
+        event.dataTransfer.effectAllowed = "move";
+    };
+
+    const draggedCardCenter = (event: DragEvent<HTMLElement>) => dragCenterFromEvent(event);
+
+    const handleDragEnd = () => {
+        if (returningDragRef.current) return;
+        clearDragState();
+    };
+
+    const returnDraggedCard = (event: DragEvent<HTMLElement>) => {
         const source = draggingSource ?? event.dataTransfer.getData("source");
+        if (!source) return;
+
         const cardId = draggingCardId ?? event.dataTransfer.getData("cardId");
-        const card = draggingHandCard ?? hand.find((candidate) => candidate.id === cardId) ?? null;
-        if (source !== "hand" || !card || viewerSeat === null) return;
-        const destination = handCardRefs.current.get(card.id)?.getBoundingClientRect();
+        const slotIndex = Number(event.dataTransfer.getData("slotIndex"));
+        const supplyCard = draggingSupply?.card ?? (Number.isFinite(slotIndex) ? game.supply[slotIndex] ?? null : null);
+        const returnDetails = source === "hand" && draggingHandCard && viewerSeat !== null
+            ? {
+                annotation: "return hand card to hand",
+                card: draggingHandCard,
+                faceDown: false,
+                rotation: draggingRotation ?? normalizeRotation(Number(event.dataTransfer.getData("rotation"))),
+                destination: handCardRefs.current.get(draggingHandCard.id)?.getBoundingClientRect() ?? null,
+                hiddenDestinationKey: `hand-${viewerSeat}-${draggingHandCard.id}`
+            }
+            : source === "supply" && supplyCard
+                ? {
+                    annotation: "return supply card to supply",
+                    card: supplyCard,
+                    faceDown: false,
+                    rotation: 0 as CardRotation,
+                    destination: animatedElementRect(`supply-${supplyCard.id}`),
+                    hiddenDestinationKey: `supply-${supplyCard.id}`
+                }
+                : source === "stock"
+                    ? {
+                        annotation: "return stock card to stock",
+                        card: null,
+                        faceDown: true,
+                        rotation: 0 as CardRotation,
+                        destination: animatedElementRect("stock"),
+                        hiddenDestinationKey: null
+                    }
+                    : null;
+        if (!returnDetails) return;
+        const destination = returnDetails.destination;
         if (!destination) {
             clearDragState();
             return;
         }
         event.preventDefault();
         const to = rectCenter(destination);
+        const from = draggedCardCenter(event);
+        returningDragRef.current = true;
         animateCard(
             {
-                annotation: "return hand card to hand",
-                card,
-                rotation: draggingRotation ?? normalizeRotation(Number(event.dataTransfer.getData("rotation"))),
-                fromX: event.clientX,
-                fromY: event.clientY,
-                destination: { type: "handCard", cardId: card.id }
+                annotation: returnDetails.annotation,
+                card: returnDetails.card,
+                faceDown: returnDetails.faceDown,
+                rotation: returnDetails.rotation,
+                fromX: from.x,
+                fromY: from.y,
+                destination: returnDetails.card
+                    ? { type: "handCard", cardId: returnDetails.card.id }
+                    : { type: "viewerHandEnd" }
             },
             to.x,
             to.y,
-            `hand-${viewerSeat}-${card.id}`
+            returnDetails.hiddenDestinationKey,
+            clearDragState
         );
-        clearDragState();
     };
 
     const clickHandCard = (card: LunarBaseCard, event: MouseEvent<HTMLElement>) => {
@@ -721,13 +830,13 @@ const LunarBasePlayScreen = () => {
                                 if (selectedCard) setSelectedCard(null);
                             }}
                             onDragOver={(event) => {
-                                if (draggingSource === "hand" && draggingHandCard) {
+                                if (draggingSource) {
                                     event.preventDefault();
                                 }
                             }}
                             onDrop={(event) => {
                                 if (event.defaultPrevented) return;
-                                returnDraggedHandCard(event);
+                                returnDraggedCard(event);
                             }}
                         >
                             <section className="lunar-supply" aria-label="Supply">
@@ -739,7 +848,13 @@ const LunarBasePlayScreen = () => {
                                                 <button
                                                     key={`${card?.id ?? "empty"}-${slotIndex}`}
                                                     type="button"
-                                                    className="lunar-supply-slot"
+                                                    data-lunar-animate={card ? `supply-${card.id}` : undefined}
+                                                    data-movement={card ? "supply card layout" : undefined}
+                                                    className={[
+                                                        "lunar-supply-slot",
+                                                        card ? animationHiddenClass(`supply-${card.id}`) : "",
+                                                        card ? draggingSourceClass(`supply-${card.id}`) : ""
+                                                    ].filter(Boolean).join(" ")}
                                                     disabled={!canAct || !card}
                                                     draggable={canAct && Boolean(card)}
                                                     onClick={(event) => {
@@ -763,25 +878,16 @@ const LunarBasePlayScreen = () => {
                                                     }}
                                                     onDragStart={(event) => {
                                                         if (!card) return;
-                                                        setDraggingSource("supply");
-                                                        setDraggingSupply({ slotIndex, card });
-                                                        setDraggingRotation(null);
-                                                        setScaledDragImage(event, zoom);
-                                                        event.dataTransfer.setData("source", "supply");
-                                                        event.dataTransfer.setData("slotIndex", String(slotIndex));
-                                                        event.dataTransfer.effectAllowed = "move";
+                                                        beginCardDrag(event, {
+                                                            source: "supply",
+                                                            sourceKey: `supply-${card.id}`,
+                                                            slotIndex,
+                                                            supplyCard: card
+                                                        });
                                                     }}
-                                                    onDragEnd={clearDragState}
+                                                    onDragEnd={handleDragEnd}
                                                 >
-                                                    {card ? (
-                                                        <span
-                                                            data-lunar-animate={`supply-${card.id}`}
-                                                            data-movement="supply card layout"
-                                                            className={animationHiddenClass(`supply-${card.id}`)}
-                                                        >
-                                                            <CardView card={card} />
-                                                        </span>
-                                                    ) : null}
+                                                    {card ? <CardView card={card} /> : null}
                                                 </button>
                                             );
                                         })}
@@ -792,6 +898,8 @@ const LunarBasePlayScreen = () => {
                                 <button
                                     type="button"
                                     className="lunar-pile"
+                                    data-lunar-animate="stock"
+                                    data-movement="stock pile layout"
                                     aria-label={`Stock, ${game.stockCount} cards`}
                                     disabled={!canAct || game.stockCount === 0}
                                     draggable={canAct && game.stockCount > 0}
@@ -814,18 +922,14 @@ const LunarBasePlayScreen = () => {
                                         );
                                     }}
                                     onDragStart={(event) => {
-                                        setDraggingSource("stock");
-                                        setDraggingSupply(null);
-                                        setDraggingRotation(null);
-                                        setScaledDragImage(event, zoom);
-                                        event.dataTransfer.setData("source", "stock");
-                                        event.dataTransfer.effectAllowed = "move";
+                                        beginCardDrag(event, {
+                                            source: "stock",
+                                            sourceKey: "stock"
+                                        });
                                     }}
-                                    onDragEnd={clearDragState}
+                                    onDragEnd={handleDragEnd}
                                 >
-                                    <span data-lunar-animate="stock" data-movement="stock pile layout">
-                                        <CardView card={null} faceDown={game.stockCount > 0} empty={game.stockCount === 0} />
-                                    </span>
+                                    <CardView card={null} faceDown={displayedStockCount > 0} empty={displayedStockCount === 0} />
                                 </button>
                                 <div
                                     ref={discardRef}
@@ -854,13 +958,14 @@ const LunarBasePlayScreen = () => {
                                             return;
                                         }
                                         event.preventDefault();
+                                        const from = draggedCardCenter(event);
                                         runCommand(
                                             { type: card.type === "agent" ? "playAgent" : "discardHandCard", cardId: card.id },
                                             {
                                                 annotation: card.type === "agent" ? "drop hand agent to play" : "drop hand influence to discard",
                                                 card,
-                                                fromX: event.clientX,
-                                                fromY: event.clientY,
+                                                fromX: from.x,
+                                                fromY: from.y,
                                                 destination: { type: "discard" }
                                             }
                                         );
@@ -880,7 +985,21 @@ const LunarBasePlayScreen = () => {
                                     const isViewer = playerIndex === viewerSeat;
                                     const cards = isViewer ? hand : Array.from({ length: game.players[playerIndex].handCount }, (_, index) => ({ id: `back-${playerIndex}-${index}`, type: "module" as CardType }));
                                     return (
-                                        <section key={playerIndex} className="lunar-player-area">
+                                        <section
+                                            key={playerIndex}
+                                            className="lunar-player-area"
+                                            onDragOver={(event) => {
+                                                if (!isViewer || draggingSource !== "hand" || !draggedPlayableModule) return;
+                                                boardRefs.current.get(playerIndex)?.dragOver(event);
+                                            }}
+                                            onDrop={(event) => {
+                                                if (!isViewer || draggingSource !== "hand" || !draggedPlayableModule) return;
+                                                boardRefs.current.get(playerIndex)?.drop(event);
+                                            }}
+                                            onDragLeave={() => {
+                                                if (isViewer) boardRefs.current.get(playerIndex)?.clearHover();
+                                            }}
+                                        >
                                             <h2>{game.seats[playerIndex].displayName ?? `Player ${playerIndex + 1}`}</h2>
                                             <div
                                                 ref={(element) => {
@@ -899,14 +1018,15 @@ const LunarBasePlayScreen = () => {
                                                 onDrop={(event) => {
                                                     if (isViewer && draggingSource === "stock") {
                                                         event.preventDefault();
+                                                        const from = draggedCardCenter(event);
                                                         runCommand(
                                                             { type: "drawStock" },
                                                             {
                                                                 annotation: "drop stock card to hand",
                                                                 card: null,
                                                                 faceDown: true,
-                                                                fromX: event.clientX,
-                                                                fromY: event.clientY,
+                                                                fromX: from.x,
+                                                                fromY: from.y,
                                                                 destination: { type: "viewerHandEnd" }
                                                             }
                                                         );
@@ -915,13 +1035,14 @@ const LunarBasePlayScreen = () => {
                                                     }
                                                     if (isViewer && draggingSource === "supply" && draggingSupply) {
                                                         event.preventDefault();
+                                                        const from = draggedCardCenter(event);
                                                         runCommand(
                                                             { type: "takeSupply", slotIndex: draggingSupply.slotIndex },
                                                             {
                                                                 annotation: "drop supply card to hand",
                                                                 card: draggingSupply.card,
-                                                                fromX: event.clientX,
-                                                                fromY: event.clientY,
+                                                                fromX: from.x,
+                                                                fromY: from.y,
                                                                 destination: { type: "handCard", cardId: draggingSupply.card.id }
                                                             }
                                                         );
@@ -959,18 +1080,15 @@ const LunarBasePlayScreen = () => {
                                                             }}
                                                             onDragStart={(event) => {
                                                                 if (!isViewer || !playableHandCard) return;
-                                                                setDraggingCardId(card.id);
-                                                                setDraggingSupply(null);
-                                                                setDraggingSource("hand");
                                                                 const rotation = selectedCard?.cardId === card.id ? selectedCard.rotation : 0;
-                                                                setDraggingRotation(rotation);
-                                                                setScaledDragImage(event, zoom, rotation);
-                                                                event.dataTransfer.setData("source", "hand");
-                                                                event.dataTransfer.setData("cardId", card.id);
-                                                                event.dataTransfer.setData("rotation", String(rotation));
-                                                                event.dataTransfer.effectAllowed = "move";
+                                                                beginCardDrag(event, {
+                                                                    source: "hand",
+                                                                    sourceKey: `hand-${playerIndex}-${card.id}`,
+                                                                    cardId: card.id,
+                                                                    rotation
+                                                                });
                                                             }}
-                                                            onDragEnd={clearDragState}
+                                                            onDragEnd={handleDragEnd}
                                                         >
                                                             <CardView
                                                                 card={isViewer ? card : null}
@@ -985,6 +1103,13 @@ const LunarBasePlayScreen = () => {
                                                 })}
                                             </div>
                                             <PlayerBoard
+                                                ref={(handle) => {
+                                                    if (handle) {
+                                                        boardRefs.current.set(playerIndex, handle);
+                                                    } else {
+                                                        boardRefs.current.delete(playerIndex);
+                                                    }
+                                                }}
                                                 board={game.players[playerIndex].board}
                                                 selected={isViewer ? selectedPlayableModule : null}
                                                 zoom={zoom}
@@ -995,6 +1120,7 @@ const LunarBasePlayScreen = () => {
                                                 stationFlipAnimations={stationFlipAnimations}
                                                 draggedCard={isViewer ? draggedPlayableModule : null}
                                                 draggedRotation={draggingRotation}
+                                                dragImageMetrics={dragImageMetrics}
                                                 onRevealStation={revealStation}
                                                 onFlipStation={flipStation}
                                                 onPlaySelected={(x, y, destination) => {
@@ -1026,14 +1152,15 @@ const LunarBasePlayScreen = () => {
                                                     const cardId = event.dataTransfer.getData("cardId");
                                                     const card = hand.find((candidate) => candidate.id === cardId);
                                                     if (card?.type === "module") {
+                                                        const from = draggedCardCenter(event);
                                                         runCommand(
                                                             { type: "playModule", cardId, x, y, rotation },
                                                             {
                                                                 annotation: "drop hand module to board",
                                                                 card,
                                                                 rotation,
-                                                                fromX: event.clientX,
-                                                                fromY: event.clientY,
+                                                                fromX: from.x,
+                                                                fromY: from.y,
                                                                 destination: { type: "boardCard", cardId },
                                                                 toX: destination?.x,
                                                                 toY: destination?.y

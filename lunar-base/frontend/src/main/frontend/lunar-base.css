@@ -34,7 +34,7 @@
 
 .lunar-game-ports {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) clamp(340px, 31vw, 620px);
+    grid-template-columns: minmax(0, 1fr) clamp(238px, 21.7vw, 434px);
     gap: 0;
     align-items: stretch;
     min-height: 0;
@@ -126,7 +126,7 @@
     padding: 0;
 }
 
-.lunar-player-panel {
+.panel.lunar-player-panel {
     display: grid;
     gap: 4px;
     padding: 8px;
@@ -147,6 +147,8 @@
     display: inline-block;
     width: 1em;
     height: 1em;
+    box-sizing: border-box;
+    border: 1px solid #0f172a;
     border-radius: 50%;
     background: var(--lunar-orb-color);
     transform: translateY(0.12em);
@@ -176,6 +178,7 @@
 }
 
 .lunar-supply-slot,
+.lunar-pile,
 .lunar-hand > button {
     border: 0;
     background: transparent;
@@ -184,6 +187,7 @@
 }
 
 .lunar-supply-slot {
+    position: relative;
     width: 84px;
     height: 168px;
     flex: 0 0 84px;
@@ -214,12 +218,9 @@
 }
 
 .lunar-pile {
+    position: relative;
     display: grid;
     justify-items: center;
-    background: transparent;
-    border: 0;
-    box-shadow: none;
-    padding: 0;
     color: #0f172a;
 }
 
@@ -246,11 +247,11 @@
     transition: all 0.5s ease;
 }
 
+.lunar-supply-slot,
+.lunar-pile,
 .lunar-hand > button {
-    position: relative;
     width: 84px;
     height: 168px;
-    flex: 0 0 84px;
     display: grid;
     place-items: center;
     color: inherit;
@@ -258,6 +259,10 @@
     filter: none;
     transition: transform 0.5s ease, opacity 0.2s ease;
     overflow: visible;
+}
+
+.lunar-hand > button {
+    flex: 0 0 84px;
 }
 
 .lunar-hand > button:disabled {
@@ -273,6 +278,7 @@
 
 .lunar-hand > button.is-dragging {
     opacity: 0;
+    transition: none;
 }
 
 .lunar-hand > button.is-unplayable {
@@ -314,8 +320,13 @@
     visibility: hidden;
 }
 
+.is-dragging-source {
+    opacity: 0;
+    transition: none;
+}
+
 .lunar-card.is-back {
-    background: rgb(0, 0, 64);
+    background: #100070;
 }
 
 .lunar-card.is-empty {
@@ -342,7 +353,7 @@
 
 .lunar-card-name {
     position: absolute;
-    top: var(--lunar-card-side-connector-top);
+    top: 31px;
     left: 8px;
     right: 8px;
     z-index: 2;
@@ -765,36 +776,49 @@
 }
 
 @media (max-width: 760px) {
+    .page-content:has(.lunar-page) {
+        height: auto;
+        min-height: 100%;
+        overflow: auto;
+    }
+
     .game-page.lunar-page {
         height: auto;
+        min-height: 100%;
         overflow: visible;
     }
 
     .lunar-game-ports {
         grid-template-columns: 1fr;
         height: auto;
-        gap: 16px;
+        gap: 12px;
         overflow: visible;
     }
 
     .lunar-player-port {
         order: 1;
-        padding: 0;
+        gap: 10px;
+        padding: 12px;
         max-height: none;
         height: auto;
         overflow: visible;
+    }
+
+    .lunar-player-actions {
+        gap: 10px;
     }
 
     .lunar-table-port {
         order: 2;
         height: auto;
         max-height: none;
+        border-top: 1px solid rgba(15, 23, 42, 0.16);
         overflow: visible;
     }
 
     .lunar-table-scroll {
         overflow: auto;
-        padding: 0 0 18px;
+        padding: 12px 12px 18px;
     }
 
     .lunar-zoom-control {

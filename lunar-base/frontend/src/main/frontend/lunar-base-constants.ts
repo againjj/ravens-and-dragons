@@ -4,7 +4,7 @@ export const playRoutePattern = /^\/g\/([^/]+)$/;
 export const emptyLifecycle = () => undefined;
 export const cardWidth = 84;
 export const gridSquare = cardWidth;
-export const zoomSteps = [25, 50, 65, 80, 90, 100, 110, 125, 150, 200, 250, 300, 400];
+export const zoomSteps = [10, 20, 35, 50, 65, 80, 90, 100, 110, 125, 150, 200, 250, 300, 400, 600, 1000];
 export const minZoomPercent = 10;
 export const maxZoomPercent = 1000;
 export const minZoom = minZoomPercent / 100;

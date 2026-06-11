@@ -52,6 +52,7 @@ The parent project has two child projects:
   - Exports `lunarBaseGameEntry` through the package entrypoint for the app-owned frontend shell.
   - Owns the Lunar Base create/play screen shell, player panels, command wiring, SSE loading, viewer-relative player ordering, current-turn hand playability dimming, supply/stock-to-hand dragging, and client-only card movement animation orchestration for hand, pile, supply, board movement, and station side flips.
   - Keeps animated command source cards hidden as soon as a pending command starts, so module cards played from hand stay hidden through the server-response gap and fly animation.
+  - Shares card drag setup, source hiding, invalid-drop return animation, and card-center coordinate tracking across hand, supply, and stock drags; module board snapping also accepts drag events from the surrounding player area when the dragged card center is near the board.
   - Animates cancelled hand drags back to the actual hand-card rectangle and keeps flying cards below the shared app header layer.
 - `src/main/frontend/lunar-base-types.ts`
   - Owns Lunar Base frontend wire/state types and the shared Lunar Base palette reference.
@@ -64,7 +65,7 @@ The parent project has two child projects:
 - `src/main/frontend/LunarBaseCard.tsx`
   - Owns card rendering with standard card names/costs/colors/connectors/whole orbs, main action/on-playing/effect badges and hover tooltips, colonist/achievement depictions, and station flipped-state display.
 - `src/main/frontend/LunarBasePlayerBoard.tsx`
-  - Owns player board rendering, frontend placement hints with connector matching, station reveal/flip controls, station flip animation staging, and scaled drag images.
+  - Owns player board rendering, frontend placement hints with connector matching, station reveal/flip controls, station flip animation staging, scaled drag images, and board snap/drop helpers exposed to surrounding drag surfaces.
 - `src/main/frontend/useLunarBaseZoom.ts`
   - Owns editable zoom control parsing, clipping, preset stepping, initial zoom, and zoom text synchronization helpers.
 - `src/main/frontend/lunar-base.css`

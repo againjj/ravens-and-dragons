@@ -1,4 +1,4 @@
-import { type CSSProperties, type DragEvent, useMemo, useRef, useState } from "react";
+import { forwardRef, type CSSProperties, type DragEvent, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { CardView } from "./LunarBaseCard";
 import { boardBounds, boardCardCenter, normalizeRotation, rotationToOrientation, snapFromPoint } from "./lunar-base-board-rules";
 import { cardWidth, gridSquare } from "./lunar-base-constants";
@@ -37,13 +37,33 @@ const StationFlipCardView = ({
     </span>
 );
 
+const clamp = (value: number, min: number, max: number): number =>
+    Math.min(max, Math.max(min, value));
+
+export interface DragImageMetrics {
+    centerOffsetX: number;
+    centerOffsetY: number;
+}
+
 export const setScaledDragImage = (event: DragEvent<HTMLElement>, zoom: number, rotation: CardRotation = 0) => {
-    const card = event.currentTarget.querySelector(".lunar-card")?.cloneNode(true);
-    if (!(card instanceof HTMLElement)) {
+    const sourceCard = event.currentTarget.querySelector(".lunar-card");
+    const card = sourceCard?.cloneNode(true);
+    if (!(sourceCard instanceof HTMLElement) || !(card instanceof HTMLElement)) {
         return;
     }
     const dragWidth = rotation === 90 || rotation === 270 ? cardWidth * 2 : cardWidth;
     const dragHeight = rotation === 90 || rotation === 270 ? cardWidth : cardWidth * 2;
+    const sourceRect = sourceCard.getBoundingClientRect();
+    const renderedWidth = sourceRect.width || dragWidth * zoom;
+    const renderedHeight = sourceRect.height || dragHeight * zoom;
+    const rawOffsetX = event.clientX - sourceRect.left;
+    const rawOffsetY = event.clientY - sourceRect.top;
+    const offsetX = sourceRect.width > 0 && Number.isFinite(rawOffsetX) ? clamp(rawOffsetX, 0, renderedWidth) : renderedWidth / 2;
+    const offsetY = sourceRect.height > 0 && Number.isFinite(rawOffsetY) ? clamp(rawOffsetY, 0, renderedHeight) : renderedHeight / 2;
+    const metrics = {
+        centerOffsetX: renderedWidth / 2 - offsetX,
+        centerOffsetY: renderedHeight / 2 - offsetY
+    };
     const wrapper = document.createElement("div");
     wrapper.className = "lunar-drag-image";
     wrapper.style.width = `${dragWidth}px`;
@@ -54,28 +74,18 @@ export const setScaledDragImage = (event: DragEvent<HTMLElement>, zoom: number, 
     card.style.setProperty("--lunar-card-rotation", `${rotation}deg`);
     wrapper.appendChild(card);
     document.body.appendChild(wrapper);
-    event.dataTransfer.setDragImage(wrapper, dragWidth * zoom / 2, dragHeight * zoom / 2);
+    event.dataTransfer.setDragImage(wrapper, offsetX, offsetY);
     window.setTimeout(() => wrapper.remove(), 0);
+    return metrics;
 };
 
-export const PlayerBoard = ({
-    board,
-    selected,
-    zoom,
-    canAcceptDrag,
-    canShowStationControls,
-    canFlipStation,
-    revealedStationCardId,
-    stationFlipAnimations,
-    draggedCard,
-    draggedRotation,
-    onRevealStation,
-    onFlipStation,
-    onPlaySelected,
-    onClearSelected,
-    onDropCard,
-    hiddenAnimationDestinations
-}: {
+export interface PlayerBoardHandle {
+    clearHover: () => void;
+    dragOver: (event: DragEvent<HTMLElement>) => boolean;
+    drop: (event: DragEvent<HTMLElement>) => boolean;
+}
+
+export const PlayerBoard = forwardRef<PlayerBoardHandle, {
     board: LunarBaseBoardCard[];
     selected: { card: LunarBaseCard; rotation: CardRotation } | null;
     zoom: number;
@@ -86,18 +96,74 @@ export const PlayerBoard = ({
     stationFlipAnimations: Map<string, StationFlipAnimation>;
     draggedCard: LunarBaseCard | null;
     draggedRotation: CardRotation | null;
+    dragImageMetrics: DragImageMetrics | null;
     onRevealStation: (cardId: string) => void;
     onFlipStation: (cardId: string) => void;
     onPlaySelected: (x: number, y: number, destination: { x: number; y: number } | null) => void;
     onClearSelected: () => void;
-    onDropCard: (event: DragEvent<HTMLDivElement>, x: number, y: number, rotation: CardRotation, destination: { x: number; y: number } | null) => void;
+    onDropCard: (event: DragEvent<HTMLElement>, x: number, y: number, rotation: CardRotation, destination: { x: number; y: number } | null) => void;
     hiddenAnimationDestinations: Set<string>;
-}) => {
+}>(function PlayerBoard({
+    board,
+    selected,
+    zoom,
+    canAcceptDrag,
+    canShowStationControls,
+    canFlipStation,
+    revealedStationCardId,
+    stationFlipAnimations,
+    draggedCard,
+    draggedRotation,
+    dragImageMetrics,
+    onRevealStation,
+    onFlipStation,
+    onPlaySelected,
+    onClearSelected,
+    onDropCard,
+    hiddenAnimationDestinations
+}, forwardedRef) {
     const ref = useRef<HTMLDivElement | null>(null);
     const bounds = useMemo(() => boardBounds(board), [board]);
     const columns = bounds.maxX - bounds.minX + 1;
     const rows = bounds.maxY - bounds.minY + 1;
     const [hover, setHover] = useState<{ x: number; y: number; rotation: CardRotation } | null>(null);
+    const dragCenter = (event: DragEvent<HTMLDivElement>) => {
+        const dataOffsetX = Number(event.dataTransfer.getData("centerOffsetX"));
+        const dataOffsetY = Number(event.dataTransfer.getData("centerOffsetY"));
+        const clientX = Number.isFinite(event.clientX) ? event.clientX : 0;
+        const clientY = Number.isFinite(event.clientY) ? event.clientY : 0;
+        return {
+            x: clientX + (dragImageMetrics?.centerOffsetX ?? (Number.isFinite(dataOffsetX) ? dataOffsetX : 0)),
+            y: clientY + (dragImageMetrics?.centerOffsetY ?? (Number.isFinite(dataOffsetY) ? dataOffsetY : 0))
+        };
+    };
+    const dragSnap = (event: DragEvent<HTMLElement>) => {
+        if (!canAcceptDrag) return null;
+        const rotation = draggedRotation ?? normalizeRotation(Number(event.dataTransfer.getData("rotation")));
+        const center = dragCenter(event as DragEvent<HTMLDivElement>);
+        const snap = draggedCard ? snapFromPoint(board, bounds, center.x, center.y, rotation, draggedCard, ref.current, zoom) : null;
+        return snap ? { snap, rotation } : null;
+    };
+    const handleDragOver = (event: DragEvent<HTMLElement>) => {
+        const result = dragSnap(event);
+        setHover(result ? { ...result.snap, rotation: result.rotation } : null);
+        if (result) event.preventDefault();
+        return Boolean(result);
+    };
+    const handleDrop = (event: DragEvent<HTMLElement>) => {
+        const result = dragSnap(event);
+        setHover(null);
+        if (!result) return false;
+        event.preventDefault();
+        onDropCard(event, result.snap.x, result.snap.y, result.rotation, boardCardCenter(bounds, result.snap.x, result.snap.y, result.rotation, ref.current, zoom));
+        return true;
+    };
+
+    useImperativeHandle(forwardedRef, () => ({
+        clearHover: () => setHover(null),
+        dragOver: handleDragOver,
+        drop: handleDrop
+    }));
 
     return (
         <div
@@ -121,26 +187,10 @@ export const PlayerBoard = ({
                 setHover(snap ? { ...snap, rotation: selected.rotation } : null);
             }}
             onDragOver={(event) => {
-                if (!canAcceptDrag) {
-                    setHover(null);
-                    return;
-                }
-                const rotation = draggedRotation ?? normalizeRotation(Number(event.dataTransfer.getData("rotation")));
-                const snap = draggedCard ? snapFromPoint(board, bounds, event.clientX, event.clientY, rotation, draggedCard, ref.current, zoom) : null;
-                setHover(snap ? { ...snap, rotation } : null);
-                if (snap) event.preventDefault();
+                if (!handleDragOver(event)) setHover(null);
             }}
             onDrop={(event) => {
-                if (!canAcceptDrag) {
-                    setHover(null);
-                    return;
-                }
-                const rotation = draggedRotation ?? normalizeRotation(Number(event.dataTransfer.getData("rotation")));
-                const snap = draggedCard ? snapFromPoint(board, bounds, event.clientX, event.clientY, rotation, draggedCard, ref.current, zoom) : null;
-                setHover(null);
-                if (!snap) return;
-                event.preventDefault();
-                onDropCard(event, snap.x, snap.y, rotation, boardCardCenter(bounds, snap.x, snap.y, rotation, ref.current, zoom));
+                handleDrop(event);
             }}
             onMouseLeave={() => setHover(null)}
             onDragLeave={() => setHover(null)}
@@ -218,4 +268,4 @@ export const PlayerBoard = ({
             ) : null}
         </div>
     );
-};
+});
