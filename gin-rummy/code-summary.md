@@ -37,11 +37,11 @@ The parent project has two child projects:
 - `src/main/frontend/CreateGinRummyScreen.tsx`
   - Renders the create-game controls from Redux-backed Gin Rummy options.
 - `src/main/frontend/GinRummyPlayScreen.tsx`
-  - Renders Redux-backed play-screen state, game loading/streaming, seat picking, turn display, end-action flow, self-play card reveal prompts, browser-local hand-result popups with game-local backdrop handling, and draw/discard animation orchestration.
+  - Renders Redux-backed play-screen state, game loading/streaming, seat picking through the shared platform player picker, turn display, end-action flow, self-play card reveal prompts, browser-local hand-result popups with game-local backdrop handling, and draw/discard animation orchestration.
 - `src/main/frontend/Hand.tsx`
   - Renders hand cards and owns drag/drop placement behavior for drawing, discarding, and rearranging cards.
 - `src/main/frontend/gin-rummy.css`
-  - Owns Gin Rummy create-screen, board, card, hand, modal, result, animation, and mobile layout styling imported by the game entry.
+  - Owns Gin Rummy create-screen, page, board, card, hand, modal, result, animation, and mobile layout styling imported by the game entry.
 - `src/main/frontend/RoundResultBoard.tsx`
   - Renders end-of-hand results, final game/match layout, aligned meld/layoff/deadwood columns, score tally, and rules reference content.
 - `src/main/frontend/CardView.tsx`, `gin-rummy-cards.ts`, `gin-rummy-client.ts`, `gin-rummy-rules.ts`, and `gin-rummy-types.ts`

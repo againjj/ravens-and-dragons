@@ -44,7 +44,7 @@ export const CreateGameScreen = ({ gameName, onStartGame }: CreateGameScreenProp
     useBoardSizing(boardShellRef, true);
 
     return (
-        <section className="game-page create-game-page">
+        <section className="game-page ravens-page">
             <h1 className="content-title">Create game: {gameName}</h1>
 
             <section className="game-layout create-layout">
@@ -104,7 +104,7 @@ export const CreateGameScreen = ({ gameName, onStartGame }: CreateGameScreenProp
                     </div>
                 </section>
 
-                <section className="panel side-panel top-panel create-rules-panel rules-bottom-panel">
+                <section className="panel side-panel top-panel rules-bottom-panel">
                     <RulesPanel title="Rules" sections={currentRuleConfiguration?.descriptionSections ?? []} />
                 </section>
             </section>

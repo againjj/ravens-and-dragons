@@ -10,10 +10,13 @@
     margin: 0 auto;
 }
 
-.gin-page {
+.game-page.gin-page {
     --gin-card-width: 76px;
     --gin-card-height: 112px;
     --gin-card-step: clamp(calc(var(--gin-card-width) / 4), calc((100vw - 318px) / 11), var(--gin-card-width));
+    grid-template-rows: auto auto auto;
+    align-content: start;
+    height: auto;
     position: relative;
 }
 

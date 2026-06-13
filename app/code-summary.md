@@ -35,6 +35,7 @@ The app keeps the included-game list declarative by registering each game module
   - Registers the Tic-Tac-Toe, Gin Rummy, Lunar Base, and Ravens and Dragons frontend package entries for the lobby.
 - `app/frontend/src/main/frontend/styles/styles.css`
   - Owns the bundled shared browser styles for the app shell, lobby/auth/profile surfaces, and game layout primitives. Game-specific frontend packages own their own detailed UI styling.
+  - Keeps the shared `.game-page` wrapper lightweight while game-specific page classes such as Ravens, Gin Rummy, Lunar Base, and Tic-Tac-Toe own their page-level sizing/layout overrides.
 - `app/frontend/src/main/frontend/features/playerGames/playerGamesClient.ts`
   - Loads the signed-in user's unfinished seated games and opens the player-game SSE stream used by the header menu turn badges after the initial list load succeeds.
   - Closes the player-game stream on errors so the browser does not keep retrying while the server is down; the stream is reopened only by a later user action or auth/session change.
@@ -70,6 +71,7 @@ The app keeps the included-game list declarative by registering each game module
 ## Runtime Notes
 
 - Running `./gradlew bootRun` serves the Vite-built frontend bundle plus static CSS through Spring Boot and loads standard dotenv `KEY=value` entries from `.env.local` in the repository root when present.
+- The frontend packages use Vite 8.0.16.
 - `server.port` defaults to `8080` unless overridden by `PORT`.
 - Railway deployment starts `ravens-and-dragons.jar`.
 - The lobby can open a selected public game or a typed game id; public game rows use per-row gradients with a darker selected state, and missing typed ids report feedback without navigating away from the lobby.

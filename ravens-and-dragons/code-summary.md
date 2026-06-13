@@ -76,7 +76,7 @@ The parent project has two child projects:
   - Ravens and Dragons game REST command helpers, create-game submission, player and bot assignment, SSE subscription setup, and compatibility re-exports for shared auth API helpers.
   - Preserves HTTP status information for load/create/view failures and closes SSE streams on errors so the browser does not auto-retry while the server is unavailable.
 - `src/main/frontend/components/*.tsx`
-  - React components for Ravens game create/play UI, including board, controls, rules panel, seat panel, move list, and status text.
+  - React components for Ravens game create/play UI, including board, controls, rules panel, seat panel, move list, status text, and the Ravens-specific page wrapper that owns full-height game layout behavior.
 - `src/main/frontend/features/game/*.ts`
   - Game Redux slice, selectors, thunks, create-draft state, bot-assignment derivation, and stream lifecycle wiring.
 - `src/main/frontend/features/host/*.ts`
@@ -106,7 +106,7 @@ Server-only undo history stores compact restore-state entries instead of full sn
 - The create screen sends its drafted setup to `POST /api/games/ravens-and-dragons`.
 - The create screen defaults to publicly listing new games and includes the selected public/private choice in the create request.
 - The app shell renders Ravens and Dragons through the registered frontend game entry while using shared platform frontend contracts/helpers for auth, game-entry typing, and fullscreen wiring.
-- The create and active game screens show `Ravens and Dragons` inside the content area. The create screen splits its configuration and board panels evenly on wide screens, while the active game screen places its information panel left of the board and spans its rules panel below the main panels.
+- The create and active game screens show `Ravens and Dragons` inside the content area and use the Ravens-specific page layout class. The create screen splits its configuration and board panels evenly on wide screens, while the active game screen places its information panel left of the board and spans its rules panel below the main panels.
 - Shared browser styles now live in `app/frontend/src/main/frontend/styles/styles.css`; Ravens components continue using the shared game layout, board sizing, and board highlight classes from that app-owned bundle.
 - Live games open at `/g/{gameId}`.
 - Create flows open at `/ravens-and-dragons/create`.
@@ -118,7 +118,7 @@ Server-only undo history stores compact restore-state entries instead of full sn
 - Request-scoped auth-aware game metadata is loaded from `GET /api/games/{gameId}/view`.
 - Legacy Ravens games stored with snapshot-only public state are converted to full session-shaped responses when loaded or streamed.
 - Seat ownership gates gameplay actions by claimed side and active turn.
-- The live-game seat panel opens the platform player picker for open seats. The picker can add the current user, add another existing local/OAuth/guest player, or add a supported bot when the acting user owns exactly one human seat and the opposite seat is open. Bot assignment is allowed after play has started, but still requires that one-seat ownership rule.
+- The live-game seat panel opens the platform player picker for open seats, passing seated players, the current user id, and Ravens' second-seat policy. The picker can add the current user, add another existing local/OAuth/guest player, or add a supported bot when the acting user owns exactly one human seat and the opposite seat is open. Bot assignment is allowed after play has started, but still requires that one-seat ownership rule.
 - Undo against a bot is available after the human move while the bot reply is pending, and after the bot reply it reverses the full human-plus-bot exchange.
 
 ## Tests

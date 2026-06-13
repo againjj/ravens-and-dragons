@@ -41,7 +41,7 @@ export const GameScreen = () => {
     useBoardSizing(boardShellRef, true);
 
     return (
-        <section className="game-page">
+        <section className="game-page ravens-page">
             <h1 className="content-title">Ravens and Dragons</h1>
 
             <section className="game-layout">

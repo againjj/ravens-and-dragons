@@ -30,6 +30,7 @@ The parent project has two child projects:
 - `src/main/frontend/tic-tac-toe-entry.tsx`
   - Exports `ticTacToeGameEntry` through the package entrypoint for the app-owned frontend shell.
   - Owns the Tic-Tac-Toe create and play screens, the public-listing checkbox for game creation, plus Tic-Tac-Toe-specific REST/SSE behavior.
+  - Uses a game-specific page class for its compact play layout while sharing app shell styles for common page chrome.
   - Uses shared frontend API failure classification so expired sessions and server-down states surface consistently, and closes the Tic-Tac-Toe SSE stream on errors.
 
 ## Boundaries

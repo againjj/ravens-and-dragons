@@ -4,13 +4,18 @@ export interface PlayerPickerOption {
     id: string;
     displayName: string;
 }
+export interface PlayerPickerSeatedPlayer {
+    id: string;
+}
 export interface PlayerPickerProps {
     players: AuthUserSummary[];
     bots: PlayerPickerOption[];
-    addMyselfDisabled?: boolean;
+    seatedPlayers?: PlayerPickerSeatedPlayer[];
+    currentUserId?: string | null;
+    canCurrentUserTakeSecondSeat?: boolean;
     onAddMyself: () => void;
     onAddPlayer: (playerUserId: string) => void;
     onAddBot: (botId: string) => void;
     onCancel: () => void;
 }
-export declare const PlayerPicker: ({ players, bots, addMyselfDisabled, onAddMyself, onAddPlayer, onAddBot, onCancel }: PlayerPickerProps) => ReactElement;
+export declare const PlayerPicker: ({ players, bots, seatedPlayers, currentUserId, canCurrentUserTakeSecondSeat, onAddMyself, onAddPlayer, onAddBot, onCancel }: PlayerPickerProps) => ReactElement;

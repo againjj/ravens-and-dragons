@@ -319,7 +319,6 @@ h3 {
     grid-column: 1;
 }
 
-.game-page,
 .lobby-layout,
 .auth-layout {
     max-width: 980px;
@@ -331,6 +330,13 @@ h3 {
 
 .game-page {
     max-width: none;
+    margin: 0 auto;
+    display: grid;
+    gap: 16px;
+    align-content: start;
+}
+
+.game-page.ravens-page {
     height: 100%;
     grid-template-rows: auto minmax(0, 1fr);
 }
@@ -963,7 +969,7 @@ button:disabled {
     justify-self: start;
 }
 
-.tic-tac-toe-page {
+.game-page.tic-tac-toe-page {
     max-width: 980px;
 }
 
@@ -1180,7 +1186,7 @@ button:disabled {
         overflow-y: auto;
     }
 
-    .game-page {
+    .game-page.ravens-page {
         height: auto;
     }
 

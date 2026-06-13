@@ -101,6 +101,7 @@ export const GinRummyPlayScreen = () => {
     }, [gameId, loadGame]);
 
     const currentUserId = game?.viewer?.userId ?? null;
+    const seatedPlayers = game?.seats.flatMap((seat) => seat.userId ? [{ id: seat.userId }] : []) ?? [];
     const userSeats = game?.seats.map((seat, index) => seat.userId === currentUserId ? index : null).filter((seat): seat is number => seat !== null) ?? [];
     const sameUserBothSeats = userSeats.length === 2;
     const hasVisibleDealer = Boolean(game && game.dealerSeat >= 0);
@@ -525,8 +526,11 @@ export const GinRummyPlayScreen = () => {
                 <div className="seat-player-picker-backdrop" role="presentation">
                     <section className="panel seat-player-picker-modal" role="dialog" aria-modal="true" aria-label="Gin Rummy player picker">
                         <PlayerPicker
-                            players={players.filter((player) => player.id !== currentUserId)}
+                            players={players}
                             bots={[]}
+                            seatedPlayers={seatedPlayers}
+                            currentUserId={currentUserId}
+                            canCurrentUserTakeSecondSeat={true}
                             onAddMyself={() => {
                                 claimSeat(activePickerSeat, currentUserId, currentUser?.displayName ?? "Player");
                             }}

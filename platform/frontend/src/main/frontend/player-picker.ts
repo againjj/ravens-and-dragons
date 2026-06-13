@@ -1,4 +1,4 @@
-import { createElement, Fragment, useEffect, useState, type ReactElement } from "react";
+import { createElement, Fragment, useEffect, useMemo, useState, type ReactElement } from "react";
 import type { AuthUserSummary } from "./auth-types";
 
 export interface PlayerPickerOption {
@@ -6,10 +6,16 @@ export interface PlayerPickerOption {
     displayName: string;
 }
 
+export interface PlayerPickerSeatedPlayer {
+    id: string;
+}
+
 export interface PlayerPickerProps {
     players: AuthUserSummary[];
     bots: PlayerPickerOption[];
-    addMyselfDisabled?: boolean;
+    seatedPlayers?: PlayerPickerSeatedPlayer[];
+    currentUserId?: string | null;
+    canCurrentUserTakeSecondSeat?: boolean;
     onAddMyself: () => void;
     onAddPlayer: (playerUserId: string) => void;
     onAddBot: (botId: string) => void;
@@ -19,20 +25,34 @@ export interface PlayerPickerProps {
 export const PlayerPicker = ({
     players,
     bots,
-    addMyselfDisabled = false,
+    seatedPlayers = [],
+    currentUserId = null,
+    canCurrentUserTakeSecondSeat = false,
     onAddMyself,
     onAddPlayer,
     onAddBot,
     onCancel
 }: PlayerPickerProps): ReactElement => {
-    const [selectedPlayerId, setSelectedPlayerId] = useState(players[0]?.id ?? "");
+    const seatedPlayerIds = useMemo(
+        () => new Set(seatedPlayers.map((player) => player.id)),
+        [seatedPlayers]
+    );
+    const currentUserIsSeated = currentUserId !== null && seatedPlayerIds.has(currentUserId);
+    const addMyselfDisabled = !currentUserId || (currentUserIsSeated && !canCurrentUserTakeSecondSeat);
+    const availablePlayers = useMemo(
+        () => players.filter((player) =>
+            player.id !== currentUserId && (canCurrentUserTakeSecondSeat || !seatedPlayerIds.has(player.id))
+        ),
+        [canCurrentUserTakeSecondSeat, currentUserId, players, seatedPlayerIds]
+    );
+    const [selectedPlayerId, setSelectedPlayerId] = useState(availablePlayers[0]?.id ?? "");
     const [selectedBotId, setSelectedBotId] = useState(bots[0]?.id ?? "");
 
     useEffect(() => {
-        if (!players.some((player) => player.id === selectedPlayerId)) {
-            setSelectedPlayerId(players[0]?.id ?? "");
+        if (!availablePlayers.some((player) => player.id === selectedPlayerId)) {
+            setSelectedPlayerId(availablePlayers[0]?.id ?? "");
         }
-    }, [players, selectedPlayerId]);
+    }, [availablePlayers, selectedPlayerId]);
 
     useEffect(() => {
         if (!bots.some((bot) => bot.id === selectedBotId)) {
@@ -56,7 +76,7 @@ export const PlayerPicker = ({
                         setSelectedPlayerId((event.target as HTMLSelectElement).value);
                     }
                 },
-                players.map((player) =>
+                availablePlayers.map((player) =>
                     createElement("option", { key: player.id, value: player.id }, player.displayName)
                 )
             )

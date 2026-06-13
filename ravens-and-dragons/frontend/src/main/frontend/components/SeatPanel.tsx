@@ -40,6 +40,7 @@ export const SeatPanel = ({ onAssignBotOpponent, onAssignPlayerSeat = () => {}, 
     const reopenSideRef = useRef<Side | null>(null);
     const shouldReopenAfterFeedbackRef = useRef(false);
     const previousFeedbackMessageRef = useRef<string | null>(null);
+    const seatedPlayers = [dragonsPlayer, ravensPlayer].flatMap((player) => player ? [{ id: player.id }] : []);
 
     const loadPlayers = useCallback(async () => {
         if (!currentUser) {
@@ -48,7 +49,7 @@ export const SeatPanel = ({ onAssignBotOpponent, onAssignPlayerSeat = () => {}, 
         }
         try {
             const users = await fetchUsers();
-            setPlayers(users.filter((user) => user.id !== currentUser.id));
+            setPlayers(users);
         } catch (error) {
             if (isUnauthorizedError(error)) {
                 notifyAuthSessionExpired();
@@ -127,6 +128,9 @@ export const SeatPanel = ({ onAssignBotOpponent, onAssignPlayerSeat = () => {}, 
                                 <PlayerPicker
                                     players={players}
                                     bots={pickerBots}
+                                    seatedPlayers={seatedPlayers}
+                                    currentUserId={currentUser?.id ?? null}
+                                    canCurrentUserTakeSecondSeat={true}
                                     onAddMyself={() => {
                                         reopenSideRef.current = side;
                                         closePicker();

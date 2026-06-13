@@ -1,12 +1,16 @@
-import { createElement, Fragment, useEffect, useState } from "react";
-export const PlayerPicker = ({ players, bots, addMyselfDisabled = false, onAddMyself, onAddPlayer, onAddBot, onCancel }) => {
-    const [selectedPlayerId, setSelectedPlayerId] = useState(players[0]?.id ?? "");
+import { createElement, Fragment, useEffect, useMemo, useState } from "react";
+export const PlayerPicker = ({ players, bots, seatedPlayers = [], currentUserId = null, canCurrentUserTakeSecondSeat = false, onAddMyself, onAddPlayer, onAddBot, onCancel }) => {
+    const seatedPlayerIds = useMemo(() => new Set(seatedPlayers.map((player) => player.id)), [seatedPlayers]);
+    const currentUserIsSeated = currentUserId !== null && seatedPlayerIds.has(currentUserId);
+    const addMyselfDisabled = !currentUserId || (currentUserIsSeated && !canCurrentUserTakeSecondSeat);
+    const availablePlayers = useMemo(() => players.filter((player) => player.id !== currentUserId && (canCurrentUserTakeSecondSeat || !seatedPlayerIds.has(player.id))), [canCurrentUserTakeSecondSeat, currentUserId, players, seatedPlayerIds]);
+    const [selectedPlayerId, setSelectedPlayerId] = useState(availablePlayers[0]?.id ?? "");
     const [selectedBotId, setSelectedBotId] = useState(bots[0]?.id ?? "");
     useEffect(() => {
-        if (!players.some((player) => player.id === selectedPlayerId)) {
-            setSelectedPlayerId(players[0]?.id ?? "");
+        if (!availablePlayers.some((player) => player.id === selectedPlayerId)) {
+            setSelectedPlayerId(availablePlayers[0]?.id ?? "");
         }
-    }, [players, selectedPlayerId]);
+    }, [availablePlayers, selectedPlayerId]);
     useEffect(() => {
         if (!bots.some((bot) => bot.id === selectedBotId)) {
             setSelectedBotId(bots[0]?.id ?? "");
@@ -18,7 +22,7 @@ export const PlayerPicker = ({ players, bots, addMyselfDisabled = false, onAddMy
         onChange: (event) => {
             setSelectedPlayerId(event.target.value);
         }
-    }, players.map((player) => createElement("option", { key: player.id, value: player.id }, player.displayName)))), createElement("button", {
+    }, availablePlayers.map((player) => createElement("option", { key: player.id, value: player.id }, player.displayName)))), createElement("button", {
         type: "button",
         disabled: !selectedPlayerId,
         onClick: () => {

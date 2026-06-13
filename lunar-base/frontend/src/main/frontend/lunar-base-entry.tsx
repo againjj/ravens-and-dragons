@@ -539,7 +539,7 @@ const LunarBasePlayScreen = () => {
     const draggedPlayableModule = draggingHandCard && viewerPlayer && draggingHandCard.type === "module" && canPlayHandCard(draggingHandCard, viewerPlayer)
         ? draggingHandCard
         : null;
-    const seatedUserIds = new Set(game.seats.map((seat) => seat.userId).filter((userId): userId is string => userId !== null));
+    const seatedPlayers = game.seats.flatMap((seat) => seat.userId ? [{ id: seat.userId }] : []);
     const supplyTopRowCount = Math.ceil(game.supply.length / 2);
     const supplyRows = [game.supply.slice(0, supplyTopRowCount), game.supply.slice(supplyTopRowCount)];
     const animationHiddenClass = (key: string) => hiddenAnimationDestinations.has(key) ? "is-animation-destination-hidden" : "";
@@ -1223,9 +1223,11 @@ const LunarBasePlayScreen = () => {
                 <div className="seat-player-picker-backdrop" role="presentation">
                     <section className="panel seat-player-picker-modal" role="dialog" aria-modal="true" aria-label="Lunar Base player picker">
                         <PlayerPicker
-                            players={players.filter((player) => !seatedUserIds.has(player.id))}
+                            players={players}
                             bots={[]}
-                            addMyselfDisabled={!currentUserId || seatedUserIds.has(currentUserId)}
+                            seatedPlayers={seatedPlayers}
+                            currentUserId={currentUserId}
+                            canCurrentUserTakeSecondSeat={false}
                             onAddMyself={() => claimSeat(activePickerSeat, currentUserId, currentUser?.displayName ?? "Player")}
                             onAddPlayer={(playerUserId) => {
                                 const player = players.find((candidate) => candidate.id === playerUserId);
