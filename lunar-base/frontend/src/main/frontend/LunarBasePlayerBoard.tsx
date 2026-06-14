@@ -1,4 +1,4 @@
-import { forwardRef, type CSSProperties, type DragEvent, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, type CSSProperties, type DragEvent, type MouseEvent, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { CardView } from "./LunarBaseCard";
 import { boardBounds, boardCardCenter, normalizeRotation, rotationToOrientation, snapFromPoint } from "./lunar-base-board-rules";
 import { cardWidth, gridSquare } from "./lunar-base-constants";
@@ -92,6 +92,10 @@ export const PlayerBoard = forwardRef<PlayerBoardHandle, {
     canAcceptDrag: boolean;
     canShowStationControls: boolean;
     canFlipStation: boolean;
+    canChooseMainAction: boolean;
+    shouldDimUntargetableCards: boolean;
+    canFlipStationCard: (cardId: string) => boolean;
+    canStealBoardCard: (card: LunarBaseCard) => boolean;
     revealedStationCardId: string | null;
     stationFlipAnimations: Map<string, StationFlipAnimation>;
     draggedCard: LunarBaseCard | null;
@@ -99,6 +103,9 @@ export const PlayerBoard = forwardRef<PlayerBoardHandle, {
     dragImageMetrics: DragImageMetrics | null;
     onRevealStation: (cardId: string) => void;
     onFlipStation: (cardId: string) => void;
+    onChooseMainAction: (cardId: string) => void;
+    onSelectStealCard: (card: LunarBaseCard, event: MouseEvent<HTMLElement>) => void;
+    onStartStealDrag: (card: LunarBaseCard, event: DragEvent<HTMLElement>) => void;
     onPlaySelected: (x: number, y: number, destination: { x: number; y: number } | null) => void;
     onClearSelected: () => void;
     onDropCard: (event: DragEvent<HTMLElement>, x: number, y: number, rotation: CardRotation, destination: { x: number; y: number } | null) => void;
@@ -110,6 +117,10 @@ export const PlayerBoard = forwardRef<PlayerBoardHandle, {
     canAcceptDrag,
     canShowStationControls,
     canFlipStation,
+    canChooseMainAction,
+    shouldDimUntargetableCards,
+    canFlipStationCard,
+    canStealBoardCard,
     revealedStationCardId,
     stationFlipAnimations,
     draggedCard,
@@ -117,6 +128,9 @@ export const PlayerBoard = forwardRef<PlayerBoardHandle, {
     dragImageMetrics,
     onRevealStation,
     onFlipStation,
+    onChooseMainAction,
+    onSelectStealCard,
+    onStartStealDrag,
     onPlaySelected,
     onClearSelected,
     onDropCard,
@@ -200,7 +214,14 @@ export const PlayerBoard = forwardRef<PlayerBoardHandle, {
                 const isRevealedStation = revealedStationCardId === played.card.id;
                 const stationFlipAnimation = stationFlipAnimations.get(played.card.id) ?? null;
                 const displayedCard = isRevealedStation ? stationOppositeSideCard(played.card) : played.card;
-                const stationControls = canShowStationControls && isStation;
+                const hasMainAction = Boolean(displayedCard.mainActionText || (displayedCard.type === "station" && (displayedCard.flipped ? displayedCard.stationBackMainActionText : displayedCard.stationFrontMainActionText)));
+                const chooseMainAction = !isRevealedStation && canChooseMainAction && hasMainAction;
+                const flipTarget = !isRevealedStation && canFlipStation && isStation && canFlipStationCard(played.card.id);
+                const stealTarget = !isRevealedStation && canStealBoardCard(played.card);
+                const revealControls = canShowStationControls && isStation;
+                const stationControls = revealControls || flipTarget;
+                const cardTarget = chooseMainAction || flipTarget || stealTarget;
+                const dimmedCard = shouldDimUntargetableCards && !cardTarget && !isRevealedStation;
                 return (
                     <div
                         key={played.card.id}
@@ -210,6 +231,9 @@ export const PlayerBoard = forwardRef<PlayerBoardHandle, {
                             "lunar-board-card",
                             rotationToOrientation(played.rotation),
                             stationControls ? "has-station-controls" : "",
+                            chooseMainAction ? "can-choose-main-action" : "",
+                            cardTarget ? "is-card-target" : "",
+                            dimmedCard ? "is-card-dimmed" : "",
                             isRevealedStation ? "is-station-revealed" : "",
                             hiddenAnimationDestinations.has(`board-${played.card.id}`) ? "is-animation-destination-hidden" : ""
                         ].filter(Boolean).join(" ")}
@@ -217,27 +241,56 @@ export const PlayerBoard = forwardRef<PlayerBoardHandle, {
                             left: (played.x - bounds.minX) * gridSquare,
                             top: (played.y - bounds.minY) * gridSquare
                         } as CSSProperties}
+                        role={chooseMainAction || stealTarget ? "button" : undefined}
+                        tabIndex={chooseMainAction || stealTarget ? 0 : undefined}
+                        draggable={stealTarget}
+                        onClick={(event) => {
+                            if (stealTarget) {
+                                event.stopPropagation();
+                                onSelectStealCard(played.card, event);
+                                return;
+                            }
+                            if (!chooseMainAction) return;
+                            event.stopPropagation();
+                            onChooseMainAction(played.card.id);
+                        }}
+                        onKeyDown={(event) => {
+                            if (!chooseMainAction && !stealTarget) return;
+                            if (event.key !== "Enter" && event.key !== " ") return;
+                            event.preventDefault();
+                            if (stealTarget) {
+                                onSelectStealCard(played.card, event as unknown as MouseEvent<HTMLElement>);
+                                return;
+                            }
+                            onChooseMainAction(played.card.id);
+                        }}
+                        onDragStart={(event) => {
+                            if (!stealTarget) return;
+                            onStartStealDrag(played.card, event);
+                        }}
                     >
                         {stationFlipAnimation ? (
                             <StationFlipCardView animation={stationFlipAnimation} rotation={played.rotation} />
                         ) : (
-                            <CardView card={displayedCard} rotation={played.rotation} />
+                            <CardView card={displayedCard} rotation={played.rotation} actionClickable={cardTarget} />
                         )}
                         {stationControls ? (
                             <div className="lunar-station-controls" aria-label="Station controls">
-                                <button
-                                    type="button"
-                                    className="lunar-station-control"
-                                    aria-label="Reveal other station side"
-                                    title="Reveal other side"
-                                    onClick={(event) => {
-                                        event.stopPropagation();
-                                        onRevealStation(played.card.id);
-                                    }}
-                                >
-                                    <MagnifyIcon />
-                                </button>
-                                {canFlipStation ? (
+                                {revealControls ? (
+                                    <button
+                                        type="button"
+                                        className="lunar-station-control"
+                                        aria-label="Reveal other station side"
+                                        title="Reveal other side"
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            onRevealStation(played.card.id);
+                                        }}
+                                    >
+                                        <MagnifyIcon />
+                                    </button>
+                                ) : null}
+                                {flipTarget ? (
                                     <button
                                         type="button"
                                         className="lunar-station-control"

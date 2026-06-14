@@ -1,5 +1,6 @@
 package com.ravensanddragons.lunarbase.cards
 
+import com.ravensanddragons.lunarbase.toActionText
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -56,6 +57,27 @@ class LunarBaseCardScriptTest {
         assertEquals("Terran Outpost", terranOutpost.name)
         val chooseOne = assertIs<LunarBaseChooseOneAction>(terranOutpost.mainAction.single())
         assertEquals(2, chooseOne.actions.size)
+    }
+
+    @Test
+    fun chooseOpponentBlockFlattensNestedActionsIntoTheCurrentActionList() {
+        val actions = LunarBaseActionBuilder().apply {
+            chooseOpponent {
+                viewHand { chosenPlayer }
+                chooseOne {
+                    draw { 1 }
+                    chosenPlayer { discard { 1 } }
+                }
+            }
+        }.build()
+
+        assertIs<LunarBaseChooseOpponentAction>(actions[0])
+        assertIs<LunarBaseViewHandAction>(actions[1])
+        assertIs<LunarBaseChooseOneAction>(actions[2])
+        assertEquals(
+            "Choose an opponent\nView chosen player's hand\nChoose one:\nDraw 1 card\nChosen player: Discard 1 card",
+            actions.toActionText()
+        )
     }
 
     @Test
@@ -278,6 +300,23 @@ class LunarBaseCardScriptTest {
             }
         }
         assertEquals("Module cannot define effect with onPlaying or mainAction.", effectWithMainAction.message)
+    }
+
+    @Test
+    fun chooseOneAndDoAllRequireAtLeastTwoActions() {
+        val chooseOne = assertFailsWith<IllegalArgumentException> {
+            LunarBaseActionBuilder().apply {
+                chooseOne { draw { 1 } }
+            }.build()
+        }
+        val doAll = assertFailsWith<IllegalArgumentException> {
+            LunarBaseActionBuilder().apply {
+                doAll { draw { 1 } }
+            }.build()
+        }
+
+        assertEquals("Choose One requires at least two actions.", chooseOne.message)
+        assertEquals("Do All requires at least two actions.", doAll.message)
     }
 
     private fun loadStandardDeckScript(): LunarBaseDeckDefinition {

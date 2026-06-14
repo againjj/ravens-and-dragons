@@ -12,6 +12,8 @@ internal const val moduleType = "module"
 internal const val agentType = "agent"
 internal const val influenceType = "influence"
 internal const val grayColor = "gray"
+internal const val choosingMainActionPhase = "choosingMainAction"
+internal const val resolvingActionPhase = "resolvingAction"
 
 internal fun randomFor(gameId: String, salt: String): Random =
     Random("$gameId:$salt".hashCode())

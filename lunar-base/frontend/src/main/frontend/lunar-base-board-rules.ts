@@ -116,8 +116,8 @@ export const boardCardCenter = (
     if (!element) return null;
     const rect = element.getBoundingClientRect();
     const isHorizontal = rotationToOrientation(rotation) === "horizontal";
-    const centerX = (x - bounds.minX + (isHorizontal ? 1 : 0.5)) * gridSquare * zoom;
-    const centerY = (y - bounds.minY + (isHorizontal ? 0.5 : 1)) * gridSquare * zoom;
+    const centerX = ((x - bounds.minX) * gridSquare + (isHorizontal ? cardWidth : cardWidth / 2)) * zoom;
+    const centerY = ((y - bounds.minY) * gridSquare + (isHorizontal ? cardWidth / 2 : cardWidth)) * zoom;
     return { x: rect.left + centerX, y: rect.top + centerY };
 };
 

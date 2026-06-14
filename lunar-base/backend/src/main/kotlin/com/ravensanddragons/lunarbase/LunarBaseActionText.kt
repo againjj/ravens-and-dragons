@@ -61,7 +61,7 @@ private fun LunarBaseTrigger.toEffectText(): String =
         LunarBaseTrigger.DRAFT_ANY_INFLUENCE -> "any influence is drafted"
     }
 
-private fun LunarBaseCardAction.toActionText(topLevel: Boolean = false): String =
+internal fun LunarBaseCardAction.toActionText(topLevel: Boolean = false): String =
     when (this) {
         is LunarBaseChooseOneAction -> if (topLevel) {
             "Choose one:\n${actions.joinToString("\n") { it.toActionText() }}"

@@ -59,6 +59,7 @@ This file contains repository-wide instructions for AI-assisted work in this pro
 - `platform/` owns shared service capabilities: authentication, shared web error handling, route fallback, the game module contract, and reusable platform boundaries.
 - `app/` owns the runnable Spring Boot application, deployed jar assembly, and explicit registration of included game modules.
 - `ravens-and-dragons/` owns Ravens and Dragons game rules, game APIs, game-specific persistence payloads, frontend UI, assets, bots, machine training, and tests.
+- Do not persist data that can be derived, rebuilt, or discovered from other persisted state unless the user explicitly asks for that denormalized data to be stored. Persist only state that cannot be reconstructed another way.
 - Any sub-project named `X` that contains both backend and frontend code must contain two sub-projects named `backend` and `frontend`; `X:testBackend` must run the backend tests, `X:testFrontend` must run the frontend tests, and `X:test` must depend on both `X:testBackend` and `X:testFrontend`.
 - Each game should live in its own sub-project; do not merge separate games into a single game module.
 - New game frontends should use Redux for game UI state, async game loading/submission status, and client-only interaction state that crosses component boundaries.
@@ -115,6 +116,10 @@ This file contains repository-wide instructions for AI-assisted work in this pro
 - Run backend tests: `./gradlew testBackend`
 - Run frontend tests: `./gradlew testFrontend`
 - Run full checks: `./gradlew check`
+- Remove local games from the default H2 database: `scripts/remove-local-games.sh [game-slug]`
+  - Without a slug, it deletes all local games.
+  - With a slug such as `lunar-base`, it deletes only local games for that game module.
+  - Stop the local app before running it so the H2 file is not locked.
 
 ## Local Run Rules
 

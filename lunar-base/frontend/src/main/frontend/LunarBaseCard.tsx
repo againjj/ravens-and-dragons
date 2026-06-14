@@ -75,7 +75,8 @@ export const CardView = ({
     visualRotation = rotation,
     empty = false,
     instantRotation = false,
-    className = ""
+    className = "",
+    actionClickable = false
 }: {
     card: LunarBaseCard | null;
     faceDown?: boolean;
@@ -85,6 +86,7 @@ export const CardView = ({
     empty?: boolean;
     instantRotation?: boolean;
     className?: string;
+    actionClickable?: boolean;
 }) => (
     <div className={[
         "lunar-card",
@@ -104,7 +106,7 @@ export const CardView = ({
                 <span className="lunar-card-name">{cardDisplayName(card)}</span>
                 <span className="lunar-card-type">{card.type}</span>
                 <OrbsView card={card} />
-                <CardActionView card={card} />
+                <CardActionView card={card} actionClickable={actionClickable} />
                 <CardDepictionsView card={card} />
             </>
         )}
@@ -220,7 +222,7 @@ const ActionTooltipText = ({ text }: { text: string }) => (
     </span>
 );
 
-const CardActionView = ({ card }: { card: LunarBaseCard }) => {
+const CardActionView = ({ card, actionClickable = false }: { card: LunarBaseCard; actionClickable?: boolean }) => {
     const action = cardDisplayAction(card);
     const tooltipRef = useRef<HTMLDivElement | null>(null);
     const [tooltip, setTooltip] = useState<{
@@ -253,7 +255,7 @@ const CardActionView = ({ card }: { card: LunarBaseCard }) => {
     return (
         <>
             <span
-                className="lunar-card-action-badge"
+                className={["lunar-card-action-badge", actionClickable ? "is-action-clickable" : ""].filter(Boolean).join(" ")}
                 aria-label={action.label}
                 onMouseEnter={(event) => setTooltip({ mouse: { x: event.clientX, y: event.clientY }, corner: "bottomRight" })}
                 onMouseMove={(event) => {

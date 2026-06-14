@@ -77,6 +77,54 @@ data class LunarBasePlayerPublic(
     val board: List<LunarBaseBoardCard> = emptyList()
 )
 
+data class LunarBaseActionInteraction(
+    val kind: String,
+    val actorIndex: Int,
+    val remaining: Int = 0,
+    val action: LunarBaseActionNode? = null,
+    val targetPlayerIndex: Int? = null,
+    val flippedStationIds: List<String> = emptyList()
+)
+
+data class LunarBaseActionNode(
+    val kind: String,
+    val amount: Int? = null,
+    val amountKind: String? = null,
+    val flipAmount: Int? = null,
+    val flipAmountKind: String? = null,
+    val side: String? = null,
+    val moduleName: String? = null,
+    val playerRef: String? = null,
+    val scope: String? = null,
+    val actions: List<LunarBaseActionNode> = emptyList()
+)
+
+data class LunarBaseActionFrame(
+    val actorIndex: Int,
+    val action: LunarBaseActionNode,
+    val remaining: Int? = null
+)
+
+data class LunarBaseActionState(
+    val phase: String = choosingMainActionPhase,
+    val mainActionChosen: Boolean = false,
+    val stack: List<LunarBaseActionFrame> = emptyList(),
+    val interaction: LunarBaseActionInteraction? = null,
+    val chosenPlayerIndex: Int? = null,
+    val activeActions: List<LunarBaseActionNode> = emptyList()
+)
+
+data class LunarBaseEndGameCondition(
+    val playerIndex: Int,
+    val conditions: List<String>
+)
+
+data class LunarBaseEndGameResult(
+    val label: String,
+    val playerIndexes: List<Int>,
+    val conditions: List<LunarBaseEndGameCondition>
+)
+
 data class LunarBasePublicState(
     val id: String,
     val gameSlug: String,
@@ -93,6 +141,8 @@ data class LunarBasePublicState(
     val discardTop: LunarBaseCard? = null,
     val discardCount: Int = 0,
     val createdByUserId: String? = null,
+    val actionState: LunarBaseActionState = LunarBaseActionState(),
+    val endGameResult: LunarBaseEndGameResult? = null,
     val message: String? = null
 )
 
@@ -118,6 +168,23 @@ internal fun LunarBasePublicState.withPrivateCounts(privateState: LunarBasePriva
         discardTop = privateState.discard.firstOrNull(),
         discardCount = privateState.discard.size
     )
+
+internal fun LunarBasePublicState.actionStatusText(): String? {
+    val interaction = actionState.interaction ?: return null
+    return actionState.activeActions.takeIf { it.isNotEmpty() }
+        ?.joinToString("\n") { action -> action.toFullActionText(interaction.repeatRemainingForStatus(action)) }
+        ?: interaction.action?.toFullActionText(interaction.action?.let { interaction.repeatRemainingForStatus(it) })
+}
+
+private fun LunarBaseActionInteraction.repeatRemainingForStatus(action: LunarBaseActionNode): Int? =
+    if (this.action == action && action.isRepeatingAction()) remaining else null
+
+private fun LunarBaseActionNode.isRepeatingAction(): Boolean =
+    when (kind) {
+        "build", "draw", "draft", "resell", "discard" -> true
+        "flipStation" -> flipAmountKind != "self"
+        else -> false
+    }
 
 internal fun LunarBasePublicState.toPersistedState(): LunarBasePublicState =
     copy(
@@ -147,12 +214,16 @@ internal fun LunarBaseCard.creditCost(orbs: LunarBaseResources): Int {
 }
 
 private fun LunarBaseCard.toPersistedCard(): LunarBaseCard =
-    LunarBaseCard(
-        id = id,
-        type = type,
-        name = persistedCatalogName(),
-        flipped = flipped
-    )
+    if (catalogDefinition(this) == null) {
+        this
+    } else {
+        LunarBaseCard(
+            id = id,
+            type = type,
+            name = persistedCatalogName(),
+            flipped = flipped
+        )
+    }
 
 private fun LunarBaseCard.persistedCatalogName(): String =
     if (type == stationType) {

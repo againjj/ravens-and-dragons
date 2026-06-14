@@ -1,10 +1,14 @@
 package com.ravensanddragons.lunarbase
 
 import com.ravensanddragons.lunarbase.cards.LunarBaseAchievement
+import com.ravensanddragons.lunarbase.cards.LunarBaseAgentCardDefinition
 import com.ravensanddragons.lunarbase.cards.LunarBaseCardColor
 import com.ravensanddragons.lunarbase.cards.LunarBaseCardDefinition
 import com.ravensanddragons.lunarbase.cards.LunarBaseConnectors
+import com.ravensanddragons.lunarbase.cards.LunarBaseModuleCardDefinition
 import com.ravensanddragons.lunarbase.cards.LunarBaseStandardDeck
+import com.ravensanddragons.lunarbase.cards.LunarBaseStationCardDefinition
+import com.ravensanddragons.lunarbase.cards.LunarBaseStationFrontCardDefinition
 
 internal fun LunarBasePublicState.normalizeCatalogCards(): LunarBasePublicState =
     copy(
@@ -74,7 +78,7 @@ private fun LunarBaseCard.withCatalogMetadata(): LunarBaseCard {
     }
 }
 
-private fun catalogDefinition(card: LunarBaseCard): LunarBaseCardDefinition? {
+internal fun catalogDefinition(card: LunarBaseCard): LunarBaseCardDefinition? {
     val deck = LunarBaseStandardDeck.definition
     if (card.type == stationType && card.stationBackName != null) {
         return deck.stations.singleOrNull { it.name == card.stationBackName }
@@ -87,6 +91,18 @@ private fun catalogDefinition(card: LunarBaseCard): LunarBaseCardDefinition? {
         else -> null
     }
 }
+
+internal fun LunarBaseCard.agentDefinition(): LunarBaseAgentCardDefinition? =
+    catalogDefinition(this) as? LunarBaseAgentCardDefinition
+
+internal fun LunarBaseCard.moduleDefinition(): LunarBaseModuleCardDefinition? =
+    catalogDefinition(this) as? LunarBaseModuleCardDefinition
+
+internal fun LunarBaseCard.stationBackDefinition(): LunarBaseStationCardDefinition? =
+    catalogDefinition(this) as? LunarBaseStationCardDefinition
+
+internal fun stationFrontDefinition(): LunarBaseStationFrontCardDefinition =
+    LunarBaseStandardDeck.definition.stationFront
 
 private fun LunarBaseConnectors.toCardConnectors(): LunarBaseCardConnectors =
     LunarBaseCardConnectors(

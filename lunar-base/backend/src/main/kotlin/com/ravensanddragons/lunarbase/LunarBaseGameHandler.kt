@@ -79,20 +79,18 @@ class LunarBaseGameHandler(
         val now = Instant.now(clock)
         val next = when (type) {
             "claimSeat" -> claimSeat(publicState, privateState, command, actingUserId)
-            "drawStock" -> drawStock(publicState, privateState, actingUserId)
-            "takeSupply" -> takeSupply(publicState, privateState, command, actingUserId)
-            "discardHandCard" -> discardHandCard(publicState, privateState, command, actingUserId)
+            "chooseMainAction" -> chooseMainAction(publicState, privateState, command, actingUserId)
+            "chooseActionOption" -> chooseActionOption(publicState, privateState, command, actingUserId)
+            "choosePlayer" -> choosePlayer(publicState, privateState, command, actingUserId)
+            "completeAutomaticAction" -> completeAutomaticAction(publicState, privateState, actingUserId)
+            "draftSupply" -> draftSupply(publicState, privateState, command, actingUserId)
+            "resellSupply" -> resellSupply(publicState, privateState, command, actingUserId)
+            "discardHandCard" -> discardHandCardForAction(publicState, privateState, command, actingUserId)
             "playAgent" -> playAgent(publicState, privateState, command, actingUserId)
-            "playModule" -> playModule(publicState, privateState, command, actingUserId)
-            "flipStation" -> flipStation(publicState, privateState, actingUserId)
-            "passTurn" -> {
-                publicState.requireCurrentPlayer(actingUserId)
-                publicState.copy(
-                    currentPlayerIndex = nextPlayerIndex(publicState.currentPlayerIndex, publicState.config.playerCount),
-                    message = "Turn passed."
-                ) to privateState
-            }
-            "endGame" -> publicState.copy(lifecycle = finishedLifecycle, message = "Game ended.") to privateState
+            "buildModule" -> buildModule(publicState, privateState, command, actingUserId)
+            "flipStation" -> flipStationForAction(publicState, privateState, command, actingUserId)
+            "finishInteraction" -> finishInteraction(publicState, privateState, actingUserId)
+            "stealModule" -> stealModule(publicState, privateState, command, actingUserId)
             else -> throw InvalidCommandException("Unsupported Lunar Base command: $type.")
         }
         val normalized = normalizeAfterMove(next.first, next.second, current.id)
@@ -119,11 +117,20 @@ class LunarBaseGameHandler(
             viewerNode.putNull("seatIndex")
             viewerNode.set<JsonNode>("hand", objectMapper.valueToTree(emptyList<LunarBaseCard>()))
         }
-        return (objectMapper.valueToTree<ObjectNode>(publicState)).set<JsonNode>("viewer", viewerNode)
+        if (publicState.lifecycle == finishedLifecycle) {
+            viewerNode.set<JsonNode>("hands", objectMapper.valueToTree(privateState.hands))
+        }
+        val viewing = publicState.actionState.interaction?.takeIf {
+            it.kind == "viewHand" && it.actorIndex == viewerSeat && it.targetPlayerIndex != null
+        }?.targetPlayerIndex
+        if (viewing != null) {
+            viewerNode.set<JsonNode>("viewedHand", objectMapper.valueToTree(privateState.hands[viewing]))
+        }
+        return publicStateForClient(publicState).set<JsonNode>("viewer", viewerNode)
     }
 
     override fun publicState(current: GameRecord): JsonNode =
-        objectMapper.valueToTree(current.toPublicState())
+        publicStateForClient(current.toPublicState())
 
     override fun publicGameDetails(current: GameRecord): PublicGameDetails {
         val state = current.toPublicState()
@@ -188,56 +195,98 @@ class LunarBaseGameHandler(
         return publicState.copy(seats = nextSeats, message = "$displayName joined.") to privateState
     }
 
-    private fun drawStock(
-        publicState: LunarBasePublicState,
-        privateState: LunarBasePrivateState,
-        actingUserId: String?
-    ): Pair<LunarBasePublicState, LunarBasePrivateState> {
-        val seat = publicState.requireCurrentPlayer(actingUserId)
-        val available = ensureStock(privateState, publicState.id, publicState.version)
-        val card = available.stock.firstOrNull() ?: throw InvalidCommandException("The stock is empty.")
-        val nextHands = available.hands.replaceAt(seat, available.hands[seat] + card)
-        val nextPrivate = available.copy(hands = nextHands, stock = available.stock.drop(1))
-        return publicState.copy(message = "Drew from stock.").withPrivateCounts(nextPrivate) to nextPrivate
-    }
-
-    private fun takeSupply(
+    private fun chooseMainAction(
         publicState: LunarBasePublicState,
         privateState: LunarBasePrivateState,
         command: JsonNode,
         actingUserId: String?
     ): Pair<LunarBasePublicState, LunarBasePrivateState> {
         val seat = publicState.requireCurrentPlayer(actingUserId)
-        val slotIndex = command.requiredInt("slotIndex")
-        if (slotIndex !in publicState.supply.indices) {
-            throw InvalidCommandException("Supply slot is out of range.")
+        if (publicState.actionState.phase != choosingMainActionPhase || publicState.actionState.mainActionChosen) {
+            throw InvalidCommandException("A main action has already been chosen.")
         }
-        val card = publicState.supply[slotIndex] ?: throw InvalidCommandException("That supply slot is empty.")
-        val nextSupply = publicState.supply.toMutableList()
-        nextSupply[slotIndex] = null
-        val nextHands = privateState.hands.replaceAt(seat, privateState.hands[seat] + card)
-        val nextPrivate = privateState.copy(hands = nextHands)
-        return publicState.copy(supply = nextSupply, message = "Took a supply card.").withPrivateCounts(nextPrivate) to nextPrivate
-    }
-
-    private fun discardHandCard(
-        publicState: LunarBasePublicState,
-        privateState: LunarBasePrivateState,
-        command: JsonNode,
-        actingUserId: String?
-    ): Pair<LunarBasePublicState, LunarBasePrivateState> {
-        val seat = publicState.requireCurrentPlayer(actingUserId)
         val cardId = command.requiredText("cardId")
-        val hand = privateState.hands[seat]
-        val card = hand.firstOrNull { it.id == cardId } ?: throw InvalidCommandException("That card is not in your hand.")
-        if (card.type != influenceType) {
-            throw InvalidCommandException("Only influence cards can be discarded from hand.")
+        val boardCard = publicState.players[seat].board.firstOrNull { it.card.id == cardId }
+            ?: throw InvalidCommandException("That card is not in your base.")
+        val actions = when (boardCard.card.type) {
+            stationType -> if (boardCard.card.flipped) {
+                boardCard.card.stationBackDefinition()?.mainAction.orEmpty()
+            } else {
+                stationFrontDefinition().mainAction
+            }
+            moduleType -> boardCard.card.moduleDefinition()?.mainAction.orEmpty()
+            else -> emptyList()
         }
-        val nextPrivate = privateState.copy(
-            hands = privateState.hands.replaceAt(seat, hand.filterNot { it.id == cardId }),
-            discard = listOf(card) + privateState.discard
-        )
-        return publicState.copy(message = "Discarded ${card.type}.").withPrivateCounts(nextPrivate) to nextPrivate
+        if (actions.isEmpty()) {
+            throw InvalidCommandException("That card has no main action.")
+        }
+        return LunarBaseActionEngine(publicState.id, publicState.version)
+            .startActions(publicState, privateState, seat, actions, mainActionChosen = true)
+    }
+
+    private fun chooseActionOption(
+        publicState: LunarBasePublicState,
+        privateState: LunarBasePrivateState,
+        command: JsonNode,
+        actingUserId: String?
+    ): Pair<LunarBasePublicState, LunarBasePrivateState> {
+        publicState.requireActor(actingUserId)
+        return LunarBaseActionEngine(publicState.id, publicState.version)
+            .chooseOption(LunarBaseMutableGame(publicState, privateState), command.requiredInt("optionIndex"))
+    }
+
+    private fun choosePlayer(
+        publicState: LunarBasePublicState,
+        privateState: LunarBasePrivateState,
+        command: JsonNode,
+        actingUserId: String?
+    ): Pair<LunarBasePublicState, LunarBasePrivateState> {
+        publicState.requireActor(actingUserId)
+        return LunarBaseActionEngine(publicState.id, publicState.version)
+            .choosePlayer(LunarBaseMutableGame(publicState, privateState), command.requiredInt("playerIndex"))
+    }
+
+    private fun completeAutomaticAction(
+        publicState: LunarBasePublicState,
+        privateState: LunarBasePrivateState,
+        actingUserId: String?
+    ): Pair<LunarBasePublicState, LunarBasePrivateState> {
+        publicState.requireActor(actingUserId)
+        return LunarBaseActionEngine(publicState.id, publicState.version)
+            .completeAutomaticAction(LunarBaseMutableGame(publicState, privateState))
+    }
+
+    private fun draftSupply(
+        publicState: LunarBasePublicState,
+        privateState: LunarBasePrivateState,
+        command: JsonNode,
+        actingUserId: String?
+    ): Pair<LunarBasePublicState, LunarBasePrivateState> {
+        publicState.requireActor(actingUserId)
+        return LunarBaseActionEngine(publicState.id, publicState.version)
+            .draftSupply(LunarBaseMutableGame(publicState, privateState), command.requiredInt("slotIndex"))
+    }
+
+    private fun resellSupply(
+        publicState: LunarBasePublicState,
+        privateState: LunarBasePrivateState,
+        command: JsonNode,
+        actingUserId: String?
+    ): Pair<LunarBasePublicState, LunarBasePrivateState> {
+        publicState.requireActor(actingUserId)
+        return LunarBaseActionEngine(publicState.id, publicState.version)
+            .resellSupply(LunarBaseMutableGame(publicState, privateState), command.requiredInt("slotIndex"))
+    }
+
+    private fun discardHandCardForAction(
+        publicState: LunarBasePublicState,
+        privateState: LunarBasePrivateState,
+        command: JsonNode,
+        actingUserId: String?
+    ): Pair<LunarBasePublicState, LunarBasePrivateState> {
+        publicState.requireActor(actingUserId)
+        return LunarBaseActionEngine(publicState.id, publicState.version)
+            .discardHandCard(LunarBaseMutableGame(publicState, privateState), command.requiredText("cardId"))
     }
 
     private fun playAgent(
@@ -247,6 +296,9 @@ class LunarBaseGameHandler(
         actingUserId: String?
     ): Pair<LunarBasePublicState, LunarBasePrivateState> {
         val seat = publicState.requireCurrentPlayer(actingUserId)
+        if (publicState.actionState.phase != choosingMainActionPhase || publicState.actionState.mainActionChosen) {
+            throw InvalidCommandException("Agents can only be played before choosing a main action.")
+        }
         val cardId = command.requiredText("cardId")
         val hand = privateState.hands[seat]
         val card = hand.firstOrNull { it.id == cardId } ?: throw InvalidCommandException("That card is not in your hand.")
@@ -266,68 +318,73 @@ class LunarBaseGameHandler(
             hands = privateState.hands.replaceAt(seat, hand.filterNot { it.id == cardId }),
             discard = listOf(card) + privateState.discard
         )
-        return publicState.copy(players = nextPlayers, message = "Played an agent.").withPrivateCounts(nextPrivate) to nextPrivate
+        return LunarBaseActionEngine(publicState.id, publicState.version)
+            .startActions(
+                publicState.copy(players = nextPlayers, message = "Played an agent.").withPrivateCounts(nextPrivate),
+                nextPrivate,
+                seat,
+                card.agentDefinition()?.onPlaying.orEmpty(),
+                mainActionChosen = false
+            )
     }
 
-    private fun playModule(
+    private fun buildModule(
         publicState: LunarBasePublicState,
         privateState: LunarBasePrivateState,
         command: JsonNode,
         actingUserId: String?
     ): Pair<LunarBasePublicState, LunarBasePrivateState> {
-        val seat = publicState.requireCurrentPlayer(actingUserId)
-        val cardId = command.requiredText("cardId")
-        val x = command.requiredInt("x")
-        val y = command.requiredInt("y")
-        val rotation = command.requiredInt("rotation")
-        val hand = privateState.hands[seat]
-        val card = hand.firstOrNull { it.id == cardId } ?: throw InvalidCommandException("That card is not in your hand.")
-        if (card.type != moduleType) {
-            throw InvalidCommandException("Only module cards can be played on the board.")
-        }
-        val board = publicState.players[seat].board
-        val candidate = LunarBaseBoardCard(card, x, y, rotation)
-        when (validateModulePlacement(board, candidate)) {
-            PlacementValidationResult.VALID -> Unit
-            PlacementValidationResult.INVALID_ROTATION -> throw InvalidCommandException("Module rotation must be 0, 90, 180, or 270.")
-            PlacementValidationResult.OVERLAPS_CARD -> throw InvalidCommandException("That board position overlaps another card.")
-            PlacementValidationResult.DOES_NOT_TOUCH_BOARD -> throw InvalidCommandException("A played card must touch another card.")
-            PlacementValidationResult.CONNECTORS_DO_NOT_MATCH -> throw InvalidCommandException("A played card's connectors must match adjacent cards.")
-        }
-        val player = publicState.players[seat]
-        val creditCost = card.creditCost(player.orbs)
-        if (creditCost > player.credits) {
-            throw InvalidCommandException("You do not have enough credits to play that card.")
-        }
-        val nextPlayers = publicState.players.replaceAt(
-            seat,
-            player.copy(
-                credits = player.credits - creditCost,
-                board = board + candidate
+        publicState.requireActor(actingUserId)
+        return LunarBaseActionEngine(publicState.id, publicState.version)
+            .buildModule(
+                LunarBaseMutableGame(publicState, privateState),
+                command.requiredText("cardId"),
+                command.requiredInt("x"),
+                command.requiredInt("y"),
+                command.requiredInt("rotation")
             )
-        )
-        val nextPrivate = privateState.copy(hands = privateState.hands.replaceAt(seat, hand.filterNot { it.id == cardId }))
-        return publicState.copy(players = nextPlayers, message = "Played a module.").withPrivateCounts(nextPrivate) to nextPrivate
     }
 
-    private fun flipStation(
+    private fun flipStationForAction(
+        publicState: LunarBasePublicState,
+        privateState: LunarBasePrivateState,
+        command: JsonNode,
+        actingUserId: String?
+    ): Pair<LunarBasePublicState, LunarBasePrivateState> {
+        publicState.requireActor(actingUserId)
+        val playerIndex = command.get("playerIndex")?.takeIf { it.canConvertToInt() }?.asInt()
+            ?: publicState.actionState.interaction?.actorIndex
+            ?: publicState.currentPlayerIndex
+        return LunarBaseActionEngine(publicState.id, publicState.version)
+            .flipStation(LunarBaseMutableGame(publicState, privateState), playerIndex, command.get("cardId")?.asText())
+    }
+
+    private fun finishInteraction(
         publicState: LunarBasePublicState,
         privateState: LunarBasePrivateState,
         actingUserId: String?
     ): Pair<LunarBasePublicState, LunarBasePrivateState> {
-        val seat = publicState.requireCurrentPlayer(actingUserId)
-        val player = publicState.players[seat]
-        val nextBoard = player.board.mapIndexed { index, boardCard ->
-            if (index == 0 && boardCard.card.type == stationType) {
-                boardCard.copy(card = boardCard.card.copy(flipped = !boardCard.card.flipped))
-            } else {
-                boardCard
-            }
-        }
-        return publicState.copy(
-            players = publicState.players.replaceAt(seat, player.copy(board = nextBoard)),
-            message = "Flipped station."
-        ) to privateState
+        publicState.requireActor(actingUserId)
+        return LunarBaseActionEngine(publicState.id, publicState.version)
+            .finishInteraction(LunarBaseMutableGame(publicState, privateState))
+    }
+
+    private fun stealModule(
+        publicState: LunarBasePublicState,
+        privateState: LunarBasePrivateState,
+        command: JsonNode,
+        actingUserId: String?
+    ): Pair<LunarBasePublicState, LunarBasePrivateState> {
+        publicState.requireActor(actingUserId)
+        return LunarBaseActionEngine(publicState.id, publicState.version)
+            .stealModule(
+                LunarBaseMutableGame(publicState, privateState),
+                command.requiredInt("sourcePlayerIndex"),
+                command.requiredText("cardId"),
+                command.requiredInt("x"),
+                command.requiredInt("y"),
+                command.requiredInt("rotation")
+            )
     }
 
     private fun normalizeAfterMove(
@@ -337,24 +394,57 @@ class LunarBaseGameHandler(
     ): Pair<LunarBasePublicState, LunarBasePrivateState> {
         var public = publicState.withPrivateCounts(privateState)
         var private = privateState
-        private = ensureStock(private, gameId, public.version)
-        if (public.supply.filterNotNull().all { it.type == influenceType }) {
-            val keptInfluences = public.supply.filterNotNull()
-            public = public.copy(
-                supply = keptInfluences,
-                players = public.players.map { player ->
-                    player.copy(credits = player.credits + player.orbs.yellow + player.orbs.gray)
-                }
-            )
-            val refillTarget = keptInfluences.size + supplySize(public.config.playerCount)
-            while (public.supply.size < refillTarget) {
-                private = ensureStock(private, gameId, public.version + public.supply.size)
-                val nextCard = private.stock.firstOrNull() ?: break
-                public = public.copy(supply = public.supply + nextCard)
-                private = private.copy(stock = private.stock.drop(1))
+        public = public.withBoardSummaries()
+        if (public.lifecycle == activeLifecycle &&
+            public.actionState.phase == resolvingActionPhase &&
+            public.actionState.interaction == null &&
+            public.actionState.stack.isEmpty()
+        ) {
+            public = finishCompletedAction(public)
+            if (public.lifecycle == activeLifecycle && public.actionState.mainActionChosen) {
+                val refilled = refillSupplyAtEndOfTurn(public, private, gameId)
+                public = refilled.first.copy(
+                    currentPlayerIndex = nextPlayerIndex(public.currentPlayerIndex, public.config.playerCount),
+                    actionState = LunarBaseActionState(),
+                    message = "Turn ended."
+                )
+                private = refilled.second
+            } else if (public.lifecycle == activeLifecycle) {
+                public = public.copy(actionState = LunarBaseActionState())
             }
         }
         return public.withPrivateCounts(private).withBoardSummaries() to private
+    }
+
+    private fun finishCompletedAction(publicState: LunarBasePublicState): LunarBasePublicState {
+        return publicState.withEndGameResultIfWon()
+    }
+
+    private fun refillSupplyAtEndOfTurn(
+        publicState: LunarBasePublicState,
+        privateState: LunarBasePrivateState,
+        gameId: String
+    ): Pair<LunarBasePublicState, LunarBasePrivateState> {
+        if (publicState.supply.filterNotNull().any { it.type != influenceType }) {
+            return publicState to privateState
+        }
+        var public = publicState
+        var private = privateState
+        val keptInfluences = public.supply.filterNotNull()
+        public = public.copy(
+            supply = keptInfluences,
+            players = public.players.map { player ->
+                player.copy(credits = player.credits + player.orbs.yellow + player.orbs.gray)
+            }
+        )
+        val refillTarget = keptInfluences.size + supplySize(public.config.playerCount)
+        while (public.supply.size < refillTarget) {
+            private = ensureStock(private, gameId, public.version + public.supply.size)
+            val nextCard = private.stock.firstOrNull() ?: break
+            public = public.copy(supply = public.supply + nextCard)
+            private = private.copy(stock = private.stock.drop(1))
+        }
+        return public to private
     }
 
     private fun ensureStock(privateState: LunarBasePrivateState, gameId: String, version: Long): LunarBasePrivateState {
@@ -382,6 +472,25 @@ class LunarBaseGameHandler(
             throw InvalidCommandException("It is not your turn.")
         }
         return seat
+    }
+
+    private fun LunarBasePublicState.requireActor(actingUserId: String?): Int {
+        if (lifecycle == finishedLifecycle) {
+            throw InvalidCommandException("This Lunar Base game is already over.")
+        }
+        if (actingUserId == null) {
+            throw InvalidCommandException("You must sign in before acting.")
+        }
+        val actor = actionState.interaction?.actorIndex
+            ?: throw InvalidCommandException("No action is waiting for input.")
+        val seat = seats.indexOfFirst { it.userId == actingUserId }
+        if (seat < 0) {
+            throw InvalidCommandException("You are not seated in this game.")
+        }
+        if (seat != actor) {
+            throw InvalidCommandException("It is not your action.")
+        }
+        return actor
     }
 
     private fun requireExpectedVersion(state: LunarBasePublicState, command: JsonNode) {
@@ -428,5 +537,101 @@ class LunarBaseGameHandler(
             lastAccessedAt = lastAccessedAt,
             publiclyListed = publiclyListed
         )
+
+    private fun publicStateForClient(publicState: LunarBasePublicState): ObjectNode {
+        val node = objectMapper.valueToTree<ObjectNode>(publicState)
+        val statusText = publicState.actionStatusText()
+        if (statusText != null) {
+            (node.get("actionState") as? ObjectNode)?.put("statusText", statusText)
+        }
+        val interaction = (node.get("actionState") as? ObjectNode)?.get("interaction") as? ObjectNode
+        if (interaction != null) {
+            val actionInteraction = publicState.actionState.interaction
+            interaction.put("text", actionInteraction?.clientInteractionText(publicState).orEmpty())
+            interaction.set<JsonNode>("buttons", objectMapper.valueToTree(actionInteraction?.clientButtons(publicState).orEmpty()))
+        }
+        return node
+    }
+
+    private data class ClientActionButton(val label: String, val value: String)
+
+    private fun LunarBaseActionInteraction.clientInteractionText(publicState: LunarBasePublicState): String =
+        when (kind) {
+            "chooseOpponent" -> "Choose an opponent"
+            "chooseScopeTarget" -> if (action?.scope == com.ravensanddragons.lunarbase.cards.LunarBaseActionScope.OPPONENT.name) {
+                "Choose an opponent"
+            } else {
+                "Choose a target"
+            }
+            "stealCredits" -> "Select an opponent"
+            "stealModule" -> if (canStealAnyModule(publicState, this)) "" else "No module to steal"
+            else -> ""
+        }
+
+    private fun LunarBaseActionInteraction.clientButtons(publicState: LunarBasePublicState): List<ClientActionButton> =
+        when (kind) {
+            "chooseOne" -> action?.actions.orEmpty().mapIndexed { index, node ->
+                ClientActionButton(node.toActionText(), index.toString())
+            }
+            "chooseOpponent",
+            "stealCredits" -> playerButtons(publicState, actorIndex, opponents = true)
+            "chooseScopeTarget" -> playerButtons(
+                publicState,
+                actorIndex,
+                opponents = action?.scope == com.ravensanddragons.lunarbase.cards.LunarBaseActionScope.OPPONENT.name
+            )
+            "build" -> listOf(ClientActionButton("Skip Build", "skip"))
+            "flipStation" -> if (action?.flipAmountKind == "anyNumber") {
+                listOf(ClientActionButton("Done flipping stations", "done"))
+            } else {
+                emptyList()
+            }
+            "flipStationTo" -> if (isStationAlreadyFlipped(publicState, this)) {
+                listOf(ClientActionButton("Station is already flipped", "done"))
+            } else {
+                emptyList()
+            }
+            "stealModule" -> if (canStealAnyModule(publicState, this)) {
+                emptyList()
+            } else {
+                listOf(ClientActionButton("Skip steal", "skip"))
+            }
+            "viewHand" -> listOf(ClientActionButton("Done viewing", "done"))
+            else -> emptyList()
+        }
+
+    private fun playerButtons(publicState: LunarBasePublicState, actorIndex: Int, opponents: Boolean): List<ClientActionButton> =
+        publicState.players.indices
+            .filter { !opponents || it != actorIndex }
+            .map { ClientActionButton(publicState.seats[it].displayName ?: "Player ${it + 1}", it.toString()) }
+
+    private fun isStationAlreadyFlipped(publicState: LunarBasePublicState, interaction: LunarBaseActionInteraction): Boolean {
+        if (interaction.kind != "flipStationTo") return false
+        val station = publicState.players.getOrNull(interaction.actorIndex)?.board?.firstOrNull { it.card.type == stationType }?.card
+            ?: return false
+        val desiredSide = interaction.action?.side ?: return false
+        val desiredFlipped = desiredSide == com.ravensanddragons.lunarbase.cards.LunarBaseStationSide.AGENDA_SIDE.name
+        return station.flipped == desiredFlipped
+    }
+
+    private fun canStealAnyModule(publicState: LunarBasePublicState, interaction: LunarBaseActionInteraction): Boolean {
+        val name = interaction.action?.moduleName ?: return false
+        val actorBoard = publicState.players.getOrNull(interaction.actorIndex)?.board ?: return false
+        return publicState.players.withIndex()
+            .filter { it.index != interaction.actorIndex }
+            .flatMap { player -> player.value.board }
+            .filter { boardCard -> boardCard.card.name == name && boardCard.card.type == moduleType }
+            .any { boardCard -> findLegalPlacement(actorBoard, boardCard.card) != null }
+    }
+
+    private fun findLegalPlacement(board: List<LunarBaseBoardCard>, card: LunarBaseCard): LunarBaseBoardCard? {
+        val occupied = board.map { it.x to it.y }.toSet()
+        val candidates = board.flatMap { existing ->
+            listOf(existing.x + 1 to existing.y, existing.x - 1 to existing.y, existing.x to existing.y + 1, existing.x to existing.y - 1)
+        }.filterNot { it in occupied }.distinct()
+        return candidates.asSequence()
+            .flatMap { (x, y) -> sequenceOf(0, 90, 180, 270).map { rotation -> LunarBaseBoardCard(card, x, y, rotation) } }
+            .firstOrNull { validateModulePlacement(board, it) == PlacementValidationResult.VALID }
+    }
 
 }

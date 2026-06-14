@@ -51,6 +51,40 @@ export interface LunarBasePlayer {
     board: LunarBaseBoardCard[];
 }
 
+export interface LunarBaseActionButton {
+    label: string;
+    value: string;
+}
+
+export interface LunarBaseActionInteraction {
+    kind: string;
+    actorIndex: number;
+    text: string;
+    buttons: LunarBaseActionButton[];
+    remaining?: number;
+    action?: { kind: string; moduleName?: string | null } | null;
+    targetPlayerIndex?: number | null;
+    flippedStationIds?: string[];
+}
+
+export interface LunarBaseActionState {
+    phase: "choosingMainAction" | "resolvingAction";
+    mainActionChosen: boolean;
+    interaction: LunarBaseActionInteraction | null;
+    statusText?: string | null;
+}
+
+export interface LunarBaseEndGameCondition {
+    playerIndex: number;
+    conditions: string[];
+}
+
+export interface LunarBaseEndGameResult {
+    label: "Draw" | "Epic Victory" | "Victory";
+    playerIndexes: number[];
+    conditions: LunarBaseEndGameCondition[];
+}
+
 export interface LunarBaseGame {
     id: string;
     gameSlug: "lunar-base";
@@ -64,11 +98,15 @@ export interface LunarBaseGame {
     stockCount: number;
     discardTop: LunarBaseCard | null;
     discardCount: number;
+    actionState: LunarBaseActionState;
+    endGameResult: LunarBaseEndGameResult | null;
     message: string | null;
     viewer?: {
         userId: string | null;
         seatIndex: number | null;
         hand: LunarBaseCard[];
+        hands?: LunarBaseCard[][];
+        viewedHand?: LunarBaseCard[];
     };
 }
 
@@ -82,13 +120,14 @@ export interface FlyingCard {
     card: LunarBaseCard | null;
     faceDown?: boolean;
     rotation?: CardRotation;
+    zoom: number;
     fromX: number;
     fromY: number;
     toX: number;
     toY: number;
 }
 
-export type DragSource = "hand" | "stock" | "supply";
+export type DragSource = "hand" | "stock" | "supply" | "board";
 export type AnimationDestination =
     | { type: "viewerHandEnd" }
     | { type: "handCard"; cardId: string }
@@ -98,6 +137,7 @@ export type AnimationDestination =
 export interface CardMovementAnimation {
     annotation: string;
     card: LunarBaseCard | null;
+    sourceKey?: string | null;
     faceDown?: boolean;
     rotation?: CardRotation;
     fromX: number;

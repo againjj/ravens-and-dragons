@@ -32,6 +32,10 @@ The parent project has two child projects:
   - Owns board geometry, module placement validation, connector matching, completed-orb counting, housed-colonist summaries, and unique scientific-achievement summaries.
 - `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseActionText.kt`
   - Builds readable main action, on-playing, and effect text from the card catalog action/effect model for public card views.
+- `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseActionEngine.kt`
+  - Owns Lunar Base action-stack execution, action interactions, automatic action advancement, scoped actors, triggered on-playing/on-discard actions, and turn-end supply/stock handling.
+- `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseEndGameRules.kt`
+  - Owns Lunar Base win-condition detection and end-game result labeling.
 - `src/main/kotlin/com/ravensanddragons/lunarbase/cards/`
   - Owns an additive Kotlin card-definition DSL and immutable definition model for script-loaded Lunar Base decks.
   - Uses separate DSL builder and definition types for agents, influences, modules, stations, and the single station front so invalid card fields are unavailable on the wrong card type.
@@ -54,6 +58,10 @@ The parent project has two child projects:
   - Keeps animated command source cards hidden as soon as a pending command starts, so module cards played from hand stay hidden through the server-response gap and fly animation.
   - Shares card drag setup, source hiding, invalid-drop return animation, and card-center coordinate tracking across hand, supply, and stock drags; module board snapping also accepts drag events from the surrounding player area when the dragged card center is near the board.
   - Animates cancelled hand drags back to the actual hand-card rectangle and keeps flying cards below the shared app header layer.
+- `src/main/frontend/lunar-base-ui-state.ts`
+  - Derives action-panel status text and client-only targetability for Lunar Base hand, supply, stock, discard, and station interactions so dimming, cursors, clicking, and dragging share one rule source.
+- `src/main/frontend/lunar-base-animation-plan.ts`
+  - Detects client-observable automatic updates, such as station flips and stock-to-hand draws, and derives animation source keys shared by command and automatic animations.
 - `src/main/frontend/lunar-base-types.ts`
   - Owns Lunar Base frontend wire/state types and the shared Lunar Base palette reference.
 - `src/main/frontend/lunar-base-api.ts`
