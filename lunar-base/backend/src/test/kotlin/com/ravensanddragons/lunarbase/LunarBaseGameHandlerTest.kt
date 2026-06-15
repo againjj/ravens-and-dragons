@@ -228,6 +228,41 @@ class LunarBaseGameHandlerTest {
     }
 
     @Test
+    fun takingLastSupplyCardDoesNotRefillSupplyUntilTurnEnds() {
+        val game = handler.createGame("LUNAR01", createRequest(playerCount = 2), "creator")
+        val publicState = game.readPublicState()
+        val privateState = game.readPrivateState()
+        val stock = listOf(
+            LunarBaseCard(id = "stock-1", type = "module", name = "Struve Dome"),
+            LunarBaseCard(id = "stock-2", type = "module", name = "Helium Factory")
+        )
+        val supplyCard = LunarBaseCard(id = "supply-last", type = "module", name = "Asteroid Grinder")
+        var oneSupplyGame = game.copy(
+            publicState = objectMapper.valueToTree(
+                publicState.copy(
+                    seats = listOf(
+                        LunarBaseSeat(userId = "user-1", displayName = "Ada"),
+                        LunarBaseSeat(userId = "user-2", displayName = "Ben")
+                    ),
+                    supply = listOf(supplyCard),
+                    stockCount = stock.size
+                )
+            ),
+            privateState = objectMapper.valueToTree(privateState.copy(stock = stock))
+        )
+
+        oneSupplyGame = handler.applyCommand(oneSupplyGame, command("takeSupply", publicState.version).put("slotIndex", 0), "user-1")
+
+        assertEquals(listOf(null), oneSupplyGame.readClientPublicState().supply)
+        assertEquals(stock.map { it.id }, oneSupplyGame.readPrivateState().stock.map { it.id })
+
+        val passed = handler.applyCommand(oneSupplyGame, command("passTurn", oneSupplyGame.readPublicState().version), "user-1")
+
+        assertEquals(listOf("stock-1", "stock-2"), passed.readClientPublicState().supply.filterNotNull().map { it.id })
+        assertEquals(emptyList(), passed.readPrivateState().stock)
+    }
+
+    @Test
     fun flippingStationTogglesCurrentPlayersPublicStationSide() {
         var game = handler.createGame("LUNAR01", createRequest(), "creator")
         game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")
@@ -288,7 +323,7 @@ class LunarBaseGameHandlerTest {
         game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")
 
         val drawn = handler.applyCommand(game, command("drawStock", 2), "user-1")
-        val publicState = drawn.readPublicState()
+        val publicState = drawn.readClientPublicState()
         val privateState = drawn.readPrivateState()
 
         assertEquals(4, publicState.players[0].handCount)
@@ -573,6 +608,140 @@ class LunarBaseGameHandlerTest {
         assertEquals(stock.drop(5).map { it.id }, nextPrivate.stock.map { it.id })
     }
 
+    @Test
+    fun discardingSupplyMovesTheCardToDiscardWithoutRefillingSupply() {
+        val game = handler.createGame("LUNAR01", createRequest(playerCount = 2), "creator")
+        val publicState = game.readPublicState()
+        val privateState = game.readPrivateState()
+        val supplyCard = LunarBaseCard(id = "supply-discard", type = "module", name = "Asteroid Grinder")
+        val discardReadyGame = game.copy(
+            publicState = objectMapper.valueToTree(
+                publicState.copy(
+                    seats = listOf(
+                        LunarBaseSeat(userId = "user-1", displayName = "Ada"),
+                        LunarBaseSeat(userId = "user-2", displayName = "Ben")
+                    ),
+                    players = publicState.players.replaceAt(0, publicState.players[0].copy(credits = 3)),
+                    supply = listOf(supplyCard)
+                )
+            ),
+            privateState = objectMapper.valueToTree(privateState)
+        )
+
+        val discarded = handler.applyCommand(discardReadyGame, command("discardSupply", publicState.version).put("slotIndex", 0), "user-1")
+        val nextPublic = discarded.readClientPublicState()
+        val nextPrivate = discarded.readPrivateState()
+
+        assertEquals(listOf(null), nextPublic.supply)
+        assertEquals(4, nextPublic.players[0].credits)
+        assertEquals("supply-discard", nextPrivate.discard.first().id)
+        assertEquals("Discarded a supply card.", nextPublic.message)
+    }
+
+    @Test
+    fun endsWithVictoryWhenAPlayerReachesTwentyCredits() {
+        val game = seatedGameWithPlayers { index, player ->
+            if (index == 0) player.copy(credits = 20) else player
+        }
+
+        val ended = handler.applyCommand(game, command("drawStock", game.readPublicState().version), "user-1")
+        val clientState = ended.readClientPublicState()
+
+        assertEquals("finished", clientState.lifecycle)
+        assertEquals("Victory", clientState.endGameResult?.label)
+        assertEquals(listOf(0), clientState.endGameResult?.winningPlayerIndexes)
+        assertEquals(listOf("20/20 lunar credits"), clientState.endGameResult?.playerConditions?.single()?.conditions)
+        assertEquals(false, ended.publicState.has("endGameResult"))
+    }
+
+    @Test
+    fun endsWithEpicVictoryWhenOnePlayerMeetsMultipleConditions() {
+        val game = seatedGameWithPlayers { index, player ->
+            if (index == 0) {
+                player.copy(
+                    credits = 20,
+                    board = boardWithColonistsAndAchievements(gameId = "epic")
+                )
+            } else {
+                player
+            }
+        }
+
+        val ended = handler.applyCommand(game, command("passTurn", game.readPublicState().version), "user-1")
+        val result = ended.readClientPublicState().endGameResult
+
+        assertEquals("finished", ended.readClientPublicState().lifecycle)
+        assertEquals("Epic Victory", result?.label)
+        assertEquals(listOf(0), result?.winningPlayerIndexes)
+        assertEquals(
+            listOf("20/20 lunar credits", "10/10 colonists housed", "5/5 scientific achievements"),
+            result?.playerConditions?.single()?.conditions
+        )
+    }
+
+    @Test
+    fun endsWithDrawWhenMultiplePlayersMeetWinConditions() {
+        val game = seatedGameWithPlayers { index, player ->
+            when (index) {
+                0 -> player.copy(credits = 20)
+                1 -> player.copy(credits = 20)
+                else -> player
+            }
+        }
+
+        val ended = handler.applyCommand(game, command("passTurn", game.readPublicState().version), "user-1")
+        val result = ended.readClientPublicState().endGameResult
+
+        assertEquals("Draw", result?.label)
+        assertEquals(listOf(0, 1), result?.winningPlayerIndexes)
+    }
+
+    @Test
+    fun endsWhenAPlayerHasFourInfluencesInHandAndRevealsAllHandsInGameView() {
+        val game = handler.createGame("LUNAR01", createRequest(playerCount = 2, useInfluences = true), "creator")
+        val publicState = game.readPublicState()
+        val privateState = game.readPrivateState()
+        val influences = List(4) { index ->
+            LunarBaseCard(id = "influence-${index + 1}", type = "influence", name = "Lunar Alliance")
+        }
+        val readyGame = game.copy(
+            publicState = objectMapper.valueToTree(
+                publicState.copy(
+                    seats = listOf(
+                        LunarBaseSeat(userId = "user-1", displayName = "Ada"),
+                        LunarBaseSeat(userId = "user-2", displayName = "Ben")
+                    ),
+                    players = publicState.players.replaceAt(0, publicState.players[0].copy(influenceHandCount = 3))
+                )
+            ),
+            privateState = objectMapper.valueToTree(
+                privateState.copy(hands = privateState.hands.replaceAt(0, influences))
+            )
+        )
+
+        val ended = handler.applyCommand(readyGame, command("passTurn", publicState.version), "user-1")
+        val result = ended.readClientPublicState().endGameResult
+        val strangerView = handler.gameView(ended, "user-2")
+
+        assertEquals("Victory", result?.label)
+        assertEquals(listOf("4/4 influences in hand"), result?.playerConditions?.single()?.conditions)
+        assertEquals(4, strangerView.get("viewer").get("revealedHands").get(0).size())
+    }
+
+    @Test
+    fun rejectsCardActionsAfterWinConditionsEndTheGame() {
+        val game = seatedGameWithPlayers { index, player ->
+            if (index == 0) player.copy(credits = 20) else player
+        }
+        val ended = handler.applyCommand(game, command("passTurn", game.readPublicState().version), "user-1")
+
+        val exception = assertThrows<InvalidCommandException> {
+            handler.applyCommand(ended, command("drawStock", ended.readPublicState().version), "user-2")
+        }
+
+        assertEquals("This Lunar Base game is already over.", exception.message)
+    }
+
     private fun createRequest(playerCount: Int = 2, useInfluences: Boolean = false): JsonNode =
         objectMapper.createObjectNode()
             .put("playerCount", playerCount)
@@ -612,6 +781,52 @@ class LunarBaseGameHandlerTest {
         val nextPublic = publicState.copy(players = publicState.players.replaceAt(0, transform(publicState.players[0])))
         return game.copy(publicState = objectMapper.valueToTree(nextPublic))
     }
+
+    private fun seatedGameWithPlayers(transform: (Int, LunarBasePlayerPublic) -> LunarBasePlayerPublic): GameRecord {
+        val game = handler.createGame("LUNAR01", createRequest(playerCount = 2, useInfluences = true), "creator")
+        val publicState = game.readPublicState()
+        return game.copy(
+            publicState = objectMapper.valueToTree(
+                publicState.copy(
+                    seats = listOf(
+                        LunarBaseSeat(userId = "user-1", displayName = "Ada"),
+                        LunarBaseSeat(userId = "user-2", displayName = "Ben")
+                    ),
+                    players = publicState.players.mapIndexed(transform)
+                )
+            )
+        )
+    }
+
+    private fun boardWithColonistsAndAchievements(gameId: String): List<LunarBaseBoardCard> =
+        listOf(
+            LunarBaseBoardCard(
+                LunarBaseCard(
+                    id = "$gameId-station",
+                    type = "station",
+                    name = "Terran Outpost",
+                    stationBackName = "The Oasis"
+                ),
+                0,
+                0,
+                0
+            )
+        ) + listOf(
+            "Indigo Egregore",
+            "Lunar Capital",
+            "Space Elevator",
+            "Bacon Printer",
+            "Fusion Reactor",
+            "Rover",
+            "Satellite"
+        ).mapIndexed { index, name ->
+            LunarBaseBoardCard(
+                LunarBaseCard(id = "$gameId-module-${index + 1}", type = "module", name = name),
+                index + 1,
+                0,
+                0
+            )
+        }
 
     private fun boardWithCompletedYellowAndGrayOrbs(publicState: LunarBasePublicState): List<LunarBaseBoardCard> {
         val station = publicState.players[0].board[0].card.copy(

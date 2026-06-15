@@ -19,7 +19,9 @@ The parent project has two child projects:
   - Declares the `lunar-base` slug and `/lunar-base/create` browser route.
 - `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseGameHandler.kt`
   - Implements the platform `GameHandler` port for Lunar Base.
-  - Creates configured 2-6 player games, deals private hands, validates commands, rejects attempts to seat the same user more than once, charges catalog card costs reduced by completed colored/gray orbs when playing modules or agents, manages stock/discard refill, supply compaction/refill that keeps influence cards while dealing a full replacement supply and grants yellow/gray-orb credits, turn-gated station flipping, turn passing, and game ending.
+  - Creates configured 2-6 player games, deals private hands, validates commands, rejects attempts to seat the same user more than once, charges catalog card costs reduced by completed colored/gray orbs when playing modules or agents, manages stock/discard refill, supports taking or discarding supply cards with credit gain on supply discard, delays supply compaction/refill until turn end while keeping influence cards and granting yellow/gray-orb credits, gates station flipping to the current player, passes turns, and ends games from derived win conditions.
+- `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseEndGameRules.kt`
+  - Derives Lunar Base win results without persisting them. A game ends after any completed action when a player has 20 credits, 10 housed colonists, 5 scientific achievements, or 4 influences in hand; multiple qualifying players draw, and one player with multiple conditions earns an epic victory.
 - `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseState.kt`
   - Owns Lunar Base runtime/public/private state DTOs, hand/discard count synchronization helpers, persisted-card trimming, list replacement helpers, and credit-cost calculation.
 - `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseConstants.kt`
@@ -50,7 +52,7 @@ The parent project has two child projects:
   - Typechecks and tests the Lunar Base frontend package with Gradle-managed Node/npm.
 - `src/main/frontend/lunar-base-entry.tsx`
   - Exports `lunarBaseGameEntry` through the package entrypoint for the app-owned frontend shell.
-  - Owns the Lunar Base create/play screen shell, player panels, command wiring, shared platform player-picker wiring for open seats, SSE loading, viewer-relative player ordering, current-turn hand playability dimming, supply/stock-to-hand dragging, and client-only card movement animation orchestration for hand, pile, supply, board movement, and station side flips.
+  - Owns the Lunar Base create/play screen shell, player panels, command wiring, shared platform player-picker wiring for open seats, SSE loading, viewer-relative player ordering, current-turn hand playability dimming, supply click destination choices, supply/stock-to-hand dragging, supply-to-discard dragging, shared hand/supply movement animation setup, end-game popup/revealed-hand display, drag auto-scroll, and client-only card movement animation orchestration for hand, pile, supply, board movement, and station side flips.
   - Keeps animated command source cards hidden as soon as a pending command starts, so module cards played from hand stay hidden through the server-response gap and fly animation.
   - Shares card drag setup, source hiding, invalid-drop return animation, and card-center coordinate tracking across hand, supply, and stock drags; module board snapping also accepts drag events from the surrounding player area when the dragged card center is near the board.
   - Animates cancelled hand drags back to the actual hand-card rectangle and keeps flying cards below the shared app header layer.

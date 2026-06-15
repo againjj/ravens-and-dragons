@@ -72,32 +72,35 @@ class LunarBaseGameHandler(
     }
 
     override fun applyCommand(current: GameRecord, command: JsonNode, actingUserId: String?): GameRecord {
-        val publicState = current.toPublicState()
         val privateState = current.toPrivateState()
+        val publicState = current.toPublicState(privateState, includeEndGameResult = false)
         requireExpectedVersion(publicState, command)
         val type = command.get("type")?.asText() ?: throw InvalidCommandException("Command type is required.")
         val now = Instant.now(clock)
+        var refillSupplyAtTurnEnd = false
         val next = when (type) {
             "claimSeat" -> claimSeat(publicState, privateState, command, actingUserId)
             "drawStock" -> drawStock(publicState, privateState, actingUserId)
             "takeSupply" -> takeSupply(publicState, privateState, command, actingUserId)
+            "discardSupply" -> discardSupply(publicState, privateState, command, actingUserId)
             "discardHandCard" -> discardHandCard(publicState, privateState, command, actingUserId)
             "playAgent" -> playAgent(publicState, privateState, command, actingUserId)
             "playModule" -> playModule(publicState, privateState, command, actingUserId)
             "flipStation" -> flipStation(publicState, privateState, actingUserId)
             "passTurn" -> {
                 publicState.requireCurrentPlayer(actingUserId)
+                refillSupplyAtTurnEnd = true
                 publicState.copy(
                     currentPlayerIndex = nextPlayerIndex(publicState.currentPlayerIndex, publicState.config.playerCount),
                     message = "Turn passed."
                 ) to privateState
             }
-            "endGame" -> publicState.copy(lifecycle = finishedLifecycle, message = "Game ended.") to privateState
             else -> throw InvalidCommandException("Unsupported Lunar Base command: $type.")
         }
-        val normalized = normalizeAfterMove(next.first, next.second, current.id)
+        val normalized = normalizeAfterMove(next.first, next.second, current.id, refillSupply = refillSupplyAtTurnEnd)
+        val stateWithEndGame = normalized.first.withEndGameResultIfWon()
         return toRecord(
-            normalized.first.copy(version = publicState.version + 1, updatedAt = now),
+            stateWithEndGame.copy(version = publicState.version + 1, updatedAt = now),
             normalized.second,
             lastAccessedAt = current.lastAccessedAt,
             publiclyListed = current.publiclyListed
@@ -105,8 +108,8 @@ class LunarBaseGameHandler(
     }
 
     override fun gameView(current: GameRecord, currentUserId: String?): JsonNode {
-        val publicState = current.toPublicState()
         val privateState = current.toPrivateState()
+        val publicState = current.toPublicState(privateState)
         val viewerSeat = currentUserId?.let { userId ->
             publicState.seats.indexOfFirst { it.userId == userId }.takeIf { it >= 0 }
         }
@@ -119,14 +122,17 @@ class LunarBaseGameHandler(
             viewerNode.putNull("seatIndex")
             viewerNode.set<JsonNode>("hand", objectMapper.valueToTree(emptyList<LunarBaseCard>()))
         }
+        if (publicState.lifecycle == finishedLifecycle) {
+            viewerNode.set<JsonNode>("revealedHands", objectMapper.valueToTree(privateState.hands))
+        }
         return (objectMapper.valueToTree<ObjectNode>(publicState)).set<JsonNode>("viewer", viewerNode)
     }
 
     override fun publicState(current: GameRecord): JsonNode =
-        objectMapper.valueToTree(current.toPublicState())
+        objectMapper.valueToTree(current.toPublicState(current.toPrivateState()))
 
     override fun publicGameDetails(current: GameRecord): PublicGameDetails {
-        val state = current.toPublicState()
+        val state = current.toPublicState(current.toPrivateState())
         return PublicGameDetails(
             gameName = LunarBaseGameModuleDefinition.identity.displayName,
             openSeats = state.seats.count { it.userId == null }
@@ -134,7 +140,7 @@ class LunarBaseGameHandler(
     }
 
     override fun playerGameDetails(current: GameRecord, currentUserId: String): PlayerGameDetails? {
-        val state = current.toPublicState()
+        val state = current.toPublicState(current.toPrivateState())
         if (state.seats.none { it.userId == currentUserId }) {
             return null
         }
@@ -145,10 +151,10 @@ class LunarBaseGameHandler(
     }
 
     override fun playerUserIds(current: GameRecord): Set<String> =
-        current.toPublicState().seats.mapNotNull { it.userId }.toSet()
+        current.toPublicState(current.toPrivateState()).seats.mapNotNull { it.userId }.toSet()
 
     override fun clearUserReferences(current: GameRecord, userId: String): GameRecord? {
-        val state = current.toPublicState()
+        val state = current.toPublicState(current.toPrivateState())
         if (state.seats.none { it.userId == userId } && state.createdByUserId != userId) {
             return null
         }
@@ -218,6 +224,28 @@ class LunarBaseGameHandler(
         val nextHands = privateState.hands.replaceAt(seat, privateState.hands[seat] + card)
         val nextPrivate = privateState.copy(hands = nextHands)
         return publicState.copy(supply = nextSupply, message = "Took a supply card.").withPrivateCounts(nextPrivate) to nextPrivate
+    }
+
+    private fun discardSupply(
+        publicState: LunarBasePublicState,
+        privateState: LunarBasePrivateState,
+        command: JsonNode,
+        actingUserId: String?
+    ): Pair<LunarBasePublicState, LunarBasePrivateState> {
+        val seat = publicState.requireCurrentPlayer(actingUserId)
+        val slotIndex = command.requiredInt("slotIndex")
+        if (slotIndex !in publicState.supply.indices) {
+            throw InvalidCommandException("Supply slot is out of range.")
+        }
+        val card = publicState.supply[slotIndex] ?: throw InvalidCommandException("That supply slot is empty.")
+        val nextSupply = publicState.supply.toMutableList()
+        nextSupply[slotIndex] = null
+        val nextPlayers = publicState.players.replaceAt(
+            seat,
+            publicState.players[seat].copy(credits = publicState.players[seat].credits + 1)
+        )
+        val nextPrivate = privateState.copy(discard = listOf(card) + privateState.discard)
+        return publicState.copy(players = nextPlayers, supply = nextSupply, message = "Discarded a supply card.").withPrivateCounts(nextPrivate) to nextPrivate
     }
 
     private fun discardHandCard(
@@ -333,12 +361,13 @@ class LunarBaseGameHandler(
     private fun normalizeAfterMove(
         publicState: LunarBasePublicState,
         privateState: LunarBasePrivateState,
-        gameId: String
+        gameId: String,
+        refillSupply: Boolean
     ): Pair<LunarBasePublicState, LunarBasePrivateState> {
         var public = publicState.withPrivateCounts(privateState)
         var private = privateState
         private = ensureStock(private, gameId, public.version)
-        if (public.supply.filterNotNull().all { it.type == influenceType }) {
+        if (refillSupply && public.supply.filterNotNull().all { it.type == influenceType }) {
             val keptInfluences = public.supply.filterNotNull()
             public = public.copy(
                 supply = keptInfluences,
@@ -403,8 +432,16 @@ class LunarBaseGameHandler(
     private fun JsonNode.textValue(name: String, fallback: String): String =
         get(name)?.asText()?.takeIf { it.isNotBlank() } ?: fallback
 
-    private fun GameRecord.toPublicState(): LunarBasePublicState =
-        objectMapper.treeToValue(publicState, LunarBasePublicState::class.java).normalizeCatalogCards().withBoardSummaries()
+    private fun GameRecord.toPublicState(
+        privateState: LunarBasePrivateState,
+        includeEndGameResult: Boolean = true
+    ): LunarBasePublicState {
+        val state = objectMapper.treeToValue(publicState, LunarBasePublicState::class.java)
+            .normalizeCatalogCards()
+            .withPrivateCounts(privateState)
+            .withBoardSummaries()
+        return if (includeEndGameResult) state.withEndGameResultIfWon() else state
+    }
 
     private fun GameRecord.toPrivateState(): LunarBasePrivateState =
         objectMapper.treeToValue(privateState, LunarBasePrivateState::class.java).normalizeCatalogCards()

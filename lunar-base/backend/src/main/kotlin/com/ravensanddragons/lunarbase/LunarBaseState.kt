@@ -77,6 +77,18 @@ data class LunarBasePlayerPublic(
     val board: List<LunarBaseBoardCard> = emptyList()
 )
 
+data class LunarBaseEndGameCondition(
+    val playerIndex: Int,
+    val conditions: List<String>
+)
+
+data class LunarBaseEndGameResult(
+    val label: String,
+    val winningPlayerIndexes: List<Int>,
+    val playerConditions: List<LunarBaseEndGameCondition>
+)
+
+@JsonInclude(JsonInclude.Include.NON_NULL)
 data class LunarBasePublicState(
     val id: String,
     val gameSlug: String,
@@ -92,6 +104,7 @@ data class LunarBasePublicState(
     val stockCount: Int,
     val discardTop: LunarBaseCard? = null,
     val discardCount: Int = 0,
+    val endGameResult: LunarBaseEndGameResult? = null,
     val createdByUserId: String? = null,
     val message: String? = null
 )
@@ -122,10 +135,20 @@ internal fun LunarBasePublicState.withPrivateCounts(privateState: LunarBasePriva
 internal fun LunarBasePublicState.toPersistedState(): LunarBasePublicState =
     copy(
         players = players.map { player ->
-            player.copy(board = player.board.map { boardCard -> boardCard.copy(card = boardCard.card.toPersistedCard()) })
+            player.copy(
+                orbs = LunarBaseResources(),
+                colonists = 0,
+                achievements = 0,
+                handCount = 0,
+                influenceHandCount = 0,
+                board = player.board.map { boardCard -> boardCard.copy(card = boardCard.card.toPersistedCard()) }
+            )
         },
         supply = supply.map { it?.toPersistedCard() },
-        discardTop = discardTop?.toPersistedCard()
+        stockCount = 0,
+        discardTop = null,
+        discardCount = 0,
+        endGameResult = null
     )
 
 internal fun LunarBasePrivateState.toPersistedState(): LunarBasePrivateState =

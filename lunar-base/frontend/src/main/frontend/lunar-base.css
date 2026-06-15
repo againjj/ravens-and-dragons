@@ -69,6 +69,42 @@
     flex: 1 1 130px;
 }
 
+.lunar-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 850;
+    display: grid;
+    place-items: center;
+    padding: 18px;
+    background: rgba(15, 23, 42, 0.42);
+}
+
+.panel.lunar-modal {
+    display: grid;
+    gap: 12px;
+    width: min(380px, calc(100vw - 36px));
+    padding: 14px;
+}
+
+.lunar-modal h2,
+.lunar-modal p {
+    margin: 0;
+}
+
+.lunar-modal ul {
+    margin: 0;
+    padding-left: 18px;
+}
+
+.lunar-modal-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.lunar-modal-actions button {
+    flex: 1 1 0;
+}
+
 .lunar-table-port {
     position: relative;
     display: grid;
@@ -222,6 +258,11 @@
     display: grid;
     justify-items: center;
     color: #0f172a;
+}
+
+.lunar-pile:focus-visible {
+    outline: 2px solid #2563eb;
+    outline-offset: 4px;
 }
 
 .lunar-areas {

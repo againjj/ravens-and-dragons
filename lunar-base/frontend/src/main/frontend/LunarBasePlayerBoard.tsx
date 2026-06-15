@@ -54,15 +54,15 @@ export const setScaledDragImage = (event: DragEvent<HTMLElement>, zoom: number, 
     const dragWidth = rotation === 90 || rotation === 270 ? cardWidth * 2 : cardWidth;
     const dragHeight = rotation === 90 || rotation === 270 ? cardWidth : cardWidth * 2;
     const sourceRect = sourceCard.getBoundingClientRect();
-    const renderedWidth = sourceRect.width || dragWidth * zoom;
-    const renderedHeight = sourceRect.height || dragHeight * zoom;
+    const renderedWidth = dragWidth * zoom;
+    const renderedHeight = dragHeight * zoom;
     const rawOffsetX = event.clientX - sourceRect.left;
     const rawOffsetY = event.clientY - sourceRect.top;
     const offsetX = sourceRect.width > 0 && Number.isFinite(rawOffsetX) ? clamp(rawOffsetX, 0, renderedWidth) : renderedWidth / 2;
     const offsetY = sourceRect.height > 0 && Number.isFinite(rawOffsetY) ? clamp(rawOffsetY, 0, renderedHeight) : renderedHeight / 2;
     const metrics = {
-        centerOffsetX: renderedWidth / 2 - offsetX,
-        centerOffsetY: renderedHeight / 2 - offsetY
+        centerOffsetX: sourceRect.left + sourceRect.width / 2 - event.clientX,
+        centerOffsetY: sourceRect.top + sourceRect.height / 2 - event.clientY
     };
     const wrapper = document.createElement("div");
     wrapper.className = "lunar-drag-image";

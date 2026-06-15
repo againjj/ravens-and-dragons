@@ -12,6 +12,10 @@ internal const val moduleType = "module"
 internal const val agentType = "agent"
 internal const val influenceType = "influence"
 internal const val grayColor = "gray"
+internal const val lunarCreditWinThreshold = 20
+internal const val colonistWinThreshold = 10
+internal const val achievementWinThreshold = 5
+internal const val influenceWinThreshold = 4
 
 internal fun randomFor(gameId: String, salt: String): Random =
     Random("$gameId:$salt".hashCode())

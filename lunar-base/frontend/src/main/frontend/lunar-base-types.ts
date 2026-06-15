@@ -51,6 +51,17 @@ export interface LunarBasePlayer {
     board: LunarBaseBoardCard[];
 }
 
+export interface LunarBaseEndGameCondition {
+    playerIndex: number;
+    conditions: string[];
+}
+
+export interface LunarBaseEndGameResult {
+    label: "Victory" | "Epic Victory" | "Draw";
+    winningPlayerIndexes: number[];
+    playerConditions: LunarBaseEndGameCondition[];
+}
+
 export interface LunarBaseGame {
     id: string;
     gameSlug: "lunar-base";
@@ -64,11 +75,13 @@ export interface LunarBaseGame {
     stockCount: number;
     discardTop: LunarBaseCard | null;
     discardCount: number;
+    endGameResult?: LunarBaseEndGameResult | null;
     message: string | null;
     viewer?: {
         userId: string | null;
         seatIndex: number | null;
         hand: LunarBaseCard[];
+        revealedHands?: LunarBaseCard[][];
     };
 }
 
@@ -100,6 +113,7 @@ export interface CardMovementAnimation {
     card: LunarBaseCard | null;
     faceDown?: boolean;
     rotation?: CardRotation;
+    sourceKey?: string | null;
     fromX: number;
     fromY: number;
     destination: AnimationDestination;

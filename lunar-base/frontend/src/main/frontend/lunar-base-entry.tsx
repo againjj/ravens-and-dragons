@@ -1,5 +1,5 @@
 import { type CSSProperties, type DragEvent, type MouseEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import {
     fetchAuthSession,
     fetchUsers,
@@ -18,7 +18,7 @@ import { PlayerBoard, setScaledDragImage, type DragImageMetrics, type PlayerBoar
 import { createLunarBaseGame, fetchLunarBaseGame, sendCommand } from "./lunar-base-api";
 import { boardCardRectAtPoint, canPlayHandCard, nextRotation, normalizeRotation } from "./lunar-base-board-rules";
 import { cardAnimationDurationMs, cardGap, cardWidth, emptyLifecycle, layoutAnimationSelector, maxZoom, minZoom, playRoutePattern, portalRoot, rectCenter } from "./lunar-base-constants";
-import { displayPlayerOrder, isDiscardableFromHand, isPlayableAgentFromHand, stationOppositeSideCard } from "./lunar-base-game-logic";
+import { createDragAutoScrollState, displayPlayerOrder, dragAutoScrollDelta, isDiscardableFromHand, isPlayableAgentFromHand, stationOppositeSideCard, type DragAutoScrollState } from "./lunar-base-game-logic";
 import { clipZoomPercent, nextZoomStep, sanitizeZoomText, useLunarBaseZoom, zoomPercentToZoom, zoomTextToPercent, zoomToPercent } from "./useLunarBaseZoom";
 import { lunarBaseColors, type CardMovementAnimation, type CardRotation, type CardType, type DragSource, type FlyingCard, type LunarBaseBoardCard, type LunarBaseCard, type LunarBaseColorName, type LunarBaseGame, type SelectedCard, type StationFlipAnimation, type StationRevealState } from "./lunar-base-types";
 import "./lunar-base.css";
@@ -69,6 +69,7 @@ const viewerHandDestinationPoint = (
 };
 
 const animationSourceKey = (animation: CardMovementAnimation, game: LunarBaseGame): string | null => {
+    if (animation.sourceKey !== undefined) return animation.sourceKey;
     if (!animation.card) return null;
     if (animation.destination.type === "handCard") {
         return `supply-${animation.card.id}`;
@@ -152,19 +153,73 @@ const PlayerPanel = ({
     const player = game.players[playerIndex];
     const isCurrentUser = seat.userId !== null && seat.userId === currentUserId;
     const isCurrentPlayer = playerIndex === game.currentPlayerIndex;
+    const endGameResult = game.endGameResult ?? null;
+    const isWinningPlayer = Boolean(endGameResult?.winningPlayerIndexes.includes(playerIndex));
+    const playerMarker = endGameResult
+        ? isWinningPlayer
+            ? endGameResult.label === "Draw" ? "Draw" : endGameResult.label
+            : null
+        : isCurrentPlayer ? "Current player" : null;
     return (
         <section className="panel lunar-player-panel">
             <div className="lunar-player-name">
                 {seat.userId ? <strong>{seat.displayName ?? `Player ${playerIndex + 1}`}</strong> : <button type="button" onClick={() => onOpenPicker(playerIndex)}>Add Player</button>}
-                {isCurrentPlayer ? <span>(Current player)</span> : null}
+                {playerMarker ? <span>({playerMarker})</span> : null}
             </div>
             <p>Orbs: <OrbValue color="red" value={player.orbs.red} />, <OrbValue color="blue" value={player.orbs.blue} />, <OrbValue color="yellow" value={player.orbs.yellow} />, <OrbValue color="gray" value={player.orbs.gray} /></p>
             <p>Lunar credits: {player.credits}/20</p>
             <p>Colonists housed: {player.colonists}/10</p>
             <p>Scientific achievements: {player.achievements}/5</p>
-            {isCurrentUser ? <p>Influences in hand: {player.influenceHandCount}/4</p> : null}
+            {isCurrentUser || game.lifecycle === "finished" ? <p>Influences in hand: {player.influenceHandCount}/4</p> : null}
         </section>
     );
+};
+
+const EndGameModal = ({ game, onClose }: { game: LunarBaseGame; onClose: () => void }) => {
+    const result = game.endGameResult;
+    if (!result) return null;
+    const playerName = (playerIndex: number) => game.seats[playerIndex]?.displayName ?? `Player ${playerIndex + 1}`;
+    const playerNames = result.winningPlayerIndexes.map(playerName);
+    const formatNames = (names: string[]) => names.length <= 2
+        ? names.join(" and ")
+        : `${names.slice(0, -1).join(", ")}, and ${names[names.length - 1]}`;
+    const title = result.label === "Draw"
+        ? `Draw between ${formatNames(playerNames)}`
+        : `${result.label} for ${playerNames[0]}${result.label === "Epic Victory" ? "!" : ""}`;
+    return (
+        <div className="lunar-modal-backdrop" role="presentation">
+            <section className="panel lunar-modal" role="dialog" aria-modal="true" aria-label="Lunar Base game over">
+                <h2>{title}</h2>
+                {result.label === "Draw" ? (
+                    <div className="lunar-end-game-conditions">
+                        {result.playerConditions.map((condition) => (
+                            <section key={condition.playerIndex}>
+                                <h3>{playerName(condition.playerIndex)}:</h3>
+                                <ul>
+                                    {condition.conditions.map((conditionText) => <li key={conditionText}>{conditionText}</li>)}
+                                </ul>
+                            </section>
+                        ))}
+                    </div>
+                ) : (
+                    <ul>
+                        {result.playerConditions[0]?.conditions.map((conditionText) => <li key={conditionText}>{conditionText}</li>)}
+                    </ul>
+                )}
+                <button type="button" onClick={onClose}>Close</button>
+            </section>
+        </div>
+    );
+};
+
+type ActiveDragState = {
+    source: DragSource;
+    sourceKey: string;
+    cardId: string | null;
+    slotIndex: number | null;
+    supplyCard: LunarBaseCard | null;
+    rotation: CardRotation;
+    metrics: DragImageMetrics | null;
 };
 
 const LunarBasePlayScreen = () => {
@@ -177,18 +232,16 @@ const LunarBasePlayScreen = () => {
     const [activePickerSeat, setActivePickerSeat] = useState<number | null>(null);
     const { zoom, setZoom, zoomText, setZoomText } = useLunarBaseZoom();
     const [selectedCard, setSelectedCard] = useState<SelectedCard | null>(null);
-    const [draggingCardId, setDraggingCardId] = useState<string | null>(null);
-    const [draggingSupply, setDraggingSupply] = useState<{ slotIndex: number; card: LunarBaseCard } | null>(null);
-    const [draggingSource, setDraggingSource] = useState<DragSource | null>(null);
-    const [draggingRotation, setDraggingRotation] = useState<CardRotation | null>(null);
-    const [draggingSourceKey, setDraggingSourceKey] = useState<string | null>(null);
-    const [dragImageMetrics, setDragImageMetrics] = useState<DragImageMetrics | null>(null);
+    const [dragState, setDragState] = useState<ActiveDragState | null>(null);
     const [flyingCards, setFlyingCards] = useState<FlyingCard[]>([]);
     const [hiddenAnimationDestinations, setHiddenAnimationDestinations] = useState<Set<string>>(() => new Set());
     const [discardAnimationPlaceholder, setDiscardAnimationPlaceholder] = useState<LunarBaseCard | null>(null);
     const [instantRotationCardIds, setInstantRotationCardIds] = useState<Set<string>>(() => new Set());
     const [stationReveal, setStationReveal] = useState<StationRevealState | null>(null);
     const [stationFlipAnimations, setStationFlipAnimations] = useState<Map<string, StationFlipAnimation>>(() => new Map());
+    const [supplyChoice, setSupplyChoice] = useState<{ slotIndex: number; card: LunarBaseCard; from: { x: number; y: number } } | null>(null);
+    const [dismissedEndGameVersion, setDismissedEndGameVersion] = useState<number | null>(null);
+    const selectedCardRef = useRef<SelectedCard | null>(null);
     const flyKey = useRef(0);
     const tableScrollRef = useRef<HTMLDivElement | null>(null);
     const handCardRefs = useRef(new Map<string, HTMLElement>());
@@ -198,10 +251,13 @@ const LunarBasePlayScreen = () => {
     const previousLayoutRects = useRef(new Map<string, DOMRect>());
     const previousHandAreaRects = useRef(new Map<number, DOMRect>());
     const previousGame = useRef<LunarBaseGame | null>(null);
-    const dragImageMetricsRef = useRef<DragImageMetrics | null>(null);
+    const dragStateRef = useRef<ActiveDragState | null>(null);
     const returningDragRef = useRef(false);
     const suppressedLayoutAnimations = useRef(new Set<string>());
     const commandAnimationPending = useRef(false);
+    const dragAutoScrollState = useRef<DragAutoScrollState | null>(null);
+    const dragAutoScrollFrame = useRef<number | null>(null);
+    const lastDragPoint = useRef<{ x: number; y: number } | null>(null);
 
     const setZoomPreservingCenter = (nextZoom: number) => {
         const scroller = tableScrollRef.current;
@@ -303,6 +359,10 @@ const LunarBasePlayScreen = () => {
     }, [gameId, loadGame]);
 
     useEffect(() => {
+        selectedCardRef.current = selectedCard;
+    }, [selectedCard]);
+
+    useEffect(() => {
         if (!selectedCard || selectedCard.visualRotation === 0 || selectedCard.visualRotation % 360 !== 0) {
             return;
         }
@@ -329,6 +389,18 @@ const LunarBasePlayScreen = () => {
         const stillPresent = game.players.some((player) => player.board.some((boardCard) => boardCard.card.id === stationReveal.cardId));
         if (!stillPresent) setStationReveal(null);
     }, [game, stationReveal]);
+
+    useEffect(() => {
+        if (game?.lifecycle !== "finished") {
+            setDismissedEndGameVersion(null);
+        }
+    }, [game?.lifecycle]);
+
+    useEffect(() => () => {
+        if (dragAutoScrollFrame.current !== null) {
+            window.cancelAnimationFrame(dragAutoScrollFrame.current);
+        }
+    }, []);
 
     useLayoutEffect(() => {
         if (!game) return;
@@ -464,13 +536,12 @@ const LunarBasePlayScreen = () => {
         const sourceKey = animation && animationDestination ? animationSourceKey(animation, game) : null;
         if (animation) {
             commandAnimationPending.current = true;
-            hideAnimationDestination(sourceKey);
+            flushSync(() => hideAnimationDestination(sourceKey));
         }
         void sendCommand(game, command)
             .then((updated) => {
                 if (animation && animationDestination) {
                     animateCard(animation, animationDestination.x, animationDestination.y, null, () => {
-                        showAnimationDestination(sourceKey);
                         captureLayoutSnapshot();
                         if (animation.destination.type === "boardCard") {
                             previousLayoutRects.current.set(
@@ -530,7 +601,14 @@ const LunarBasePlayScreen = () => {
     const currentUserId = currentUser?.id ?? game.viewer?.userId ?? null;
     const playerOrder = displayPlayerOrder(game, viewerSeat);
     const canAct = viewerSeat === game.currentPlayerIndex && game.lifecycle === "active" && !isSubmitting;
+    const isGameFinished = game.lifecycle === "finished";
     const selectedHandCard = selectedCard ? hand.find((card) => card.id === selectedCard.cardId) ?? null : null;
+    const draggingSource = dragState?.source ?? null;
+    const draggingSourceKey = dragState?.sourceKey ?? null;
+    const draggingCardId = dragState?.cardId ?? null;
+    const draggingSupply = dragState?.slotIndex !== null && dragState?.supplyCard ? { slotIndex: dragState.slotIndex, card: dragState.supplyCard } : null;
+    const draggingRotation = draggingSource === "hand" ? dragState?.rotation ?? null : null;
+    const dragImageMetrics = dragState?.metrics ?? null;
     const draggingHandCard = draggingCardId ? hand.find((card) => card.id === draggingCardId) ?? null : null;
     const viewerPlayer = viewerSeat === null ? null : game.players[viewerSeat] ?? null;
     const selectedPlayableModule = selectedHandCard && selectedCard && viewerPlayer && selectedHandCard.type === "module" && canPlayHandCard(selectedHandCard, viewerPlayer)
@@ -552,21 +630,51 @@ const LunarBasePlayScreen = () => {
         setActivePickerSeat(null);
     };
 
+    const setActiveDragState = (nextDragState: ActiveDragState | null) => {
+        dragStateRef.current = nextDragState;
+        setDragState(nextDragState);
+    };
+
+    const clearBoardHovers = () => {
+        boardRefs.current.forEach((board) => board.clearHover());
+    };
+
+    const clearSelectedCard = () => {
+        const selected = selectedCardRef.current;
+        if (!selected) return;
+        const normalized: SelectedCard = { ...selected, visualRotation: selected.visualRotation % 360 };
+        flushSync(() => {
+            setInstantRotationCardIds((current) => new Set(current).add(selected.cardId));
+            selectedCardRef.current = normalized;
+            setSelectedCard(normalized);
+        });
+        requestAnimationFrame(() => {
+            selectedCardRef.current = null;
+            setSelectedCard(null);
+            setInstantRotationCardIds((current) => {
+                const next = new Set(current);
+                next.delete(selected.cardId);
+                return next;
+            });
+        });
+    };
+
     const clearDragState = () => {
         returningDragRef.current = false;
-        setDraggingCardId(null);
-        setDraggingSupply(null);
-        setDraggingSource(null);
-        setDraggingRotation(null);
-        setDraggingSourceKey(null);
-        setDragImageMetrics(null);
-        dragImageMetricsRef.current = null;
+        clearBoardHovers();
+        if (dragAutoScrollFrame.current !== null) {
+            window.cancelAnimationFrame(dragAutoScrollFrame.current);
+            dragAutoScrollFrame.current = null;
+        }
+        dragAutoScrollState.current = null;
+        lastDragPoint.current = null;
+        setActiveDragState(null);
     };
 
     const dragCenterFromEvent = (event: DragEvent<HTMLElement>) => {
         const dataOffsetX = Number(event.dataTransfer.getData("centerOffsetX"));
         const dataOffsetY = Number(event.dataTransfer.getData("centerOffsetY"));
-        const currentMetrics = dragImageMetricsRef.current ?? dragImageMetrics;
+        const currentMetrics = dragStateRef.current?.metrics ?? dragImageMetrics;
         const centerOffsetX = currentMetrics?.centerOffsetX ?? (Number.isFinite(dataOffsetX) ? dataOffsetX : 0);
         const centerOffsetY = currentMetrics?.centerOffsetY ?? (Number.isFinite(dataOffsetY) ? dataOffsetY : 0);
         const clientX = Number.isFinite(event.clientX) ? event.clientX : 0;
@@ -596,13 +704,37 @@ const LunarBasePlayScreen = () => {
         }
     ) => {
         const metrics = setScaledDragImage(event, zoom, rotation) ?? null;
-        dragImageMetricsRef.current = metrics;
-        setDraggingSource(source);
-        setDraggingSourceKey(sourceKey);
-        setDraggingRotation(source === "hand" ? rotation : null);
-        setDragImageMetrics(metrics);
-        setDraggingCardId(cardId ?? null);
-        setDraggingSupply(source === "supply" && slotIndex !== undefined && supplyCard ? { slotIndex, card: supplyCard } : null);
+        const scroller = tableScrollRef.current;
+        if (scroller) {
+            const rect = scroller.getBoundingClientRect();
+            dragAutoScrollState.current = createDragAutoScrollState(
+                {
+                    left: rect.left,
+                    right: rect.right,
+                    top: rect.top,
+                    bottom: rect.bottom,
+                    scrollLeft: scroller.scrollLeft,
+                    scrollTop: scroller.scrollTop,
+                    scrollWidth: scroller.scrollWidth,
+                    scrollHeight: scroller.scrollHeight,
+                    clientWidth: scroller.clientWidth,
+                    clientHeight: scroller.clientHeight
+                },
+                event.clientX,
+                event.clientY,
+                cardWidth
+            );
+            lastDragPoint.current = { x: event.clientX, y: event.clientY };
+        }
+        setActiveDragState({
+            source,
+            sourceKey,
+            cardId: cardId ?? null,
+            slotIndex: slotIndex ?? null,
+            supplyCard: source === "supply" ? supplyCard ?? null : null,
+            rotation,
+            metrics
+        });
         event.dataTransfer.setData("source", source);
         event.dataTransfer.setData("centerOffsetX", String(metrics?.centerOffsetX ?? 0));
         event.dataTransfer.setData("centerOffsetY", String(metrics?.centerOffsetY ?? 0));
@@ -614,6 +746,56 @@ const LunarBasePlayScreen = () => {
 
     const draggedCardCenter = (event: DragEvent<HTMLElement>) => dragCenterFromEvent(event);
 
+    const runDragAutoScroll = () => {
+        dragAutoScrollFrame.current = null;
+        const scroller = tableScrollRef.current;
+        const state = dragAutoScrollState.current;
+        const point = lastDragPoint.current;
+        if (!scroller || !state || !point || !draggingSource) return;
+        const rect = scroller.getBoundingClientRect();
+        const delta = dragAutoScrollDelta(
+            state,
+            {
+                left: rect.left,
+                right: rect.right,
+                top: rect.top,
+                bottom: rect.bottom,
+                scrollLeft: scroller.scrollLeft,
+                scrollTop: scroller.scrollTop,
+                scrollWidth: scroller.scrollWidth,
+                scrollHeight: scroller.scrollHeight,
+                clientWidth: scroller.clientWidth,
+                clientHeight: scroller.clientHeight
+            },
+            point.x,
+            point.y,
+            cardWidth,
+            8
+        );
+        if (delta.dx !== 0 || delta.dy !== 0) {
+            scroller.scrollBy(delta.dx, delta.dy);
+            dragAutoScrollFrame.current = window.requestAnimationFrame(runDragAutoScroll);
+        }
+    };
+
+    const updateDragAutoScroll = (event: DragEvent<HTMLElement>) => {
+        if (!draggingSource) return;
+        lastDragPoint.current = { x: event.clientX, y: event.clientY };
+        if (dragAutoScrollFrame.current === null) {
+            dragAutoScrollFrame.current = window.requestAnimationFrame(runDragAutoScroll);
+        }
+    };
+
+    const routeViewerBoardDragOver = (event: DragEvent<HTMLElement>) => {
+        if (viewerSeat === null || draggingSource !== "hand" || !draggedPlayableModule) return false;
+        return boardRefs.current.get(viewerSeat)?.dragOver(event) ?? false;
+    };
+
+    const routeViewerBoardDrop = (event: DragEvent<HTMLElement>) => {
+        if (viewerSeat === null || draggingSource !== "hand" || !draggedPlayableModule) return false;
+        return boardRefs.current.get(viewerSeat)?.drop(event) ?? false;
+    };
+
     const handleDragEnd = () => {
         if (returningDragRef.current) return;
         clearDragState();
@@ -623,7 +805,6 @@ const LunarBasePlayScreen = () => {
         const source = draggingSource ?? event.dataTransfer.getData("source");
         if (!source) return;
 
-        const cardId = draggingCardId ?? event.dataTransfer.getData("cardId");
         const slotIndex = Number(event.dataTransfer.getData("slotIndex"));
         const supplyCard = draggingSupply?.card ?? (Number.isFinite(slotIndex) ? game.supply[slotIndex] ?? null : null);
         const returnDetails = source === "hand" && draggingHandCard && viewerSeat !== null
@@ -687,19 +868,63 @@ const LunarBasePlayScreen = () => {
         if (!canAct) return;
         if (!viewerPlayer || !canPlayHandCard(card, viewerPlayer)) return;
         if (selectedCard && selectedCard.cardId !== card.id) {
-            setSelectedCard(null);
+            clearSelectedCard();
             return;
         }
         if (card.type === "module") {
-            setSelectedCard((current) => current?.cardId === card.id
-                ? { cardId: card.id, rotation: nextRotation(current.rotation), visualRotation: current.visualRotation + 90 }
-                : { cardId: card.id, rotation: 0, visualRotation: 0 });
+            setSelectedCard((current) => {
+                if (current?.cardId !== card.id) return { cardId: card.id, rotation: 0, visualRotation: 0 };
+                const rotation = nextRotation(current.rotation);
+                return { cardId: card.id, rotation, visualRotation: current.visualRotation + 90 };
+            });
             return;
         }
         const from = rectCenter(event.currentTarget.getBoundingClientRect());
+        moveHandCard(card, from, { type: "discard" }, card.type === "agent" ? "click hand agent to play" : "click hand influence to discard");
+    };
+
+    const moveHandCard = (
+        card: LunarBaseCard,
+        from: { x: number; y: number },
+        destination: { type: "discard" } | { type: "boardCard"; cardId: string; x: number; y: number; rotation: CardRotation; to?: { x: number; y: number } | null },
+        annotation: string
+    ) => {
+        if (viewerSeat === null) return;
+        const command = destination.type === "boardCard"
+            ? { type: "playModule", cardId: card.id, x: destination.x, y: destination.y, rotation: destination.rotation }
+            : { type: card.type === "agent" ? "playAgent" : "discardHandCard", cardId: card.id };
+        runCommand(command, {
+            annotation,
+            card,
+            sourceKey: `hand-${viewerSeat}-${card.id}`,
+            rotation: destination.type === "boardCard" ? destination.rotation : undefined,
+            fromX: from.x,
+            fromY: from.y,
+            destination: destination.type === "boardCard" ? { type: "boardCard", cardId: card.id } : { type: "discard" },
+            toX: destination.type === "boardCard" ? destination.to?.x : undefined,
+            toY: destination.type === "boardCard" ? destination.to?.y : undefined
+        });
+    };
+
+    const moveSupplyCard = (
+        slotIndex: number,
+        card: LunarBaseCard,
+        from: { x: number; y: number },
+        destination: "hand" | "discard",
+        annotation: string
+    ) => {
+        const sourceKey = `supply-${card.id}`;
         runCommand(
-            { type: card.type === "agent" ? "playAgent" : "discardHandCard", cardId: card.id },
-            { annotation: card.type === "agent" ? "click hand agent to play" : "click hand influence to discard", card, fromX: from.x, fromY: from.y, destination: { type: "discard" } }
+            { type: destination === "hand" ? "takeSupply" : "discardSupply", slotIndex },
+            {
+                annotation,
+                card,
+                sourceKey,
+                fromX: from.x,
+                fromY: from.y,
+                destination: destination === "hand" ? { type: "handCard", cardId: card.id } : { type: "discard" },
+                hiddenDestinationKey: destination === "discard" ? "discard" : undefined
+            }
         );
     };
 
@@ -730,14 +955,14 @@ const LunarBasePlayScreen = () => {
     };
 
     const beginStationSideChange = (cardId: string, from: LunarBaseCard, to: LunarBaseCard, onComplete?: () => void) => {
-        setSelectedCard(null);
+        clearSelectedCard();
         animateStationFlip(cardId, from, to, onComplete);
     };
 
     const flipStation = (cardId: string) => {
         if (!canAct) return;
         if (stationReveal || stationFlipAnimations.has(cardId)) return;
-        const station = viewerPlayer?.board.find((boardCard) => boardCard.card.id === cardId)?.card;
+        const station = game.players.flatMap((player) => player.board).find((boardCard) => boardCard.card.id === cardId)?.card;
         if (!station) return;
         const nextStation = stationOppositeSideCard(station);
         beginStationSideChange(cardId, station, nextStation);
@@ -753,7 +978,7 @@ const LunarBasePlayScreen = () => {
         if (stationReveal || stationFlipAnimations.has(cardId)) return;
         const station = viewerPlayer?.board.find((boardCard) => boardCard.card.id === cardId)?.card;
         if (!station) {
-            setSelectedCard(null);
+            clearSelectedCard();
             return;
         }
         setStationReveal({ cardId, phase: "revealing" });
@@ -767,7 +992,7 @@ const LunarBasePlayScreen = () => {
     const closeRevealedStation = () => {
         if (stationReveal?.phase !== "revealed") return;
         const cardId = stationReveal.cardId;
-        const station = viewerPlayer?.board.find((boardCard) => boardCard.card.id === cardId)?.card;
+        const station = game.players.flatMap((player) => player.board).find((boardCard) => boardCard.card.id === cardId)?.card;
         setStationReveal({ cardId, phase: "hiding" });
         if (station) {
             beginStationSideChange(cardId, stationOppositeSideCard(station), station, () => {
@@ -780,6 +1005,7 @@ const LunarBasePlayScreen = () => {
 
     const revealedStationCardId = stationReveal && stationReveal.phase !== "hiding" ? stationReveal.cardId : null;
     const revealDimmerVisible = stationReveal?.phase === "revealing" || stationReveal?.phase === "revealed";
+    const showEndGameModal = isGameFinished && Boolean(game.endGameResult) && dismissedEndGameVersion !== game.version;
 
     return (
         <section className="game-page lunar-page">
@@ -819,23 +1045,29 @@ const LunarBasePlayScreen = () => {
                     </div>
                     <div className="lunar-table-scroll" ref={tableScrollRef}>
                         <div
-                            className="lunar-table-surface"
-                            style={{ "--lunar-zoom": zoom } as CSSProperties}
-                            onClick={() => {
-                                if (stationReveal?.phase === "revealed") {
-                                    closeRevealedStation();
+                                className="lunar-table-surface"
+                                style={{ "--lunar-zoom": zoom } as CSSProperties}
+                                onClick={() => {
+                                    if (stationReveal?.phase === "revealed") {
+                                        closeRevealedStation();
+                                        return;
+                                    }
+                                    if (stationReveal) return;
+                                    if (selectedCardRef.current) clearSelectedCard();
+                                }}
+                            onDragOver={(event) => {
+                                if (routeViewerBoardDragOver(event)) {
+                                    updateDragAutoScroll(event);
                                     return;
                                 }
-                                if (stationReveal) return;
-                                if (selectedCard) setSelectedCard(null);
-                            }}
-                            onDragOver={(event) => {
                                 if (draggingSource) {
+                                    updateDragAutoScroll(event);
                                     event.preventDefault();
                                 }
                             }}
                             onDrop={(event) => {
                                 if (event.defaultPrevented) return;
+                                if (routeViewerBoardDrop(event)) return;
                                 returnDraggedCard(event);
                             }}
                         >
@@ -856,24 +1088,15 @@ const LunarBasePlayScreen = () => {
                                                         card ? draggingSourceClass(`supply-${card.id}`) : ""
                                                     ].filter(Boolean).join(" ")}
                                                     disabled={!canAct || !card}
-                                                    draggable={canAct && Boolean(card)}
-                                                    onClick={(event) => {
-                                                        if (selectedCard) {
-                                                            setSelectedCard(null);
-                                                            return;
-                                                        }
+                                                        draggable={canAct && Boolean(card)}
+                                                        onClick={(event) => {
+                                                            if (selectedCard) {
+                                                                clearSelectedCard();
+                                                                return;
+                                                            }
                                                         if (card) {
                                                             const from = rectCenter(event.currentTarget.getBoundingClientRect());
-                                                            runCommand(
-                                                                { type: "takeSupply", slotIndex },
-                                                                {
-                                                                    annotation: "click supply card to hand",
-                                                                    card,
-                                                                    fromX: from.x,
-                                                                    fromY: from.y,
-                                                                    destination: { type: "handCard", cardId: card.id }
-                                                                }
-                                                            );
+                                                            setSupplyChoice({ slotIndex, card, from });
                                                         }
                                                     }}
                                                     onDragStart={(event) => {
@@ -902,12 +1125,12 @@ const LunarBasePlayScreen = () => {
                                     data-movement="stock pile layout"
                                     aria-label={`Stock, ${game.stockCount} cards`}
                                     disabled={!canAct || game.stockCount === 0}
-                                    draggable={canAct && game.stockCount > 0}
-                                    onClick={(event) => {
-                                        if (selectedCard) {
-                                            setSelectedCard(null);
-                                            return;
-                                        }
+                                        draggable={canAct && game.stockCount > 0}
+                                        onClick={(event) => {
+                                            if (selectedCard) {
+                                                clearSelectedCard();
+                                                return;
+                                            }
                                         const from = rectCenter(event.currentTarget.getBoundingClientRect());
                                         runCommand(
                                             { type: "drawStock" },
@@ -936,39 +1159,49 @@ const LunarBasePlayScreen = () => {
                                     className="lunar-pile"
                                     role="button"
                                     tabIndex={0}
-                                    aria-label={game.discardTop ? `Discard pile, ${game.discardCount} cards` : "Empty discard pile"}
-                                    onClick={() => {
-                                        if (selectedCard) setSelectedCard(null);
-                                    }}
-                                    onKeyDown={(event) => {
-                                        if ((event.key === "Enter" || event.key === " ") && selectedCard) {
-                                            event.preventDefault();
-                                            setSelectedCard(null);
-                                        }
+                                        aria-label={game.discardTop ? `Discard pile, ${game.discardCount} cards` : "Empty discard pile"}
+                                        onClick={() => {
+                                            if (selectedCard) clearSelectedCard();
+                                        }}
+                                        onKeyDown={(event) => {
+                                            if ((event.key === "Enter" || event.key === " ") && selectedCard) {
+                                                event.preventDefault();
+                                                clearSelectedCard();
+                                            }
                                     }}
                                     onDragOver={(event) => {
                                         const card = hand.find((candidate) => candidate.id === draggingCardId);
+                                        if (draggingSource === "supply" && draggingSupply) {
+                                            updateDragAutoScroll(event);
+                                            event.preventDefault();
+                                            return;
+                                        }
                                         if (draggingSource === "hand" && (isDiscardableFromHand(card) || isPlayableAgentFromHand(card))) {
+                                            updateDragAutoScroll(event);
                                             event.preventDefault();
                                         }
                                     }}
                                     onDrop={(event) => {
+                                        if (draggingSource === "supply" && draggingSupply) {
+                                            event.preventDefault();
+                                            const from = draggedCardCenter(event);
+                                            moveSupplyCard(
+                                                draggingSupply.slotIndex,
+                                                draggingSupply.card,
+                                                from,
+                                                "discard",
+                                                "drop supply card to discard"
+                                            );
+                                            clearDragState();
+                                            return;
+                                        }
                                         const card = hand.find((candidate) => candidate.id === draggingCardId);
                                         if (draggingSource !== "hand" || (!isDiscardableFromHand(card) && !isPlayableAgentFromHand(card))) {
                                             return;
                                         }
                                         event.preventDefault();
                                         const from = draggedCardCenter(event);
-                                        runCommand(
-                                            { type: card.type === "agent" ? "playAgent" : "discardHandCard", cardId: card.id },
-                                            {
-                                                annotation: card.type === "agent" ? "drop hand agent to play" : "drop hand influence to discard",
-                                                card,
-                                                fromX: from.x,
-                                                fromY: from.y,
-                                                destination: { type: "discard" }
-                                            }
-                                        );
+                                        moveHandCard(card, from, { type: "discard" }, card.type === "agent" ? "drop hand agent to play" : "drop hand influence to discard");
                                         clearDragState();
                                     }}
                                 >
@@ -983,7 +1216,8 @@ const LunarBasePlayScreen = () => {
                             <section className="lunar-areas">
                                 {playerOrder.map((playerIndex) => {
                                     const isViewer = playerIndex === viewerSeat;
-                                    const cards = isViewer ? hand : Array.from({ length: game.players[playerIndex].handCount }, (_, index) => ({ id: `back-${playerIndex}-${index}`, type: "module" as CardType }));
+                                    const revealedHand = isGameFinished ? game.viewer?.revealedHands?.[playerIndex] ?? null : null;
+                                    const cards = isViewer ? hand : revealedHand ?? Array.from({ length: game.players[playerIndex].handCount }, (_, index) => ({ id: `back-${playerIndex}-${index}`, type: "module" as CardType }));
                                     return (
                                         <section
                                             key={playerIndex}
@@ -1008,12 +1242,15 @@ const LunarBasePlayScreen = () => {
                                                     } else {
                                                         handAreaRefs.current.delete(playerIndex);
                                                     }
-                                                }}
-                                                data-movement={isViewer ? "viewer hand area layout" : "opponent hand area layout"}
-                                                className="lunar-hand"
-                                                onClick={() => setSelectedCard(null)}
+                                                    }}
+                                                    data-movement={isViewer ? "viewer hand area layout" : "opponent hand area layout"}
+                                                    className="lunar-hand"
+                                                    onClick={() => clearSelectedCard()}
                                                 onDragOver={(event) => {
-                                                    if (draggingSource === "stock" || draggingSource === "supply") event.preventDefault();
+                                                    if (draggingSource === "stock" || draggingSource === "supply") {
+                                                        updateDragAutoScroll(event);
+                                                        event.preventDefault();
+                                                    }
                                                 }}
                                                 onDrop={(event) => {
                                                     if (isViewer && draggingSource === "stock") {
@@ -1036,21 +1273,19 @@ const LunarBasePlayScreen = () => {
                                                     if (isViewer && draggingSource === "supply" && draggingSupply) {
                                                         event.preventDefault();
                                                         const from = draggedCardCenter(event);
-                                                        runCommand(
-                                                            { type: "takeSupply", slotIndex: draggingSupply.slotIndex },
-                                                            {
-                                                                annotation: "drop supply card to hand",
-                                                                card: draggingSupply.card,
-                                                                fromX: from.x,
-                                                                fromY: from.y,
-                                                                destination: { type: "handCard", cardId: draggingSupply.card.id }
-                                                            }
+                                                        moveSupplyCard(
+                                                            draggingSupply.slotIndex,
+                                                            draggingSupply.card,
+                                                            from,
+                                                            "hand",
+                                                            "drop supply card to hand"
                                                         );
                                                         clearDragState();
                                                     }
                                                 }}
                                             >
                                                 {cards.length === 0 ? <span className="lunar-empty-hand">Empty hand</span> : cards.map((card) => {
+                                                    const isRevealedOpponentCard = !isViewer && Boolean(revealedHand);
                                                     const playableHandCard = Boolean(isViewer && canAct && viewerPlayer && canPlayHandCard(card, viewerPlayer));
                                                     const unplayableHandCard = Boolean(isViewer && canAct && !playableHandCard);
                                                     return (
@@ -1091,8 +1326,8 @@ const LunarBasePlayScreen = () => {
                                                             onDragEnd={handleDragEnd}
                                                         >
                                                             <CardView
-                                                                card={isViewer ? card : null}
-                                                                faceDown={!isViewer}
+                                                                card={isViewer || isRevealedOpponentCard ? card : null}
+                                                                faceDown={!isViewer && !isRevealedOpponentCard}
                                                                 selected={selectedCard?.cardId === card.id}
                                                                 rotation={selectedCard?.cardId === card.id ? selectedCard.rotation : 0}
                                                                 visualRotation={selectedCard?.cardId === card.id ? selectedCard.visualRotation : 0}
@@ -1114,9 +1349,9 @@ const LunarBasePlayScreen = () => {
                                                 selected={isViewer ? selectedPlayableModule : null}
                                                 zoom={zoom}
                                                 canAcceptDrag={Boolean(isViewer && draggingSource === "hand" && draggedPlayableModule)}
-                                                canShowStationControls={isViewer && viewerSeat !== null && !stationReveal}
+                                                canShowStationControls={(isViewer || isGameFinished) && !stationReveal}
                                                 canFlipStation={isViewer && canAct}
-                                                revealedStationCardId={isViewer ? revealedStationCardId : null}
+                                                revealedStationCardId={revealedStationCardId}
                                                 stationFlipAnimations={stationFlipAnimations}
                                                 draggedCard={isViewer ? draggedPlayableModule : null}
                                                 draggedRotation={draggingRotation}
@@ -1127,46 +1362,27 @@ const LunarBasePlayScreen = () => {
                                                     if (selectedHandCard && selectedCard) {
                                                         const fromElement = handCardRefs.current.get(selectedHandCard.id);
                                                         const from = fromElement ? rectCenter(fromElement.getBoundingClientRect()) : { x: window.innerWidth / 2, y: window.innerHeight / 2 };
-                                                        runCommand({
-                                                            type: "playModule",
-                                                            cardId: selectedHandCard.id,
-                                                            x,
-                                                            y,
-                                                            rotation: selectedCard.rotation
-                                                        }, {
-                                                            annotation: "click selected module to board",
-                                                            card: selectedHandCard,
-                                                            rotation: selectedCard.rotation,
-                                                            fromX: from.x,
-                                                            fromY: from.y,
-                                                            destination: { type: "boardCard", cardId: selectedHandCard.id },
-                                                            toX: destination?.x,
-                                                            toY: destination?.y
-                                                        });
-                                                        setSelectedCard(null);
+                                                        moveHandCard(
+                                                            selectedHandCard,
+                                                            from,
+                                                            { type: "boardCard", cardId: selectedHandCard.id, x, y, rotation: selectedCard.rotation, to: destination },
+                                                            "click selected module to board"
+                                                        );
                                                     }
                                                 }}
-                                                onClearSelected={() => setSelectedCard(null)}
+                                                    onClearSelected={clearSelectedCard}
                                                 onDropCard={(event, x, y, rotation, destination) => {
                                                     if (!isViewer) return;
                                                     const cardId = event.dataTransfer.getData("cardId");
                                                     const card = hand.find((candidate) => candidate.id === cardId);
                                                     if (card?.type === "module") {
                                                         const from = draggedCardCenter(event);
-                                                        runCommand(
-                                                            { type: "playModule", cardId, x, y, rotation },
-                                                            {
-                                                                annotation: "drop hand module to board",
-                                                                card,
-                                                                rotation,
-                                                                fromX: from.x,
-                                                                fromY: from.y,
-                                                                destination: { type: "boardCard", cardId },
-                                                                toX: destination?.x,
-                                                                toY: destination?.y
-                                                            }
+                                                        moveHandCard(
+                                                            card,
+                                                            from,
+                                                            { type: "boardCard", cardId, x, y, rotation, to: destination },
+                                                            "drop hand module to board"
                                                         );
-                                                        setSelectedCard(null);
                                                     }
                                                     clearDragState();
                                                 }}
@@ -1184,28 +1400,15 @@ const LunarBasePlayScreen = () => {
                         <button
                             type="button"
                             disabled={!canAct}
-                            onClick={() => {
-                                if (selectedCard) {
-                                    setSelectedCard(null);
-                                    return;
-                                }
+                                onClick={() => {
+                                    if (selectedCard) {
+                                        clearSelectedCard();
+                                        return;
+                                    }
                                 runCommand({ type: "passTurn" });
                             }}
                         >
                             Pass Turn
-                        </button>
-                        <button
-                            type="button"
-                            disabled={isSubmitting || game.lifecycle === "finished"}
-                            onClick={() => {
-                                if (selectedCard) {
-                                    setSelectedCard(null);
-                                    return;
-                                }
-                                runCommand({ type: "endGame" });
-                            }}
-                        >
-                            End Game
                         </button>
                     </div>
                     {playerOrder.map((playerIndex) => (
@@ -1238,6 +1441,38 @@ const LunarBasePlayScreen = () => {
                         />
                     </section>
                 </div>,
+                portalRoot()
+            ) : null}
+            {supplyChoice ? createPortal(
+                <div className="lunar-modal-backdrop" role="presentation">
+                    <section className="panel lunar-modal lunar-supply-choice-modal" role="dialog" aria-modal="true" aria-label="Supply card destination">
+                        <h2>{supplyChoice.card.name ?? "Supply card"}</h2>
+                        <div className="lunar-modal-actions">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    moveSupplyCard(supplyChoice.slotIndex, supplyChoice.card, supplyChoice.from, "discard", "click supply card to discard");
+                                    setSupplyChoice(null);
+                                }}
+                            >
+                                Discard
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    moveSupplyCard(supplyChoice.slotIndex, supplyChoice.card, supplyChoice.from, "hand", "click supply card to hand");
+                                    setSupplyChoice(null);
+                                }}
+                            >
+                                Hand
+                            </button>
+                        </div>
+                    </section>
+                </div>,
+                portalRoot()
+            ) : null}
+            {showEndGameModal ? createPortal(
+                <EndGameModal game={game} onClose={() => setDismissedEndGameVersion(game.version)} />,
                 portalRoot()
             ) : null}
             {flyingCards.length > 0 ? createPortal(
