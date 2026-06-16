@@ -69,6 +69,7 @@ export const setScaledDragImage = (event: DragEvent<HTMLElement>, zoom: number, 
     wrapper.style.width = `${dragWidth}px`;
     wrapper.style.height = `${dragHeight}px`;
     wrapper.style.zoom = String(zoom);
+    wrapper.style.opacity = "0";
 
     card.classList.remove("is-selected");
     card.style.setProperty("--lunar-card-rotation", `${rotation}deg`);
@@ -230,6 +231,7 @@ export const PlayerBoard = forwardRef<PlayerBoardHandle, {
                                     className="lunar-station-control"
                                     aria-label="Reveal other station side"
                                     title="Reveal other side"
+                                    onMouseDown={(event) => event.preventDefault()}
                                     onClick={(event) => {
                                         event.stopPropagation();
                                         onRevealStation(played.card.id);
@@ -243,6 +245,7 @@ export const PlayerBoard = forwardRef<PlayerBoardHandle, {
                                         className="lunar-station-control"
                                         aria-label="Flip station"
                                         title="Flip station"
+                                        onMouseDown={(event) => event.preventDefault()}
                                         onClick={(event) => {
                                             event.stopPropagation();
                                             onFlipStation(played.card.id);

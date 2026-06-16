@@ -43,6 +43,7 @@ describe("lunarBaseGameEntry", () => {
 
     afterEach(() => {
         cleanup();
+        document.body.innerHTML = "";
         vi.useRealTimers();
         vi.restoreAllMocks();
         vi.unstubAllGlobals();
@@ -142,6 +143,7 @@ describe("lunarBaseGameEntry", () => {
         } as unknown as DragEvent<HTMLElement>, 1);
 
         expect(setDragImage).toHaveBeenCalledWith(expect.any(HTMLElement), 12, 26);
+        expect(setDragImage.mock.calls[0][0]).toHaveStyle({ opacity: "0" });
         expect(metrics).toEqual({ centerOffsetX: 30, centerOffsetY: 58 });
     });
 
@@ -321,7 +323,7 @@ describe("lunarBaseGameEntry", () => {
         const dataTransfer = dragDataTransfer();
 
         render(<PlayScreen />);
-        const supplyButton = (await screen.findByText("Supply Rover")).closest("button");
+        const supplyButton = (await screen.findByText("Supply Rover")).closest("[role=button]");
         const supplySource = supplyButton as HTMLElement | null;
         const hand = document.querySelector<HTMLElement>(".lunar-hand");
         expect(supplyButton).not.toBeNull();
@@ -330,15 +332,16 @@ describe("lunarBaseGameEntry", () => {
         expect(hand).not.toBeNull();
         const supplyCard = supplyButton!.querySelector(".lunar-card");
         expect(supplyCard).not.toBeNull();
+        hand!.getBoundingClientRect = () => new DOMRect(280, 360, 192, 178);
         supplyCard!.getBoundingClientRect = () => new DOMRect(100, 120, 84, 168);
 
         fireDragStart(supplyButton!, { clientX: 112, clientY: 146, dataTransfer });
         await waitFor(() => expect(supplySource).toHaveClass("is-dragging-source"));
-        fireDrop(hand!, { clientX: 210, clientY: 220, dataTransfer });
+        fireDrop(hand!, { clientX: 300, clientY: 390, dataTransfer });
         const flyingCard = await screen.findByLabelText("drop supply card to hand");
         expect(flyingCard).toHaveStyle({
-            "--lunar-fly-from-x": "240px",
-            "--lunar-fly-from-y": "278px"
+            "--lunar-fly-from-x": "330px",
+            "--lunar-fly-from-y": "448px"
         });
 
         await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
@@ -347,6 +350,487 @@ describe("lunarBaseGameEntry", () => {
                 body: JSON.stringify({ type: "takeSupply", slotIndex: 0, expectedVersion: 1 })
             })
         ));
+    });
+
+    it("shows a snap rectangle when a supply card can be dropped into the viewer hand", async () => {
+        servedGame = lunarBaseGame({
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+        const dataTransfer = dragDataTransfer();
+
+        render(<PlayScreen />);
+        const supplyButton = (await screen.findByText("Supply Rover")).closest("[role=button]");
+        const hand = document.querySelector<HTMLElement>(".lunar-hand");
+        const supplyCard = supplyButton?.querySelector<HTMLElement>(".lunar-card");
+        expect(supplyButton).not.toBeNull();
+        expect(hand).not.toBeNull();
+        expect(supplyCard).not.toBeNull();
+        hand!.getBoundingClientRect = () => new DOMRect(280, 360, 192, 178);
+        supplyCard!.getBoundingClientRect = () => new DOMRect(100, 120, 84, 168);
+
+        fireDragStart(supplyButton!, { clientX: 112, clientY: 146, dataTransfer });
+        fireDragOver(hand!, { clientX: 300, clientY: 390, dataTransfer });
+
+        const preview = document.querySelector<HTMLElement>(".lunar-drag-preview");
+        expect(preview).not.toBeNull();
+        expect(preview).toHaveTextContent("Supply Rover");
+        expect(preview).toHaveStyle({
+            "--lunar-drag-preview-x": "330px",
+            "--lunar-drag-preview-y": "448px"
+        });
+        expectDropSnap(new DOMRect(280, 360, 84, 168));
+        fireDragEnd(supplyButton!, { clientX: 300, clientY: 390, dataTransfer });
+    });
+
+    it("keeps the table scroll position when dropping a top-row supply card", async () => {
+        servedGame = lunarBaseGame({
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+        const dataTransfer = dragDataTransfer();
+
+        render(<PlayScreen />);
+        const supplyButton = (await screen.findByText("Supply Rover")).closest("[role=button]");
+        const hand = document.querySelector<HTMLElement>(".lunar-hand");
+        const scroll = document.querySelector<HTMLElement>(".lunar-table-scroll");
+        const supplyCard = supplyButton?.querySelector<HTMLElement>(".lunar-card");
+        expect(supplyButton).not.toBeNull();
+        expect(hand).not.toBeNull();
+        expect(scroll).not.toBeNull();
+        expect(supplyCard).not.toBeNull();
+        hand!.getBoundingClientRect = () => new DOMRect(280, 360, 192, 178);
+        supplyCard!.getBoundingClientRect = () => new DOMRect(100, 120, 84, 168);
+        let scrollLeft = 18;
+        let scrollTop = 96;
+        Object.defineProperties(scroll!, {
+            scrollLeft: {
+                get: () => scrollLeft,
+                set: (value: number) => {
+                    scrollLeft = value;
+                },
+                configurable: true
+            },
+            scrollTop: {
+                get: () => scrollTop,
+                set: (value: number) => {
+                    scrollTop = value;
+                },
+                configurable: true
+            }
+        });
+        vi.useFakeTimers();
+
+        fireDragStart(supplyButton!, { clientX: 112, clientY: 146, dataTransfer });
+        fireDragOver(hand!, { clientX: 300, clientY: 390, dataTransfer });
+        fireDrop(hand!, { clientX: 300, clientY: 390, dataTransfer });
+        scrollTop = 0;
+        fireEvent.scroll(scroll!);
+
+        expect(scrollLeft).toBe(18);
+        expect(scrollTop).toBe(96);
+
+        act(() => {
+            vi.advanceTimersByTime(300);
+        });
+        scrollTop = 0;
+        fireEvent.scroll(scroll!);
+
+        expect(scrollTop).toBe(0);
+    });
+
+    it("keeps the table scroll position when drag start reveals a partially clipped source card", async () => {
+        servedGame = lunarBaseGame({
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+        const dataTransfer = dragDataTransfer();
+
+        render(<PlayScreen />);
+        const supplyButton = (await screen.findByText("Supply Rover")).closest("[role=button]");
+        const scroll = document.querySelector<HTMLElement>(".lunar-table-scroll");
+        const supplyCard = supplyButton?.querySelector<HTMLElement>(".lunar-card");
+        expect(supplyButton).not.toBeNull();
+        expect(scroll).not.toBeNull();
+        expect(supplyCard).not.toBeNull();
+        supplyCard!.getBoundingClientRect = () => new DOMRect(100, -36, 84, 168);
+        scroll!.getBoundingClientRect = () => new DOMRect(0, 0, 900, 700);
+        let scrollLeft = 24;
+        let scrollTop = 96;
+        Object.defineProperties(scroll!, {
+            scrollLeft: {
+                get: () => scrollLeft,
+                set: (value: number) => {
+                    scrollLeft = value;
+                },
+                configurable: true
+            },
+            scrollTop: {
+                get: () => scrollTop,
+                set: (value: number) => {
+                    scrollTop = value;
+                },
+                configurable: true
+            },
+            scrollWidth: { value: 1200, configurable: true },
+            scrollHeight: { value: 900, configurable: true },
+            clientWidth: { value: 900, configurable: true },
+            clientHeight: { value: 700, configurable: true }
+        });
+        dataTransfer.setDragImage.mockImplementation(() => {
+            scrollTop = 0;
+        });
+
+        fireDragStart(supplyButton!, { clientX: 112, clientY: 18, dataTransfer });
+
+        expect(scrollLeft).toBe(24);
+        expect(scrollTop).toBe(96);
+        fireDragEnd(supplyButton!, { clientX: 112, clientY: 18, dataTransfer });
+    });
+
+    it("keeps the table scroll position when pressing a partially clipped draggable card", async () => {
+        servedGame = lunarBaseGame({
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        const supplyButton = (await screen.findByText("Supply Rover")).closest("[role=button]");
+        const scroll = document.querySelector<HTMLElement>(".lunar-table-scroll");
+        expect(supplyButton).not.toBeNull();
+        expect(scroll).not.toBeNull();
+        let scrollLeft = 24;
+        let scrollTop = 96;
+        Object.defineProperties(scroll!, {
+            scrollLeft: {
+                get: () => scrollLeft,
+                set: (value: number) => {
+                    scrollLeft = value;
+                },
+                configurable: true
+            },
+            scrollTop: {
+                get: () => scrollTop,
+                set: (value: number) => {
+                    scrollTop = value;
+                },
+                configurable: true
+            }
+        });
+        vi.useFakeTimers();
+
+        fireEvent.pointerDown(supplyButton!, { clientX: 112, clientY: 18 });
+        scrollTop = 0;
+        act(() => {
+            vi.runOnlyPendingTimers();
+        });
+
+        expect(scrollLeft).toBe(24);
+        expect(scrollTop).toBe(96);
+    });
+
+    it("keeps restoring a clipped card press if the browser scrolls after the initial press", async () => {
+        servedGame = lunarBaseGame({
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        const supplyButton = (await screen.findByText("Supply Rover")).closest("[role=button]");
+        const scroll = document.querySelector<HTMLElement>(".lunar-table-scroll");
+        expect(supplyButton).not.toBeNull();
+        expect(scroll).not.toBeNull();
+        let scrollLeft = 24;
+        let scrollTop = 96;
+        Object.defineProperties(scroll!, {
+            scrollLeft: {
+                get: () => scrollLeft,
+                set: (value: number) => {
+                    scrollLeft = value;
+                },
+                configurable: true
+            },
+            scrollTop: {
+                get: () => scrollTop,
+                set: (value: number) => {
+                    scrollTop = value;
+                },
+                configurable: true
+            }
+        });
+        vi.useFakeTimers();
+
+        fireEvent.pointerDown(supplyButton!, { clientX: 112, clientY: 18 });
+        act(() => {
+            vi.runOnlyPendingTimers();
+        });
+
+        scrollTop = 0;
+        fireEvent.scroll(scroll!);
+
+        expect(scrollLeft).toBe(24);
+        expect(scrollTop).toBe(96);
+
+        fireEvent.pointerUp(window);
+        scrollTop = 0;
+        fireEvent.scroll(scroll!);
+
+        expect(scrollTop).toBe(0);
+    });
+
+    it("keeps native drag available while restoring focus scroll from a clipped draggable card", async () => {
+        servedGame = lunarBaseGame({
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        const supplyButton = (await screen.findByText("Supply Rover")).closest("[role=button]");
+        const scroll = document.querySelector<HTMLElement>(".lunar-table-scroll");
+        expect(supplyButton).not.toBeNull();
+        expect(scroll).not.toBeNull();
+        let scrollLeft = 24;
+        let scrollTop = 96;
+        Object.defineProperties(scroll!, {
+            scrollLeft: {
+                get: () => scrollLeft,
+                set: (value: number) => {
+                    scrollLeft = value;
+                },
+                configurable: true
+            },
+            scrollTop: {
+                get: () => scrollTop,
+                set: (value: number) => {
+                    scrollTop = value;
+                },
+                configurable: true
+            }
+        });
+        vi.useFakeTimers();
+
+        const event = new MouseEvent("mousedown", { bubbles: true, cancelable: true });
+        fireEvent(supplyButton!, event);
+        expect(event.defaultPrevented).toBe(false);
+
+        scrollTop = 0;
+        fireEvent.focus(supplyButton!);
+        act(() => {
+            vi.runOnlyPendingTimers();
+        });
+
+        expect(scrollLeft).toBe(24);
+        expect(scrollTop).toBe(96);
+    });
+
+    it("restores the table scroll when clicking a card whose center is outside the viewport", async () => {
+        servedGame = lunarBaseGame({
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        const supplyButton = (await screen.findByText("Supply Rover")).closest("[role=button]");
+        const scroll = document.querySelector<HTMLElement>(".lunar-table-scroll");
+        const supplyCard = supplyButton?.querySelector<HTMLElement>(".lunar-card");
+        expect(supplyButton).not.toBeNull();
+        expect(scroll).not.toBeNull();
+        expect(supplyCard).not.toBeNull();
+        supplyCard!.getBoundingClientRect = () => new DOMRect(100, -96, 84, 168);
+        let scrollLeft = 24;
+        let scrollTop = 96;
+        Object.defineProperties(scroll!, {
+            scrollLeft: {
+                get: () => scrollLeft,
+                set: (value: number) => {
+                    scrollLeft = value;
+                },
+                configurable: true
+            },
+            scrollTop: {
+                get: () => scrollTop,
+                set: (value: number) => {
+                    scrollTop = value;
+                },
+                configurable: true
+            }
+        });
+        vi.useFakeTimers();
+
+        fireEvent.pointerDown(supplyButton!, { clientX: 112, clientY: 4 });
+        scrollTop = 0;
+        fireEvent.click(supplyButton!, { clientX: 112, clientY: 4 });
+        act(() => {
+            vi.runOnlyPendingTimers();
+        });
+
+        expect(scrollLeft).toBe(24);
+        expect(scrollTop).toBe(96);
+    });
+
+    it("does not make the discard pile mouse click focus-scroll the table", async () => {
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        const discard = await screen.findByRole("button", { name: "Empty discard pile" });
+        const scroll = document.querySelector<HTMLElement>(".lunar-table-scroll");
+        expect(scroll).not.toBeNull();
+        expect(discard).toHaveAttribute("tabindex", "-1");
+        let scrollTop = 96;
+        Object.defineProperties(scroll!, {
+            scrollTop: {
+                get: () => scrollTop,
+                set: (value: number) => {
+                    scrollTop = value;
+                },
+                configurable: true
+            }
+        });
+        vi.useFakeTimers();
+
+        fireEvent.pointerDown(discard, { clientX: 112, clientY: 4 });
+        scrollTop = 0;
+        fireEvent.click(discard, { clientX: 112, clientY: 4 });
+        act(() => {
+            vi.runOnlyPendingTimers();
+        });
+
+        expect(scrollTop).toBe(96);
+    });
+
+    it("scales the dragged card preview with the table zoom", async () => {
+        servedGame = lunarBaseGame({
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+        const dataTransfer = dragDataTransfer();
+
+        render(<PlayScreen />);
+        await userEvent.click(await screen.findByRole("button", { name: "Zoom in" }));
+        const supplyButton = (await screen.findByText("Supply Rover")).closest("[role=button]");
+        const scroll = document.querySelector<HTMLElement>(".lunar-table-scroll");
+        const supplyCard = supplyButton?.querySelector<HTMLElement>(".lunar-card");
+        expect(supplyButton).not.toBeNull();
+        expect(scroll).not.toBeNull();
+        expect(supplyCard).not.toBeNull();
+        supplyCard!.getBoundingClientRect = () => new DOMRect(100, 120, 84, 168);
+        scroll!.getBoundingClientRect = () => new DOMRect(0, 0, 900, 700);
+
+        fireDragStart(supplyButton!, { clientX: 112, clientY: 146, dataTransfer });
+        fireDragOver(scroll!, { clientX: 300, clientY: 390, dataTransfer });
+
+        expect(document.querySelector<HTMLElement>(".lunar-drag-preview")).toHaveStyle({
+            "--lunar-card-half-width": "46.2px",
+            "--lunar-card-half-height": "92.4px",
+            "--lunar-card-scale": "1.1"
+        });
+        fireDragEnd(supplyButton!, { clientX: 300, clientY: 390, dataTransfer });
+    });
+
+    it("drops a supply card on the hand destination while showing the destination snap rectangle", async () => {
+        servedGame = lunarBaseGame({
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+        const dataTransfer = dragDataTransfer();
+
+        render(<PlayScreen />);
+        const supplyButton = (await screen.findByText("Supply Rover")).closest("[role=button]");
+        const hand = document.querySelector<HTMLElement>(".lunar-hand");
+        const supplyCard = supplyButton?.querySelector<HTMLElement>(".lunar-card");
+        expect(supplyButton).not.toBeNull();
+        expect(hand).not.toBeNull();
+        expect(supplyCard).not.toBeNull();
+        hand!.getBoundingClientRect = () => new DOMRect(280, 360, 192, 178);
+        supplyCard!.getBoundingClientRect = () => new DOMRect(100, 120, 84, 168);
+
+        fireDragStart(supplyButton!, { clientX: 112, clientY: 146, dataTransfer });
+        fireDragOver(hand!, { clientX: 320, clientY: 342, dataTransfer });
+
+        expectDropSnap(new DOMRect(280, 360, 84, 168));
+        fireDrop(hand!, { clientX: 320, clientY: 342, dataTransfer });
+
+        await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+            "/api/games/lunar-1/commands",
+            expect.objectContaining({
+                body: JSON.stringify({ type: "takeSupply", slotIndex: 0, expectedVersion: 1 })
+            })
+        ));
+    });
+
+    it("does not stretch the hand target past the destination snap rectangle", async () => {
+        servedGame = lunarBaseGame({
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+        const dataTransfer = dragDataTransfer();
+
+        render(<PlayScreen />);
+        const supplyButton = (await screen.findByText("Supply Rover")).closest("[role=button]");
+        const hand = document.querySelector<HTMLElement>(".lunar-hand");
+        const supplyCard = supplyButton?.querySelector<HTMLElement>(".lunar-card");
+        expect(supplyButton).not.toBeNull();
+        expect(hand).not.toBeNull();
+        expect(supplyCard).not.toBeNull();
+        hand!.getBoundingClientRect = () => new DOMRect(280, 360, 520, 178);
+        supplyCard!.getBoundingClientRect = () => new DOMRect(100, 120, 84, 168);
+
+        fireDragStart(supplyButton!, { clientX: 112, clientY: 146, dataTransfer });
+        fireDragOver(hand!, { clientX: 410, clientY: 342, dataTransfer });
+
+        expect(document.querySelector(".lunar-drop-snap")).toBeNull();
+        fireDrop(hand!, { clientX: 410, clientY: 342, dataTransfer });
+
+        expect(vi.mocked(fetch)).not.toHaveBeenCalledWith(
+            "/api/games/lunar-1/commands",
+            expect.objectContaining({
+                body: JSON.stringify({ type: "takeSupply", slotIndex: 0, expectedVersion: 1 })
+            })
+        );
+    });
+
+    it("keeps the hand snap rectangle inside the table scroll port near the viewport edge", async () => {
+        servedGame = lunarBaseGame({
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+        const dataTransfer = dragDataTransfer();
+
+        render(<PlayScreen />);
+        const supplyButton = (await screen.findByText("Supply Rover")).closest("[role=button]");
+        const lastHandButton = (await screen.findByText("Solar Lab")).closest("[role=button]");
+        const hand = document.querySelector<HTMLElement>(".lunar-hand");
+        const scroll = document.querySelector<HTMLElement>(".lunar-table-scroll");
+        const supplyCard = supplyButton?.querySelector<HTMLElement>(".lunar-card");
+        expect(supplyButton).not.toBeNull();
+        expect(lastHandButton).not.toBeNull();
+        expect(hand).not.toBeNull();
+        expect(scroll).not.toBeNull();
+        expect(supplyCard).not.toBeNull();
+        supplyCard!.getBoundingClientRect = () => new DOMRect(100, 120, 84, 168);
+        lastHandButton!.getBoundingClientRect = () => new DOMRect(820, 360, 84, 168);
+        hand!.getBoundingClientRect = () => new DOMRect(760, 340, 300, 210);
+        scroll!.getBoundingClientRect = () => new DOMRect(100, 50, 900, 700);
+        Object.defineProperties(scroll!, {
+            scrollLeft: { value: 20, configurable: true },
+            scrollTop: { value: 30, configurable: true },
+            clientWidth: { value: 880, configurable: true },
+            clientHeight: { value: 680, configurable: true }
+        });
+
+        fireDragStart(supplyButton!, { clientX: 112, clientY: 146, dataTransfer });
+        fireDragOver(scroll!, { clientX: 924, clientY: 386, dataTransfer });
+
+        const snap = document.querySelector<HTMLElement>(".lunar-drop-snap");
+        expect(snap).not.toBeNull();
+        expect(scroll!.contains(snap)).toBe(true);
+        expect(snap).toHaveStyle({
+            left: "832px",
+            top: "340px",
+            width: "84px",
+            height: "168px"
+        });
+        fireDragEnd(supplyButton!, { clientX: 924, clientY: 386, dataTransfer });
     });
 
     it("opens supply click choices and sends the selected destination", async () => {
@@ -378,9 +862,35 @@ describe("lunarBaseGameEntry", () => {
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
 
         render(<PlayScreen />);
-        await userEvent.click(await screen.findByText("Supply Rover"));
+        await userEvent.click(await screen.findByRole("button", { name: "Zoom in" }));
+        const supplyButton = (await screen.findByText("Supply Rover")).closest("[role=button]");
+        const handButton = (await screen.findByText("Solar Lab")).closest("[role=button]");
+        const scroll = document.querySelector<HTMLElement>(".lunar-table-scroll");
+        expect(supplyButton).not.toBeNull();
+        expect(handButton).not.toBeNull();
+        expect(scroll).not.toBeNull();
+        supplyButton!.getBoundingClientRect = () => new DOMRect(300, 150, 84, 168);
+        handButton!.getBoundingClientRect = () => new DOMRect(640, 360, 84, 168);
+        scroll!.getBoundingClientRect = () => new DOMRect(100, 50, 900, 700);
+        Object.defineProperties(scroll!, {
+            scrollLeft: { value: 20, configurable: true },
+            scrollTop: { value: 30, configurable: true }
+        });
+
+        await userEvent.click(supplyButton!);
         await userEvent.click(await screen.findByRole("button", { name: "Hand" }));
 
+        const flyingCard = await screen.findByLabelText("click supply card to hand");
+        expect(scroll!.contains(flyingCard)).toBe(true);
+        expect(flyingCard).toHaveStyle({
+            "--lunar-fly-from-x": "262px",
+            "--lunar-fly-from-y": "214px",
+            "--lunar-fly-to-x": "694px",
+            "--lunar-fly-to-y": "424px",
+            "--lunar-card-half-width": "46.2px",
+            "--lunar-card-half-height": "92.4px",
+            "--lunar-card-scale": "1.1"
+        });
         await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
             "/api/games/lunar-1/commands",
             expect.objectContaining({
@@ -397,16 +907,17 @@ describe("lunarBaseGameEntry", () => {
         const dataTransfer = dragDataTransfer();
 
         render(<PlayScreen />);
-        const supplyButton = (await screen.findByText("Supply Rover")).closest("button");
+        const supplyButton = (await screen.findByText("Supply Rover")).closest("[role=button]");
         const supplySource = supplyButton as HTMLElement | null;
         const discard = screen.getByRole("button", { name: "Empty discard pile" });
         const supplyCard = supplyButton!.querySelector(".lunar-card");
         expect(supplySource).not.toBeNull();
         expect(supplyCard).not.toBeNull();
+        discard.getBoundingClientRect = () => new DOMRect(420, 120, 84, 168);
         supplyCard!.getBoundingClientRect = () => new DOMRect(100, 120, 84, 168);
 
         fireDragStart(supplyButton!, { clientX: 112, clientY: 146, dataTransfer });
-        fireDrop(discard, { clientX: 210, clientY: 220, dataTransfer });
+        fireDrop(discard, { clientX: 440, clientY: 160, dataTransfer });
 
         await waitFor(() => expect(supplySource).toHaveClass("is-animation-destination-hidden"));
         expect(await screen.findByLabelText("drop supply card to discard")).toBeInTheDocument();
@@ -414,6 +925,132 @@ describe("lunarBaseGameEntry", () => {
             "/api/games/lunar-1/commands",
             expect.objectContaining({
                 body: JSON.stringify({ type: "discardSupply", slotIndex: 0, expectedVersion: 1 })
+            })
+        ));
+    });
+
+    it("shows a snap rectangle when a supply card can be dropped on the discard pile", async () => {
+        servedGame = lunarBaseGame({
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+        const dataTransfer = dragDataTransfer();
+
+        render(<PlayScreen />);
+        const supplyButton = (await screen.findByText("Supply Rover")).closest("[role=button]");
+        const discard = screen.getByRole("button", { name: "Empty discard pile" });
+        const supplyCard = supplyButton?.querySelector<HTMLElement>(".lunar-card");
+        expect(supplyButton).not.toBeNull();
+        expect(supplyCard).not.toBeNull();
+        discard.getBoundingClientRect = () => new DOMRect(420, 120, 84, 168);
+        supplyCard!.getBoundingClientRect = () => new DOMRect(100, 120, 84, 168);
+
+        fireDragStart(supplyButton!, { clientX: 112, clientY: 146, dataTransfer });
+        fireDragOver(discard, { clientX: 440, clientY: 160, dataTransfer });
+
+        expectDropSnap(new DOMRect(420, 120, 84, 168));
+        fireDragEnd(supplyButton!, { clientX: 440, clientY: 160, dataTransfer });
+    });
+
+    it("does not snap to discard unless the dragged card center is inside the discard pile", async () => {
+        servedGame = lunarBaseGame({
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+        const dataTransfer = dragDataTransfer();
+
+        render(<PlayScreen />);
+        const supplyButton = (await screen.findByText("Supply Rover")).closest("[role=button]");
+        const discard = screen.getByRole("button", { name: "Empty discard pile" });
+        const supplyCard = supplyButton?.querySelector<HTMLElement>(".lunar-card");
+        expect(supplyButton).not.toBeNull();
+        expect(supplyCard).not.toBeNull();
+        discard.getBoundingClientRect = () => new DOMRect(420, 120, 84, 168);
+        supplyCard!.getBoundingClientRect = () => new DOMRect(100, 120, 84, 168);
+
+        fireDragStart(supplyButton!, { clientX: 180, clientY: 270, dataTransfer });
+        fireDragOver(discard, { clientX: 430, clientY: 130, dataTransfer });
+
+        expect(document.querySelector(".lunar-drop-snap")).toBeNull();
+        fireDrop(discard, { clientX: 430, clientY: 130, dataTransfer });
+
+        expect(vi.mocked(fetch)).not.toHaveBeenCalledWith(
+            "/api/games/lunar-1/commands",
+            expect.objectContaining({
+                body: JSON.stringify({ type: "discardSupply", slotIndex: 0, expectedVersion: 1 })
+            })
+        );
+    });
+
+    it("snaps to discard when the dragged card center is inside even if the pointer is outside", async () => {
+        servedGame = lunarBaseGame({
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+        const dataTransfer = dragDataTransfer();
+
+        render(<PlayScreen />);
+        const supplyButton = (await screen.findByText("Supply Rover")).closest("[role=button]");
+        const scroll = document.querySelector<HTMLElement>(".lunar-table-scroll");
+        const discard = screen.getByRole("button", { name: "Empty discard pile" });
+        const supplyCard = supplyButton?.querySelector<HTMLElement>(".lunar-card");
+        expect(supplyButton).not.toBeNull();
+        expect(scroll).not.toBeNull();
+        expect(supplyCard).not.toBeNull();
+        discard.getBoundingClientRect = () => new DOMRect(420, 120, 84, 168);
+        supplyCard!.getBoundingClientRect = () => new DOMRect(100, 120, 84, 168);
+
+        fireDragStart(supplyButton!, { clientX: 112, clientY: 146, dataTransfer });
+        fireDragOver(scroll!, { clientX: 420, clientY: 102, dataTransfer });
+
+        expectDropSnap(new DOMRect(420, 120, 84, 168));
+        fireDrop(scroll!, { clientX: 420, clientY: 102, dataTransfer });
+
+        await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+            "/api/games/lunar-1/commands",
+            expect.objectContaining({
+                body: JSON.stringify({ type: "discardSupply", slotIndex: 0, expectedVersion: 1 })
+            })
+        ));
+    });
+
+    it("drops a supply card into a crowded hand destination beyond the board surface", async () => {
+        servedGame = lunarBaseGame({
+            hand: [
+                { id: "module-1", type: "module", name: "Solar Lab", color: "blue", cardCost: ["blue"], connectors: { topRight: "gray", bottomRight: "gray" } },
+                { id: "module-2", type: "module", name: "Hydroponics", color: "yellow", cardCost: ["yellow"], connectors: { topRight: "gray", bottomRight: "gray" } }
+            ],
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+        const dataTransfer = dragDataTransfer();
+
+        render(<PlayScreen />);
+        const supplyButton = (await screen.findByText("Supply Rover")).closest("[role=button]");
+        const lastHandButton = (await screen.findByText("Hydroponics")).closest("[role=button]");
+        const scroll = document.querySelector<HTMLElement>(".lunar-table-scroll");
+        const surface = document.querySelector<HTMLElement>(".lunar-table-surface");
+        const supplyCard = supplyButton?.querySelector<HTMLElement>(".lunar-card");
+        expect(supplyButton).not.toBeNull();
+        expect(lastHandButton).not.toBeNull();
+        expect(scroll).not.toBeNull();
+        expect(surface).not.toBeNull();
+        expect(supplyCard).not.toBeNull();
+        supplyCard!.getBoundingClientRect = () => new DOMRect(100, 120, 84, 168);
+        lastHandButton!.getBoundingClientRect = () => new DOMRect(700, 360, 84, 168);
+        surface!.getBoundingClientRect = () => new DOMRect(28, 28, 360, 600);
+        scroll!.getBoundingClientRect = () => new DOMRect(0, 0, 1000, 700);
+
+        fireDragStart(supplyButton!, { clientX: 112, clientY: 146, dataTransfer });
+        fireDragOver(scroll!, { clientX: 804, clientY: 386, dataTransfer });
+
+        expectDropSnap(new DOMRect(792, 360, 84, 168));
+        fireDrop(scroll!, { clientX: 804, clientY: 386, dataTransfer });
+
+        await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+            "/api/games/lunar-1/commands",
+            expect.objectContaining({
+                body: JSON.stringify({ type: "takeSupply", slotIndex: 0, expectedVersion: 1 })
             })
         ));
     });
@@ -426,7 +1063,7 @@ describe("lunarBaseGameEntry", () => {
         const dataTransfer = dragDataTransfer();
 
         render(<PlayScreen />);
-        const supplyButton = (await screen.findByText("Supply Rover")).closest("button");
+        const supplyButton = (await screen.findByText("Supply Rover")).closest("[role=button]");
         const surface = document.querySelector<HTMLElement>(".lunar-table-surface");
         const supplySource = supplyButton as HTMLElement | null;
         const supplyCard = supplyButton?.querySelector<HTMLElement>(".lunar-card");
@@ -439,7 +1076,8 @@ describe("lunarBaseGameEntry", () => {
         supplyCard!.getBoundingClientRect = () => new DOMRect(100, 120, 84, 168);
 
         fireDragStart(supplyButton!, { clientX: 112, clientY: 146, dataTransfer });
-        fireDrop(surface!, { clientX: 210, clientY: 220, dataTransfer });
+        fireDragOver(surface!, { clientX: 210, clientY: 220, dataTransfer });
+        fireDrop(surface!, { clientX: 0, clientY: 0, dataTransfer });
 
         const flyingCard = await screen.findByLabelText("return supply card to supply");
         expect(flyingCard).toHaveStyle({
@@ -448,6 +1086,101 @@ describe("lunarBaseGameEntry", () => {
             "--lunar-fly-to-x": "142px",
             "--lunar-fly-to-y": "204px"
         });
+    });
+
+    it("continues dragging over empty table space beyond the content surface", async () => {
+        servedGame = lunarBaseGame({
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+        const dataTransfer = dragDataTransfer();
+
+        render(<PlayScreen />);
+        const supplyButton = (await screen.findByText("Supply Rover")).closest("[role=button]");
+        const scroll = document.querySelector<HTMLElement>(".lunar-table-scroll");
+        const surface = document.querySelector<HTMLElement>(".lunar-table-surface");
+        const supplyCard = supplyButton?.querySelector<HTMLElement>(".lunar-card");
+        expect(supplyButton).not.toBeNull();
+        expect(scroll).not.toBeNull();
+        expect(surface).not.toBeNull();
+        expect(supplyCard).not.toBeNull();
+        supplyCard!.getBoundingClientRect = () => new DOMRect(100, 120, 84, 168);
+        surface!.getBoundingClientRect = () => new DOMRect(28, 28, 360, 600);
+        scroll!.getBoundingClientRect = () => new DOMRect(0, 0, 900, 700);
+
+        fireDragStart(supplyButton!, { clientX: 112, clientY: 146, dataTransfer });
+        fireDragOver(scroll!, { clientX: 760, clientY: 220, dataTransfer });
+
+        const preview = document.querySelector<HTMLElement>(".lunar-drag-preview");
+        expect(preview).not.toBeNull();
+        expect(preview).toHaveStyle({
+            "--lunar-drag-preview-x": "790px",
+            "--lunar-drag-preview-y": "278px"
+        });
+        fireDragEnd(supplyButton!, { clientX: 760, clientY: 220, dataTransfer });
+    });
+
+    it("keeps the drag preview in the table scroll port at the scrollbar gutter", async () => {
+        servedGame = lunarBaseGame({
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+        const dataTransfer = dragDataTransfer();
+
+        render(<PlayScreen />);
+        const supplyButton = (await screen.findByText("Supply Rover")).closest("[role=button]");
+        const scroll = document.querySelector<HTMLElement>(".lunar-table-scroll");
+        const supplyCard = supplyButton?.querySelector<HTMLElement>(".lunar-card");
+        expect(supplyButton).not.toBeNull();
+        expect(scroll).not.toBeNull();
+        expect(supplyCard).not.toBeNull();
+        supplyCard!.getBoundingClientRect = () => new DOMRect(100, 120, 84, 168);
+        scroll!.getBoundingClientRect = () => new DOMRect(0, 0, 900, 700);
+        Object.defineProperties(scroll!, {
+            clientWidth: { value: 880, configurable: true },
+            clientHeight: { value: 680, configurable: true }
+        });
+
+        fireDragStart(supplyButton!, { clientX: 112, clientY: 146, dataTransfer });
+        fireDragOver(scroll!, { clientX: 760, clientY: 220, dataTransfer });
+        expect(document.querySelector(".lunar-drag-preview")).not.toBeNull();
+
+        fireDragOver(scroll!, { clientX: 895, clientY: 220, dataTransfer });
+
+        const preview = document.querySelector<HTMLElement>(".lunar-drag-preview");
+        expect(preview).not.toBeNull();
+        expect(scroll!.contains(preview)).toBe(true);
+        expect(preview).toHaveStyle({
+            "--lunar-drag-preview-x": "925px",
+            "--lunar-drag-preview-y": "278px"
+        });
+        fireDragEnd(supplyButton!, { clientX: 895, clientY: 220, dataTransfer });
+    });
+
+    it("only starts one return animation when an invalid drop is followed by drag end", async () => {
+        servedGame = lunarBaseGame({
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+        const dataTransfer = dragDataTransfer();
+
+        render(<PlayScreen />);
+        const supplyButton = (await screen.findByText("Supply Rover")).closest("[role=button]");
+        const surface = document.querySelector<HTMLElement>(".lunar-table-surface");
+        const supplyCard = supplyButton?.querySelector<HTMLElement>(".lunar-card");
+        expect(supplyButton).not.toBeNull();
+        expect(surface).not.toBeNull();
+        expect(supplyCard).not.toBeNull();
+        supplyButton!.getBoundingClientRect = () => new DOMRect(100, 120, 84, 168);
+        supplyCard!.getBoundingClientRect = () => new DOMRect(100, 120, 84, 168);
+
+        fireDragStart(supplyButton!, { clientX: 112, clientY: 146, dataTransfer });
+        fireDragOver(surface!, { clientX: 210, clientY: 220, dataTransfer });
+        fireDrop(surface!, { clientX: 0, clientY: 0, dataTransfer });
+        fireDragEnd(supplyButton!, { clientX: 0, clientY: 0, dataTransfer });
+
+        expect(await screen.findByLabelText("return supply card to supply")).toBeInTheDocument();
+        expect(screen.getAllByLabelText("return supply card to supply")).toHaveLength(1);
     });
 
     it("keeps a card back in the stock source when dragging with several stock cards left", async () => {
@@ -462,18 +1195,40 @@ describe("lunarBaseGameEntry", () => {
         expect(stockCard).not.toHaveClass("is-empty");
         const hand = document.querySelector<HTMLElement>(".lunar-hand");
         expect(hand).not.toBeNull();
+        hand!.getBoundingClientRect = () => new DOMRect(280, 360, 192, 178);
         stockCard!.getBoundingClientRect = () => new DOMRect(80, 90, 84, 168);
 
         fireDragStart(stockButton, { clientX: 98, clientY: 124, dataTransfer });
 
         await waitFor(() => expect(stockCard).toHaveClass("is-back"));
         expect(stockCard).not.toHaveClass("is-empty");
-        fireDrop(hand!, { clientX: 240, clientY: 260, dataTransfer });
+        fireDrop(hand!, { clientX: 300, clientY: 390, dataTransfer });
         const flyingCard = await screen.findByLabelText("drop stock card to hand");
         expect(flyingCard).toHaveStyle({
-            "--lunar-fly-from-x": "264px",
-            "--lunar-fly-from-y": "310px"
+            "--lunar-fly-from-x": "324px",
+            "--lunar-fly-from-y": "440px"
         });
+    });
+
+    it("shows a snap rectangle when a stock card can be dropped into the viewer hand", async () => {
+        servedGame = lunarBaseGame({ stockCount: 3 });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+        const dataTransfer = dragDataTransfer();
+
+        render(<PlayScreen />);
+        const stockButton = await screen.findByRole("button", { name: "Stock, 3 cards" });
+        const stockCard = stockButton.querySelector<HTMLElement>(".lunar-card");
+        const hand = document.querySelector<HTMLElement>(".lunar-hand");
+        expect(stockCard).not.toBeNull();
+        expect(hand).not.toBeNull();
+        hand!.getBoundingClientRect = () => new DOMRect(280, 360, 192, 178);
+        stockCard!.getBoundingClientRect = () => new DOMRect(80, 90, 84, 168);
+
+        fireDragStart(stockButton, { clientX: 98, clientY: 124, dataTransfer });
+        fireDragOver(hand!, { clientX: 300, clientY: 390, dataTransfer });
+
+        expectDropSnap(new DOMRect(280, 360, 84, 168));
+        fireDragEnd(stockButton, { clientX: 300, clientY: 390, dataTransfer });
     });
 
     it("returns an invalid stock drag to the stock source rect", async () => {
@@ -527,7 +1282,7 @@ describe("lunarBaseGameEntry", () => {
         const dataTransfer = dragDataTransfer();
 
         render(<PlayScreen />);
-        const cardButton = (await screen.findByText("Solar Lab")).closest("button");
+        const cardButton = (await screen.findByText("Solar Lab")).closest("[role=button]");
         const surface = document.querySelector<HTMLElement>(".lunar-table-surface");
         expect(cardButton).not.toBeNull();
         expect(surface).not.toBeNull();
@@ -536,20 +1291,9 @@ describe("lunarBaseGameEntry", () => {
         cardButton!.getBoundingClientRect = () => new DOMRect(30, 400, 84, 168);
         cardElement!.getBoundingClientRect = () => new DOMRect(30, 400, 84, 168);
 
-        const dragStartEvent = new Event("dragstart", { bubbles: true, cancelable: true });
-        Object.defineProperties(dragStartEvent, {
-            clientX: { value: 54 },
-            clientY: { value: 430 },
-            dataTransfer: { value: dataTransfer }
-        });
-        fireEvent(cardButton!, dragStartEvent);
-        const dropEvent = new Event("drop", { bubbles: true, cancelable: true });
-        Object.defineProperties(dropEvent, {
-            clientX: { value: 300 },
-            clientY: { value: 220 },
-            dataTransfer: { value: dataTransfer }
-        });
-        fireEvent(surface!, dropEvent);
+        fireDragStart(cardButton!, { clientX: 54, clientY: 430, dataTransfer });
+        fireDragOver(surface!, { clientX: 300, clientY: 220, dataTransfer });
+        fireDragEnd(cardButton!, { clientX: 0, clientY: 0, dataTransfer });
 
         const flyingCard = await screen.findByLabelText("return hand card to hand");
         expect(flyingCard).toHaveStyle({
@@ -561,6 +1305,29 @@ describe("lunarBaseGameEntry", () => {
         expect(cardButton).toHaveClass("is-animation-destination-hidden");
     });
 
+    it("shows a snap rectangle when a hand card can be dropped on the discard pile", async () => {
+        servedGame = lunarBaseGame({
+            hand: [{ id: "influence-1", type: "influence", name: "Supply Pact" }]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+        const dataTransfer = dragDataTransfer();
+
+        render(<PlayScreen />);
+        const cardButton = (await screen.findByText("Supply Pact")).closest("[role=button]");
+        const discard = screen.getByRole("button", { name: "Empty discard pile" });
+        const cardElement = cardButton?.querySelector<HTMLElement>(".lunar-card");
+        expect(cardButton).not.toBeNull();
+        expect(cardElement).not.toBeNull();
+        discard.getBoundingClientRect = () => new DOMRect(420, 120, 84, 168);
+        cardElement!.getBoundingClientRect = () => new DOMRect(30, 400, 84, 168);
+
+        fireDragStart(cardButton!, { clientX: 54, clientY: 430, dataTransfer });
+        fireDragOver(discard, { clientX: 452, clientY: 164, dataTransfer });
+
+        expectDropSnap(new DOMRect(420, 120, 84, 168));
+        fireDragEnd(cardButton!, { clientX: 452, clientY: 164, dataTransfer });
+    });
+
     it("dims and disables an unaffordable hand module on the current player's turn", async () => {
         servedGame = lunarBaseGame({
             credits: 0,
@@ -570,9 +1337,9 @@ describe("lunarBaseGameEntry", () => {
 
         render(<PlayScreen />);
         const card = await screen.findByText("Costly Lab");
-        const cardButton = card.closest("button");
+        const cardButton = card.closest("[role=button]");
         expect(cardButton).not.toBeNull();
-        expect(cardButton).toBeDisabled();
+        expect(cardButton).toHaveAttribute("aria-disabled", "true");
         expect(cardButton).toHaveClass("is-unplayable");
 
         fireEvent.click(cardButton!);
@@ -593,9 +1360,9 @@ describe("lunarBaseGameEntry", () => {
 
         render(<PlayScreen />);
 
-        const cardButton = (await screen.findByText("Blocked Lab")).closest("button");
+        const cardButton = (await screen.findByText("Blocked Lab")).closest("[role=button]");
         expect(cardButton).not.toBeNull();
-        expect(cardButton).toBeDisabled();
+        expect(cardButton).toHaveAttribute("aria-disabled", "true");
         expect(cardButton).toHaveClass("is-unplayable");
     });
 
@@ -605,9 +1372,9 @@ describe("lunarBaseGameEntry", () => {
 
         render(<PlayScreen />);
 
-        const cardButton = (await screen.findByText("Solar Lab")).closest("button");
+        const cardButton = (await screen.findByText("Solar Lab")).closest("[role=button]");
         expect(cardButton).not.toBeNull();
-        expect(cardButton).toBeDisabled();
+        expect(cardButton).toHaveAttribute("aria-disabled", "true");
         expect(cardButton).not.toHaveClass("is-unplayable");
     });
 
@@ -681,7 +1448,7 @@ describe("lunarBaseGameEntry", () => {
 
         render(<PlayScreen />);
         const cardText = await screen.findByText("Solar Lab");
-        const cardButton = cardText.closest("button");
+        const cardButton = cardText.closest("[role=button]");
         const board = document.querySelector<HTMLElement>(".lunar-board");
         expect(cardButton).not.toBeNull();
         expect(board).not.toBeNull();
@@ -712,7 +1479,7 @@ describe("lunarBaseGameEntry", () => {
 
         render(<PlayScreen />);
         const cardText = await screen.findByText("Solar Lab");
-        const cardButton = cardText.closest("button");
+        const cardButton = cardText.closest("[role=button]");
         const cardElement = cardButton?.querySelector<HTMLElement>(".lunar-card");
         const board = document.querySelector<HTMLElement>(".lunar-board");
         expect(cardButton).not.toBeNull();
@@ -744,7 +1511,7 @@ describe("lunarBaseGameEntry", () => {
 
         render(<PlayScreen />);
         const cardText = await screen.findByText("Solar Lab");
-        const cardButton = cardText.closest("button");
+        const cardButton = cardText.closest("[role=button]");
         const cardElement = cardButton?.querySelector<HTMLElement>(".lunar-card");
         const board = document.querySelector<HTMLElement>(".lunar-board");
         const surface = document.querySelector<HTMLElement>(".lunar-table-surface");
@@ -763,6 +1530,10 @@ describe("lunarBaseGameEntry", () => {
         fireDragOver(surface!, { clientX: 84, clientY: 42, dataTransfer });
 
         expect(document.querySelector(".lunar-board-hover.horizontal")).toBeInTheDocument();
+        expect(document.querySelector<HTMLElement>(".lunar-drag-preview")).toHaveStyle({
+            "--lunar-drag-preview-x": "84px",
+            "--lunar-drag-preview-y": "42px"
+        });
 
         fireDrop(surface!, { clientX: 84, clientY: 42, dataTransfer });
 
@@ -775,7 +1546,7 @@ describe("lunarBaseGameEntry", () => {
         ));
     });
 
-    it("normalizes a selected module back to zero rotation after a full spin", async () => {
+    it("normalizes a selected module back to negative ninety rotation after passing 270 degrees", async () => {
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
 
         render(<PlayScreen />);
@@ -786,16 +1557,15 @@ describe("lunarBaseGameEntry", () => {
         fireEvent.click(card);
         fireEvent.click(card);
         fireEvent.click(card);
-        fireEvent.click(card);
 
         const cardElement = card.closest(".lunar-card");
-        expect(cardElement).toHaveStyle({ "--lunar-card-rotation": "360deg" });
+        expect(cardElement).toHaveStyle({ "--lunar-card-rotation": "270deg" });
 
         act(() => {
             vi.advanceTimersByTime(500);
         });
 
-        expect(cardElement).toHaveStyle({ "--lunar-card-rotation": "0deg" });
+        expect(cardElement).toHaveStyle({ "--lunar-card-rotation": "-90deg" });
     });
 
     it("keeps rapid rotations smooth and snaps back instantly on deselect", async () => {
@@ -844,11 +1614,11 @@ describe("lunarBaseGameEntry", () => {
         board!.getBoundingClientRect = () => new DOMRect(0, 0, 336, 336);
 
         fireEvent.click(card);
-        expect(card.closest("button")).toHaveClass("is-selected");
+        expect(card.closest("[role=button]")).toHaveClass("is-selected");
 
         fireEvent.click(board!, { clientX: 300, clientY: 300 });
 
-        expect(card.closest("button")).not.toHaveClass("is-selected");
+        expect(card.closest("[role=button]")).not.toHaveClass("is-selected");
     });
 
     it("removes the manual end game button", async () => {
@@ -886,7 +1656,7 @@ describe("lunarBaseGameEntry", () => {
         expect(screen.queryByText("(Current player)")).not.toBeInTheDocument();
         expect(screen.getByText("Ben Habitat")).toBeInTheDocument();
         expect(screen.getAllByText("Influences in hand: 0/4")).toHaveLength(2);
-        expect(screen.getByText("Solar Lab").closest("button")).toBeDisabled();
+        expect(screen.getByText("Solar Lab").closest("[role=button]")).toHaveAttribute("aria-disabled", "true");
         expect(screen.getAllByRole("button", { name: "Reveal other station side" })).toHaveLength(2);
         expect(screen.queryByRole("button", { name: "Flip station" })).not.toBeInTheDocument();
     });
@@ -1006,6 +1776,30 @@ const fireDrop = (
         dataTransfer: { value: dataTransfer }
     });
     fireEvent(element, event);
+};
+
+const fireDragEnd = (
+    element: Element,
+    { clientX, clientY, dataTransfer }: { clientX: number; clientY: number; dataTransfer: ReturnType<typeof dragDataTransfer> }
+) => {
+    const event = new Event("dragend", { bubbles: true, cancelable: true });
+    Object.defineProperties(event, {
+        clientX: { value: clientX },
+        clientY: { value: clientY },
+        dataTransfer: { value: dataTransfer }
+    });
+    fireEvent(element, event);
+};
+
+const expectDropSnap = (rect: DOMRect) => {
+    const snap = document.querySelector<HTMLElement>(".lunar-drop-snap");
+    expect(snap).not.toBeNull();
+    expect(snap).toHaveStyle({
+        left: `${rect.left}px`,
+        top: `${rect.top}px`,
+        width: `${rect.width}px`,
+        height: `${rect.height}px`
+    });
 };
 
 const lunarBaseGame = ({

@@ -54,8 +54,8 @@ The parent project has two child projects:
   - Exports `lunarBaseGameEntry` through the package entrypoint for the app-owned frontend shell.
   - Owns the Lunar Base create/play screen shell, player panels, command wiring, shared platform player-picker wiring for open seats, SSE loading, viewer-relative player ordering, current-turn hand playability dimming, supply click destination choices, supply/stock-to-hand dragging, supply-to-discard dragging, shared hand/supply movement animation setup, end-game popup/revealed-hand display, drag auto-scroll, and client-only card movement animation orchestration for hand, pile, supply, board movement, and station side flips.
   - Keeps animated command source cards hidden as soon as a pending command starts, so module cards played from hand stay hidden through the server-response gap and fly animation.
-  - Shares card drag setup, source hiding, invalid-drop return animation, and card-center coordinate tracking across hand, supply, and stock drags; module board snapping also accepts drag events from the surrounding player area when the dragged card center is near the board.
-  - Animates cancelled hand drags back to the actual hand-card rectangle and keeps flying cards below the shared app header layer.
+  - Shares card drag setup, source hiding, invalid-drop return animation, card-center coordinate tracking, destination snap rectangles, and scroll-port clipping across hand, supply, and stock drags; module board snapping also accepts drag events from the surrounding player area when the dragged card center is near the board.
+  - Preserves table scroll while starting and dropping partially visible card drags, animates cancelled hand drags back to the actual hand-card rectangle, and keeps flying cards below the shared app header layer.
 - `src/main/frontend/lunar-base-types.ts`
   - Owns Lunar Base frontend wire/state types and the shared Lunar Base palette reference.
 - `src/main/frontend/lunar-base-api.ts`

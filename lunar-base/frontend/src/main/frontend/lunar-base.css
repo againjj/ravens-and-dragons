@@ -123,9 +123,11 @@
 }
 
 .lunar-table-scroll {
+    position: relative;
     min-height: 0;
     min-width: 0;
     overflow: auto;
+    overflow-anchor: none;
     padding: 28px;
 }
 
@@ -215,7 +217,7 @@
 
 .lunar-supply-slot,
 .lunar-pile,
-.lunar-hand > button {
+.lunar-hand-card {
     border: 0;
     background: transparent;
     box-shadow: none;
@@ -229,12 +231,12 @@
     flex: 0 0 84px;
 }
 
-.lunar-supply-slot:disabled {
+.lunar-supply-slot[aria-disabled="true"] {
     cursor: default;
 }
 
-.lunar-supply-slot:disabled,
-.lunar-pile:disabled {
+.lunar-supply-slot[aria-disabled="true"],
+.lunar-pile[aria-disabled="true"] {
     color: inherit;
     opacity: 1;
     filter: none;
@@ -290,7 +292,7 @@
 
 .lunar-supply-slot,
 .lunar-pile,
-.lunar-hand > button {
+.lunar-hand-card {
     width: 84px;
     height: 168px;
     display: grid;
@@ -302,27 +304,27 @@
     overflow: visible;
 }
 
-.lunar-hand > button {
+.lunar-hand-card {
     flex: 0 0 84px;
 }
 
-.lunar-hand > button:disabled {
+.lunar-hand-card[aria-disabled="true"] {
     cursor: default;
     color: inherit;
     opacity: 1;
     filter: none;
 }
 
-.lunar-hand > button.is-selected {
+.lunar-hand-card.is-selected {
     z-index: 2;
 }
 
-.lunar-hand > button.is-dragging {
+.lunar-hand-card.is-dragging {
     opacity: 0;
     transition: none;
 }
 
-.lunar-hand > button.is-unplayable {
+.lunar-hand-card.is-unplayable {
     cursor: default;
     opacity: 0.42;
     filter: grayscale(0.45);
@@ -638,6 +640,17 @@
     pointer-events: none;
 }
 
+.lunar-drop-snap {
+    position: absolute;
+    z-index: 35;
+    box-sizing: border-box;
+    pointer-events: none;
+    border-radius: 6px;
+    background: rgba(34, 197, 94, 0.22);
+    outline: 3px solid rgba(34, 197, 94, 0.75);
+    outline-offset: 0;
+}
+
 .lunar-board-card > .lunar-card,
 .lunar-board-card > .lunar-flip-stage {
     position: absolute;
@@ -752,12 +765,23 @@
 }
 
 .lunar-flying-card {
-    position: fixed;
+    position: absolute;
     left: 0;
     top: 0;
     z-index: 900;
     pointer-events: none;
     animation: lunar-card-fly 0.5s ease both;
+    transform-origin: top left;
+}
+
+.lunar-drag-preview {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 850;
+    pointer-events: none;
+    transform: translate(calc(var(--lunar-drag-preview-x) - var(--lunar-card-half-width)), calc(var(--lunar-drag-preview-y) - var(--lunar-card-half-height))) scale(var(--lunar-card-scale));
+    transform-origin: top left;
 }
 
 .lunar-drag-image {
@@ -777,10 +801,10 @@
 
 @keyframes lunar-card-fly {
     from {
-        transform: translate(calc(var(--lunar-fly-from-x) - 42px), calc(var(--lunar-fly-from-y) - 84px));
+        transform: translate(calc(var(--lunar-fly-from-x) - var(--lunar-card-half-width)), calc(var(--lunar-fly-from-y) - var(--lunar-card-half-height))) scale(var(--lunar-card-scale));
     }
     to {
-        transform: translate(calc(var(--lunar-fly-to-x) - 42px), calc(var(--lunar-fly-to-y) - 84px));
+        transform: translate(calc(var(--lunar-fly-to-x) - var(--lunar-card-half-width)), calc(var(--lunar-fly-to-y) - var(--lunar-card-half-height))) scale(var(--lunar-card-scale));
     }
 }
 
