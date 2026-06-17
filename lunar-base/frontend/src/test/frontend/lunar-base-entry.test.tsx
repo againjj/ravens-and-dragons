@@ -8,12 +8,16 @@ import { setScaledDragImage } from "../../main/frontend/LunarBasePlayerBoard";
 import { createDragAutoScrollState, dragAutoScrollDelta } from "../../main/frontend/lunar-base-game-logic";
 
 let servedGame: Record<string, unknown>;
+let eventSourceListeners: Map<string, () => void>;
 
 describe("lunarBaseGameEntry", () => {
     beforeEach(() => {
         servedGame = lunarBaseGame();
+        eventSourceListeners = new Map();
         vi.stubGlobal("EventSource", class {
-            addEventListener = vi.fn();
+            addEventListener = vi.fn((event: string, listener: () => void) => {
+                eventSourceListeners.set(event, listener);
+            });
             close = vi.fn();
             onerror: (() => void) | null = null;
         });
@@ -1421,6 +1425,75 @@ describe("lunarBaseGameEntry", () => {
         );
     });
 
+    it("animates a remote supply discard from the supply slot to the discard pile", async () => {
+        servedGame = lunarBaseGame({
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        const supplyCard = await screen.findByText("Supply Rover");
+        supplyCard.closest<HTMLElement>("[data-lunar-animate]")!.getBoundingClientRect = () => new DOMRect(20, 30, 84, 168);
+        document.querySelector<HTMLElement>('[data-lunar-animate="discard"]')!.getBoundingClientRect = () => new DOMRect(220, 40, 84, 168);
+
+        servedGame = lunarBaseGame({
+            supply: [],
+            discardTop: { id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } },
+            discardCount: 1,
+            version: 2
+        });
+        await act(async () => {
+            eventSourceListeners.get("game")?.();
+        });
+
+        const flyingCard = await screen.findByLabelText("remote discard supply to discard");
+        expect(flyingCard).toHaveStyle({
+            "--lunar-fly-from-x": "62px",
+            "--lunar-fly-from-y": "114px",
+            "--lunar-fly-to-x": "262px",
+            "--lunar-fly-to-y": "124px"
+        });
+    });
+
+    it("animates a remote station flip", async () => {
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        expect(await screen.findAllByText("Terran Outpost")).toHaveLength(2);
+
+        vi.useFakeTimers();
+        servedGame = lunarBaseGame({ stationFlipped: true, version: 2 });
+        await act(async () => {
+            eventSourceListeners.get("game")?.();
+        });
+
+        expect(screen.getByText("The Oasis")).toBeInTheDocument();
+        expect(screen.getAllByText("Terran Outpost")).toHaveLength(2);
+
+        act(() => {
+            vi.advanceTimersByTime(500);
+        });
+
+        expect(screen.getByText("The Oasis")).toBeInTheDocument();
+        expect(screen.getAllByText("Terran Outpost")).toHaveLength(1);
+    });
+
+    it("animates a same-seat remote hand module play from the hand card to the board", async () => {
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        const handCard = await screen.findByText("Solar Lab");
+        handCard.closest<HTMLElement>("[data-lunar-animate]")!.getBoundingClientRect = () => new DOMRect(30, 400, 84, 168);
+
+        servedGame = { ...lunarBaseGameWithPlayedModule(), version: 2 };
+        await act(async () => {
+            eventSourceListeners.get("game")?.();
+        });
+
+        const flyingCard = await screen.findByLabelText("remote play module from hand to board");
+        expect(flyingCard).toBeInTheDocument();
+    });
+
     it("keeps a played hand module hidden while the play animation is pending", async () => {
         let resolveCommand: (response: Response) => void = () => {};
         const commandResponse = new Promise<Response>((resolve) => {
@@ -1803,20 +1876,23 @@ const expectDropSnap = (rect: DOMRect) => {
 };
 
 const lunarBaseGame = ({
+    version = 1,
     credits = 5,
     hand = [{ id: "module-1", type: "module", name: "Solar Lab", color: "blue", cardCost: ["blue", "yellow", "red", "gray", "red"], connectors: { topRight: "gray", bottomRight: "gray" }, colonists: 2, achievements: [3, 14] }],
     supply = [],
     stockCount = 0,
+    discardTop = null,
+    discardCount = 0,
     currentPlayerIndex = 0,
     viewerSeat = 0,
     stationFlipped = false,
     lifecycle = "active",
     endGameResult = null,
     revealedHands
-}: { credits?: number; hand?: Array<Record<string, unknown>>; supply?: Array<Record<string, unknown> | null>; stockCount?: number; currentPlayerIndex?: number; viewerSeat?: number; stationFlipped?: boolean; lifecycle?: string; endGameResult?: Record<string, unknown> | null; revealedHands?: Array<Array<Record<string, unknown>>> } = {}) => ({
+}: { version?: number; credits?: number; hand?: Array<Record<string, unknown>>; supply?: Array<Record<string, unknown> | null>; stockCount?: number; discardTop?: Record<string, unknown> | null; discardCount?: number; currentPlayerIndex?: number; viewerSeat?: number; stationFlipped?: boolean; lifecycle?: string; endGameResult?: Record<string, unknown> | null; revealedHands?: Array<Array<Record<string, unknown>>> } = {}) => ({
     id: "lunar-1",
     gameSlug: "lunar-base",
-    version: 1,
+    version,
     lifecycle,
     config: { playerCount: 2, useInfluences: false },
     seats: [
@@ -1873,8 +1949,8 @@ const lunarBaseGame = ({
     ],
     supply,
     stockCount,
-    discardTop: null,
-    discardCount: 0,
+    discardTop,
+    discardCount,
     endGameResult,
     message: null,
     viewer: {

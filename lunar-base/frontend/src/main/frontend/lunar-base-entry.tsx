@@ -155,6 +155,18 @@ const newBoardCards = (previous: LunarBaseGame, current: LunarBaseGame, playerIn
     return current.players[playerIndex]?.board.filter((card) => !previousCards.has(card.card.id)) ?? [];
 };
 
+const boardCardsById = (cards: LunarBaseBoardCard[]): Map<string, LunarBaseBoardCard> =>
+    new Map(cards.map((boardCard) => [boardCard.card.id, boardCard]));
+
+const handCardRect = (
+    game: LunarBaseGame,
+    playerIndex: number,
+    cardId: string,
+    layoutRects: Map<string, DOMRect>,
+    handAreaRects: Map<number, DOMRect>
+): DOMRect | null =>
+    layoutRects.get(`hand-${playerIndex}-${cardId}`) ?? handEndRect(game, playerIndex, layoutRects, handAreaRects);
+
 const readGameIdFromLocation = (): string | null => {
     const routeGameId = window.location.pathname.match(playRoutePattern)?.[1] ?? null;
     return routeGameId ? decodeURIComponent(routeGameId) : null;
@@ -328,6 +340,7 @@ const LunarBasePlayScreen = () => {
     const returningDragRef = useRef(false);
     const suppressedLayoutAnimations = useRef(new Set<string>());
     const commandAnimationPending = useRef(false);
+    const locallySubmittedVersion = useRef<number | null>(null);
     const dragAutoScrollState = useRef<DragAutoScrollState | null>(null);
     const dragAutoScrollFrame = useRef<number | null>(null);
     const lastDragPoint = useRef<{ x: number; y: number } | null>(null);
@@ -490,41 +503,21 @@ const LunarBasePlayScreen = () => {
             const oldDiscard = previousRects.get("discard");
             const currentHandAreaRects = handAreaRectsFromRefs(handAreaRefs.current);
             const removedSupply = removedSupplyCards(oldGame, game);
-            const viewerSeatForGame = game.viewer?.seatIndex ?? null;
-            game.players.forEach((player, playerIndex) => {
-                if (playerIndex === viewerSeatForGame) return;
-                const oldPlayer = oldGame.players[playerIndex];
-                if (!oldPlayer) return;
-                const previousHandEnd = handEndRect(oldGame, playerIndex, previousRects, previousHandAreaRects.current);
-                const currentHandEnd = handEndRect(game, playerIndex, currentRects, currentHandAreaRects);
-                const addedBoardCards = newBoardCards(oldGame, game, playerIndex);
-                if (addedBoardCards.length > 0 && previousHandEnd) {
-                    addedBoardCards.forEach((boardCard) => {
-                        const destination = currentRects.get(`board-${boardCard.card.id}`);
-                        if (!destination) return;
-                        const from = rectCenter(previousHandEnd);
-                        const to = rectCenter(destination);
-                        suppressedLayoutAnimations.current.add(`board-${boardCard.card.id}`);
-                        animateCard({
-                            annotation: "opponent play module from hand end to board",
-                            card: boardCard.card,
-                            rotation: boardCard.rotation,
-                            fromX: from.x,
-                            fromY: from.y,
-                            destination: { type: "boardCard", cardId: boardCard.card.id },
-                            hiddenDestinationKey: `board-${boardCard.card.id}`
-                        }, to.x, to.y);
-                    });
-                    return;
-                }
-                if (player.handCount < oldPlayer.handCount && game.discardTop && previousHandEnd) {
+            const skipInferredCardAnimations = locallySubmittedVersion.current === game.version;
+            if (!skipInferredCardAnimations) {
+                const discardedSupplyIndex = game.discardTop
+                    ? removedSupply.findIndex((card) => card.id === game.discardTop?.id)
+                    : -1;
+                if (discardedSupplyIndex >= 0) {
+                    const [discardedSupply] = removedSupply.splice(discardedSupplyIndex, 1);
+                    const source = previousRects.get(`supply-${discardedSupply.id}`);
                     const discard = currentRects.get("discard");
-                    if (discard) {
-                        const from = rectCenter(previousHandEnd);
+                    if (source && discard) {
+                        const from = rectCenter(source);
                         const to = rectCenter(discard);
                         animateCard({
-                            annotation: "opponent discard from hand end to discard",
-                            card: game.discardTop,
+                            annotation: "remote discard supply to discard",
+                            card: discardedSupply,
                             fromX: from.x,
                             fromY: from.y,
                             destination: { type: "discard" },
@@ -532,39 +525,90 @@ const LunarBasePlayScreen = () => {
                         }, to.x, to.y);
                         setDiscardAnimationPlaceholder(oldGame.discardTop);
                     }
-                    return;
                 }
-                if (player.handCount > oldPlayer.handCount && currentHandEnd) {
-                    const to = rectCenter(currentHandEnd);
-                    const supplyCard = removedSupply.shift();
-                    if (supplyCard) {
-                        const source = previousRects.get(`supply-${supplyCard.id}`);
-                        if (!source) return;
-                        const from = rectCenter(source);
-                        animateCard({
-                            annotation: "opponent take supply to hand end",
-                            card: supplyCard,
-                            fromX: from.x,
-                            fromY: from.y,
-                            destination: { type: "viewerHandEnd" },
-                            hiddenDestinationKey: handEndCardKey(game, playerIndex)
-                        }, to.x, to.y);
+                game.players.forEach((player, playerIndex) => {
+                    const oldPlayer = oldGame.players[playerIndex];
+                    if (!oldPlayer) return;
+                    const oldBoardCards = boardCardsById(oldPlayer.board);
+                    player.board.forEach((boardCard) => {
+                        const oldBoardCard = oldBoardCards.get(boardCard.card.id);
+                        if (!oldBoardCard || boardCard.card.type !== "station" || oldBoardCard.card.type !== "station") return;
+                        if (Boolean(oldBoardCard.card.flipped) !== Boolean(boardCard.card.flipped)) {
+                            animateStationFlip(boardCard.card.id, oldBoardCard.card, boardCard.card);
+                        }
+                    });
+                    const previousHandEnd = handEndRect(oldGame, playerIndex, previousRects, previousHandAreaRects.current);
+                    const currentHandEnd = handEndRect(game, playerIndex, currentRects, currentHandAreaRects);
+                    const addedBoardCards = newBoardCards(oldGame, game, playerIndex);
+                    if (addedBoardCards.length > 0) {
+                        addedBoardCards.forEach((boardCard) => {
+                            const source = handCardRect(oldGame, playerIndex, boardCard.card.id, previousRects, previousHandAreaRects.current);
+                            const destination = currentRects.get(`board-${boardCard.card.id}`);
+                            if (!source || !destination) return;
+                            const from = rectCenter(source);
+                            const to = rectCenter(destination);
+                            suppressedLayoutAnimations.current.add(`board-${boardCard.card.id}`);
+                            animateCard({
+                                annotation: "remote play module from hand to board",
+                                card: boardCard.card,
+                                rotation: boardCard.rotation,
+                                fromX: from.x,
+                                fromY: from.y,
+                                destination: { type: "boardCard", cardId: boardCard.card.id },
+                                hiddenDestinationKey: `board-${boardCard.card.id}`
+                            }, to.x, to.y);
+                        });
                         return;
                     }
-                    if (oldStock) {
-                        const from = rectCenter(oldStock);
-                        animateCard({
-                            annotation: "opponent draw stock to hand end",
-                            card: null,
-                            faceDown: true,
-                            fromX: from.x,
-                            fromY: from.y,
-                            destination: { type: "viewerHandEnd" },
-                            hiddenDestinationKey: handEndCardKey(game, playerIndex)
-                        }, to.x, to.y);
+                    if (player.handCount < oldPlayer.handCount && game.discardTop && previousHandEnd) {
+                        const discard = currentRects.get("discard");
+                        if (discard) {
+                            const from = rectCenter(previousHandEnd);
+                            const to = rectCenter(discard);
+                            animateCard({
+                                annotation: "remote discard from hand to discard",
+                                card: game.discardTop,
+                                fromX: from.x,
+                                fromY: from.y,
+                                destination: { type: "discard" },
+                                hiddenDestinationKey: "discard"
+                            }, to.x, to.y);
+                            setDiscardAnimationPlaceholder(oldGame.discardTop);
+                        }
+                        return;
                     }
-                }
-            });
+                    if (player.handCount > oldPlayer.handCount && currentHandEnd) {
+                        const to = rectCenter(currentHandEnd);
+                        const supplyCard = removedSupply.shift();
+                        if (supplyCard) {
+                            const source = previousRects.get(`supply-${supplyCard.id}`);
+                            if (!source) return;
+                            const from = rectCenter(source);
+                            animateCard({
+                                annotation: "remote take supply to hand",
+                                card: supplyCard,
+                                fromX: from.x,
+                                fromY: from.y,
+                                destination: { type: "viewerHandEnd" },
+                                hiddenDestinationKey: handEndCardKey(game, playerIndex)
+                            }, to.x, to.y);
+                            return;
+                        }
+                        if (oldStock) {
+                            const from = rectCenter(oldStock);
+                            animateCard({
+                                annotation: "remote draw stock to hand",
+                                card: null,
+                                faceDown: true,
+                                fromX: from.x,
+                                fromY: from.y,
+                                destination: { type: "viewerHandEnd" },
+                                hiddenDestinationKey: handEndCardKey(game, playerIndex)
+                            }, to.x, to.y);
+                        }
+                    }
+                });
+            }
             elements.forEach((element) => {
                 const key = element.dataset.lunarAnimate;
                 const current = key ? currentRects.get(key) : null;
@@ -587,6 +631,9 @@ const LunarBasePlayScreen = () => {
                 );
             });
             suppressedLayoutAnimations.current.clear();
+            if (skipInferredCardAnimations) {
+                locallySubmittedVersion.current = null;
+            }
         }
         previousGame.current = game;
     }, [game]);
@@ -626,6 +673,7 @@ const LunarBasePlayScreen = () => {
                                 boardCardRectAtPoint(animationDestination, animation.rotation, zoom)
                             );
                         }
+                        locallySubmittedVersion.current = updated.version;
                         setGame(updated);
                         setMessage(updated.message);
                         commandAnimationPending.current = false;
@@ -635,6 +683,7 @@ const LunarBasePlayScreen = () => {
                 }
                 commandAnimationPending.current = false;
                 captureLayoutSnapshot();
+                locallySubmittedVersion.current = updated.version;
                 setGame(updated);
                 setMessage(updated.message);
                 setIsSubmitting(false);
