@@ -1677,6 +1677,45 @@ describe("lunarBaseGameEntry", () => {
         expect(cardElement).toHaveStyle({ "--lunar-card-rotation": "0deg" });
     });
 
+    it("keeps a deselected rotated module fully visible while it resets", async () => {
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+        const animationFrames: FrameRequestCallback[] = [];
+        vi.stubGlobal("requestAnimationFrame", vi.fn((callback: FrameRequestCallback) => {
+            animationFrames.push(callback);
+            return animationFrames.length;
+        }));
+
+        render(<PlayScreen />);
+        const card = await screen.findByText("Solar Lab");
+
+        fireEvent.click(card);
+        fireEvent.click(card);
+
+        servedGame = lunarBaseGame({ credits: 0 });
+        await act(async () => {
+            eventSourceListeners.get("game")?.();
+        });
+
+        const handCard = card.closest(".lunar-hand-card");
+        expect(handCard).toHaveClass("is-selected");
+        expect(handCard).not.toHaveClass("is-unplayable");
+
+        fireEvent.click(document.querySelector<HTMLElement>(".lunar-table-surface")!);
+
+        expect(handCard).toHaveClass("is-rotation-resetting");
+        expect(handCard).not.toHaveClass("is-unplayable");
+
+        act(() => {
+            while (animationFrames.length > 0) {
+                animationFrames.shift()?.(0);
+            }
+        });
+
+        expect(handCard).not.toHaveClass("is-selected");
+        expect(handCard).toHaveClass("is-rotation-resetting");
+        expect(handCard).not.toHaveClass("is-unplayable");
+    });
+
     it("deselects a selected card when the board click does not hit a snap rectangle", async () => {
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
 
@@ -1692,6 +1731,64 @@ describe("lunarBaseGameEntry", () => {
         fireEvent.click(board!, { clientX: 300, clientY: 300 });
 
         expect(card.closest("[role=button]")).not.toHaveClass("is-selected");
+    });
+
+    it("deselects a selected card from empty scroll-port space outside the table surface", async () => {
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        const card = await screen.findByText("Solar Lab");
+        const scroll = document.querySelector<HTMLElement>(".lunar-table-scroll");
+        expect(scroll).not.toBeNull();
+
+        fireEvent.click(card);
+        expect(card.closest("[role=button]")).toHaveClass("is-selected");
+
+        fireEvent.click(scroll!);
+
+        expect(card.closest("[role=button]")).not.toHaveClass("is-selected");
+    });
+
+    it("deselects a selected card when clicking its surrounding hand-card space", async () => {
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        const card = await screen.findByText("Solar Lab");
+        const handCard = card.closest<HTMLElement>(".lunar-hand-card");
+        expect(handCard).not.toBeNull();
+
+        fireEvent.click(card);
+        expect(handCard).toHaveClass("is-selected");
+
+        fireEvent.click(handCard!);
+
+        expect(handCard).not.toHaveClass("is-selected");
+    });
+
+    it("deselects a selected card when clicking a disabled hand card", async () => {
+        servedGame = lunarBaseGame({
+            hand: [
+                { id: "module-1", type: "module", name: "Solar Lab", color: "blue", cardCost: ["blue"], connectors: { topRight: "gray", bottomRight: "gray" } },
+                { id: "module-expensive", type: "module", name: "Costly Lab", color: "blue", cardCost: ["blue", "yellow", "red", "gray", "red", "blue"], connectors: { topRight: "gray", bottomRight: "gray" } }
+            ]
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        const selectedCard = await screen.findByText("Solar Lab");
+        const disabledCard = await screen.findByText("Costly Lab");
+        const selectedHandCard = selectedCard.closest<HTMLElement>(".lunar-hand-card");
+        const disabledHandCard = disabledCard.closest<HTMLElement>(".lunar-hand-card");
+        expect(selectedHandCard).not.toBeNull();
+        expect(disabledHandCard).not.toBeNull();
+
+        fireEvent.click(selectedCard);
+        expect(selectedHandCard).toHaveClass("is-selected");
+        expect(disabledHandCard).toHaveClass("is-unplayable");
+
+        fireEvent.click(disabledCard);
+
+        expect(selectedHandCard).not.toHaveClass("is-selected");
     });
 
     it("removes the manual end game button", async () => {

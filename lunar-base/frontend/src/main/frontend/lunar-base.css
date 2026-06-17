@@ -315,7 +315,8 @@
     filter: none;
 }
 
-.lunar-hand-card.is-selected {
+.lunar-hand-card.is-selected,
+.lunar-hand-card.is-rotation-resetting {
     z-index: 2;
 }
 

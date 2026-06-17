@@ -320,6 +320,7 @@ const LunarBasePlayScreen = () => {
     const [hiddenAnimationDestinations, setHiddenAnimationDestinations] = useState<Set<string>>(() => new Set());
     const [discardAnimationPlaceholder, setDiscardAnimationPlaceholder] = useState<LunarBaseCard | null>(null);
     const [instantRotationCardIds, setInstantRotationCardIds] = useState<Set<string>>(() => new Set());
+    const [resettingRotationCardIds, setResettingRotationCardIds] = useState<Set<string>>(() => new Set());
     const [stationReveal, setStationReveal] = useState<StationRevealState | null>(null);
     const [stationFlipAnimations, setStationFlipAnimations] = useState<Map<string, StationFlipAnimation>>(() => new Map());
     const [supplyChoice, setSupplyChoice] = useState<{ slotIndex: number; card: LunarBaseCard; from: { x: number; y: number } } | null>(null);
@@ -789,6 +790,7 @@ const LunarBasePlayScreen = () => {
         const normalized: SelectedCard = { ...selected, visualRotation: normalizedVisualRotation(selected.visualRotation) };
         flushSync(() => {
             setInstantRotationCardIds((current) => new Set(current).add(selected.cardId));
+            setResettingRotationCardIds((current) => new Set(current).add(selected.cardId));
             selectedCardRef.current = normalized;
             setSelectedCard(normalized);
         });
@@ -800,7 +802,23 @@ const LunarBasePlayScreen = () => {
                 next.delete(selected.cardId);
                 return next;
             });
+            window.setTimeout(() => {
+                setResettingRotationCardIds((current) => {
+                    const next = new Set(current);
+                    next.delete(selected.cardId);
+                    return next;
+                });
+            }, cardAnimationDurationMs);
         });
+    };
+
+    const clearTableSelection = () => {
+        if (stationReveal?.phase === "revealed") {
+            closeRevealedStation();
+            return;
+        }
+        if (stationReveal) return;
+        if (selectedCardRef.current) clearSelectedCard();
     };
 
     const clearDragState = () => {
@@ -1500,6 +1518,7 @@ const LunarBasePlayScreen = () => {
                         onMouseDownCapture={preserveTableScrollForPotentialCardPress}
                         onFocusCapture={restoreTableScrollAfterPotentialCardInteraction}
                         onClickCapture={restoreTableScrollAfterPotentialCardInteraction}
+                        onClick={clearTableSelection}
                         onDragOver={(event) => {
                             if (event.defaultPrevented) {
                                 if (dragStateRef.current || draggingSource) updateDragAutoScroll(event);
@@ -1553,14 +1572,6 @@ const LunarBasePlayScreen = () => {
                         <div
                             className="lunar-table-surface"
                             style={{ "--lunar-zoom": zoom } as CSSProperties}
-                            onClick={() => {
-                                if (stationReveal?.phase === "revealed") {
-                                    closeRevealedStation();
-                                    return;
-                                }
-                                if (stationReveal) return;
-                                if (selectedCardRef.current) clearSelectedCard();
-                            }}
                         >
                             <section className="lunar-supply" aria-label="Supply">
                                 {supplyRows.map((row, rowIndex) => (
@@ -1710,7 +1721,9 @@ const LunarBasePlayScreen = () => {
                                                 {cards.length === 0 ? <span className="lunar-empty-hand">Empty hand</span> : cards.map((card) => {
                                                     const isRevealedOpponentCard = !isViewer && Boolean(revealedHand);
                                                     const playableHandCard = Boolean(isViewer && canAct && viewerPlayer && canPlayHandCard(card, viewerPlayer));
-                                                    const unplayableHandCard = Boolean(isViewer && canAct && !playableHandCard);
+                                                    const rotationResettingHandCard = resettingRotationCardIds.has(card.id);
+                                                    const selectedHandCard = selectedCard?.cardId === card.id ? selectedCard : null;
+                                                    const unplayableHandCard = Boolean(isViewer && canAct && !playableHandCard && !selectedHandCard && !rotationResettingHandCard);
                                                     return (
                                                         <div
                                                             key={card.id}
@@ -1729,14 +1742,17 @@ const LunarBasePlayScreen = () => {
                                                             className={[
                                                                 "lunar-hand-card",
                                                                 draggingCardId === card.id ? "is-dragging" : "",
-                                                                selectedCard?.cardId === card.id ? "is-selected" : "",
+                                                                selectedHandCard ? "is-selected" : "",
+                                                                rotationResettingHandCard ? "is-rotation-resetting" : "",
                                                                 unplayableHandCard ? "is-unplayable" : "",
                                                                 animationHiddenClass(`hand-${playerIndex}-${card.id}`)
                                                             ].filter(Boolean).join(" ")}
                                                             draggable={playableHandCard}
                                                             onClick={(event) => {
+                                                                if (!(event.target instanceof Element) || !event.target.closest(".lunar-card")) return;
+                                                                if (!isViewer || !canAct || !playableHandCard) return;
                                                                 event.stopPropagation();
-                                                                if (isViewer && canAct && playableHandCard) clickHandCard(card, event);
+                                                                clickHandCard(card, event);
                                                             }}
                                                             onDragStart={(event) => {
                                                                 if (!isViewer || !playableHandCard) return;
@@ -1753,9 +1769,9 @@ const LunarBasePlayScreen = () => {
                                                             <CardView
                                                                 card={isViewer || isRevealedOpponentCard ? card : null}
                                                                 faceDown={!isViewer && !isRevealedOpponentCard}
-                                                                selected={selectedCard?.cardId === card.id}
-                                                                rotation={selectedCard?.cardId === card.id ? selectedCard.rotation : 0}
-                                                                visualRotation={selectedCard?.cardId === card.id ? selectedCard.visualRotation : 0}
+                                                                selected={Boolean(selectedHandCard)}
+                                                                rotation={selectedHandCard ? selectedHandCard.rotation : 0}
+                                                                visualRotation={selectedHandCard ? selectedHandCard.visualRotation : 0}
                                                                 instantRotation={instantRotationCardIds.has(card.id)}
                                                             />
                                                         </div>

@@ -56,6 +56,7 @@ The parent project has two child projects:
   - Keeps animated command source cards hidden as soon as a pending command starts, so module cards played from hand stay hidden through the server-response gap and fly animation.
   - Shares card drag setup, source hiding, invalid-drop return animation, card-center coordinate tracking, destination snap rectangles, and scroll-port clipping across hand, supply, and stock drags; module board snapping also accepts drag events from the surrounding player area when the dragged card center is near the board.
   - Preserves table scroll while starting and dropping partially visible card drags, animates cancelled hand drags back to the actual hand-card rectangle, and keeps flying cards below the shared app header layer.
+  - Keeps selected module deselection tied to actual card hits so surrounding hand/table space and disabled hand cards clear selection, and keeps rotated selected modules visually above neighboring cards while resetting.
 - `src/main/frontend/lunar-base-types.ts`
   - Owns Lunar Base frontend wire/state types and the shared Lunar Base palette reference.
 - `src/main/frontend/lunar-base-api.ts`
