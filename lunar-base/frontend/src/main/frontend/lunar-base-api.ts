@@ -40,5 +40,5 @@ export const sendCommand = async (game: LunarBaseGame, command: Record<string, u
     if (!response.ok) {
         throw await createResponseError(response, "Unable to update Lunar Base right now.");
     }
-    return fetchLunarBaseGame(game.id);
+    return response.json() as Promise<LunarBaseGame>;
 };

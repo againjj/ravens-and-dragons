@@ -17,6 +17,9 @@ interface GameHandler {
 
     fun commandPublicState(commandResult: GameRecord, persisted: GameRecord): JsonNode = publicState(commandResult)
 
+    fun commandResponseState(commandResult: GameRecord, persisted: GameRecord, actingUserId: String?): JsonNode =
+        commandPublicState(commandResult, persisted)
+
     fun afterCommandCommitted(
         current: GameRecord,
         persist: (GameRecord) -> GameRecord

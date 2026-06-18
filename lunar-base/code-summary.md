@@ -20,6 +20,7 @@ The parent project has two child projects:
 - `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseGameHandler.kt`
   - Implements the platform `GameHandler` port for Lunar Base.
   - Creates configured 2-6 player games, deals private hands, validates commands, rejects attempts to seat the same user more than once, charges catalog card costs reduced by completed colored/gray orbs when playing modules or agents, manages stock/discard refill, supports taking or discarding supply cards with credit gain on supply discard, delays supply compaction/refill until turn end while keeping influence cards and granting yellow/gray-orb credits, gates station flipping to the current player, passes turns, and ends games from derived win conditions.
+  - Returns direct command responses as the acting user's viewer-specific game view while keeping command stream broadcasts public, so claiming a seat immediately delivers that player's private hand and controls without exposing it to other viewers.
 - `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseEndGameRules.kt`
   - Derives Lunar Base win results without persisting them. A game ends after any completed action when a player has 20 credits, 10 housed colonists, 5 scientific achievements, or 4 influences in hand; multiple qualifying players draw, and one player with multiple conditions earns an epic victory.
 - `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseState.kt`
@@ -55,16 +56,20 @@ The parent project has two child projects:
   - Owns the Lunar Base create/play screen shell, player panels, command wiring, shared platform player-picker wiring for open seats, SSE loading, viewer-relative player ordering, current-turn hand playability dimming, supply click destination choices, supply/stock-to-hand dragging, supply-to-discard dragging, shared hand/supply movement animation setup, end-game popup/revealed-hand display, drag auto-scroll, and client-only card movement animation orchestration for hand, pile, supply, board movement, remote live-update movement mirroring, and station side flips.
   - Keeps animated command source cards hidden as soon as a pending command starts, so module cards played from hand stay hidden through the server-response gap and fly animation.
   - Shares card drag setup, source hiding, invalid-drop return animation, card-center coordinate tracking, destination snap rectangles, and scroll-port clipping across hand, supply, and stock drags; module board snapping also accepts drag events from the surrounding player area when the dragged card center is near the board.
-  - Preserves table scroll while starting and dropping partially visible card drags, animates cancelled hand drags back to the actual hand-card rectangle, and keeps flying cards below the shared app header layer.
+  - Preserves table scroll while starting and dropping partially visible card drags, keeps snap/preview/flying drag visuals in a full-scrollable-area non-sizing overlay above the stable table content, reserves a stable next-card hand slot for incoming hand drops, animates cancelled hand drags back to the actual hand-card rectangle, and keeps flying cards below the shared app header layer.
   - Keeps selected module deselection tied to actual card hits so surrounding hand/table space and disabled hand cards clear selection, and keeps rotated selected modules visually above neighboring cards while resetting.
 - `src/main/frontend/lunar-base-types.ts`
   - Owns Lunar Base frontend wire/state types and the shared Lunar Base palette reference.
 - `src/main/frontend/lunar-base-api.ts`
   - Owns Lunar Base create, load, and command API calls with shared platform response-error handling.
+  - Uses the direct command response body as the updated game state, preserving viewer-aware data returned after seat claims and other player actions.
 - `src/main/frontend/lunar-base-game-logic.ts`
   - Owns client-side card playability, credit-cost, station-side, discard/play-agent, and viewer-relative ordering helpers.
 - `src/main/frontend/lunar-base-board-rules.ts`
   - Owns frontend board geometry, connector matching, legal placement, snapping, card-center, and placement search helpers used for hints and drag/drop.
+  - Exposes named snap wrappers for selected-card pointer placement and dragged-card center placement so callers document the coordinate semantics they pass into the shared snap math.
+- `src/main/frontend/lunar-base-card-interactions.ts`
+  - Owns pure frontend card interaction decisions for stock, supply, and hand-card movement, including command payloads, animation metadata, legal source-target combinations, and click/drop/modal annotations shared by the UI handlers.
 - `src/main/frontend/LunarBaseCard.tsx`
   - Owns card rendering with standard card names/costs/colors/connectors/whole orbs, main action/on-playing/effect badges and hover tooltips, colonist/achievement depictions, and station flipped-state display.
 - `src/main/frontend/LunarBasePlayerBoard.tsx`

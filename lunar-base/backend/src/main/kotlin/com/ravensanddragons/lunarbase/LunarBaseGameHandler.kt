@@ -128,6 +128,9 @@ class LunarBaseGameHandler(
         return (objectMapper.valueToTree<ObjectNode>(publicState)).set<JsonNode>("viewer", viewerNode)
     }
 
+    override fun commandResponseState(commandResult: GameRecord, persisted: GameRecord, actingUserId: String?): JsonNode =
+        gameView(persisted, actingUserId)
+
     override fun publicState(current: GameRecord): JsonNode =
         objectMapper.valueToTree(current.toPublicState(current.toPrivateState()))
 

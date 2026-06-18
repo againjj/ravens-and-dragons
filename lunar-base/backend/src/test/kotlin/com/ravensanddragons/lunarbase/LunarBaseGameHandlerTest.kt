@@ -82,6 +82,26 @@ class LunarBaseGameHandlerTest {
     }
 
     @Test
+    fun commandResponseIncludesOnlyActingUsersViewerDataAfterClaimingSeat() {
+        val created = handler.createGame("LUNAR01", createRequest(), "creator")
+        val claimed = handler.applyCommand(
+            created,
+            command("claimSeat", 1).put("seatIndex", 1).put("playerUserId", "user-2").put("displayName", "Ben"),
+            "user-2"
+        )
+
+        val response = handler.commandResponseState(claimed, claimed, "user-2")
+        val viewer = response.get("viewer")
+
+        assertEquals(1, viewer.get("seatIndex").asInt())
+        assertEquals(3, viewer.get("hand").size())
+        assertEquals(3, response.get("players").get(0).get("handCount").asInt())
+        assertEquals(3, response.get("players").get(1).get("handCount").asInt())
+        assertEquals(false, response.get("players").get(0).has("hand"))
+        assertEquals(false, response.get("players").get(1).has("hand"))
+    }
+
+    @Test
     fun rejectsClaimingMoreThanOneSeatForTheSameUser() {
         var game = handler.createGame("LUNAR01", createRequest(), "creator")
         game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")

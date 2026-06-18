@@ -22,7 +22,8 @@ The parent project has two child projects:
   - Ends a hand as a no-points draw at the end of a turn when exactly two stock cards remain and no knock/gin/big-gin action ended the hand first.
   - Scores meld arrangements through a solver that prunes split or subset meld choices when a larger legal meld arrangement contains the same meld cards.
   - Keeps the first-hand dealer hidden in public state until the first seat is claimed; the backend chooses and stores that dealer privately, reveals it on the first claim, and adds the optional eleventh card as soon as the dealer is revealed.
-  - Auto-deals the next hand when a hand ends without ending the game, while sending the completed hand result only as transient command/stream state so reloads do not reopen old result popups. Game and match endings remain in game-over/match-over public states.
+  - Auto-deals the next hand when a hand ends without ending the game, while sending the completed hand result only as transient public stream state so reloads do not reopen old result popups. Game and match endings remain in game-over/match-over public states.
+  - Returns direct command responses as the acting user's viewer-specific game view while keeping stream broadcasts public.
   - Includes viewer-only turn details such as private hands, deadwood, knock options, and the discard-pile card that cannot be immediately re-discarded.
   - Publishes the card under the discard top in public state so the frontend can reveal the next discard-pile card while the top card is being dragged.
 

@@ -131,6 +131,22 @@
     padding: 28px;
 }
 
+.lunar-table-content {
+    position: relative;
+    display: inline-block;
+    width: max-content;
+    min-width: 0;
+}
+
+.lunar-drag-overlay {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 40;
+    overflow: hidden;
+    pointer-events: none;
+}
+
 .lunar-zoom-control {
     position: absolute;
     right: 28px;
@@ -288,6 +304,14 @@
     gap: 8px;
     align-items: flex-start;
     transition: all 0.5s ease;
+}
+
+.lunar-hand::after {
+    content: "";
+    flex: 0 0 84px;
+    width: 84px;
+    height: 168px;
+    pointer-events: none;
 }
 
 .lunar-supply-slot,

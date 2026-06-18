@@ -198,6 +198,9 @@ class GinRummyGameHandler(
     override fun commandPublicState(commandResult: GameRecord, persisted: GameRecord): JsonNode =
         commandResult.publicState
 
+    override fun commandResponseState(commandResult: GameRecord, persisted: GameRecord, actingUserId: String?): JsonNode =
+        gameView(commandResult, actingUserId)
+
     override fun gameView(current: GameRecord, currentUserId: String?): JsonNode {
         val publicState = current.toPublicState()
         val privateState = current.toPrivateState()

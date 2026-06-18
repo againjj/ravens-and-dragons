@@ -39,7 +39,7 @@
   - Shared opaque game runtime infrastructure.
   - Defines the `GameHandler` port implemented by game modules.
   - Owns generated game ids, persisted game records, public listing metadata, JDBC storage, session locking, stale cleanup, REST/SSE game routing, and generic JSON request/response delegation.
-  - Defers command-triggered game and player-list SSE fanout until after transaction commit, supports command-only public payloads that can be returned/broadcast without being persisted, and runs handler-supplied post-command follow-up work on a dedicated executor after the command response state is persisted. Follow-up work computes outside the per-game lock and reacquires it only to persist, so a later user command can supersede stale follow-up results.
+  - Defers command-triggered game and player-list SSE fanout until after transaction commit, supports command-only public stream payloads that can be broadcast without being persisted, returns a separate viewer-aware direct command response for the acting user, and runs handler-supplied post-command follow-up work on a dedicated executor after the command state is persisted. Follow-up work computes outside the per-game lock and reacquires it only to persist, so a later user command can supersede stale follow-up results.
   - Rechecks newly added player-seat user ids through `PlayerAccountValidator` in the command transaction before writing opaque game JSON, so deleted accounts cannot be seated by stale picker data.
   - Exposes public unfinished game listings and signed-in player-game listings/streams, with shared sorting for both list surfaces.
   - Lets game handlers supply display names, open-seat counts, player-seat user ids, current-user turn flags, and normalized client-facing public state without moving game-specific seat rules or legacy payload conversion into platform.
@@ -69,6 +69,7 @@
 - Own shared game runtime mechanics that can operate on opaque game-owned JSON state stored as `public_state_json` and `private_state_json`.
 - Own platform-level public listing metadata while delegating game-specific listing details to the registered game handler.
 - Delegate client-facing public game payload normalization to the registered game handler before generic game reads and initial stream snapshots leave the runtime.
+- Keep public stream payloads separate from direct command responses so game modules can return acting-user private data without broadcasting it to other viewers.
 - Own frontend shell/auth contracts and status-aware API helpers that are not tied to a specific game's pieces, rules, or UI.
 - Define small ports for game-owned cleanup or adapter behavior where shared services need to call into game modules.
 

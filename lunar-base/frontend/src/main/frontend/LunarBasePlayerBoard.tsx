@@ -1,6 +1,6 @@
 import { forwardRef, type CSSProperties, type DragEvent, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { CardView } from "./LunarBaseCard";
-import { boardBounds, boardCardCenter, normalizeRotation, rotationToOrientation, snapFromPoint } from "./lunar-base-board-rules";
+import { boardBounds, boardCardCenter, normalizeRotation, rotationToOrientation, snapDraggedCardFromCenter, snapSelectedCardFromPointer } from "./lunar-base-board-rules";
 import { cardWidth, gridSquare } from "./lunar-base-constants";
 import { stationOppositeSideCard } from "./lunar-base-game-logic";
 import type { CardRotation, LunarBaseBoardCard, LunarBaseCard, StationFlipAnimation } from "./lunar-base-types";
@@ -142,7 +142,7 @@ export const PlayerBoard = forwardRef<PlayerBoardHandle, {
         if (!canAcceptDrag) return null;
         const rotation = draggedRotation ?? normalizeRotation(Number(event.dataTransfer.getData("rotation")));
         const center = dragCenter(event as DragEvent<HTMLDivElement>);
-        const snap = draggedCard ? snapFromPoint(board, bounds, center.x, center.y, rotation, draggedCard, ref.current, zoom) : null;
+        const snap = draggedCard ? snapDraggedCardFromCenter(board, bounds, center.x, center.y, rotation, draggedCard, ref.current, zoom) : null;
         return snap ? { snap, rotation } : null;
     };
     const handleDragOver = (event: DragEvent<HTMLElement>) => {
@@ -173,7 +173,7 @@ export const PlayerBoard = forwardRef<PlayerBoardHandle, {
             style={{ width: columns * gridSquare, height: rows * gridSquare } as CSSProperties}
             onClick={(event) => {
                 if (!selected) return;
-                const snap = snapFromPoint(board, bounds, event.clientX, event.clientY, selected.rotation, selected.card, ref.current, zoom);
+                const snap = snapSelectedCardFromPointer(board, bounds, event.clientX, event.clientY, selected.rotation, selected.card, ref.current, zoom);
                 if (snap) {
                     setHover(null);
                     onPlaySelected(snap.x, snap.y, boardCardCenter(bounds, snap.x, snap.y, selected.rotation, ref.current, zoom));
@@ -184,7 +184,7 @@ export const PlayerBoard = forwardRef<PlayerBoardHandle, {
             }}
             onMouseMove={(event) => {
                 if (!selected) return;
-                const snap = snapFromPoint(board, bounds, event.clientX, event.clientY, selected.rotation, selected.card, ref.current, zoom);
+                const snap = snapSelectedCardFromPointer(board, bounds, event.clientX, event.clientY, selected.rotation, selected.card, ref.current, zoom);
                 setHover(snap ? { ...snap, rotation: selected.rotation } : null);
             }}
             onDragOver={(event) => {

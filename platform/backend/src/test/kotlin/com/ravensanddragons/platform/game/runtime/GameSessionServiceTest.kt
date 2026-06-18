@@ -69,6 +69,20 @@ class GameSessionServiceTest {
     }
 
     @Test
+    fun `command response hook receives acting user id`() {
+        val service = createService()
+        val created = service.createGame("test-game", objectMapper.createObjectNode())
+
+        val response = service.applyCommand(
+            created.get("id").asText(),
+            objectMapper.createObjectNode().put("expectedVersion", 1).put("type", "viewer"),
+            "player-1"
+        )
+
+        assertEquals("player-1", response.get("viewerUserId").asText())
+    }
+
+    @Test
     fun `command response returns before queued follow-up action runs`() {
         val executor = RecordingExecutor()
         val service = createService(commandFollowUpExecutor = executor)
@@ -196,7 +210,8 @@ class GameSessionServiceTest {
                 current.id,
                 current.version + 1,
                 transientMessage = command.get("type")?.asText() == "transient",
-                needsFollowUp = command.get("type")?.asText() == "follow-up"
+                needsFollowUp = command.get("type")?.asText() == "follow-up",
+                viewerResponse = command.get("type")?.asText() == "viewer"
             )
 
         override fun persistedStateAfterCommand(commandResult: GameRecord): GameRecord {
@@ -206,6 +221,13 @@ class GameSessionServiceTest {
                     it.remove("transientMessage")
                 }
             )
+        }
+
+        override fun commandResponseState(commandResult: GameRecord, persisted: GameRecord, actingUserId: String?): JsonNode {
+            if (commandResult.publicState.get("viewerResponse")?.asBoolean() != true) return publicState(commandResult)
+            return commandResult.publicState.deepCopy<com.fasterxml.jackson.databind.node.ObjectNode>().also {
+                it.put("viewerUserId", actingUserId)
+            }
         }
 
         override fun afterCommandCommitted(current: GameRecord, persist: (GameRecord) -> GameRecord): GameRecord {
@@ -225,6 +247,7 @@ class GameSessionServiceTest {
             version: Long,
             transientMessage: Boolean = false,
             needsFollowUp: Boolean = false,
+            viewerResponse: Boolean = false,
             followUp: String? = null
         ): GameRecord {
             val now = Instant.parse("2026-05-23T00:00:00Z")
@@ -238,6 +261,9 @@ class GameSessionServiceTest {
             }
             if (needsFollowUp) {
                 publicState.put("needsFollowUp", true)
+            }
+            if (viewerResponse) {
+                publicState.put("viewerResponse", true)
             }
             if (followUp != null) {
                 publicState.put("followUp", followUp)

@@ -20,7 +20,8 @@ Each game supplies one Spring `GameHandler`.
 - `createGame(gameId, request, createdByUserId)`: create a `GameRecord`. The `request` excludes platform-owned create fields such as `publiclyListed`.
 - `applyCommand(current, command, actingUserId)`: validate version, permissions, and command semantics; return the updated record.
 - `persistedStateAfterCommand(commandResult)`: optional hook to strip command-only fields before the record is stored.
-- `commandPublicState(commandResult, persisted)`: optional hook for the public state returned to the command caller and broadcast to streams when it differs from persisted state.
+- `commandPublicState(commandResult, persisted)`: optional hook for the public state broadcast to streams when it differs from persisted state.
+- `commandResponseState(commandResult, persisted, actingUserId)`: optional hook for the state returned directly to the command caller. Handlers with viewer-private data may return a viewer-aware command response for `actingUserId`; do not include private data for any other player.
 - `afterCommandPersisted`: optional hook for follow-up state after a command is stored.
 - `gameView(current, currentUserId)`: return viewer-specific state, including private data the user is allowed to see.
 - `publicState(current)`: normalize state sent through generic reads/streams.
@@ -38,13 +39,13 @@ The platform owns these routes:
 - `POST /api/games/{gameSlug}` creates a game.
 - `GET /api/games/{gameId}` returns public state.
 - `GET /api/games/{gameId}/view` returns viewer-specific state.
-- `POST /api/games/{gameId}/commands` applies a game command.
+- `POST /api/games/{gameId}/commands` applies a game command and returns the handler's command response for the acting user.
 - `GET /api/games/{gameId}/stream` streams public game updates.
 - `GET /api/games/public` lists publicly listed unfinished games.
 - `GET /api/games/mine` and `/stream` list signed-in user games.
 
 Command persistence revalidates newly added player-seat user ids through the platform account validator before storing the state. Game and player-list SSE fanout is deferred until after the command transaction commits so stream listeners that refetch state cannot observe stale pre-commit data.
-When a game uses command-only public data, the command response and immediate game stream event can include that transient payload while generic reads and later stream snapshots load the persisted state without it.
+When a game uses command-only public data, the immediate game stream event can include that transient payload while generic reads and later stream snapshots load the persisted state without it. Command responses may include viewer-private data for the acting authenticated user through `commandResponseState`; stream payloads must remain public, and stream clients should still refresh their own `/view` state in response to public stream events.
 
 ## Shared Frontend APIs
 

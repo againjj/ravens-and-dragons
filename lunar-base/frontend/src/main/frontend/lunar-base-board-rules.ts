@@ -105,6 +105,28 @@ export const snapFromPoint = (
     return null;
 };
 
+export const snapSelectedCardFromPointer = (
+    board: LunarBaseBoardCard[],
+    bounds: ReturnType<typeof boardBounds>,
+    pointerX: number,
+    pointerY: number,
+    rotation: CardRotation,
+    card: LunarBaseCard,
+    element: HTMLElement | null,
+    zoom: number
+) => snapFromPoint(board, bounds, pointerX, pointerY, rotation, card, element, zoom);
+
+export const snapDraggedCardFromCenter = (
+    board: LunarBaseBoardCard[],
+    bounds: ReturnType<typeof boardBounds>,
+    centerX: number,
+    centerY: number,
+    rotation: CardRotation,
+    card: LunarBaseCard,
+    element: HTMLElement | null,
+    zoom: number
+) => snapFromPoint(board, bounds, centerX, centerY, rotation, card, element, zoom);
+
 export const boardCardCenter = (
     bounds: ReturnType<typeof boardBounds>,
     x: number,

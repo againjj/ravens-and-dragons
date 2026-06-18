@@ -107,6 +107,7 @@ class GameSessionService(
         val persistableState = handler.persistedStateAfterCommand(commandResult)
         playerAccountValidator.requirePlayerAccountsExist(newPlayerUserIds(handler, current, persistableState))
         val commandPublicState = handler.commandPublicState(commandResult, persistableState)
+        val commandResponseState = handler.commandResponseState(commandResult, persistableState, actingUserId)
         val persisted = persistAndBroadcast(gameId, persistableState, commandPublicState)
         afterCommit {
             broadcastPlayerGamesFor(current, persisted)
@@ -114,7 +115,7 @@ class GameSessionService(
                 runCommandFollowUp(gameId)
             }
         }
-        commandPublicState
+        commandResponseState
     }
 
     fun clearUserReferences(userId: String) {
