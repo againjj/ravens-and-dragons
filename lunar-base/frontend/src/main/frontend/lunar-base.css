@@ -60,14 +60,28 @@
 .lunar-action-status {
     display: grid;
     gap: 2px;
-    min-height: calc(4 * 1.25em);
+    min-height: calc(6.25em + 8px);
     color: #0f172a;
     font-size: 0.78rem;
     line-height: 1.25;
 }
 
-.lunar-action-status-line {
+.lunar-action-source-card {
+    display: inline-block;
+    max-width: 100%;
     min-width: 0;
+    padding-left: 1em;
+    text-indent: -1em;
+    vertical-align: top;
+}
+
+.lunar-action-status-line {
+    display: inline-block;
+    max-width: 100%;
+    min-width: 0;
+    padding-left: 1em;
+    text-indent: -1em;
+    vertical-align: top;
 }
 
 .lunar-action-interaction {
@@ -79,7 +93,19 @@
 .lunar-action-buttons {
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 8px;
+}
+
+.lunar-action-button-prompt {
+    display: inline-block;
+    max-width: 100%;
+    color: #0f172a;
+    font-size: 0.78rem;
+    line-height: 1.25;
+    padding-left: 1em;
+    text-indent: -1em;
+    vertical-align: top;
 }
 
 .lunar-table-port,

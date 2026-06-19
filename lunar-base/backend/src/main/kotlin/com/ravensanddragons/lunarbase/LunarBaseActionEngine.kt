@@ -22,6 +22,7 @@ import com.ravensanddragons.lunarbase.cards.LunarBaseLiteralAmount
 import com.ravensanddragons.lunarbase.cards.LunarBaseLiteralFlipStationAmount
 import com.ravensanddragons.lunarbase.cards.LunarBaseLoseCreditsAction
 import com.ravensanddragons.lunarbase.cards.LunarBaseModuleCardDefinition
+import com.ravensanddragons.lunarbase.cards.LunarBasePlayerReference
 import com.ravensanddragons.lunarbase.cards.LunarBaseResellAction
 import com.ravensanddragons.lunarbase.cards.LunarBaseScopedAction
 import com.ravensanddragons.lunarbase.cards.LunarBaseSelfFlipStationAmount
@@ -90,15 +91,17 @@ internal class LunarBaseActionEngine(
         privateState: LunarBasePrivateState,
         actorIndex: Int,
         actions: List<LunarBaseCardAction>,
-        mainActionChosen: Boolean
+        mainActionChosen: Boolean,
+        sourceCardName: String
     ): Pair<LunarBasePublicState, LunarBasePrivateState> {
         val game = LunarBaseMutableGame(publicState, privateState)
-        val stack = actions.toActionNodes().asReversed().map { LunarBaseActionFrame(actorIndex, it) }
+        val stack = actions.toActionNodes().asReversed().map { LunarBaseActionFrame(actorIndex, it, sourceCardName = sourceCardName) }
         game.public = game.public.copy(
             actionState = LunarBaseActionState(
                 phase = resolvingActionPhase,
                 mainActionChosen = mainActionChosen,
-                stack = stack
+                stack = stack,
+                sourceCardName = sourceCardName
             )
         )
         return resolve(game)
@@ -113,7 +116,8 @@ internal class LunarBaseActionEngine(
             val frame = actionState.stack.last()
             actionState = actionState.copy(
                 stack = actionState.stack.dropLast(1),
-                activeActions = listOf(frame.action)
+                activeActions = listOf(frame.action),
+                sourceCardName = frame.sourceCardName
             )
             actionState = executeFrame(game, actionState, frame)
             game.public = game.public.copy(actionState = actionState.withStatusText())
@@ -145,7 +149,11 @@ internal class LunarBaseActionEngine(
             game,
             game.public.actionState.copy(
                 interaction = null,
-                stack = game.public.actionState.stack + LunarBaseActionFrame(interaction.actorIndex, chosen),
+                stack = game.public.actionState.stack + LunarBaseActionFrame(
+                    interaction.actorIndex,
+                    chosen,
+                    sourceCardName = game.public.actionState.sourceCardName
+                ),
                 activeActions = listOf(chosen)
             )
         )
@@ -153,11 +161,39 @@ internal class LunarBaseActionEngine(
 
     fun choosePlayer(game: LunarBaseMutableGame, playerIndex: Int): Pair<LunarBasePublicState, LunarBasePrivateState> {
         val interaction = game.public.actionState.interaction ?: return game.public to game.private
-        if (interaction.kind != "stealCredits") return game.public to game.private
-        if (playerIndex !in game.public.players.indices || playerIndex == interaction.actorIndex) return game.public to game.private
-        stealCredits(game, interaction.actorIndex, playerIndex, interaction.remaining)
-        if (finishIfWon(game)) return game.public to game.private
-        return resolve(game, game.public.actionState.copy(interaction = null))
+        if (interaction.kind !in setOf("chooseOpponent", "chooseScopeTarget", "stealCredits")) return game.public to game.private
+        if (playerIndex !in game.public.players.indices) return game.public to game.private
+        if (interaction.kind in setOf("chooseOpponent", "stealCredits") && playerIndex == interaction.actorIndex) {
+            return game.public to game.private
+        }
+        if (interaction.kind == "stealCredits") {
+            stealCredits(game, interaction.actorIndex, playerIndex, interaction.remaining)
+            if (finishIfWon(game)) return game.public to game.private
+            return resolve(game, game.public.actionState.copy(interaction = null))
+        }
+        val nextState = when (interaction.kind) {
+            "chooseOpponent" -> game.public.actionState.copy(interaction = null, chosenPlayerIndex = playerIndex)
+            else -> {
+                if (interaction.action?.scope == LunarBaseActionScope.OPPONENT.name && playerIndex == interaction.actorIndex) {
+                    return game.public to game.private
+                }
+                val scopedPlayers = when (interaction.action?.scope) {
+                    LunarBaseActionScope.NEIGHBORS_OF_TARGET.name -> neighborIndexes(game.public, playerIndex)
+                    LunarBaseActionScope.OPPONENT.name,
+                    LunarBaseActionScope.TARGET.name -> listOf(playerIndex)
+                    else -> emptyList()
+                }
+                game.public.actionState.copy(
+                    interaction = null,
+                    stack = game.public.actionState.stack + scopedFrames(
+                        scopedPlayers,
+                        interaction.action?.actions.orEmpty(),
+                        game.public.actionState.sourceCardName
+                    )
+                )
+            }
+        }
+        return resolve(game, nextState)
     }
 
     fun drawStock(game: LunarBaseMutableGame): Pair<LunarBasePublicState, LunarBasePrivateState> {
@@ -192,11 +228,13 @@ internal class LunarBaseActionEngine(
         val interrupt = (catalogDefinition(card) as? LunarBaseModuleCardDefinition)?.onPlaying.orEmpty().toActionNodes()
         val remaining = interaction.remaining - 1
         val repeatFrame = if (remaining > 0 && game.private.hands[actor].any { it.type == moduleType }) {
-            listOf(interaction.copy(remaining = remaining).toFrame(remaining))
+            listOf(interaction.copy(remaining = remaining).toFrame(remaining, game.public.actionState.sourceCardName))
         } else {
             emptyList()
         }
-        val stack = game.public.actionState.stack + repeatFrame + interrupt.asReversed().map { LunarBaseActionFrame(actor, it) }
+        val stack = game.public.actionState.stack +
+            repeatFrame +
+            interrupt.asReversed().map { LunarBaseActionFrame(actor, it, sourceCardName = card.name) }
         return resolve(game, game.public.actionState.copy(interaction = null, stack = stack))
     }
 
@@ -273,8 +311,10 @@ internal class LunarBaseActionEngine(
         )
         if (finishIfWon(game)) return game.public to game.private
         if (interaction.kind == "flipStationTo") return resolve(game, game.public.actionState.copy(interaction = null))
+        val remaining = maxOf(0, interaction.remaining - 1)
         val nextInteraction = interaction.copy(
-            remaining = maxOf(0, interaction.remaining - 1),
+            remaining = remaining,
+            text = interaction.textForRemaining(remaining),
             flippedStationIds = interaction.flippedStationIds + station.card.id
         )
         if (nextInteraction.remaining <= 0 || allStationIds(game).all { it in nextInteraction.flippedStationIds }) {
@@ -287,7 +327,7 @@ internal class LunarBaseActionEngine(
     fun finishInteraction(game: LunarBaseMutableGame): Pair<LunarBasePublicState, LunarBasePrivateState> {
         val interaction = game.public.actionState.interaction ?: return game.public to game.private
         return when (interaction.kind) {
-            "build", "flipStation", "flipStationTo" -> resolve(game, game.public.actionState.copy(interaction = null))
+            "build", "flipStation", "flipStationTo", "viewHand" -> resolve(game, game.public.actionState.copy(interaction = null))
             else -> game.public to game.private
         }
     }
@@ -300,13 +340,18 @@ internal class LunarBaseActionEngine(
         val action = frame.action
         val actor = frame.actorIndex
         return when (action.kind) {
-            "doAll" -> actionState.copy(stack = actionState.stack + action.actions.asReversed().map { LunarBaseActionFrame(actor, it) })
+            "doAll" -> actionState.copy(
+                stack = actionState.stack + action.actions.asReversed().map {
+                    LunarBaseActionFrame(actor, it, sourceCardName = frame.sourceCardName)
+                }
+            )
             "chooseOne" -> if (action.actions.isEmpty()) {
                 actionState
             } else {
                 actionState.copy(interaction = actionInteraction(game.public, actor, action, "chooseOne"))
             }
-            "scoped", "chooseOpponent" -> actionState
+            "scoped" -> startScoped(game.public, actionState, actor, action)
+            "chooseOpponent" -> actionState.copy(interaction = actionInteraction(game.public, actor, action, "chooseOpponent"))
             "draw" -> {
                 val amount = resolveAmount(game, actor, action)
                 if (amount <= 0 || !canDraw(game)) actionState else actionState.copy(
@@ -359,9 +404,56 @@ internal class LunarBaseActionEngine(
                     interaction = actionInteraction(game.public, actor, action, "stealCredits", remaining = amount)
                 )
             }
-            "stealModule", "viewHand" -> actionState
+            "stealModule" -> actionState
+            "viewHand" -> startViewHand(actionState, actor, action)
             else -> actionState
         }
+    }
+
+    private fun startScoped(
+        public: LunarBasePublicState,
+        state: LunarBaseActionState,
+        actor: Int,
+        action: LunarBaseActionNode
+    ): LunarBaseActionState {
+        val players = when (action.scope) {
+            LunarBaseActionScope.CHOSEN_PLAYER.name -> state.chosenPlayerIndex?.let { listOf(it) }.orEmpty()
+            LunarBaseActionScope.EACH_OPPONENT.name -> turnOrder(public, nextPlayerIndex(actor, public.config.playerCount)).filterNot { it == actor }
+            LunarBaseActionScope.EACH_PLAYER.name -> turnOrder(public, actor)
+            LunarBaseActionScope.NEIGHBORS_OF_TARGET.name,
+            LunarBaseActionScope.OPPONENT.name,
+            LunarBaseActionScope.TARGET.name -> return state.copy(interaction = actionInteraction(public, actor, action, "chooseScopeTarget"))
+            else -> emptyList()
+        }
+        return state.copy(stack = state.stack + scopedFrames(players, action.actions, state.sourceCardName))
+    }
+
+    private fun scopedFrames(
+        players: List<Int>,
+        actions: List<LunarBaseActionNode>,
+        sourceCardName: String?
+    ): List<LunarBaseActionFrame> =
+        players.asReversed().flatMap { player ->
+            actions.asReversed().map { LunarBaseActionFrame(player, it, sourceCardName = sourceCardName) }
+        }
+
+    private fun startViewHand(
+        state: LunarBaseActionState,
+        actor: Int,
+        action: LunarBaseActionNode
+    ): LunarBaseActionState {
+        val target = when (action.playerRef) {
+            LunarBasePlayerReference.CHOSEN_PLAYER.name -> state.chosenPlayerIndex
+            else -> null
+        } ?: return state
+        return state.copy(interaction = LunarBaseActionInteraction(
+            kind = "viewHand",
+            actorIndex = actor,
+            text = action.toFullActionText(),
+            buttons = listOf(LunarBaseActionButton("Done viewing", "done")),
+            action = action,
+            targetPlayerIndex = target
+        ))
     }
 
     private fun startFlipStation(
@@ -408,7 +500,14 @@ internal class LunarBaseActionEngine(
         val remaining = interaction.remaining - 1
         if (finishIfWon(game)) return game.public to game.private
         if (remaining > 0 && canContinue()) {
-            game.public = game.public.copy(actionState = game.public.actionState.copy(interaction = interaction.copy(remaining = remaining)).withStatusText())
+            game.public = game.public.copy(
+                actionState = game.public.actionState.copy(
+                    interaction = interaction.copy(
+                        remaining = remaining,
+                        text = interaction.textForRemaining(remaining)
+                    )
+                ).withStatusText()
+            )
             return game.public.withPrivateCounts(game.private).withBoardSummaries() to game.private
         }
         return resolve(game, game.public.actionState.copy(interaction = null))
@@ -426,6 +525,11 @@ internal class LunarBaseActionEngine(
             "chooseOne" -> action.actions.mapIndexed { index, option ->
                 LunarBaseActionButton(option.toActionText(), index.toString())
             }
+            "chooseOpponent" -> public.players.indices
+                .filterNot { it == actor }
+                .map { LunarBaseActionButton(public.seats[it].displayName ?: "Player ${it + 1}", it.toString()) }
+            "chooseScopeTarget" -> scopedTargetIndexes(public, actor, action)
+                .map { LunarBaseActionButton(public.seats[it].displayName ?: "Player ${it + 1}", it.toString()) }
             "stealCredits" -> public.players.indices
                 .filterNot { it == actor }
                 .map { LunarBaseActionButton(public.seats[it].displayName ?: "Player ${it + 1}", it.toString()) }
@@ -552,11 +656,40 @@ internal class LunarBaseActionEngine(
         )
     }
 
-    private fun LunarBaseActionInteraction.toFrame(remainingOverride: Int? = null): LunarBaseActionFrame =
-        LunarBaseActionFrame(actorIndex, action ?: LunarBaseActionNode(kind), remaining = remainingOverride)
+    private fun LunarBaseActionInteraction.toFrame(
+        remainingOverride: Int? = null,
+        sourceCardName: String? = null
+    ): LunarBaseActionFrame =
+        LunarBaseActionFrame(
+            actorIndex,
+            action ?: LunarBaseActionNode(kind),
+            remaining = remainingOverride,
+            sourceCardName = sourceCardName
+        )
+
+    private fun LunarBaseActionInteraction.textForRemaining(remaining: Int): String =
+        action?.toFullActionText(remaining.takeIf { action.isRepeatingAction() }) ?: text
 
     private fun allStationIds(game: LunarBaseMutableGame): List<String> =
         game.public.players.flatMap { player -> player.board.filter { it.card.type == stationType }.map { it.card.id } }
+
+    private fun turnOrder(public: LunarBasePublicState, start: Int): List<Int> =
+        (0 until public.config.playerCount).map { (start + it) % public.config.playerCount }
+
+    private fun neighborIndexes(public: LunarBasePublicState, target: Int): List<Int> {
+        val count = public.config.playerCount
+        val previous = (target - 1 + count) % count
+        val next = (target + 1) % count
+        return if (previous == next) listOf(previous) else listOf(previous, next)
+    }
+
+    private fun scopedTargetIndexes(public: LunarBasePublicState, actor: Int, action: LunarBaseActionNode): List<Int> =
+        when (action.scope) {
+            LunarBaseActionScope.OPPONENT.name -> public.players.indices.filterNot { it == actor }.toList()
+            LunarBaseActionScope.TARGET.name,
+            LunarBaseActionScope.NEIGHBORS_OF_TARGET.name -> public.players.indices.toList()
+            else -> emptyList()
+        }
 
 }
 

@@ -109,7 +109,8 @@ data class LunarBaseActionNode(
 data class LunarBaseActionFrame(
     val actorIndex: Int,
     val action: LunarBaseActionNode,
-    val remaining: Int? = null
+    val remaining: Int? = null,
+    val sourceCardName: String? = null
 )
 
 data class LunarBaseActionState(
@@ -119,7 +120,8 @@ data class LunarBaseActionState(
     val interaction: LunarBaseActionInteraction? = null,
     val chosenPlayerIndex: Int? = null,
     val activeActions: List<LunarBaseActionNode> = emptyList(),
-    val statusText: String? = null
+    val statusText: String? = null,
+    val sourceCardName: String? = null
 )
 
 data class LunarBaseEndGameCondition(

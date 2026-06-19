@@ -2251,6 +2251,7 @@ describe("lunarBaseGameEntry", () => {
     it("shows game over details, reveal all hands, and disables finished card actions", async () => {
         servedGame = lunarBaseGame({
             lifecycle: "finished",
+            useInfluences: true,
             hand: [{ id: "module-1", type: "module", name: "Solar Lab", color: "blue", connectors: { topRight: "gray", bottomRight: "gray" } }],
             revealedHands: [
                 [{ id: "module-1", type: "module", name: "Solar Lab", color: "blue", connectors: { topRight: "gray", bottomRight: "gray" } }],
@@ -2278,6 +2279,130 @@ describe("lunarBaseGameEntry", () => {
         expect(screen.getByText("Solar Lab").closest("[role=button]")).toHaveAttribute("aria-disabled", "true");
         expect(screen.getAllByRole("button", { name: "Reveal other station side" })).toHaveLength(2);
         expect(screen.queryByRole("button", { name: "Flip station" })).not.toBeInTheDocument();
+    });
+
+    it("hides player panel influence hand counts when influences are disabled", async () => {
+        servedGame = lunarBaseGame({ useInfluences: false });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+
+        expect(await screen.findByLabelText("Action panel")).toBeInTheDocument();
+        expect(screen.queryByText(/Influences in hand:/)).not.toBeInTheDocument();
+    });
+
+    it("shows player panel influence hand counts when influences are enabled", async () => {
+        servedGame = lunarBaseGame({ useInfluences: true });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+
+        expect(await screen.findByText("Influences in hand: 0/4")).toBeInTheDocument();
+    });
+
+    it("shows the active action source card above the action text", async () => {
+        servedGame = lunarBaseGame({
+            actionState: {
+                ...lunarActionState("draw"),
+                sourceCardName: "Space Unicorn",
+                statusText: "Draw 1 card"
+            }
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+
+        const source = await screen.findByText("Space Unicorn");
+        const actionPanel = screen.getByLabelText("Action panel");
+        const actionText = screen.getByText("Draw 1 card");
+        expect(source.tagName).toBe("STRONG");
+        expect(source).toHaveClass("lunar-action-source-card");
+        expect(actionPanel).toContainElement(source);
+        expect(source.compareDocumentPosition(actionText) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it("shows scope interaction text to the left of scope choice buttons", async () => {
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+        const scopedActionState = (scope: string): LunarBaseActionState => ({
+            phase: "resolvingAction",
+            mainActionChosen: true,
+            interaction: {
+                kind: "chooseScopeTarget",
+                actorIndex: 0,
+                text: `${scope} action`,
+                buttons: [{ label: "Ben", value: "1" }],
+                remaining: 0,
+                action: { scope },
+                flippedStationIds: []
+            },
+            statusText: `${scope} action`
+        });
+        render(<PlayScreen />);
+
+        servedGame = lunarBaseGame({ actionState: scopedActionState("NEIGHBORS_OF_TARGET") });
+        await act(async () => {
+            eventSourceListeners.get("game")?.();
+        });
+
+        let actionButtons = document.querySelector(".lunar-action-buttons");
+        expect(actionButtons).toHaveTextContent("Choose a target");
+        expect(actionButtons?.firstElementChild).toHaveTextContent("Choose a target");
+        expect(screen.getByLabelText("Action panel")).toHaveTextContent("NEIGHBORS_OF_TARGET action");
+
+        servedGame = lunarBaseGame({ actionState: scopedActionState("OPPONENT") });
+        await act(async () => {
+            eventSourceListeners.get("game")?.();
+        });
+
+        actionButtons = document.querySelector(".lunar-action-buttons");
+        expect(actionButtons).toHaveTextContent("Choose an opponent");
+        expect(actionButtons?.firstElementChild).toHaveTextContent("Choose an opponent");
+
+        servedGame = lunarBaseGame({ actionState: scopedActionState("TARGET") });
+        await act(async () => {
+            eventSourceListeners.get("game")?.();
+        });
+
+        actionButtons = document.querySelector(".lunar-action-buttons");
+        expect(actionButtons).toHaveTextContent("Choose a target");
+        expect(actionButtons?.firstElementChild).toHaveTextContent("Choose a target");
+    });
+
+    it("does not show scope interaction text for non-scope buttons", async () => {
+        servedGame = lunarBaseGame({ actionState: lunarActionState("build") });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+
+        expect(await screen.findByRole("button", { name: "Skip Build" })).toBeInTheDocument();
+        expect(document.querySelector(".lunar-action-button-prompt")).not.toBeInTheDocument();
+    });
+
+    it("shows steal credits interaction text to the left of opponent buttons", async () => {
+        servedGame = lunarBaseGame({
+            actionState: {
+                phase: "resolvingAction",
+                mainActionChosen: true,
+                interaction: {
+                    kind: "stealCredits",
+                    actorIndex: 0,
+                    text: "Steal 1 credit",
+                    buttons: [{ label: "Ben", value: "1" }],
+                    remaining: 1,
+                    action: null,
+                    flippedStationIds: []
+                },
+                statusText: "Steal 1 credit"
+            }
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+
+        expect(await screen.findByRole("button", { name: "Ben" })).toBeInTheDocument();
+        const actionButtons = document.querySelector(".lunar-action-buttons");
+        expect(actionButtons).toHaveTextContent("Choose opponent");
+        expect(actionButtons?.firstElementChild).toHaveTextContent("Choose opponent");
     });
 
     it("shows regular victory game over text", async () => {
@@ -2474,13 +2599,14 @@ const lunarBaseGame = ({
     lifecycle = "active",
     endGameResult = null,
     revealedHands,
+    useInfluences = false,
     actionState = defaultLunarActionState(hand, supply, stockCount, currentPlayerIndex)
-}: { version?: number; credits?: number; hand?: Array<Record<string, unknown>>; supply?: Array<Record<string, unknown> | null>; stockCount?: number; discardTop?: Record<string, unknown> | null; discardCount?: number; currentPlayerIndex?: number; viewerSeat?: number | null; viewerUserId?: string | null; seats?: Array<{ userId: string | null; displayName: string | null }>; stationFlipped?: boolean; lifecycle?: string; endGameResult?: Record<string, unknown> | null; revealedHands?: Array<Array<Record<string, unknown>>>; actionState?: LunarBaseActionState } = {}) => ({
+}: { version?: number; credits?: number; hand?: Array<Record<string, unknown>>; supply?: Array<Record<string, unknown> | null>; stockCount?: number; discardTop?: Record<string, unknown> | null; discardCount?: number; currentPlayerIndex?: number; viewerSeat?: number | null; viewerUserId?: string | null; seats?: Array<{ userId: string | null; displayName: string | null }>; stationFlipped?: boolean; lifecycle?: string; endGameResult?: Record<string, unknown> | null; revealedHands?: Array<Array<Record<string, unknown>>>; useInfluences?: boolean; actionState?: LunarBaseActionState } = {}) => ({
     id: "lunar-1",
     gameSlug: "lunar-base",
     version,
     lifecycle,
-    config: { playerCount: 2, useInfluences: false },
+    config: { playerCount: 2, useInfluences },
     seats,
     currentPlayerIndex,
     actionState,

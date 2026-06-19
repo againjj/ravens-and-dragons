@@ -64,7 +64,9 @@ export interface LunarBaseActionInteraction {
     remaining?: number;
     action?: {
         flipAmountKind?: string | null;
+        scope?: string | null;
     } | null;
+    targetPlayerIndex?: number | null;
     flippedStationIds?: string[];
 }
 
@@ -73,6 +75,7 @@ export interface LunarBaseActionState {
     mainActionChosen: boolean;
     interaction: LunarBaseActionInteraction | null;
     statusText?: string | null;
+    sourceCardName?: string | null;
 }
 
 export interface LunarBaseEndGameCondition {

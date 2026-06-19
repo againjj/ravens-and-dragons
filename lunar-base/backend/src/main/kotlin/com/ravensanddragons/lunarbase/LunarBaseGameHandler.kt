@@ -118,6 +118,14 @@ class LunarBaseGameHandler(
         }
         if (publicState.lifecycle == finishedLifecycle) {
             viewerNode.set<JsonNode>("revealedHands", objectMapper.valueToTree(privateState.hands))
+        } else if (viewerSeat != null) {
+            val interaction = publicState.actionState.interaction
+            if (interaction?.kind == "viewHand" && interaction.actorIndex == viewerSeat) {
+                val revealedHands = privateState.hands.mapIndexed { index, hand ->
+                    if (index == interaction.targetPlayerIndex) hand else emptyList()
+                }
+                viewerNode.set<JsonNode>("revealedHands", objectMapper.valueToTree(revealedHands))
+            }
         }
         return (objectMapper.valueToTree<ObjectNode>(publicState)).set<JsonNode>("viewer", viewerNode)
     }
@@ -209,7 +217,7 @@ class LunarBaseGameHandler(
             throw InvalidCommandException("That card has no main action.")
         }
         return LunarBaseActionEngine(publicState.id, publicState.version)
-            .startActions(publicState, privateState, seat, actions, mainActionChosen = true)
+            .startActions(publicState, privateState, seat, actions, mainActionChosen = true, sourceCardName = boardCard.card.name)
     }
 
     private fun chooseActionOption(
@@ -308,7 +316,7 @@ class LunarBaseGameHandler(
         )
         val nextPublic = publicState.copy(players = nextPlayers, message = "Played an agent.").withPrivateCounts(nextPrivate)
         return LunarBaseActionEngine(publicState.id, publicState.version)
-            .startActions(nextPublic, nextPrivate, seat, card.onPlayingActions(), mainActionChosen = false)
+            .startActions(nextPublic, nextPrivate, seat, card.onPlayingActions(), mainActionChosen = false, sourceCardName = card.name)
     }
 
     private fun buildModule(

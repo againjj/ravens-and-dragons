@@ -21,7 +21,7 @@ import { resolveLunarCardInteraction, type LunarCardInteractionDecision, type Lu
 import { cardAnimationDurationMs, cardGap, cardWidth, emptyLifecycle, layoutAnimationSelector, maxZoom, minZoom, playRoutePattern, portalRoot, rectCenter } from "./lunar-base-constants";
 import { createDragAutoScrollState, displayPlayerOrder, dragAutoScrollDelta, stationOppositeSideCard, type DragAutoScrollState } from "./lunar-base-game-logic";
 import { clipZoomPercent, nextZoomStep, sanitizeZoomText, useLunarBaseZoom, zoomPercentToZoom, zoomTextToPercent, zoomToPercent } from "./useLunarBaseZoom";
-import { lunarBaseColors, type CardMovementAnimation, type CardRotation, type CardType, type DragSource, type FlyingCard, type LunarBaseBoardCard, type LunarBaseCard, type LunarBaseColorName, type LunarBaseGame, type SelectedCard, type StationFlipAnimation, type StationRevealState } from "./lunar-base-types";
+import { lunarBaseColors, type CardMovementAnimation, type CardRotation, type CardType, type DragSource, type FlyingCard, type LunarBaseActionInteraction, type LunarBaseBoardCard, type LunarBaseCard, type LunarBaseColorName, type LunarBaseGame, type SelectedCard, type StationFlipAnimation, type StationRevealState } from "./lunar-base-types";
 import "./lunar-base.css";
 const handEndCardKey = (game: LunarBaseGame, playerIndex: number): string | null => {
     if (game.viewer?.seatIndex === playerIndex) {
@@ -263,7 +263,7 @@ const PlayerPanel = ({
             >{player.credits}/20</span></p>
             <p>Colonists housed: {player.colonists}/10</p>
             <p>Scientific achievements: {player.achievements}/5</p>
-            {isCurrentUser || game.lifecycle === "finished" ? <p>Influences in hand: {player.influenceHandCount}/4</p> : null}
+            {game.config.useInfluences && (isCurrentUser || game.lifecycle === "finished") ? <p>Influences in hand: {player.influenceHandCount}/4</p> : null}
         </section>
     );
 };
@@ -324,6 +324,20 @@ const actionPanelStatus = (game: LunarBaseGame, viewerSeat: number | null): stri
     if (viewerSeat === game.currentPlayerIndex) return "Play an agent or choose a main action";
     const currentName = game.seats[game.currentPlayerIndex]?.displayName ?? `Player ${game.currentPlayerIndex + 1}`;
     return `Waiting for ${currentName}:\nPlay an agent or choose a main action`;
+};
+
+const interactionButtonPrompt = (interaction: LunarBaseActionInteraction | null): string | null => {
+    if (interaction?.kind === "stealCredits") return "Choose opponent";
+    if (interaction?.kind !== "chooseScopeTarget") return null;
+    switch (interaction.action?.scope) {
+        case "NEIGHBORS_OF_TARGET":
+        case "TARGET":
+            return "Choose a target";
+        case "OPPONENT":
+            return "Choose an opponent";
+        default:
+            return null;
+    }
 };
 
 type ActiveDragState = {
@@ -1556,13 +1570,15 @@ const LunarBasePlayScreen = () => {
     const revealedStationCardId = stationReveal && stationReveal.phase !== "hiding" ? stationReveal.cardId : null;
     const revealDimmerVisible = stationReveal?.phase === "revealing" || stationReveal?.phase === "revealed";
     const showEndGameModal = isGameFinished && Boolean(game.endGameResult) && dismissedEndGameVersion !== game.version;
+    const actionSourceCardName = game.actionState.phase === "resolvingAction" ? game.actionState.sourceCardName ?? null : null;
+    const buttonPrompt = interactionButtonPrompt(interaction);
     const runActionPanelButton = (value: string) => {
         if (!interaction) return;
         if (interaction.kind === "chooseOne") {
             runCommand({ type: "chooseActionOption", optionIndex: Number(value) });
             return;
         }
-        if (interaction.kind === "stealCredits") {
+        if (interaction.kind === "stealCredits" || interaction.kind === "chooseOpponent" || interaction.kind === "chooseScopeTarget") {
             runCommand({ type: "choosePlayer", playerIndex: Number(value) });
             return;
         }
@@ -1576,6 +1592,9 @@ const LunarBasePlayScreen = () => {
             <div className="lunar-game-ports">
                 <section className="panel lunar-action-panel" aria-label="Action panel">
                     <div className="lunar-action-status">
+                        {actionSourceCardName ? (
+                            <strong className="lunar-action-source-card">{actionSourceCardName}</strong>
+                        ) : null}
                         {actionPanelStatus(game, viewerSeat).split("\n").map((line, index) => (
                             <span key={index} className="lunar-action-status-line">{line}</span>
                         ))}
@@ -1583,6 +1602,7 @@ const LunarBasePlayScreen = () => {
                     <div className="lunar-action-interaction">
                         {isActionActor && interaction?.buttons?.length ? (
                             <div className="lunar-action-buttons">
+                                {buttonPrompt ? <span className="lunar-action-button-prompt">{buttonPrompt}</span> : null}
                                 {interaction.buttons.map((button) => (
                                     <button
                                         key={button.value}
@@ -1812,7 +1832,7 @@ const LunarBasePlayScreen = () => {
                             <section className="lunar-areas">
                                 {playerOrder.map((playerIndex) => {
                                     const isViewer = playerIndex === viewerSeat;
-                                    const revealedHand = isGameFinished ? game.viewer?.revealedHands?.[playerIndex] ?? null : null;
+                                    const revealedHand = isGameFinished || interaction?.kind === "viewHand" ? game.viewer?.revealedHands?.[playerIndex] ?? null : null;
                                     const cards = isViewer ? hand : revealedHand ?? Array.from({ length: game.players[playerIndex].handCount }, (_, index) => ({ id: `back-${playerIndex}-${index}`, type: "module" as CardType }));
                                     return (
                                         <section
