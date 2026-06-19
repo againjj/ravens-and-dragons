@@ -408,12 +408,16 @@ abstract class LunarBaseActionListBuilder {
 
     /** Lets a player choose one of the nested action choices. */
     fun chooseOne(block: LunarBaseChoiceBuilder.() -> Unit) {
-        actions += LunarBaseChooseOneAction(LunarBaseChoiceBuilder().apply(block).build())
+        val choices = LunarBaseChoiceBuilder().apply(block).build()
+        require(choices.size >= 2) { "Choose one requires at least two actions." }
+        actions += LunarBaseChooseOneAction(choices)
     }
 
     /** Groups nested actions into one action. */
     fun doAll(block: LunarBaseActionBuilder.() -> Unit) {
-        actions += LunarBaseDoAllAction(LunarBaseActionBuilder().apply(block).build())
+        val nestedActions = LunarBaseActionBuilder().apply(block).build()
+        require(nestedActions.size >= 2) { "Do all requires at least two actions." }
+        actions += LunarBaseDoAllAction(nestedActions)
     }
 
     /** Has the previously chosen player chosen do the nested actions. */

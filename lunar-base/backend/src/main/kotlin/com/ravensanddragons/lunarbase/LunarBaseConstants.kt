@@ -16,6 +16,8 @@ internal const val lunarCreditWinThreshold = 20
 internal const val colonistWinThreshold = 10
 internal const val achievementWinThreshold = 5
 internal const val influenceWinThreshold = 4
+internal const val choosingMainActionPhase = "choosingMainAction"
+internal const val resolvingActionPhase = "resolvingAction"
 
 internal fun randomFor(gameId: String, salt: String): Random =
     Random("$gameId:$salt".hashCode())

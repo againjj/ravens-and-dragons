@@ -77,6 +77,51 @@ data class LunarBasePlayerPublic(
     val board: List<LunarBaseBoardCard> = emptyList()
 )
 
+data class LunarBaseActionButton(
+    val label: String,
+    val value: String
+)
+
+data class LunarBaseActionInteraction(
+    val kind: String,
+    val actorIndex: Int,
+    val text: String,
+    val buttons: List<LunarBaseActionButton> = emptyList(),
+    val remaining: Int = 0,
+    val action: LunarBaseActionNode? = null,
+    val targetPlayerIndex: Int? = null,
+    val flippedStationIds: List<String> = emptyList()
+)
+
+data class LunarBaseActionNode(
+    val kind: String,
+    val amount: Int? = null,
+    val amountKind: String? = null,
+    val flipAmount: Int? = null,
+    val flipAmountKind: String? = null,
+    val side: String? = null,
+    val moduleName: String? = null,
+    val playerRef: String? = null,
+    val scope: String? = null,
+    val actions: List<LunarBaseActionNode> = emptyList()
+)
+
+data class LunarBaseActionFrame(
+    val actorIndex: Int,
+    val action: LunarBaseActionNode,
+    val remaining: Int? = null
+)
+
+data class LunarBaseActionState(
+    val phase: String = choosingMainActionPhase,
+    val mainActionChosen: Boolean = false,
+    val stack: List<LunarBaseActionFrame> = emptyList(),
+    val interaction: LunarBaseActionInteraction? = null,
+    val chosenPlayerIndex: Int? = null,
+    val activeActions: List<LunarBaseActionNode> = emptyList(),
+    val statusText: String? = null
+)
+
 data class LunarBaseEndGameCondition(
     val playerIndex: Int,
     val conditions: List<String>
@@ -104,6 +149,7 @@ data class LunarBasePublicState(
     val stockCount: Int,
     val discardTop: LunarBaseCard? = null,
     val discardCount: Int = 0,
+    val actionState: LunarBaseActionState = LunarBaseActionState(),
     val endGameResult: LunarBaseEndGameResult? = null,
     val createdByUserId: String? = null,
     val message: String? = null

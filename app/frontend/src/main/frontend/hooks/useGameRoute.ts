@@ -86,14 +86,14 @@ const parseRoute = (fullPath: string): ParsedRoute => {
 
 export const useGameRoute = (
     gameEntries: GameEntry<AppDispatch>[],
-    gameEntry: GameEntry<AppDispatch>,
-    setActiveGameSlug: (gameSlug: string) => void
+    gameEntry: GameEntry<AppDispatch> | null,
+    setActiveGameSlug: (gameSlug: string | null) => void
 ): {
     page: AppPage;
     navigateToLobby: (mode?: NavigationMode) => void;
     navigateToCreate: (gameSlug: string, mode?: NavigationMode) => void;
     navigateToProfile: (mode?: NavigationMode) => void;
-    navigateToGame: (gameId: string, options?: { mode?: NavigationMode; loadGame?: boolean }) => void;
+    navigateToGame: (gameId: string, options?: { mode?: NavigationMode; loadGame?: boolean; gameSlug?: string }) => void;
     openGameFromLobby: (gameId: string) => Promise<{ opened: boolean; errorMessage?: string }>;
     createGameSlug: string | null;
     currentGameId: string | null;
@@ -105,6 +105,7 @@ export const useGameRoute = (
     const view = useAppSelector(selectGameView);
     const [locationPath, setLocationPath] = useState(getCurrentLocationPath);
     const [resolvingGameRouteId, setResolvingGameRouteId] = useState<string | null>(null);
+    const [openedRouteGameId, setOpenedRouteGameId] = useState<string | null>(null);
     const openedRouteGameIdRef = useRef<string | null>(null);
     const currentRoute = useMemo(() => parseRoute(locationPath), [locationPath]);
     const gameEntriesBySlug = useMemo(
@@ -112,16 +113,23 @@ export const useGameRoute = (
         [gameEntries]
     );
 
-    const clearActiveGameView = () => {
-        gameEntry.lifecycle.returnToLobby(dispatch);
+    const clearAllActiveGameViews = () => {
+        gameEntries.forEach((entry) => entry.lifecycle.returnToLobby(dispatch));
     };
 
     const clearCreateDraft = () => {
-        gameEntry.lifecycle.clearCreateMode(dispatch);
+        gameEntries.forEach((entry) => entry.lifecycle.clearCreateMode(dispatch));
     };
 
-    const enterCreateDraft = () => {
-        gameEntry.lifecycle.enterCreateMode(dispatch);
+    const clearActiveGameSelection = () => {
+        openedRouteGameIdRef.current = null;
+        setOpenedRouteGameId(null);
+        setActiveGameSlug(null);
+        setResolvingGameRouteId(null);
+    };
+
+    const enterCreateDraft = (gameSlug: string) => {
+        gameEntriesBySlug.get(gameSlug)?.lifecycle.enterCreateMode(dispatch);
     };
 
     const updateRoutePath = (path: string, mode: NavigationMode) => {
@@ -130,43 +138,44 @@ export const useGameRoute = (
     };
 
     const navigateToLobby = (mode: NavigationMode = "push") => {
-        openedRouteGameIdRef.current = null;
-        setResolvingGameRouteId(null);
+        clearActiveGameSelection();
         clearCreateDraft();
-        clearActiveGameView();
+        clearAllActiveGameViews();
         updateRoutePath("/lobby", mode);
         void dispatch(loadAuthSession());
     };
 
     const navigateToCreate = (gameSlug: string, mode: NavigationMode = "push") => {
-        openedRouteGameIdRef.current = null;
-        setResolvingGameRouteId(null);
-        clearActiveGameView();
+        clearActiveGameSelection();
+        clearAllActiveGameViews();
         clearCreateDraft();
-        enterCreateDraft();
+        enterCreateDraft(gameSlug);
         updateRoutePath(`/${gameSlug}/create`, mode);
     };
 
     const navigateToProfile = (mode: NavigationMode = "push") => {
-        openedRouteGameIdRef.current = null;
-        setResolvingGameRouteId(null);
+        clearActiveGameSelection();
         clearCreateDraft();
-        clearActiveGameView();
+        clearAllActiveGameViews();
         updateRoutePath("/profile", mode);
     };
 
     const navigateToGame = (
         gameId: string,
-        options: { mode?: NavigationMode; loadGame?: boolean } = {}
+        options: { mode?: NavigationMode; loadGame?: boolean; gameSlug?: string } = {}
     ) => {
         const trimmedGameId = gameId.trim();
-        const targetPath = gameEntry.routes.buildPlayPath(trimmedGameId);
+        const entry = options.gameSlug ? gameEntriesBySlug.get(options.gameSlug) ?? null : gameEntry;
+        if (!entry) return;
+        const targetPath = entry.routes.buildPlayPath(trimmedGameId);
+        setActiveGameSlug(entry.identity.slug);
         openedRouteGameIdRef.current = trimmedGameId;
+        setOpenedRouteGameId(trimmedGameId);
         setResolvingGameRouteId(null);
         clearCreateDraft();
         updateRoutePath(targetPath, options.mode ?? "push");
         if (options.loadGame ?? true) {
-            gameEntry.lifecycle.openGame(dispatch, trimmedGameId);
+            entry.lifecycle.openGame(dispatch, trimmedGameId);
         }
     };
 
@@ -182,18 +191,21 @@ export const useGameRoute = (
         const resolution = await resolveGameEntryForGameId(trimmedGameId);
         if (resolution.kind === "unauthorized") {
             notifyAuthSessionExpired();
+            clearActiveGameSelection();
             return {
                 opened: false
             };
         }
         if (resolution.kind === "server-unavailable") {
             notifyServerUnavailable();
+            clearActiveGameSelection();
             return {
                 opened: false
             };
         }
         if (resolution.kind === "not-found") {
-            clearActiveGameView();
+            clearAllActiveGameViews();
+            clearActiveGameSelection();
             return {
                 opened: false,
                 errorMessage: `Unable to open game "${trimmedGameId}".`
@@ -206,6 +218,7 @@ export const useGameRoute = (
         const opened = await entry.lifecycle.openGame(dispatch, trimmedGameId);
         if (opened === false) {
             dispatch(gameActions.feedbackMessageSet(null));
+            clearActiveGameSelection();
             return {
                 opened: false,
                 errorMessage: `Unable to open game "${trimmedGameId}".`
@@ -213,6 +226,7 @@ export const useGameRoute = (
         }
 
         openedRouteGameIdRef.current = trimmedGameId;
+        setOpenedRouteGameId(trimmedGameId);
         setResolvingGameRouteId(null);
         updateRoutePath(entry.routes.buildPlayPath(trimmedGameId), "push");
         return { opened: true };
@@ -248,27 +262,33 @@ export const useGameRoute = (
         if (openedRouteGameIdRef.current === trimmedGameId) {
             return;
         }
-        const targetPath = gameEntry.routes.buildPlayPath(trimmedGameId);
+        const targetPath = `/g/${encodeURIComponent(trimmedGameId)}`;
         clearCreateDraft();
+        clearAllActiveGameViews();
+        clearActiveGameSelection();
         if (mode) {
             updateRoutePath(targetPath, mode);
         }
         setResolvingGameRouteId(trimmedGameId);
         void resolveGameEntryForGameId(gameId).then((resolution) => {
+            const activeRoute = parseRoute(getCurrentLocationPath());
+            if (activeRoute.kind !== "game" || activeRoute.gameId !== trimmedGameId) {
+                return;
+            }
             if (resolution.kind === "unauthorized") {
                 notifyAuthSessionExpired();
-                clearActiveGameView();
-                setResolvingGameRouteId(null);
+                clearAllActiveGameViews();
+                clearActiveGameSelection();
                 return;
             }
             if (resolution.kind === "server-unavailable") {
                 notifyServerUnavailable();
-                setResolvingGameRouteId(null);
+                clearActiveGameSelection();
                 return;
             }
             if (resolution.kind === "not-found") {
-                clearActiveGameView();
-                setResolvingGameRouteId(null);
+                clearAllActiveGameViews();
+                clearActiveGameSelection();
                 updateRoutePath("/lobby", "replace");
                 return;
             }
@@ -276,6 +296,7 @@ export const useGameRoute = (
             setActiveGameSlug(entry.identity.slug);
             entry.lifecycle.openGame(dispatch, gameId);
             openedRouteGameIdRef.current = trimmedGameId;
+            setOpenedRouteGameId(trimmedGameId);
             setResolvingGameRouteId(null);
         });
     };
@@ -291,14 +312,13 @@ export const useGameRoute = (
             setLocationPath(currentLocationPath);
 
             if (!isAuthenticated) {
-                openedRouteGameIdRef.current = null;
-                setResolvingGameRouteId(null);
+                clearActiveGameSelection();
                 if (route.kind !== "login") {
                     replaceToLogin(route.fullPath === "" ? "/" : route.fullPath);
                     setLocationPath(getCurrentLocationPath());
                 }
                 clearCreateDraft();
-                clearActiveGameView();
+                clearAllActiveGameViews();
                 return;
             }
 
@@ -308,7 +328,11 @@ export const useGameRoute = (
                 if (targetRoute.kind === "game" && targetRoute.gameId) {
                     openRouteGame(targetRoute.gameId, "replace");
                 } else if (targetRoute.kind === "create") {
-                    navigateToCreate(targetRoute.gameSlug ?? "ravens-and-dragons", "replace");
+                    if (targetRoute.gameSlug) {
+                        navigateToCreate(targetRoute.gameSlug, "replace");
+                    } else {
+                        navigateToLobby("replace");
+                    }
                 } else if (targetRoute.kind === "profile") {
                     navigateToProfile("replace");
                 } else {
@@ -322,8 +346,9 @@ export const useGameRoute = (
                     navigateToLobby("replace");
                     return;
                 case "create":
-                    clearActiveGameView();
-                    enterCreateDraft();
+                    clearActiveGameSelection();
+                    clearAllActiveGameViews();
+                    if (route.gameSlug) enterCreateDraft(route.gameSlug);
                     return;
                 case "game":
                     clearCreateDraft();
@@ -332,16 +357,18 @@ export const useGameRoute = (
                     }
                     return;
                 case "lobby":
+                    clearActiveGameSelection();
                     clearCreateDraft();
-                    clearActiveGameView();
+                    clearAllActiveGameViews();
                     return;
                 case "profile":
                     if (currentUser?.authType !== "local") {
                         navigateToLobby("replace");
                         return;
                     }
+                    clearActiveGameSelection();
                     clearCreateDraft();
-                    clearActiveGameView();
+                    clearAllActiveGameViews();
                     return;
                 case "unknown":
                     navigateToLobby("replace");
@@ -354,7 +381,7 @@ export const useGameRoute = (
         return () => {
             window.removeEventListener("popstate", syncFromLocation);
         };
-    }, [authLoadState, currentUser?.authType, dispatch, gameEntry, gameEntriesBySlug, isAuthenticated]);
+    }, [authLoadState, currentUser?.authType, dispatch, gameEntries, gameEntriesBySlug, isAuthenticated]);
 
     const page = useMemo<AppPage>(() => {
         if (authLoadState === "idle" || authLoadState === "loading") {
@@ -369,6 +396,9 @@ export const useGameRoute = (
         if (currentRoute.kind === "game" && currentRoute.gameId === resolvingGameRouteId) {
             return "loading";
         }
+        if (currentRoute.kind === "game" && currentRoute.gameId && openedRouteGameId !== currentRoute.gameId) {
+            return "loading";
+        }
         if (locationPath === "/profile") {
             return "profile";
         }
@@ -379,7 +409,7 @@ export const useGameRoute = (
             return "game";
         }
         return view === "game" ? "game" : "lobby";
-    }, [authLoadState, currentRoute.gameId, currentRoute.kind, isAuthenticated, locationPath, resolvingGameRouteId, view]);
+    }, [authLoadState, currentRoute.gameId, currentRoute.kind, isAuthenticated, locationPath, openedRouteGameId, resolvingGameRouteId, view]);
 
     return {
         page,

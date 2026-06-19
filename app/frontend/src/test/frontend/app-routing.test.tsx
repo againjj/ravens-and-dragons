@@ -260,10 +260,10 @@ describe("App routing", () => {
         const ticTacToeGame = makeTestGameEntry("tic-tac-toe", "Tic-Tac-Toe", () => undefined);
         ravensGame.lifecycle.openGame = ravensOpenGame;
         ticTacToeGame.lifecycle.openGame = ticTacToeOpenGame;
-        fetchGameMetadataMock.mockResolvedValue({
-            ok: true,
-            json: async () => ({ gameSlug: "tic-tac-toe" })
-        });
+        let resolveGameMetadata: (response: { ok: boolean; json: () => Promise<{ gameSlug: string }> }) => void = () => {};
+        fetchGameMetadataMock.mockReturnValue(new Promise((resolve) => {
+            resolveGameMetadata = resolve;
+        }));
         window.history.pushState({}, "", "/g/9W5RJHQ");
 
         renderWithStore(<App gameEntries={[ravensGame, ticTacToeGame]} />);
@@ -282,6 +282,15 @@ describe("App routing", () => {
 
         await user.click(screen.getByRole("button", { name: "Continue as Guest" }));
 
+        await screen.findByText("Loading...");
+        expect(screen.queryByRole("heading", { name: "Ravens and Dragons game" })).not.toBeInTheDocument();
+        expect(ravensOpenGame).not.toHaveBeenCalled();
+        expect(ticTacToeOpenGame).not.toHaveBeenCalled();
+        resolveGameMetadata({
+            ok: true,
+            json: async () => ({ gameSlug: "tic-tac-toe" })
+        });
+
         await waitFor(() => {
             expect(ticTacToeOpenGame).toHaveBeenCalledWith(expect.anything(), "9W5RJHQ");
         });
@@ -289,7 +298,53 @@ describe("App routing", () => {
         expect(ravensOpenGame).not.toHaveBeenCalled();
         expect(window.location.pathname).toBe("/g/9W5RJHQ");
         expect(screen.getByRole("heading", { name: "Tic-Tac-Toe game" })).toBeInTheDocument();
-        expect(document.title).toBe("Ayazian Games: Tic-Tac-Toe (9W5RJHQ)");
+        await waitFor(() => {
+            expect(document.title).toBe("Ayazian Games: Tic-Tac-Toe (9W5RJHQ)");
+        });
+    });
+
+    test("late game route metadata does not activate a game after leaving the route", async () => {
+        const ravensOpenGame = vi.fn();
+        const ticTacToeOpenGame = vi.fn();
+        const ravensGame = makeTestGameEntry("ravens-and-dragons", "Ravens and Dragons", () => undefined);
+        const ticTacToeGame = makeTestGameEntry("tic-tac-toe", "Tic-Tac-Toe", () => undefined);
+        ravensGame.lifecycle.openGame = ravensOpenGame;
+        ticTacToeGame.lifecycle.openGame = ticTacToeOpenGame;
+        fetchAuthSessionMock.mockResolvedValue({
+            authenticated: true,
+            user: {
+                id: "guest-1",
+                displayName: "Guest 1",
+                authType: "guest"
+            }
+        });
+        let resolveGameMetadata: (response: { ok: boolean; json: () => Promise<{ gameSlug: string }> }) => void = () => {};
+        fetchGameMetadataMock.mockReturnValue(new Promise((resolve) => {
+            resolveGameMetadata = resolve;
+        }));
+        window.history.pushState({}, "", "/g/OLDGAME");
+
+        renderWithStore(<App gameEntries={[ravensGame, ticTacToeGame]} />);
+
+        await screen.findByText("Loading...");
+
+        act(() => {
+            window.history.pushState({}, "", "/lobby");
+            window.dispatchEvent(new PopStateEvent("popstate"));
+        });
+
+        await screen.findByRole("heading", { name: "Game Lobby" });
+        resolveGameMetadata({
+            ok: true,
+            json: async () => ({ gameSlug: "tic-tac-toe" })
+        });
+
+        await waitFor(() => {
+            expect(ticTacToeOpenGame).not.toHaveBeenCalled();
+        });
+        expect(ravensOpenGame).not.toHaveBeenCalled();
+        expect(window.location.pathname).toBe("/lobby");
+        expect(screen.queryByRole("heading", { name: "Tic-Tac-Toe game" })).not.toBeInTheDocument();
     });
 
     test("authenticated users loading /login with a game return target are redirected by replacing the login URL", async () => {

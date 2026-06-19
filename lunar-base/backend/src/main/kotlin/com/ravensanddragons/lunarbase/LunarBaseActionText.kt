@@ -35,7 +35,7 @@ import com.ravensanddragons.lunarbase.cards.LunarBaseTriggeredCardEffect
 import com.ravensanddragons.lunarbase.cards.LunarBaseViewHandAction
 
 internal fun List<LunarBaseCardAction>.toActionText(): String? =
-    takeIf { it.isNotEmpty() }?.joinToString("\n") { it.toActionText(topLevel = true) }
+    takeIf { it.isNotEmpty() }?.joinToString("\n") { it.toActionText(topLevel = size == 1) }
 
 private fun List<LunarBaseCardAction>.toInlineActionText(): String =
     joinToString("; ") { it.toActionText() }

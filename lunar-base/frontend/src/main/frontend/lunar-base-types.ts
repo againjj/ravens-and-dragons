@@ -51,6 +51,30 @@ export interface LunarBasePlayer {
     board: LunarBaseBoardCard[];
 }
 
+export interface LunarBaseActionButton {
+    label: string;
+    value: string;
+}
+
+export interface LunarBaseActionInteraction {
+    kind: string;
+    actorIndex: number;
+    text: string;
+    buttons: LunarBaseActionButton[];
+    remaining?: number;
+    action?: {
+        flipAmountKind?: string | null;
+    } | null;
+    flippedStationIds?: string[];
+}
+
+export interface LunarBaseActionState {
+    phase: "choosingMainAction" | "resolvingAction";
+    mainActionChosen: boolean;
+    interaction: LunarBaseActionInteraction | null;
+    statusText?: string | null;
+}
+
 export interface LunarBaseEndGameCondition {
     playerIndex: number;
     conditions: string[];
@@ -75,6 +99,7 @@ export interface LunarBaseGame {
     stockCount: number;
     discardTop: LunarBaseCard | null;
     discardCount: number;
+    actionState: LunarBaseActionState;
     endGameResult?: LunarBaseEndGameResult | null;
     message: string | null;
     viewer?: {

@@ -73,7 +73,8 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
     const pageRef = useRef<HTMLElement | null>(null);
     const userMenuRef = useRef<HTMLDivElement | null>(null);
     const { toggleFullscreen } = useFullscreen(pageRef);
-    const [selectedGameSlug, setSelectedGameSlug] = useState(gameEntries[0].identity.slug);
+    const [activeGameSlug, setActiveGameSlug] = useState<string | null>(null);
+    const [selectedLobbyGameSlug, setSelectedLobbyGameSlug] = useState(gameEntries[0].identity.slug);
     const [publicGames, setPublicGames] = useState<PublicGameListing[]>([]);
     const [playerGames, setPlayerGames] = useState<PlayerGameListing[]>([]);
     const [isPlayerGamesStreamPaused, setIsPlayerGamesStreamPaused] = useState(false);
@@ -84,9 +85,9 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
         () => new Map(gameEntries.map((entry) => [entry.identity.slug, entry])),
         [gameEntries]
     );
-    const activeGameEntry = gameEntriesBySlug.get(selectedGameSlug) ?? gameEntries[0];
+    const activeGameEntry = activeGameSlug ? gameEntriesBySlug.get(activeGameSlug) ?? null : null;
 
-    const { PlayScreen } = activeGameEntry.components;
+    const PlayScreen = activeGameEntry?.components.PlayScreen ?? null;
     const handleAuthExpired = useCallback(() => {
         setIsUserMenuOpen(false);
         setPlayerGames([]);
@@ -102,7 +103,7 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
     const { page, navigateToCreate, navigateToGame, navigateToLobby, navigateToProfile, openGameFromLobby, createGameSlug, currentGameId } = useGameRoute(
         gameEntries,
         activeGameEntry,
-        setSelectedGameSlug
+        setActiveGameSlug
     );
     const showProfileLink = isAuthenticated && (currentUser?.authType === "local" || currentUser?.authType === "oauth");
     const currentUserId = currentUser?.id ?? null;
@@ -111,7 +112,7 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
 
     const currentCreateGameEntry = createGameSlug ? gameEntriesBySlug.get(createGameSlug) ?? null : null;
     const CurrentCreateScreen = currentCreateGameEntry?.components.CreateScreen ?? null;
-    const selectedLobbyGameEntry = gameEntriesBySlug.get(selectedGameSlug) ?? gameEntries[0];
+    const selectedLobbyGameEntry = gameEntriesBySlug.get(selectedLobbyGameSlug) ?? gameEntries[0];
     const pageTitle = useMemo(() => {
         if (page === "login") {
             return `${appTitle}: Login`;
@@ -122,11 +123,11 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
         if (page === "create" && currentCreateGameEntry) {
             return `${appTitle}: Create ${currentCreateGameEntry.identity.displayName}`;
         }
-        if (page === "game" && currentGameId) {
+        if (page === "game" && currentGameId && activeGameEntry) {
             return `${appTitle}: ${activeGameEntry.identity.displayName} (${currentGameId})`;
         }
         return appTitle;
-    }, [activeGameEntry.identity.displayName, currentCreateGameEntry, currentGameId, page]);
+    }, [activeGameEntry, currentCreateGameEntry, currentGameId, page]);
 
     useEffect(() => {
         void dispatch(loadAuthSession());
@@ -203,7 +204,7 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
 
     useEffect(() => {
         if (currentCreateGameEntry) {
-            setSelectedGameSlug(currentCreateGameEntry.identity.slug);
+            setSelectedLobbyGameSlug(currentCreateGameEntry.identity.slug);
         }
     }, [currentCreateGameEntry]);
 
@@ -277,9 +278,14 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
     const handleStartGameFromCreate = (gameSlug: string, options?: GameStartOptions | boolean) => {
         void (async () => {
             try {
-                const gameId = await (gameEntriesBySlug.get(gameSlug) ?? activeGameEntry).lifecycle.startGame(dispatch, gameSlug, normalizeStartOptions(options));
+                const entry = gameEntriesBySlug.get(gameSlug);
+                if (!entry) {
+                    setLobbyOpenErrorMessage("Unable to start that game right now.");
+                    return;
+                }
+                const gameId = await entry.lifecycle.startGame(dispatch, gameSlug, normalizeStartOptions(options));
                 if (gameId) {
-                    navigateToGame(gameId);
+                    navigateToGame(gameId, { gameSlug });
                 }
             } catch (error) {
                 if (isUnauthorizedError(error)) {
@@ -476,7 +482,7 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
                         isLoading={isLoadingGame}
                         onCreateGame={(gameSlug) => {
                             setLobbyOpenErrorMessage(null);
-                            setSelectedGameSlug(gameSlug);
+                            setSelectedLobbyGameSlug(gameSlug);
                             navigateToCreate(gameSlug);
                         }}
                         onDismissOpenError={() => {
@@ -488,7 +494,7 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
                             });
                         }}
                         onSelectGame={(gameSlug) => {
-                            setSelectedGameSlug(gameSlug);
+                            setSelectedLobbyGameSlug(gameSlug);
                         }}
                     />
                 ) : page === "create" ? (
@@ -508,8 +514,12 @@ export const App = ({ gameEntries = registeredGameEntries }: AppProps) => {
                     <section className="auth-layout">
                         <ProfileScreen />
                     </section>
+                ) : PlayScreen ? (
+                    <PlayScreen key={currentGameId ?? activeGameSlug ?? "active-game"} />
                 ) : (
-                    <PlayScreen key={currentGameId ?? activeGameEntry.identity.slug} />
+                    <section className="panel">
+                        <StatusBanner text="Loading..." />
+                    </section>
                 )}
             </section>
 

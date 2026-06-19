@@ -35,11 +35,51 @@
 .lunar-game-ports {
     display: grid;
     grid-template-columns: minmax(0, 1fr) clamp(238px, 21.7vw, 434px);
+    grid-template-rows: auto minmax(0, 1fr);
     gap: 0;
     align-items: stretch;
     min-height: 0;
     height: 100%;
     overflow: hidden;
+}
+
+.lunar-action-panel {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 3fr);
+    gap: 12px;
+    align-items: stretch;
+    margin: 0;
+    padding: 10px 12px;
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    border-top: 0;
+}
+
+.lunar-action-status {
+    display: grid;
+    gap: 2px;
+    min-height: calc(4 * 1.25em);
+    color: #0f172a;
+    font-size: 0.78rem;
+    line-height: 1.25;
+}
+
+.lunar-action-status-line {
+    min-width: 0;
+}
+
+.lunar-action-interaction {
+    display: flex;
+    align-items: center;
+    min-width: 0;
+}
+
+.lunar-action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
 }
 
 .lunar-table-port,
@@ -218,6 +258,24 @@
     color: #475569;
 }
 
+.lunar-credit-value {
+    border-radius: 4px;
+    padding: 0 3px;
+}
+
+.lunar-credit-value.is-credit-changing {
+    animation: lunar-credit-change 0.5s ease-out both;
+}
+
+@keyframes lunar-credit-change {
+    from {
+        background: var(--lunar-credit-flash);
+    }
+    to {
+        background: transparent;
+    }
+}
+
 .lunar-supply {
     display: grid;
     gap: 10px;
@@ -249,6 +307,12 @@
 
 .lunar-supply-slot[aria-disabled="true"] {
     cursor: default;
+}
+
+.lunar-supply-slot[aria-disabled="false"],
+.lunar-pile[aria-disabled="false"],
+.lunar-hand-card[aria-disabled="false"] {
+    cursor: pointer;
 }
 
 .lunar-supply-slot[aria-disabled="true"],
@@ -347,12 +411,6 @@
 .lunar-hand-card.is-dragging {
     opacity: 0;
     transition: none;
-}
-
-.lunar-hand-card.is-unplayable {
-    cursor: default;
-    opacity: 0.42;
-    filter: grayscale(0.45);
 }
 
 .lunar-empty-hand {
@@ -515,6 +573,10 @@
     cursor: help;
 }
 
+.lunar-card-action-badge.is-targetable-badge {
+    cursor: pointer;
+}
+
 .lunar-card-action-tooltip {
     position: fixed;
     left: var(--lunar-action-tooltip-left);
@@ -537,6 +599,33 @@
     pointer-events: none;
 }
 
+.lunar-card-action-popup-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(15, 23, 42, 0.18);
+}
+
+.lunar-card-action-popup {
+    display: grid;
+    gap: 12px;
+    width: min(420px, calc(100vw - 40px));
+    max-height: min(70vh, 480px);
+    overflow: auto;
+    padding: 18px 20px;
+    text-align: left;
+}
+
+.lunar-card-action-popup h2 {
+    margin: 0;
+    color: #0f172a;
+    font-size: 1.05rem;
+    line-height: 1.2;
+}
+
 .lunar-card-action-tooltip strong {
     font-size: 0.7rem;
     letter-spacing: 0;
@@ -544,6 +633,11 @@
 
 .lunar-card-action-tooltip-text {
     display: block;
+}
+
+.lunar-card-action-popup .lunar-card-action-tooltip-text {
+    font-size: 1rem;
+    line-height: 1.42;
 }
 
 .lunar-card-action-tooltip-line {
@@ -719,7 +813,7 @@
 }
 
 .lunar-board-card.is-station-revealed {
-    pointer-events: none;
+    pointer-events: auto;
 }
 
 .lunar-station-controls {
@@ -730,8 +824,9 @@
     right: var(--lunar-station-control-gap);
     top: var(--lunar-station-control-gap);
     z-index: 45;
-    display: flex;
-    gap: var(--lunar-station-control-gap);
+    display: grid;
+    grid-template-columns: repeat(2, var(--lunar-station-control-size));
+    column-gap: var(--lunar-station-control-gap);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.16s ease;
@@ -748,7 +843,6 @@
     aspect-ratio: 1;
     min-width: 0;
     min-height: 0;
-    flex: 0 0 var(--lunar-station-control-size);
     display: grid;
     place-items: center;
     border: 1px solid rgba(15, 23, 42, 0.58);
@@ -757,6 +851,14 @@
     background: rgba(255, 255, 255, 0.72);
     color: #1f2937;
     box-shadow: 0 2px 8px rgba(15, 23, 42, 0.18);
+}
+
+.lunar-station-control.is-reveal-control {
+    grid-column: 1;
+}
+
+.lunar-station-control.is-flip-control {
+    grid-column: 2;
 }
 
 .lunar-station-control:hover,
@@ -880,6 +982,7 @@
 
     .lunar-game-ports {
         grid-template-columns: 1fr;
+        grid-template-rows: none;
         height: auto;
         gap: 12px;
         overflow: visible;
@@ -894,12 +997,23 @@
         overflow: visible;
     }
 
+    .lunar-action-panel {
+        position: sticky;
+        top: 0;
+        z-index: 40;
+        order: 2;
+        grid-template-columns: 1fr;
+        gap: 8px;
+        border-top: 1px solid rgba(15, 23, 42, 0.16);
+        border-bottom: 1px solid rgba(15, 23, 42, 0.16);
+    }
+
     .lunar-player-actions {
         gap: 10px;
     }
 
     .lunar-table-port {
-        order: 2;
+        order: 3;
         height: auto;
         max-height: none;
         border-top: 1px solid rgba(15, 23, 42, 0.16);

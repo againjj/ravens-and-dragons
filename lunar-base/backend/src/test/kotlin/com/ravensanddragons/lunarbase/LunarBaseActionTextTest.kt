@@ -1,6 +1,7 @@
 package com.ravensanddragons.lunarbase
 
 import com.ravensanddragons.lunarbase.cards.LunarBaseAnyNumberFlipStationAmount
+import com.ravensanddragons.lunarbase.cards.LunarBaseActionScope
 import com.ravensanddragons.lunarbase.cards.LunarBaseBuildAction
 import com.ravensanddragons.lunarbase.cards.LunarBaseChooseOneAction
 import com.ravensanddragons.lunarbase.cards.LunarBaseDiscardAction
@@ -15,7 +16,9 @@ import com.ravensanddragons.lunarbase.cards.LunarBaseInfluenceCountAmount
 import com.ravensanddragons.lunarbase.cards.LunarBaseLiteralAmount
 import com.ravensanddragons.lunarbase.cards.LunarBaseLiteralFlipStationAmount
 import com.ravensanddragons.lunarbase.cards.LunarBaseLoseCreditsAction
+import com.ravensanddragons.lunarbase.cards.LunarBasePlayerReference
 import com.ravensanddragons.lunarbase.cards.LunarBaseResellAction
+import com.ravensanddragons.lunarbase.cards.LunarBaseScopedAction
 import com.ravensanddragons.lunarbase.cards.LunarBaseSelfFlipStationAmount
 import com.ravensanddragons.lunarbase.cards.LunarBaseStationSide
 import com.ravensanddragons.lunarbase.cards.LunarBaseStealCreditsAction
@@ -24,6 +27,8 @@ import com.ravensanddragons.lunarbase.cards.LunarBaseStaticCardEffect
 import com.ravensanddragons.lunarbase.cards.LunarBaseStaticEffect
 import com.ravensanddragons.lunarbase.cards.LunarBaseTrigger
 import com.ravensanddragons.lunarbase.cards.LunarBaseTriggeredCardEffect
+import com.ravensanddragons.lunarbase.cards.LunarBaseChooseOpponentAction
+import com.ravensanddragons.lunarbase.cards.LunarBaseViewHandAction
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -40,6 +45,30 @@ class LunarBaseActionTextTest {
         ).toActionText()
 
         assertEquals("Choose one:\nDraft 1 card\nDraw 2 cards", text)
+    }
+
+    @Test
+    fun chooseOneInsideTopLevelSequenceUsesInlineChoices() {
+        val text = listOf(
+            LunarBaseChooseOpponentAction,
+            LunarBaseViewHandAction(LunarBasePlayerReference.CHOSEN_PLAYER),
+            LunarBaseChooseOneAction(
+                listOf(
+                    LunarBaseDrawAction(LunarBaseLiteralAmount(1)),
+                    LunarBaseScopedAction(
+                        LunarBaseActionScope.CHOSEN_PLAYER,
+                        listOf(LunarBaseDiscardAction(LunarBaseLiteralAmount(1)))
+                    )
+                )
+            )
+        ).toActionText()
+
+        assertEquals(
+            "Choose an opponent\n" +
+                "View chosen player's hand\n" +
+                "Choose one: Draw 1 card or Chosen player: Discard 1 card",
+            text
+        )
     }
 
     @Test

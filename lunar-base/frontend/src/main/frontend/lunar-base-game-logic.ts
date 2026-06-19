@@ -11,8 +11,19 @@ export const isDiscardableFromHand = (card: LunarBaseCard | null | undefined): c
 export const isPlayableAgentFromHand = (card: LunarBaseCard | null | undefined): card is LunarBaseCard =>
     card?.type === "agent";
 
-export const stationOppositeSideCard = (card: LunarBaseCard): LunarBaseCard =>
-    card.type === "station" ? { ...card, flipped: !card.flipped } : card;
+export const stationOppositeSideCard = (card: LunarBaseCard): LunarBaseCard => {
+    if (card.type !== "station") return card;
+    const flipped = !card.flipped;
+    return {
+        ...card,
+        flipped,
+        name: flipped ? card.stationBackName ?? card.name : card.stationFrontName ?? card.name,
+        orbs: flipped ? card.stationBackOrbs ?? [] : card.stationFrontOrbs ?? [],
+        colonists: flipped ? card.stationBackColonists ?? 0 : card.stationFrontColonists ?? 0,
+        achievements: flipped ? card.stationBackAchievements ?? [] : card.stationFrontAchievements ?? [],
+        mainActionText: flipped ? card.stationBackMainActionText ?? null : card.stationFrontMainActionText ?? null
+    };
+};
 
 export const creditCost = (card: LunarBaseCard, orbs: LunarBasePlayer["orbs"]): number => {
     const counts: Record<LunarBaseResourceColorName, number> = { red: 0, blue: 0, yellow: 0, gray: 0 };

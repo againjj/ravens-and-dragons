@@ -8,8 +8,8 @@ import { lunarBaseGameEntry } from "../../main/frontend/lunar-base-entry";
 import { setScaledDragImage } from "../../main/frontend/LunarBasePlayerBoard";
 import { boardBounds, snapDraggedCardFromCenter, snapSelectedCardFromPointer } from "../../main/frontend/lunar-base-board-rules";
 import { resolveLunarCardInteraction } from "../../main/frontend/lunar-base-card-interactions";
-import { createDragAutoScrollState, dragAutoScrollDelta } from "../../main/frontend/lunar-base-game-logic";
-import type { LunarBaseGame } from "../../main/frontend/lunar-base-types";
+import { createDragAutoScrollState, dragAutoScrollDelta, stationOppositeSideCard } from "../../main/frontend/lunar-base-game-logic";
+import type { LunarBaseActionState, LunarBaseGame } from "../../main/frontend/lunar-base-types";
 
 let servedGame: Record<string, unknown>;
 let eventSourceListeners: Map<string, () => void>;
@@ -179,25 +179,56 @@ describe("lunarBaseGameEntry", () => {
         const supplyCard = { id: "supply-1", type: "module" as const, name: "Supply Rover" };
         const agentCard = { id: "agent-1", type: "agent" as const, name: "Field Medic" };
         const moduleCard = { id: "module-1", type: "module" as const, name: "Solar Lab" };
+        const context = (kind: string, canPlayAgents = false) => ({
+            game: lunarBaseGame({ actionState: lunarActionState(kind) }) as unknown as LunarBaseGame,
+            viewerSeat: 0,
+            canPlayAgents
+        });
 
-        expect(resolveLunarCardInteraction({ type: "stock" }, { type: "hand" }, "click")).toMatchObject({
+        expect(resolveLunarCardInteraction({ type: "stock" }, { type: "hand" }, "click", context("draw"))).toMatchObject({
             command: { type: "drawStock" },
             animation: { annotation: "click stock card to hand", faceDown: true, destination: { type: "viewerHandEnd" } }
         });
-        expect(resolveLunarCardInteraction({ type: "supply", slotIndex: 2, card: supplyCard }, { type: "discard" }, "modal")).toMatchObject({
-            command: { type: "discardSupply", slotIndex: 2 },
+        expect(resolveLunarCardInteraction({ type: "supply", slotIndex: 2, card: supplyCard }, { type: "discard" }, "modal", context("resell"))).toMatchObject({
+            command: { type: "resellSupply", slotIndex: 2 },
             animation: { annotation: "click supply card to discard", sourceKey: "supply-supply-1", destination: { type: "discard" }, hiddenDestinationKey: "discard" }
         });
-        expect(resolveLunarCardInteraction({ type: "hand", viewerSeat: 0, card: agentCard }, { type: "discard" }, "drop")).toMatchObject({
+        expect(resolveLunarCardInteraction({ type: "hand", viewerSeat: 0, card: agentCard }, { type: "discard" }, "drop", context("build", true))).toMatchObject({
             command: { type: "playAgent", cardId: "agent-1" },
             animation: { annotation: "drop hand agent to play", sourceKey: "hand-0-agent-1", destination: { type: "discard" } }
         });
-        expect(resolveLunarCardInteraction({ type: "hand", viewerSeat: 0, card: moduleCard }, { type: "board", x: -1, y: 0, rotation: 90, to: { x: 84, y: 42 } }, "drop")).toMatchObject({
-            command: { type: "playModule", cardId: "module-1", x: -1, y: 0, rotation: 90 },
+        expect(resolveLunarCardInteraction({ type: "hand", viewerSeat: 0, card: moduleCard }, { type: "board", x: -1, y: 0, rotation: 90, to: { x: 84, y: 42 } }, "drop", context("build"))).toMatchObject({
+            command: { type: "buildModule", cardId: "module-1", x: -1, y: 0, rotation: 90 },
             animation: { annotation: "drop hand module to board", sourceKey: "hand-0-module-1", rotation: 90, destination: { type: "boardCard", cardId: "module-1" }, toX: 84, toY: 42 }
         });
-        expect(resolveLunarCardInteraction({ type: "stock" }, { type: "discard" }, "drop")).toBeNull();
-        expect(resolveLunarCardInteraction({ type: "hand", viewerSeat: 0, card: moduleCard }, { type: "discard" }, "drop")).toBeNull();
+        expect(resolveLunarCardInteraction({ type: "hand", viewerSeat: 0, card: moduleCard }, { type: "discard" }, "click", context("discard"))).toMatchObject({
+            command: { type: "discardHandCard", cardId: "module-1" },
+            animation: { annotation: "click hand module to discard", sourceKey: "hand-0-module-1", destination: { type: "discard" } }
+        });
+        expect(resolveLunarCardInteraction({ type: "hand", viewerSeat: 0, card: agentCard }, { type: "discard" }, "click", context("discard", true))).toMatchObject({
+            command: { type: "discardHandCard", cardId: "agent-1" },
+            animation: { annotation: "click hand agent to discard", sourceKey: "hand-0-agent-1", destination: { type: "discard" } }
+        });
+        expect(resolveLunarCardInteraction({ type: "stock" }, { type: "discard" }, "drop", context("draw"))).toBeNull();
+        expect(resolveLunarCardInteraction({ type: "hand", viewerSeat: 0, card: moduleCard }, { type: "discard" }, "drop", context("build"))).toBeNull();
+    });
+
+    it("maps a revealed station preview to the opposite side's main action", () => {
+        const preview = stationOppositeSideCard({
+            id: "station-1",
+            type: "station",
+            name: "Terran Outpost",
+            flipped: false,
+            stationFrontName: "Terran Outpost",
+            stationFrontMainActionText: "Choose one:\nBuild 1 module\nDraw 1 card",
+            stationBackName: "The Oasis",
+            stationBackMainActionText: "Draft 2 cards",
+            mainActionText: "Choose one:\nBuild 1 module\nDraw 1 card"
+        });
+
+        expect(preview.flipped).toBe(true);
+        expect(preview.name).toBe("The Oasis");
+        expect(preview.mainActionText).toBe("Draft 2 cards");
     });
 
     it("renders an empty stock pile like the empty discard pile", async () => {
@@ -251,6 +282,7 @@ describe("lunarBaseGameEntry", () => {
         const badge = await screen.findByLabelText("ON PLAYING");
 
         expect(badge).toHaveTextContent(/ON\s*PLAYING/);
+        expect(badge).toHaveClass("is-targetable-badge");
 
         fireEvent.mouseEnter(badge, { clientX: 50, clientY: 60 });
 
@@ -263,11 +295,133 @@ describe("lunarBaseGameEntry", () => {
         fireEvent.mouseLeave(badge);
         const effectBadge = screen.getByLabelText("EFFECT");
         expect(effectBadge).toHaveTextContent("EFFECT");
+        expect(effectBadge).not.toHaveClass("is-targetable-badge");
 
         fireEvent.mouseEnter(effectBadge, { clientX: 70, clientY: 80 });
 
         expect(await screen.findByRole("tooltip")).toHaveTextContent("EFFECT");
         expect(screen.getByRole("tooltip")).toHaveTextContent("Forbid stealing credits");
+    });
+
+    it("opens action text from badge long press and swallows the follow-up click", async () => {
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+        Object.defineProperty(window, "matchMedia", {
+            writable: true,
+            value: vi.fn().mockImplementation((query: string) => ({
+                matches: query === "(pointer: coarse)",
+                media: query,
+                onchange: null,
+                addListener: vi.fn(),
+                removeListener: vi.fn(),
+                addEventListener: vi.fn(),
+                removeEventListener: vi.fn(),
+                dispatchEvent: vi.fn()
+            }))
+        });
+
+        servedGame = lunarBaseGame({
+            supply: [{
+                id: "supply-1",
+                type: "influence",
+                name: "Supply Alliance",
+                color: "yellow",
+                connectors: { topRight: "gray", bottomRight: "gray" },
+                effectText: "Forbid stealing credits"
+            }],
+            actionState: lunarActionState("draft")
+        });
+        render(<PlayScreen />);
+        expect((await screen.findByText("Supply Alliance")).closest("[role=button]")).toHaveAttribute("aria-disabled", "false");
+        const effectBadge = await screen.findByLabelText("EFFECT");
+        expect(effectBadge).not.toHaveClass("is-actionable-card");
+        expect(effectBadge).toHaveClass("is-targetable-badge");
+
+        fireEvent.click(effectBadge, { clientX: 70, clientY: 80 });
+
+        expect(screen.queryByRole("dialog", { name: "EFFECT text" })).not.toBeInTheDocument();
+
+        vi.useFakeTimers();
+        fireEvent.pointerDown(effectBadge, { pointerId: 1, pointerType: "touch", clientX: 70, clientY: 80 });
+        act(() => {
+            vi.advanceTimersByTime(550);
+        });
+        const effectPopup = screen.getByRole("dialog", { name: "EFFECT text" });
+        expect(effectPopup).toHaveClass("lunar-card-action-popup");
+        expect(effectPopup).toHaveTextContent("Forbid stealing credits");
+        expect(document.querySelector(".lunar-card-action-popup-backdrop")).toBeInTheDocument();
+        expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
+        fireEvent.click(effectBadge, { clientX: 70, clientY: 80 });
+        expect(screen.getByRole("dialog", { name: "EFFECT text" })).toBeInTheDocument();
+
+        fireEvent.click(document.body);
+
+        expect(screen.queryByRole("dialog", { name: "EFFECT text" })).not.toBeInTheDocument();
+        vi.useRealTimers();
+
+        cleanup();
+        servedGame = lunarBaseGame({ stockCount: 3 });
+        render(<PlayScreen />);
+        expect(await screen.findByRole("button", { name: "Stock, 3 cards" })).toHaveAttribute("aria-disabled", "false");
+
+        cleanup();
+        servedGame = lunarBaseGame({
+            hand: [{
+                id: "agent-1",
+                type: "agent",
+                name: "Field Medic",
+                onPlayingText: "Draw 1 card"
+            }],
+            actionState: lunarChoosingActionState()
+        });
+        render(<PlayScreen />);
+        expect((await screen.findByText("Field Medic")).closest("[role=button]")).toHaveAttribute("aria-disabled", "false");
+        const onPlayingBadge = await screen.findByLabelText("ON PLAYING");
+        expect(onPlayingBadge).not.toHaveClass("is-actionable-card");
+
+        vi.useFakeTimers();
+        fireEvent.pointerDown(onPlayingBadge, { pointerId: 2, pointerType: "touch", clientX: 90, clientY: 100 });
+        act(() => {
+            vi.advanceTimersByTime(550);
+        });
+
+        expect(screen.getByRole("dialog", { name: "ON PLAYING text" })).toHaveTextContent("Draw 1 card");
+        vi.useRealTimers();
+
+        cleanup();
+        servedGame = lunarBaseGame({ actionState: lunarChoosingActionState() });
+        render(<PlayScreen />);
+        const mainActionBadge = await screen.findByLabelText("MAIN ACTION");
+        expect(mainActionBadge).not.toHaveClass("is-clickable");
+        expect(mainActionBadge).toHaveClass("is-targetable-badge");
+        expect(fireEvent.mouseDown(mainActionBadge)).toBe(false);
+
+        vi.useFakeTimers();
+        fireEvent.pointerDown(mainActionBadge, { pointerId: 3, pointerType: "touch", clientX: 110, clientY: 120 });
+        act(() => {
+            vi.advanceTimersByTime(550);
+        });
+        fireEvent.click(mainActionBadge, { clientX: 110, clientY: 120 });
+
+        expect(screen.getByRole("dialog", { name: "MAIN ACTION text" })).toHaveTextContent("Build 1 moduleDraw 1 card");
+        expect(vi.mocked(fetch)).not.toHaveBeenCalledWith(
+            "/api/games/lunar-1/commands",
+            expect.objectContaining({
+                body: expect.stringContaining("chooseMainAction")
+            })
+        );
+        vi.useRealTimers();
+
+        fireEvent.click(document.body);
+        expect(screen.queryByRole("dialog", { name: "MAIN ACTION text" })).not.toBeInTheDocument();
+        fireEvent.click(mainActionBadge);
+
+        await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+            "/api/games/lunar-1/commands",
+            expect.objectContaining({
+                body: JSON.stringify({ type: "chooseMainAction", cardId: "station-1", expectedVersion: 1 })
+            })
+        ));
     });
 
     it("reveals the other side of only the viewer station without sending a command", async () => {
@@ -320,22 +474,86 @@ describe("lunarBaseGameEntry", () => {
         expect(screen.queryByLabelText("1 colonist; achievements 12")).not.toBeInTheDocument();
     });
 
-    it("shows the station flip control only on the viewer turn and sends a flip command", async () => {
+    it("shows the main action tooltip while the station's other side is revealed", async () => {
+        servedGame = lunarBaseGame({ actionState: lunarChoosingActionState() });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        const revealButton = await screen.findByRole("button", { name: "Reveal other station side" });
+        vi.useFakeTimers();
+        fireEvent.click(revealButton);
+        act(() => {
+            vi.advanceTimersByTime(500);
+        });
+        vi.useRealTimers();
+
+        const revealedBadge = screen.getAllByLabelText("MAIN ACTION").find((badge) =>
+            badge.closest(".lunar-board-card")?.classList.contains("is-station-revealed")
+        );
+        expect(revealedBadge).toBeDefined();
+        const revealedCard = revealedBadge!.closest(".lunar-board-card");
+        expect(revealedCard).toBeDefined();
+
+        fireEvent.mouseEnter(revealedBadge!, { clientX: 50, clientY: 60 });
+
+        expect(screen.getByRole("tooltip")).toHaveTextContent("Draft 2 cards");
+
+        vi.useFakeTimers();
+        fireEvent.click(revealedBadge!);
+
+        expect(vi.mocked(fetch)).not.toHaveBeenCalledWith(
+            "/api/games/lunar-1/commands",
+            expect.objectContaining({
+                body: expect.stringContaining("chooseMainAction")
+            })
+        );
+        act(() => {
+            vi.advanceTimersByTime(500);
+        });
+        vi.useRealTimers();
+        expect(screen.queryByRole("button", { name: "Hide revealed station side" })).not.toBeInTheDocument();
+    });
+
+    it("shows station flip controls on every station for non-self flip actions", async () => {
         const animate = vi.fn();
         HTMLElement.prototype.animate = animate;
+        servedGame = lunarBaseGame({ actionState: lunarActionState("flipStation") });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        expect(await screen.findAllByText("Terran Outpost")).toHaveLength(2);
+        const flipButtons = screen.getAllByRole("button", { name: "Flip station" });
+
+        expect(flipButtons).toHaveLength(2);
+        expect(flipButtons[0]).toHaveClass("is-flip-control");
+        expect(flipButtons[1]).toHaveClass("is-flip-control");
+        await userEvent.click(flipButtons[1]);
+
+        expect(animate).not.toHaveBeenCalled();
+        await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+            "/api/games/lunar-1/commands",
+            expect.objectContaining({
+                body: JSON.stringify({ type: "flipStation", playerIndex: 1, cardId: "station-2", expectedVersion: 1 })
+            })
+        ));
+    });
+
+    it("shows the station flip control only on the viewer station for self flip actions", async () => {
+        servedGame = lunarBaseGame({ actionState: lunarActionState("flipStation", 0, "self") });
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
 
         render(<PlayScreen />);
         expect(await screen.findAllByText("Terran Outpost")).toHaveLength(2);
 
-        await userEvent.click(screen.getByRole("button", { name: "Flip station" }));
+        const flipButtons = screen.getAllByRole("button", { name: "Flip station" });
+        expect(flipButtons).toHaveLength(1);
 
-        expect(screen.getByText("The Oasis")).toBeInTheDocument();
-        expect(animate).not.toHaveBeenCalled();
+        await userEvent.click(flipButtons[0]);
+
         await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
             "/api/games/lunar-1/commands",
             expect.objectContaining({
-                body: JSON.stringify({ type: "flipStation", expectedVersion: 1 })
+                body: JSON.stringify({ type: "flipStation", playerIndex: 0, cardId: "station-1", expectedVersion: 1 })
             })
         ));
     });
@@ -394,34 +612,54 @@ describe("lunarBaseGameEntry", () => {
         ));
     });
 
-    it("acts on a different clicked hand card after clearing the selected card", async () => {
+    it("discards a clicked module during a discard action instead of selecting it for build", async () => {
+        servedGame = lunarBaseGame({
+            hand: [{ id: "module-discard", type: "module", name: "Helium Factory", color: "blue", connectors: { topRight: "gray", bottomRight: "gray" } }],
+            actionState: lunarActionState("discard")
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        const card = await screen.findByText("Helium Factory");
+        const handCard = card.closest("[role=button]");
+        expect(handCard).not.toBeNull();
+
+        await userEvent.click(card);
+
+        expect(handCard).not.toHaveClass("is-selected");
+        await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+            "/api/games/lunar-1/commands",
+            expect.objectContaining({
+                body: JSON.stringify({ type: "discardHandCard", cardId: "module-discard", expectedVersion: 1 })
+            })
+        ));
+    });
+
+    it("selects a different clicked module after clearing the selected card", async () => {
         servedGame = lunarBaseGame({
             hand: [
                 { id: "module-1", type: "module", name: "Solar Lab", color: "blue", cardCost: ["blue"], connectors: { topRight: "gray", bottomRight: "gray" } },
-                { id: "agent-1", type: "agent", name: "Field Medic", cardCost: ["yellow"] }
+                { id: "module-2", type: "module", name: "Hydroponics", color: "yellow", cardCost: ["yellow"], connectors: { topRight: "gray", bottomRight: "gray" } }
             ]
         });
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
 
         render(<PlayScreen />);
         const module = await screen.findByText("Solar Lab");
-        const agent = await screen.findByText("Field Medic");
+        const secondModule = await screen.findByText("Hydroponics");
 
         fireEvent.click(module);
         expect(module.closest("[role=button]")).toHaveClass("is-selected");
-        fireEvent.click(agent);
+        fireEvent.click(secondModule);
 
-        await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
-            "/api/games/lunar-1/commands",
-            expect.objectContaining({
-                body: JSON.stringify({ type: "playAgent", cardId: "agent-1", expectedVersion: 1 })
-            })
-        ));
+        expect(module.closest("[role=button]")).not.toHaveClass("is-selected");
+        expect(secondModule.closest("[role=button]")).toHaveClass("is-selected");
     });
 
     it("takes a supply card when it is dragged to the viewer hand", async () => {
         servedGame = lunarBaseGame({
-            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }],
+            actionState: lunarActionState("draft")
         });
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
         const dataTransfer = dragDataTransfer();
@@ -451,14 +689,15 @@ describe("lunarBaseGameEntry", () => {
         await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
             "/api/games/lunar-1/commands",
             expect.objectContaining({
-                body: JSON.stringify({ type: "takeSupply", slotIndex: 0, expectedVersion: 1 })
+                body: JSON.stringify({ type: "draftSupply", slotIndex: 0, expectedVersion: 1 })
             })
         ));
     });
 
     it("shows a snap rectangle when a supply card can be dropped into the viewer hand", async () => {
         servedGame = lunarBaseGame({
-            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }],
+            actionState: lunarActionState("draft")
         });
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
         const dataTransfer = dragDataTransfer();
@@ -489,7 +728,8 @@ describe("lunarBaseGameEntry", () => {
 
     it("keeps transient snap and preview visuals out of the table sizing surface", async () => {
         servedGame = lunarBaseGame({
-            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }],
+            actionState: lunarActionState("draft")
         });
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
         const dataTransfer = dragDataTransfer();
@@ -528,7 +768,8 @@ describe("lunarBaseGameEntry", () => {
 
     it("sizes the drag overlay to the full scrollable table area", async () => {
         servedGame = lunarBaseGame({
-            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }],
+            actionState: lunarActionState("resell")
         });
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
         const dataTransfer = dragDataTransfer();
@@ -562,7 +803,8 @@ describe("lunarBaseGameEntry", () => {
 
     it("keeps the table scroll position when dropping a top-row supply card", async () => {
         servedGame = lunarBaseGame({
-            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }],
+            actionState: lunarActionState("resell")
         });
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
         const dataTransfer = dragDataTransfer();
@@ -618,7 +860,8 @@ describe("lunarBaseGameEntry", () => {
 
     it("keeps the table scroll position when drag start reveals a partially clipped source card", async () => {
         servedGame = lunarBaseGame({
-            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }],
+            actionState: lunarActionState("resell")
         });
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
         const dataTransfer = dragDataTransfer();
@@ -667,7 +910,8 @@ describe("lunarBaseGameEntry", () => {
 
     it("keeps the table scroll position when pressing a partially clipped draggable card", async () => {
         servedGame = lunarBaseGame({
-            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }],
+            actionState: lunarActionState("resell")
         });
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
 
@@ -708,7 +952,8 @@ describe("lunarBaseGameEntry", () => {
 
     it("keeps restoring a clipped card press if the browser scrolls after the initial press", async () => {
         servedGame = lunarBaseGame({
-            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }],
+            actionState: lunarActionState("resell")
         });
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
 
@@ -930,7 +1175,7 @@ describe("lunarBaseGameEntry", () => {
         await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
             "/api/games/lunar-1/commands",
             expect.objectContaining({
-                body: JSON.stringify({ type: "takeSupply", slotIndex: 0, expectedVersion: 1 })
+                body: JSON.stringify({ type: "draftSupply", slotIndex: 0, expectedVersion: 1 })
             })
         ));
     });
@@ -961,7 +1206,7 @@ describe("lunarBaseGameEntry", () => {
         expect(vi.mocked(fetch)).not.toHaveBeenCalledWith(
             "/api/games/lunar-1/commands",
             expect.objectContaining({
-                body: JSON.stringify({ type: "takeSupply", slotIndex: 0, expectedVersion: 1 })
+                body: JSON.stringify({ type: "draftSupply", slotIndex: 0, expectedVersion: 1 })
             })
         );
     });
@@ -1010,29 +1255,25 @@ describe("lunarBaseGameEntry", () => {
         fireDragEnd(supplyButton!, { clientX: 924, clientY: 386, dataTransfer });
     });
 
-    it("opens supply click choices and sends the selected destination", async () => {
+    it("resells a clicked supply card during a resell action", async () => {
         servedGame = lunarBaseGame({
-            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }],
+            actionState: lunarActionState("resell")
         });
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
 
         render(<PlayScreen />);
         await userEvent.click(await screen.findByText("Supply Rover"));
 
-        const dialog = await screen.findByRole("dialog", { name: "Supply card destination" });
-        expect(dialog).toHaveTextContent("Supply Rover");
-
-        await userEvent.click(screen.getByRole("button", { name: "Discard" }));
-
         await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
             "/api/games/lunar-1/commands",
             expect.objectContaining({
-                body: JSON.stringify({ type: "discardSupply", slotIndex: 0, expectedVersion: 1 })
+                body: JSON.stringify({ type: "resellSupply", slotIndex: 0, expectedVersion: 1 })
             })
         ));
     });
 
-    it("takes a clicked supply card to hand when that choice is selected", async () => {
+    it("takes a clicked supply card to hand during a draft action", async () => {
         servedGame = lunarBaseGame({
             supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
         });
@@ -1055,7 +1296,6 @@ describe("lunarBaseGameEntry", () => {
         });
 
         await userEvent.click(supplyButton!);
-        await userEvent.click(await screen.findByRole("button", { name: "Hand" }));
 
         const flyingCard = await screen.findByLabelText("click supply card to hand");
         expect(scroll!.contains(flyingCard)).toBe(true);
@@ -1071,14 +1311,15 @@ describe("lunarBaseGameEntry", () => {
         await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
             "/api/games/lunar-1/commands",
             expect.objectContaining({
-                body: JSON.stringify({ type: "takeSupply", slotIndex: 0, expectedVersion: 1 })
+                body: JSON.stringify({ type: "draftSupply", slotIndex: 0, expectedVersion: 1 })
             })
         ));
     });
 
     it("discards a supply card when it is dragged to the discard pile", async () => {
         servedGame = lunarBaseGame({
-            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }],
+            actionState: lunarActionState("resell")
         });
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
         const dataTransfer = dragDataTransfer();
@@ -1101,14 +1342,15 @@ describe("lunarBaseGameEntry", () => {
         await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
             "/api/games/lunar-1/commands",
             expect.objectContaining({
-                body: JSON.stringify({ type: "discardSupply", slotIndex: 0, expectedVersion: 1 })
+                body: JSON.stringify({ type: "resellSupply", slotIndex: 0, expectedVersion: 1 })
             })
         ));
     });
 
     it("shows a snap rectangle when a supply card can be dropped on the discard pile", async () => {
         servedGame = lunarBaseGame({
-            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }],
+            actionState: lunarActionState("resell")
         });
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
         const dataTransfer = dragDataTransfer();
@@ -1131,7 +1373,8 @@ describe("lunarBaseGameEntry", () => {
 
     it("does not snap to discard unless the dragged card center is inside the discard pile", async () => {
         servedGame = lunarBaseGame({
-            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }],
+            actionState: lunarActionState("resell")
         });
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
         const dataTransfer = dragDataTransfer();
@@ -1154,14 +1397,15 @@ describe("lunarBaseGameEntry", () => {
         expect(vi.mocked(fetch)).not.toHaveBeenCalledWith(
             "/api/games/lunar-1/commands",
             expect.objectContaining({
-                body: JSON.stringify({ type: "discardSupply", slotIndex: 0, expectedVersion: 1 })
+                body: JSON.stringify({ type: "resellSupply", slotIndex: 0, expectedVersion: 1 })
             })
         );
     });
 
     it("snaps to discard when the dragged card center is inside even if the pointer is outside", async () => {
         servedGame = lunarBaseGame({
-            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
+            supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }],
+            actionState: lunarActionState("resell")
         });
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
         const dataTransfer = dragDataTransfer();
@@ -1186,7 +1430,7 @@ describe("lunarBaseGameEntry", () => {
         await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
             "/api/games/lunar-1/commands",
             expect.objectContaining({
-                body: JSON.stringify({ type: "discardSupply", slotIndex: 0, expectedVersion: 1 })
+                body: JSON.stringify({ type: "resellSupply", slotIndex: 0, expectedVersion: 1 })
             })
         ));
     });
@@ -1227,7 +1471,7 @@ describe("lunarBaseGameEntry", () => {
         await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
             "/api/games/lunar-1/commands",
             expect.objectContaining({
-                body: JSON.stringify({ type: "takeSupply", slotIndex: 0, expectedVersion: 1 })
+                body: JSON.stringify({ type: "draftSupply", slotIndex: 0, expectedVersion: 1 })
             })
         ));
     });
@@ -1489,7 +1733,8 @@ describe("lunarBaseGameEntry", () => {
 
     it("shows a snap rectangle when a hand card can be dropped on the discard pile", async () => {
         servedGame = lunarBaseGame({
-            hand: [{ id: "influence-1", type: "influence", name: "Supply Pact" }]
+            hand: [{ id: "influence-1", type: "influence", name: "Supply Pact" }],
+            actionState: lunarActionState("discard")
         });
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
         const dataTransfer = dragDataTransfer();
@@ -1510,7 +1755,7 @@ describe("lunarBaseGameEntry", () => {
         fireDragEnd(cardButton!, { clientX: 452, clientY: 164, dataTransfer });
     });
 
-    it("dims and disables an unaffordable hand module on the current player's turn", async () => {
+    it("disables but does not dim an unaffordable hand module on the current player's turn", async () => {
         servedGame = lunarBaseGame({
             credits: 0,
             hand: [{ id: "module-expensive", type: "module", name: "Costly Lab", color: "blue", cardCost: ["blue", "yellow"], connectors: { topRight: "gray", bottomRight: "gray" } }]
@@ -1522,7 +1767,7 @@ describe("lunarBaseGameEntry", () => {
         const cardButton = card.closest("[role=button]");
         expect(cardButton).not.toBeNull();
         expect(cardButton).toHaveAttribute("aria-disabled", "true");
-        expect(cardButton).toHaveClass("is-unplayable");
+        expect(cardButton).not.toHaveClass("is-unplayable");
 
         fireEvent.click(cardButton!);
         const board = document.querySelector<HTMLElement>(".lunar-board");
@@ -1533,7 +1778,7 @@ describe("lunarBaseGameEntry", () => {
         expect(document.querySelector(".lunar-board-hover")).toBeNull();
     });
 
-    it("dims and disables an affordable hand module with no legal board placement", async () => {
+    it("disables but does not dim an affordable hand module with no legal board placement", async () => {
         servedGame = lunarBaseGame({
             credits: 5,
             hand: [{ id: "module-blocked", type: "module", name: "Blocked Lab", color: "blue", connectors: { top: "red" } }]
@@ -1545,10 +1790,10 @@ describe("lunarBaseGameEntry", () => {
         const cardButton = (await screen.findByText("Blocked Lab")).closest("[role=button]");
         expect(cardButton).not.toBeNull();
         expect(cardButton).toHaveAttribute("aria-disabled", "true");
-        expect(cardButton).toHaveClass("is-unplayable");
+        expect(cardButton).not.toHaveClass("is-unplayable");
     });
 
-    it("does not dim the viewer's hand when it is another player's turn", async () => {
+    it("does not dim disabled cards when it is another player's turn", async () => {
         servedGame = lunarBaseGame({ currentPlayerIndex: 1 });
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
 
@@ -1793,7 +2038,7 @@ describe("lunarBaseGameEntry", () => {
         await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
             "/api/games/lunar-1/commands",
             expect.objectContaining({
-                body: JSON.stringify({ type: "playModule", cardId: "module-1", x: -1, y: -1, rotation: 90, expectedVersion: 1 })
+                body: JSON.stringify({ type: "buildModule", cardId: "module-1", x: -1, y: -1, rotation: 90, expectedVersion: 1 })
             })
         ));
         expect(await screen.findByLabelText("drop hand module to board")).toBeInTheDocument();
@@ -1966,7 +2211,7 @@ describe("lunarBaseGameEntry", () => {
 
         fireEvent.click(selectedCard);
         expect(selectedHandCard).toHaveClass("is-selected");
-        expect(disabledHandCard).toHaveClass("is-unplayable");
+        expect(disabledHandCard).not.toHaveClass("is-unplayable");
 
         fireEvent.click(disabledCard);
 
@@ -1980,6 +2225,27 @@ describe("lunarBaseGameEntry", () => {
         await screen.findByText("Solar Lab");
 
         expect(screen.queryByRole("button", { name: "End Game" })).not.toBeInTheDocument();
+    });
+
+    it("flashes the credit text when credits change", async () => {
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        await screen.findByText("Solar Lab");
+        const creditValue = document.querySelector<HTMLElement>(".lunar-credit-value");
+        expect(creditValue).not.toBeNull();
+        expect(creditValue).toHaveTextContent("5/20");
+        expect(creditValue).not.toHaveClass("is-credit-changing");
+
+        servedGame = lunarBaseGame({ credits: 7 });
+        await act(async () => {
+            eventSourceListeners.get("game")?.();
+        });
+
+        const updatedCreditValue = document.querySelector<HTMLElement>(".lunar-credit-value");
+        expect(updatedCreditValue).not.toBeNull();
+        expect(updatedCreditValue).toHaveTextContent("7/20");
+        expect(updatedCreditValue).toHaveClass("is-credit-changing");
     });
 
     it("shows game over details, reveal all hands, and disables finished card actions", async () => {
@@ -2002,6 +2268,7 @@ describe("lunarBaseGameEntry", () => {
 
         const dialog = await screen.findByRole("dialog", { name: "Lunar Base game over" });
         expect(dialog).toHaveTextContent("Epic Victory for Ada!");
+        expect(screen.getByLabelText("Action panel")).toHaveTextContent("Epic Victory for Ada!");
         expect(dialog).toHaveTextContent("20/20 lunar credits");
         expect(dialog).toHaveTextContent("10/10 colonists housed");
         expect(screen.getByText("(Epic Victory)")).toBeInTheDocument();
@@ -2154,6 +2421,40 @@ const expectDropSnap = (rect: DOMRect) => {
     });
 };
 
+const lunarActionState = (kind = "build", actorIndex = 0, flipAmountKind = "literal"): LunarBaseActionState => ({
+    phase: "resolvingAction",
+    mainActionChosen: true,
+    interaction: {
+        kind,
+        actorIndex,
+        text: kind === "build" ? "Build 1 module (1 left)" : `${kind} action`,
+        buttons: kind === "build" ? [{ label: "Skip Build", value: "skip" }] : [],
+        remaining: 1,
+        action: kind === "flipStation" ? { flipAmountKind } : null,
+        flippedStationIds: []
+    },
+    statusText: kind === "build" ? "Build 1 module (1 left)" : `${kind} action`
+});
+
+const lunarChoosingActionState = (): LunarBaseActionState => ({
+    phase: "choosingMainAction",
+    mainActionChosen: false,
+    interaction: null,
+    statusText: null
+});
+
+const defaultLunarActionState = (
+    hand: Array<Record<string, unknown>>,
+    supply: Array<Record<string, unknown> | null>,
+    stockCount: number,
+    currentPlayerIndex: number
+): LunarBaseActionState => {
+    if (stockCount > 0) return lunarActionState("draw", currentPlayerIndex);
+    if (supply.some(Boolean)) return lunarActionState("draft", currentPlayerIndex);
+    if (hand.some((card) => card.type === "agent")) return lunarChoosingActionState();
+    return lunarActionState("build", currentPlayerIndex);
+};
+
 const lunarBaseGame = ({
     version = 1,
     credits = 5,
@@ -2172,8 +2473,9 @@ const lunarBaseGame = ({
     stationFlipped = false,
     lifecycle = "active",
     endGameResult = null,
-    revealedHands
-}: { version?: number; credits?: number; hand?: Array<Record<string, unknown>>; supply?: Array<Record<string, unknown> | null>; stockCount?: number; discardTop?: Record<string, unknown> | null; discardCount?: number; currentPlayerIndex?: number; viewerSeat?: number | null; viewerUserId?: string | null; seats?: Array<{ userId: string | null; displayName: string | null }>; stationFlipped?: boolean; lifecycle?: string; endGameResult?: Record<string, unknown> | null; revealedHands?: Array<Array<Record<string, unknown>>> } = {}) => ({
+    revealedHands,
+    actionState = defaultLunarActionState(hand, supply, stockCount, currentPlayerIndex)
+}: { version?: number; credits?: number; hand?: Array<Record<string, unknown>>; supply?: Array<Record<string, unknown> | null>; stockCount?: number; discardTop?: Record<string, unknown> | null; discardCount?: number; currentPlayerIndex?: number; viewerSeat?: number | null; viewerUserId?: string | null; seats?: Array<{ userId: string | null; displayName: string | null }>; stationFlipped?: boolean; lifecycle?: string; endGameResult?: Record<string, unknown> | null; revealedHands?: Array<Array<Record<string, unknown>>>; actionState?: LunarBaseActionState } = {}) => ({
     id: "lunar-1",
     gameSlug: "lunar-base",
     version,
@@ -2181,6 +2483,7 @@ const lunarBaseGame = ({
     config: { playerCount: 2, useInfluences: false },
     seats,
     currentPlayerIndex,
+    actionState,
     players: [
         {
             orbs: { red: 0, blue: 0, yellow: 0, gray: 0 },

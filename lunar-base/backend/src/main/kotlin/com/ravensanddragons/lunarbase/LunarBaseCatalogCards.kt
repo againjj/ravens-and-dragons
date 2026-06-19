@@ -74,7 +74,7 @@ private fun LunarBaseCard.withCatalogMetadata(): LunarBaseCard {
     }
 }
 
-private fun catalogDefinition(card: LunarBaseCard): LunarBaseCardDefinition? {
+internal fun catalogDefinition(card: LunarBaseCard): LunarBaseCardDefinition? {
     val deck = LunarBaseStandardDeck.definition
     if (card.type == stationType && card.stationBackName != null) {
         return deck.stations.singleOrNull { it.name == card.stationBackName }

@@ -1,4 +1,4 @@
-import { Fragment, type CSSProperties, useLayoutEffect, useRef, useState } from "react";
+import { Fragment, type CSSProperties, type PointerEvent, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { portalRoot } from "./lunar-base-constants";
 import { lunarBaseColors, type CardRotation, type LunarBaseCard, type LunarBaseColorName } from "./lunar-base-types";
@@ -42,9 +42,9 @@ const cardDisplayAchievements = (card: LunarBaseCard): number[] =>
 
 const cardDisplayAction = (card: LunarBaseCard): { label: "MAIN ACTION" | "ON PLAYING" | "EFFECT"; text: string } | null => {
     const mainActionText = card.type === "station" && card.flipped
-        ? card.stationBackMainActionText ?? card.mainActionText
+        ? card.stationBackMainActionText
         : card.type === "station"
-            ? card.stationFrontMainActionText ?? card.mainActionText
+            ? card.stationFrontMainActionText
             : card.mainActionText;
     if (mainActionText) return { label: "MAIN ACTION", text: mainActionText };
     if (card.onPlayingText) return { label: "ON PLAYING", text: card.onPlayingText };
@@ -75,6 +75,8 @@ export const CardView = ({
     visualRotation = rotation,
     empty = false,
     instantRotation = false,
+    actionBadgeTargetable = false,
+    onActionBadgeClick,
     className = ""
 }: {
     card: LunarBaseCard | null;
@@ -84,6 +86,8 @@ export const CardView = ({
     visualRotation?: number;
     empty?: boolean;
     instantRotation?: boolean;
+    actionBadgeTargetable?: boolean;
+    onActionBadgeClick?: () => void;
     className?: string;
 }) => (
     <div className={[
@@ -104,7 +108,7 @@ export const CardView = ({
                 <span className="lunar-card-name">{cardDisplayName(card)}</span>
                 <span className="lunar-card-type">{card.type}</span>
                 <OrbsView card={card} />
-                <CardActionView card={card} />
+                <CardActionView card={card} targetable={actionBadgeTargetable} onActionBadgeClick={onActionBadgeClick} />
                 <CardDepictionsView card={card} />
             </>
         )}
@@ -220,13 +224,25 @@ const ActionTooltipText = ({ text }: { text: string }) => (
     </span>
 );
 
-const CardActionView = ({ card }: { card: LunarBaseCard }) => {
+const isCoarsePointer = (): boolean =>
+    typeof window !== "undefined" &&
+    typeof window.matchMedia === "function" &&
+    window.matchMedia("(pointer: coarse)").matches;
+
+const CardActionView = ({ card, targetable, onActionBadgeClick }: {
+    card: LunarBaseCard;
+    targetable: boolean;
+    onActionBadgeClick?: () => void;
+}) => {
     const action = cardDisplayAction(card);
     const tooltipRef = useRef<HTMLDivElement | null>(null);
+    const longPressTimerRef = useRef<number | null>(null);
+    const suppressNextClickRef = useRef(false);
     const [tooltip, setTooltip] = useState<{
         mouse: { x: number; y: number };
         corner: ActionTooltipCorner;
     } | null>(null);
+    const [popupOpen, setPopupOpen] = useState(false);
 
     useLayoutEffect(() => {
         if (!tooltip || !tooltipRef.current) return;
@@ -236,6 +252,19 @@ const CardActionView = ({ card }: { card: LunarBaseCard }) => {
             setTooltip({ ...tooltip, corner: nextCorner });
         }
     }, [tooltip]);
+
+    useEffect(() => {
+        if (!popupOpen) return;
+        const closePopup = () => setPopupOpen(false);
+        window.addEventListener("click", closePopup);
+        return () => window.removeEventListener("click", closePopup);
+    }, [popupOpen]);
+
+    useEffect(() => () => {
+        if (longPressTimerRef.current !== null) {
+            window.clearTimeout(longPressTimerRef.current);
+        }
+    }, []);
 
     if (!action) return null;
 
@@ -250,12 +279,35 @@ const CardActionView = ({ card }: { card: LunarBaseCard }) => {
         )
         : null;
 
+    const cancelLongPress = () => {
+        if (longPressTimerRef.current === null) return;
+        window.clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+    };
+
+    const beginLongPress = (event: PointerEvent<HTMLSpanElement>) => {
+        if (event.pointerType !== "touch" && !isCoarsePointer()) return;
+        cancelLongPress();
+        const pointerId = event.pointerId;
+        event.currentTarget.setPointerCapture?.(pointerId);
+        longPressTimerRef.current = window.setTimeout(() => {
+            longPressTimerRef.current = null;
+            suppressNextClickRef.current = true;
+            setTooltip(null);
+            setPopupOpen(true);
+        }, 550);
+    };
+
     return (
         <>
             <span
-                className="lunar-card-action-badge"
+                className={["lunar-card-action-badge", targetable ? "is-targetable-badge" : ""].filter(Boolean).join(" ")}
                 aria-label={action.label}
-                onMouseEnter={(event) => setTooltip({ mouse: { x: event.clientX, y: event.clientY }, corner: "bottomRight" })}
+                role="button"
+                tabIndex={0}
+                onMouseEnter={(event) => {
+                    setTooltip({ mouse: { x: event.clientX, y: event.clientY }, corner: "bottomRight" });
+                }}
                 onMouseMove={(event) => {
                     const size = tooltipRef.current?.getBoundingClientRect();
                     setTooltip((current) => {
@@ -267,7 +319,35 @@ const CardActionView = ({ card }: { card: LunarBaseCard }) => {
                         };
                     });
                 }}
+                onMouseDown={(event) => {
+                    event.preventDefault();
+                }}
+                onPointerDown={beginLongPress}
+                onPointerMove={cancelLongPress}
+                onPointerCancel={cancelLongPress}
+                onPointerUp={cancelLongPress}
                 onMouseLeave={() => setTooltip(null)}
+                onClick={(event) => {
+                    if (suppressNextClickRef.current) {
+                        suppressNextClickRef.current = false;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        return;
+                    }
+                    if (!targetable) {
+                        event.stopPropagation();
+                        return;
+                    }
+                    if (onActionBadgeClick) {
+                        event.stopPropagation();
+                        onActionBadgeClick();
+                    }
+                }}
+                onKeyDown={(event) => {
+                    if (event.key === "Enter" || event.key === " ") {
+                        event.stopPropagation();
+                    }
+                }}
             >
                 {action.label.replace(" ", "\n")}
             </span>
@@ -283,6 +363,20 @@ const CardActionView = ({ card }: { card: LunarBaseCard }) => {
                 >
                     <strong>{action.label}</strong>
                     <ActionTooltipText text={action.text} />
+                </div>,
+                portalRoot()
+            ) : null}
+            {popupOpen ? createPortal(
+                <div className="lunar-card-action-popup-backdrop" role="presentation">
+                    <section
+                        className="panel lunar-card-action-popup"
+                        role="dialog"
+                        aria-modal="true"
+                        aria-label={`${action.label} text`}
+                    >
+                        <h2>{action.label}</h2>
+                        <ActionTooltipText text={action.text} />
+                    </section>
                 </div>,
                 portalRoot()
             ) : null}

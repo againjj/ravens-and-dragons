@@ -280,6 +280,44 @@ class LunarBaseCardScriptTest {
         assertEquals("Module cannot define effect with onPlaying or mainAction.", effectWithMainAction.message)
     }
 
+    @Test
+    fun chooseOneRequiresAtLeastTwoActions() {
+        val exception = assertFailsWith<IllegalArgumentException> {
+            deck {
+                stationFront {
+                    name = "Front"
+                    connectors { top = gray }
+                    mainAction {
+                        chooseOne {
+                            draw { 1 }
+                        }
+                    }
+                }
+            }
+        }
+
+        assertEquals("Choose one requires at least two actions.", exception.message)
+    }
+
+    @Test
+    fun doAllRequiresAtLeastTwoActions() {
+        val exception = assertFailsWith<IllegalArgumentException> {
+            deck {
+                stationFront {
+                    name = "Front"
+                    connectors { top = gray }
+                    mainAction {
+                        doAll {
+                            draw { 1 }
+                        }
+                    }
+                }
+            }
+        }
+
+        assertEquals("Do all requires at least two actions.", exception.message)
+    }
+
     private fun loadStandardDeckScript(): LunarBaseDeckDefinition {
         return LunarBaseStandardDeck.definition
     }

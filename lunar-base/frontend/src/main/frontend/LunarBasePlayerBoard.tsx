@@ -100,6 +100,8 @@ export const PlayerBoard = forwardRef<PlayerBoardHandle, {
     dragImageMetrics: DragImageMetrics | null;
     onRevealStation: (cardId: string) => void;
     onFlipStation: (cardId: string) => void;
+    canChooseMainAction: (card: LunarBaseCard) => boolean;
+    onChooseMainAction: (cardId: string) => void;
     onPlaySelected: (x: number, y: number, destination: { x: number; y: number } | null) => void;
     onClearSelected: () => void;
     onDropCard: (event: DragEvent<HTMLElement>, x: number, y: number, rotation: CardRotation, destination: { x: number; y: number } | null) => void;
@@ -118,6 +120,8 @@ export const PlayerBoard = forwardRef<PlayerBoardHandle, {
     dragImageMetrics,
     onRevealStation,
     onFlipStation,
+    canChooseMainAction,
+    onChooseMainAction,
     onPlaySelected,
     onClearSelected,
     onDropCard,
@@ -201,7 +205,8 @@ export const PlayerBoard = forwardRef<PlayerBoardHandle, {
                 const isRevealedStation = revealedStationCardId === played.card.id;
                 const stationFlipAnimation = stationFlipAnimations.get(played.card.id) ?? null;
                 const displayedCard = isRevealedStation ? stationOppositeSideCard(played.card) : played.card;
-                const stationControls = canShowStationControls && isStation;
+                const stationControls = (canShowStationControls || canFlipStation) && isStation;
+                const mainActionable = canChooseMainAction(displayedCard);
                 return (
                     <div
                         key={played.card.id}
@@ -211,6 +216,7 @@ export const PlayerBoard = forwardRef<PlayerBoardHandle, {
                             "lunar-board-card",
                             rotationToOrientation(played.rotation),
                             stationControls ? "has-station-controls" : "",
+                            mainActionable ? "is-main-actionable" : "",
                             isRevealedStation ? "is-station-revealed" : "",
                             hiddenAnimationDestinations.has(`board-${played.card.id}`) ? "is-animation-destination-hidden" : ""
                         ].filter(Boolean).join(" ")}
@@ -222,27 +228,34 @@ export const PlayerBoard = forwardRef<PlayerBoardHandle, {
                         {stationFlipAnimation ? (
                             <StationFlipCardView animation={stationFlipAnimation} rotation={played.rotation} />
                         ) : (
-                            <CardView card={displayedCard} rotation={played.rotation} />
+                            <CardView
+                                card={displayedCard}
+                                rotation={played.rotation}
+                                actionBadgeTargetable={mainActionable}
+                                onActionBadgeClick={mainActionable ? () => onChooseMainAction(played.card.id) : undefined}
+                            />
                         )}
                         {stationControls ? (
                             <div className="lunar-station-controls" aria-label="Station controls">
-                                <button
-                                    type="button"
-                                    className="lunar-station-control"
-                                    aria-label="Reveal other station side"
-                                    title="Reveal other side"
-                                    onMouseDown={(event) => event.preventDefault()}
-                                    onClick={(event) => {
-                                        event.stopPropagation();
-                                        onRevealStation(played.card.id);
-                                    }}
-                                >
-                                    <MagnifyIcon />
-                                </button>
+                                {canShowStationControls ? (
+                                    <button
+                                        type="button"
+                                        className="lunar-station-control is-reveal-control"
+                                        aria-label="Reveal other station side"
+                                        title="Reveal other side"
+                                        onMouseDown={(event) => event.preventDefault()}
+                                        onClick={(event) => {
+                                            event.stopPropagation();
+                                            onRevealStation(played.card.id);
+                                        }}
+                                    >
+                                        <MagnifyIcon />
+                                    </button>
+                                ) : null}
                                 {canFlipStation ? (
                                     <button
                                         type="button"
-                                        className="lunar-station-control"
+                                        className="lunar-station-control is-flip-control"
                                         aria-label="Flip station"
                                         title="Flip station"
                                         onMouseDown={(event) => event.preventDefault()}
