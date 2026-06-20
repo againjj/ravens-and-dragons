@@ -334,17 +334,17 @@ const actionPanelStatus = (game: LunarBaseGame, viewerSeat: number | null): stri
     if (game.lifecycle === "finished") return lunarEndGameTitle(game);
     const interaction = game.actionState?.interaction ?? null;
     if (interaction) {
-        const text = actionStateStatusText(game.actionState) ?? "Action in progress";
-        if (interaction.actorIndex === viewerSeat) return text;
+        const actionText = actionStateActionText(game.actionState) ?? "Action in progress";
+        if (interaction.actorIndex === viewerSeat) return actionText;
         const actorName = game.seats[interaction.actorIndex]?.displayName ?? `Player ${interaction.actorIndex + 1}`;
-        return `Waiting for ${actorName}:\n${text}`;
+        return `Waiting for ${actorName}:\n${actionText}`;
     }
     if (viewerSeat === game.currentPlayerIndex) return "Play an agent or choose a main action";
     const currentName = game.seats[game.currentPlayerIndex]?.displayName ?? `Player ${game.currentPlayerIndex + 1}`;
     return `Waiting for ${currentName}:\nPlay an agent or choose a main action`;
 };
 
-const actionStateStatusText = (actionState: LunarBaseGame["actionState"]): string | null => {
+const actionStateActionText = (actionState: LunarBaseGame["actionState"]): string | null => {
     const interactionAction = actionState.interaction?.action ?? null;
     if (interactionAction) {
         return actionNodeFullText(interactionAction, isRepeatingAction(interactionAction) ? actionState.interaction?.remaining ?? null : null);
@@ -454,8 +454,9 @@ const isRepeatingAction = (action: LunarBaseActionNode): boolean => {
     }
 };
 
-const interactionButtonPrompt = (interaction: LunarBaseActionInteraction | null): string | null => {
-    if (interaction?.kind === "stealModule" && interaction.text === "No module to steal") return interaction.text;
+const interactionPromptText = (interaction: LunarBaseActionInteraction | null): string | null => {
+    const promptText = interaction?.interactionPrompt?.text ?? null;
+    if (promptText) return promptText;
     if (interaction?.kind === "stealCredits") return "Choose opponent";
     if (interaction?.kind !== "chooseScopeTarget") return null;
     switch (interaction.action?.scope) {
@@ -1786,20 +1787,21 @@ const LunarBasePlayScreen = () => {
     const revealedStationCardId = stationReveal && stationReveal.phase !== "hiding" ? stationReveal.cardId : null;
     const revealDimmerVisible = stationReveal?.phase === "revealing" || stationReveal?.phase === "revealed";
     const showEndGameModal = isGameFinished && Boolean(game.endGameResult) && dismissedEndGameVersion !== game.version;
-    const actionSourceCardName = game.actionState.phase === "resolvingAction" ? game.actionState.sourceCardName ?? null : null;
-    const buttonPrompt = interactionButtonPrompt(interaction);
+    const actionSourceCardName = !isGameFinished && game.actionState.phase === "resolvingAction" ? game.actionState.sourceCardName ?? null : null;
+    const buttonPrompt = interactionPromptText(interaction);
     const runActionPanelButton = (value: string) => {
         if (!interaction) return;
         if (interaction.kind === "chooseOne") {
             runCommand({ type: "chooseActionOption", optionIndex: Number(value) });
             return;
         }
+        if (value === "skip" || value === "done") {
+            runCommand({ type: "finishInteraction" });
+            return;
+        }
         if (interaction.kind === "stealCredits" || interaction.kind === "chooseOpponent" || interaction.kind === "chooseScopeTarget") {
             runCommand({ type: "choosePlayer", playerIndex: Number(value) });
             return;
-        }
-        if (value === "skip" || value === "done") {
-            runCommand({ type: "finishInteraction" });
         }
     };
 
@@ -1807,12 +1809,12 @@ const LunarBasePlayScreen = () => {
         <section className="game-page lunar-page">
             <div className="lunar-game-ports">
                 <section className="panel lunar-action-panel" aria-label="Action panel">
-                    <div className="lunar-action-status">
+                    <div className="lunar-action-text">
                         {actionSourceCardName ? (
                             <strong className="lunar-action-source-card">{actionSourceCardName}</strong>
                         ) : null}
                         {actionPanelStatus(game, viewerSeat).split("\n").map((line, index) => (
-                            <span key={index} className="lunar-action-status-line">{line}</span>
+                            <span key={index} className="lunar-action-text-line">{line}</span>
                         ))}
                     </div>
                     <div className="lunar-action-interaction">

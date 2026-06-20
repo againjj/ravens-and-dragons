@@ -57,7 +57,7 @@
     border-top: 0;
 }
 
-.lunar-action-status {
+.lunar-action-text {
     display: grid;
     gap: 2px;
     min-height: calc(6.25em + 8px);
@@ -75,7 +75,7 @@
     vertical-align: top;
 }
 
-.lunar-action-status-line {
+.lunar-action-text-line {
     display: inline-block;
     max-width: 100%;
     min-width: 0;

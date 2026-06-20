@@ -1,6 +1,5 @@
 package com.ravensanddragons.lunarbase
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonInclude
 import java.time.Instant
 
@@ -83,10 +82,14 @@ data class LunarBaseActionButton(
     val value: String
 )
 
+data class LunarBaseInteractionPrompt(
+    val text: String
+)
+
 data class LunarBaseActionInteraction(
     val kind: String,
     val actorIndex: Int,
-    val text: String,
+    val interactionPrompt: LunarBaseInteractionPrompt? = null,
     val buttons: List<LunarBaseActionButton> = emptyList(),
     val remaining: Int = 0,
     val action: LunarBaseActionNode? = null,
@@ -114,7 +117,6 @@ data class LunarBaseActionFrame(
     val sourceCardName: String? = null
 )
 
-@JsonIgnoreProperties(ignoreUnknown = true)
 data class LunarBaseActionState(
     val phase: String = choosingMainActionPhase,
     val mainActionChosen: Boolean = false,

@@ -1857,7 +1857,6 @@ describe("lunarBaseGameEntry", () => {
                 interaction: {
                     kind: "stealModule",
                     actorIndex: 0,
-                    text: "Steal a Solar Lab",
                     buttons: [],
                     remaining: 1,
                     action: { kind: "stealModule", moduleName: "Solar Lab" },
@@ -1911,7 +1910,6 @@ describe("lunarBaseGameEntry", () => {
                 interaction: {
                     kind: "stealModule",
                     actorIndex: 0,
-                    text: "Steal a Solar Lab",
                     buttons: [],
                     remaining: 1,
                     action: { kind: "stealModule", moduleName: "Solar Lab" },
@@ -1964,7 +1962,6 @@ describe("lunarBaseGameEntry", () => {
                 interaction: {
                     kind: "stealModule",
                     actorIndex: 0,
-                    text: "Steal a Solar Lab",
                     buttons: [],
                     remaining: 1,
                     action: { kind: "stealModule", moduleName: "Solar Lab" },
@@ -2286,7 +2283,6 @@ describe("lunarBaseGameEntry", () => {
                 interaction: {
                     kind: "stealModule",
                     actorIndex: 0,
-                    text: "Steal a Solar Lab",
                     buttons: [],
                     remaining: 1,
                     action: { kind: "stealModule", moduleName: "Solar Lab" },
@@ -2537,6 +2533,10 @@ describe("lunarBaseGameEntry", () => {
                 label: "Epic Victory",
                 winningPlayerIndexes: [0],
                 playerConditions: [{ playerIndex: 0, conditions: ["20/20 lunar credits", "10/10 colonists housed"] }]
+            },
+            actionState: {
+                ...lunarActionState("draw"),
+                sourceCardName: "Space Unicorn"
             }
         });
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
@@ -2546,6 +2546,7 @@ describe("lunarBaseGameEntry", () => {
         const dialog = await screen.findByRole("dialog", { name: "Lunar Base game over" });
         expect(dialog).toHaveTextContent("Epic Victory for Ada!");
         expect(screen.getByLabelText("Action panel")).toHaveTextContent("Epic Victory for Ada!");
+        expect(document.querySelector(".lunar-action-source-card")).not.toBeInTheDocument();
         expect(dialog).toHaveTextContent("20/20 lunar credits");
         expect(dialog).toHaveTextContent("10/10 colonists housed");
         expect(screen.getByText("(Epic Victory)")).toBeInTheDocument();
@@ -2604,7 +2605,6 @@ describe("lunarBaseGameEntry", () => {
             interaction: {
                 kind: "chooseScopeTarget",
                 actorIndex: 0,
-                text: `${scope} action`,
                 buttons: [{ label: "Ben", value: "1" }],
                 remaining: 0,
                 action: { kind: "scoped", scope, actions: [{ kind: "draw", amount: 1, amountKind: "literal" }] },
@@ -2619,11 +2619,11 @@ describe("lunarBaseGameEntry", () => {
         });
 
         let actionButtons = document.querySelector(".lunar-action-buttons");
-        let actionStatus = document.querySelector(".lunar-action-status");
+        let actionText = document.querySelector(".lunar-action-text");
         expect(actionButtons).toHaveTextContent("Choose a target");
         expect(actionButtons?.firstElementChild).toHaveTextContent("Choose a target");
-        expect(actionStatus).toHaveTextContent("Neighbors of target: Draw 1 card");
-        expect(actionStatus).not.toHaveTextContent("Choose a target");
+        expect(actionText).toHaveTextContent("Neighbors of target: Draw 1 card");
+        expect(actionText).not.toHaveTextContent("Choose a target");
         expect(screen.getByLabelText("Action panel")).toHaveTextContent("Neighbors of target: Draw 1 card");
 
         servedGame = lunarBaseGame({ actionState: scopedActionState("OPPONENT") });
@@ -2632,11 +2632,11 @@ describe("lunarBaseGameEntry", () => {
         });
 
         actionButtons = document.querySelector(".lunar-action-buttons");
-        actionStatus = document.querySelector(".lunar-action-status");
+        actionText = document.querySelector(".lunar-action-text");
         expect(actionButtons).toHaveTextContent("Choose an opponent");
         expect(actionButtons?.firstElementChild).toHaveTextContent("Choose an opponent");
-        expect(actionStatus).toHaveTextContent("Opponent: Draw 1 card");
-        expect(actionStatus).not.toHaveTextContent("Choose an opponent");
+        expect(actionText).toHaveTextContent("Opponent: Draw 1 card");
+        expect(actionText).not.toHaveTextContent("Choose an opponent");
 
         servedGame = lunarBaseGame({ actionState: scopedActionState("TARGET") });
         await act(async () => {
@@ -2644,11 +2644,11 @@ describe("lunarBaseGameEntry", () => {
         });
 
         actionButtons = document.querySelector(".lunar-action-buttons");
-        actionStatus = document.querySelector(".lunar-action-status");
+        actionText = document.querySelector(".lunar-action-text");
         expect(actionButtons).toHaveTextContent("Choose a target");
         expect(actionButtons?.firstElementChild).toHaveTextContent("Choose a target");
-        expect(actionStatus).toHaveTextContent("Target: Draw 1 card");
-        expect(actionStatus).not.toHaveTextContent("Choose a target");
+        expect(actionText).toHaveTextContent("Target: Draw 1 card");
+        expect(actionText).not.toHaveTextContent("Choose a target");
     });
 
     it("does not show scope interaction text for non-scope buttons", async () => {
@@ -2669,7 +2669,6 @@ describe("lunarBaseGameEntry", () => {
                 interaction: {
                     kind: "stealCredits",
                     actorIndex: 0,
-                    text: "Steal 1 credit",
                     buttons: [{ label: "Ben", value: "1" }],
                     remaining: 1,
                     action: { kind: "stealCredits", amount: 1, amountKind: "literal" },
@@ -2682,12 +2681,41 @@ describe("lunarBaseGameEntry", () => {
         render(<PlayScreen />);
 
         expect(await screen.findByRole("button", { name: "Ben" })).toBeInTheDocument();
-        const actionStatus = document.querySelector(".lunar-action-status");
+        const actionText = document.querySelector(".lunar-action-text");
         const actionButtons = document.querySelector(".lunar-action-buttons");
-        expect(actionStatus).toHaveTextContent("Steal 1 credit");
-        expect(actionStatus).not.toHaveTextContent("Choose opponent");
+        expect(actionText).toHaveTextContent("Steal 1 credit");
+        expect(actionText).not.toHaveTextContent("Choose opponent");
         expect(actionButtons).toHaveTextContent("Choose opponent");
         expect(actionButtons?.firstElementChild).toHaveTextContent("Choose opponent");
+    });
+
+    it("shows forbidden steal credits text with the skip button", async () => {
+        servedGame = lunarBaseGame({
+            actionState: {
+                phase: "resolvingAction",
+                mainActionChosen: true,
+                interaction: {
+                    kind: "stealCredits",
+                    actorIndex: 0,
+                    interactionPrompt: { text: "Stealing credits is forbidden" },
+                    buttons: [{ label: "Skip stealing credits", value: "skip" }],
+                    remaining: 2,
+                    action: { kind: "stealCredits", amount: 2, amountKind: "literal" },
+                    flippedStationIds: []
+                }
+            }
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+
+        expect(await screen.findByRole("button", { name: "Skip stealing credits" })).toBeInTheDocument();
+        const actionText = document.querySelector(".lunar-action-text");
+        const actionButtons = document.querySelector(".lunar-action-buttons");
+        expect(actionText).toHaveTextContent("Steal 2 credits");
+        expect(actionText).not.toHaveTextContent("Stealing credits is forbidden");
+        expect(actionButtons).toHaveTextContent("Stealing credits is forbidden");
+        expect(actionButtons?.firstElementChild).toHaveTextContent("Stealing credits is forbidden");
     });
 
     it("shows no-module-to-steal text with the skip steal button instead of replacing the action text", async () => {
@@ -2698,7 +2726,7 @@ describe("lunarBaseGameEntry", () => {
                 interaction: {
                     kind: "stealModule",
                     actorIndex: 0,
-                    text: "No module to steal",
+                    interactionPrompt: { text: "No module to steal" },
                     buttons: [{ label: "Skip steal", value: "skip" }],
                     remaining: 1,
                     action: { kind: "stealModule", moduleName: "Asteroid Grinder" },
@@ -2711,10 +2739,10 @@ describe("lunarBaseGameEntry", () => {
         render(<PlayScreen />);
 
         expect(await screen.findByRole("button", { name: "Skip steal" })).toBeInTheDocument();
-        const actionStatus = document.querySelector(".lunar-action-status");
+        const actionText = document.querySelector(".lunar-action-text");
         const actionButtons = document.querySelector(".lunar-action-buttons");
-        expect(actionStatus).toHaveTextContent("Steal a Asteroid Grinder");
-        expect(actionStatus).not.toHaveTextContent("No module to steal");
+        expect(actionText).toHaveTextContent("Steal a Asteroid Grinder");
+        expect(actionText).not.toHaveTextContent("No module to steal");
         expect(actionButtons).toHaveTextContent("No module to steal");
         expect(actionButtons?.firstElementChild).toHaveTextContent("No module to steal");
     });
@@ -2866,7 +2894,6 @@ const lunarActionState = (kind = "build", actorIndex = 0, flipAmountKind = "lite
     interaction: {
         kind,
         actorIndex,
-        text: kind === "build" ? "Build 1 module (1 left)" : `${kind} action`,
         buttons: kind === "build" ? [{ label: "Skip Build", value: "skip" }] : [],
         remaining: 1,
         action: kind === "flipStation"

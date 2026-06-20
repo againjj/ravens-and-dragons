@@ -56,10 +56,14 @@ export interface LunarBaseActionButton {
     value: string;
 }
 
+export interface LunarBaseInteractionPrompt {
+    text: string;
+}
+
 export interface LunarBaseActionInteraction {
     kind: string;
     actorIndex: number;
-    text: string;
+    interactionPrompt?: LunarBaseInteractionPrompt | null;
     buttons: LunarBaseActionButton[];
     remaining?: number;
     action?: LunarBaseActionNode | null;

@@ -31,6 +31,10 @@ import com.ravensanddragons.lunarbase.cards.LunarBaseStationCardDefinition
 import com.ravensanddragons.lunarbase.cards.LunarBaseStationSide
 import com.ravensanddragons.lunarbase.cards.LunarBaseStealCreditsAction
 import com.ravensanddragons.lunarbase.cards.LunarBaseStealModuleAction
+import com.ravensanddragons.lunarbase.cards.LunarBaseStaticCardEffect
+import com.ravensanddragons.lunarbase.cards.LunarBaseStaticEffect
+import com.ravensanddragons.lunarbase.cards.LunarBaseTrigger
+import com.ravensanddragons.lunarbase.cards.LunarBaseTriggeredCardEffect
 import com.ravensanddragons.lunarbase.cards.LunarBaseViewHandAction
 import com.ravensanddragons.platform.game.runtime.InvalidCommandException
 
@@ -226,6 +230,11 @@ internal class LunarBaseActionEngine(
         playModuleFromHand(game, actor, card, x, y, rotation)
         if (finishIfWon(game)) return game.public to game.private
         val interrupt = (catalogDefinition(card) as? LunarBaseModuleCardDefinition)?.onPlaying.orEmpty().toActionNodes()
+        val triggeredEffects = if (isDomeOrLaikaMemorial(card)) {
+            triggeredEffects(game, LunarBaseTrigger.BUILD_DOME_OR_LAIKA_MEMORIAL, actor)
+        } else {
+            emptyList()
+        }
         val remaining = interaction.remaining - 1
         val repeatFrame = if (remaining > 0) {
             listOf(interaction.copy(remaining = remaining).toFrame(remaining, game.public.actionState.sourceCardName))
@@ -234,7 +243,8 @@ internal class LunarBaseActionEngine(
         }
         val stack = game.public.actionState.stack +
             repeatFrame +
-            interrupt.asReversed().map { LunarBaseActionFrame(actor, it, sourceCardName = card.name) }
+            interrupt.asReversed().map { LunarBaseActionFrame(actor, it, sourceCardName = card.name) } +
+            triggeredEffects
         return resolve(game, game.public.actionState.copy(interaction = null, stack = stack))
     }
 
@@ -274,11 +284,17 @@ internal class LunarBaseActionEngine(
         if (interaction.kind != "draft") return game.public to game.private
         val actor = interaction.actorIndex
         val card = game.public.supply.getOrNull(slotIndex) ?: return game.public to game.private
+        if (card.type == influenceType && forbidsDraftingInfluence(game.public, card.id)) return game.public to game.private
+        val triggeredEffects = if (card.type == influenceType) {
+            triggeredEffects(game, LunarBaseTrigger.DRAFT_ANY_INFLUENCE, actor)
+        } else {
+            emptyList()
+        }
         val supply = game.public.supply.toMutableList()
         supply[slotIndex] = null
         game.public = game.public.copy(supply = supply, message = "Drafted a card.")
         game.private = game.private.copy(hands = game.private.hands.replaceAt(actor, game.private.hands[actor] + card))
-        return repeatOrContinue(game, interaction) { canDraft(game) }
+        return repeatOrContinue(game, interaction, triggeredEffects) { canDraft(game) }
     }
 
     fun resellSupply(game: LunarBaseMutableGame, slotIndex: Int): Pair<LunarBasePublicState, LunarBasePrivateState> {
@@ -308,7 +324,7 @@ internal class LunarBaseActionEngine(
             discard = listOf(card) + game.private.discard
         )
         game.public = game.public.copy(message = "Discarded a card.")
-        return repeatOrContinue(game, interaction) { game.private.hands[actor].isNotEmpty() }
+        return repeatOrContinue(game, interaction, triggeredDiscardEffects(card, actor)) { game.private.hands[actor].isNotEmpty() }
     }
 
     fun flipStation(game: LunarBaseMutableGame, playerIndex: Int, cardId: String? = null): Pair<LunarBasePublicState, LunarBasePrivateState> {
@@ -345,7 +361,6 @@ internal class LunarBaseActionEngine(
         val remaining = maxOf(0, interaction.remaining - 1)
         val nextInteraction = interaction.copy(
             remaining = remaining,
-            text = interaction.textForRemaining(remaining),
             flippedStationIds = interaction.flippedStationIds + station.card.id
         )
         if (nextInteraction.remaining <= 0 || allStationIds(game).all { it in nextInteraction.flippedStationIds }) {
@@ -358,7 +373,7 @@ internal class LunarBaseActionEngine(
     fun finishInteraction(game: LunarBaseMutableGame): Pair<LunarBasePublicState, LunarBasePrivateState> {
         val interaction = game.public.actionState.interaction ?: return game.public to game.private
         return when (interaction.kind) {
-            "build", "flipStation", "flipStationTo", "stealModule", "viewHand" -> resolve(game, game.public.actionState.copy(interaction = null))
+            "build", "flipStation", "flipStationTo", "stealCredits", "stealModule", "viewHand" -> resolve(game, game.public.actionState.copy(interaction = null))
             else -> game.public to game.private
         }
     }
@@ -432,7 +447,13 @@ internal class LunarBaseActionEngine(
             "stealCredits" -> {
                 val amount = resolveAmount(game, actor, action)
                 if (amount <= 0) actionState else actionState.copy(
-                    interaction = actionInteraction(game.public, actor, action, "stealCredits", remaining = amount)
+                    interaction = actionInteraction(
+                        game.public,
+                        actor,
+                        action,
+                        if (hasStaticEffect(game.public, LunarBaseStaticEffect.FORBID_STEALING_CREDITS)) "stealCreditsForbidden" else "stealCredits",
+                        remaining = amount
+                    )
                 )
             }
             "stealModule" -> startStealModule(game, actionState, actor, action)
@@ -492,7 +513,6 @@ internal class LunarBaseActionEngine(
         return state.copy(interaction = LunarBaseActionInteraction(
             kind = "viewHand",
             actorIndex = actor,
-            text = action.toFullActionText(),
             buttons = listOf(LunarBaseActionButton("Done viewing", "done")),
             action = action,
             targetPlayerIndex = target
@@ -538,23 +558,42 @@ internal class LunarBaseActionEngine(
     private fun repeatOrContinue(
         game: LunarBaseMutableGame,
         interaction: LunarBaseActionInteraction,
+        triggeredFrames: List<LunarBaseActionFrame>,
         canContinue: () -> Boolean
     ): Pair<LunarBasePublicState, LunarBasePrivateState> {
         val remaining = interaction.remaining - 1
         if (finishIfWon(game)) return game.public to game.private
-        if (remaining > 0 && canContinue()) {
+        val repeatFrames = if (remaining > 0 && canContinue()) {
+            listOf(interaction.copy(remaining = remaining).toFrame(remaining, game.public.actionState.sourceCardName))
+        } else {
+            emptyList()
+        }
+        if (triggeredFrames.isNotEmpty()) {
+            return resolve(
+                game,
+                game.public.actionState.copy(
+                    interaction = null,
+                    stack = game.public.actionState.stack + repeatFrames + triggeredFrames
+                )
+            )
+        }
+        if (repeatFrames.isNotEmpty()) {
             game.public = game.public.copy(
                 actionState = game.public.actionState.copy(
-                    interaction = interaction.copy(
-                        remaining = remaining,
-                        text = interaction.textForRemaining(remaining)
-                    )
+                    interaction = interaction.copy(remaining = remaining)
                 )
             )
             return game.public.withPrivateCounts(game.private).withBoardSummaries() to game.private
         }
         return resolve(game, game.public.actionState.copy(interaction = null))
     }
+
+    private fun repeatOrContinue(
+        game: LunarBaseMutableGame,
+        interaction: LunarBaseActionInteraction,
+        canContinue: () -> Boolean
+    ): Pair<LunarBasePublicState, LunarBasePrivateState> =
+        repeatOrContinue(game, interaction, emptyList(), canContinue)
 
     private fun actionInteraction(
         public: LunarBasePublicState,
@@ -563,7 +602,11 @@ internal class LunarBaseActionEngine(
         kind: String,
         remaining: Int = 0
     ): LunarBaseActionInteraction {
-        val text = action.toFullActionText(remaining.takeIf { action.isRepeatingAction() })
+        val interactionPrompt = when (kind) {
+            "stealModuleEmpty" -> LunarBaseInteractionPrompt("No module to steal")
+            "stealCreditsForbidden" -> LunarBaseInteractionPrompt("Stealing credits is forbidden")
+            else -> null
+        }
         val buttons = when (kind) {
             "chooseOne" -> action.actions.mapIndexed { index, option ->
                 LunarBaseActionButton(option.toActionText(), index.toString())
@@ -576,6 +619,7 @@ internal class LunarBaseActionEngine(
             "stealCredits" -> public.players.indices
                 .filterNot { it == actor }
                 .map { LunarBaseActionButton(public.seats[it].displayName ?: "Player ${it + 1}", it.toString()) }
+            "stealCreditsForbidden" -> listOf(LunarBaseActionButton("Skip stealing credits", "skip"))
             "build" -> listOf(LunarBaseActionButton("Skip Build", "skip"))
             "flipStation" -> if (action.flipAmountKind == "anyNumber") {
                 listOf(LunarBaseActionButton("Done flipping stations", "done"))
@@ -590,10 +634,11 @@ internal class LunarBaseActionEngine(
             kind = when (kind) {
                 "flipStationToAlready" -> "flipStationTo"
                 "stealModuleEmpty" -> "stealModule"
+                "stealCreditsForbidden" -> "stealCredits"
                 else -> kind
             },
             actorIndex = actor,
-            text = if (kind == "stealModuleEmpty") "No module to steal" else text,
+            interactionPrompt = interactionPrompt,
             buttons = buttons,
             remaining = remaining,
             action = action
@@ -708,10 +753,17 @@ internal class LunarBaseActionEngine(
     private fun refillSupplyIfNeeded(game: LunarBaseMutableGame) {
         if (game.public.supply.filterNotNull().any { it.type != influenceType }) return
         val keptInfluences = game.public.supply.filterNotNull()
+        val shuttleCreditColors = if (hasStaticEffect(game.public, LunarBaseStaticEffect.NO_SHUTTLE_CREDITS)) {
+            emptySet()
+        } else if (hasStaticEffect(game.public, LunarBaseStaticEffect.RED_ORBS_GAIN_CREDITS)) {
+            setOf("red", "yellow", "gray")
+        } else {
+            setOf("yellow", "gray")
+        }
         game.public = game.public.copy(
             supply = keptInfluences,
             players = game.public.players.map { player ->
-                player.copy(credits = player.credits + player.orbs.yellow + player.orbs.gray)
+                player.copy(credits = player.credits + player.shuttleCredits(shuttleCreditColors))
             }
         )
         val refillTarget = keptInfluences.size + supplySize(game.public.config.playerCount)
@@ -736,6 +788,64 @@ internal class LunarBaseActionEngine(
         )
     }
 
+    private fun triggeredDiscardEffects(card: LunarBaseCard, actor: Int): List<LunarBaseActionFrame> =
+        if (card.type == influenceType) {
+            triggeredEffect(card, LunarBaseTrigger.DISCARD_THIS_INFLUENCE, actor)
+        } else {
+            emptyList()
+        }
+
+    private fun triggeredEffects(
+        game: LunarBaseMutableGame,
+        trigger: LunarBaseTrigger,
+        actor: Int
+    ): List<LunarBaseActionFrame> =
+        effectSourceCards(game.public).flatMap { card -> triggeredEffect(card, trigger, actor) }
+
+    private fun triggeredEffect(
+        sourceCard: LunarBaseCard,
+        trigger: LunarBaseTrigger,
+        actor: Int
+    ): List<LunarBaseActionFrame> {
+        val effect = cardEffect(sourceCard) as? LunarBaseTriggeredCardEffect ?: return emptyList()
+        if (effect.trigger != trigger) return emptyList()
+        return effect.actions.toActionNodes().asReversed().map { action ->
+            LunarBaseActionFrame(actor, action, sourceCardName = sourceCard.name)
+        }
+    }
+
+    private fun forbidsDraftingInfluence(public: LunarBasePublicState, draftedCardId: String): Boolean =
+        public.supply.filterNotNull().any { card ->
+            card.id != draftedCardId &&
+                (cardEffect(card) as? LunarBaseStaticCardEffect)?.effect == LunarBaseStaticEffect.FORBID_DRAFT_OTHER_INFLUENCE
+        }
+
+    private fun hasStaticEffect(public: LunarBasePublicState, effect: LunarBaseStaticEffect): Boolean =
+        effectSourceCards(public).any { card ->
+            (cardEffect(card) as? LunarBaseStaticCardEffect)?.effect == effect
+        }
+
+    private fun effectSourceCards(public: LunarBasePublicState): List<LunarBaseCard> =
+        public.supply.filterNotNull().filter { it.type == influenceType } +
+            public.players.flatMap { player ->
+                player.board.map { it.card }.filter { it.type == moduleType }
+            }
+
+    private fun cardEffect(card: LunarBaseCard) =
+        when (val definition = catalogDefinition(card)) {
+            is LunarBaseModuleCardDefinition -> definition.effect
+            is com.ravensanddragons.lunarbase.cards.LunarBaseInfluenceCardDefinition -> definition.effect
+            else -> null
+        }
+
+    private fun isDomeOrLaikaMemorial(card: LunarBaseCard): Boolean =
+        card.type == moduleType && (card.name.contains("Dome") || card.name == "Laika Memorial")
+
+    private fun LunarBasePlayerPublic.shuttleCredits(colors: Set<String>): Int =
+        (if ("red" in colors) orbs.red else 0) +
+            (if ("yellow" in colors) orbs.yellow else 0) +
+            (if ("gray" in colors) orbs.gray else 0)
+
     private fun LunarBaseActionInteraction.toFrame(
         remainingOverride: Int? = null,
         sourceCardName: String? = null
@@ -746,9 +856,6 @@ internal class LunarBaseActionEngine(
             remaining = remainingOverride,
             sourceCardName = sourceCardName
         )
-
-    private fun LunarBaseActionInteraction.textForRemaining(remaining: Int): String =
-        action?.toFullActionText(remaining.takeIf { action.isRepeatingAction() }) ?: text
 
     private fun allStationIds(game: LunarBaseMutableGame): List<String> =
         game.public.players.flatMap { player -> player.board.filter { it.card.type == stationType }.map { it.card.id } }
