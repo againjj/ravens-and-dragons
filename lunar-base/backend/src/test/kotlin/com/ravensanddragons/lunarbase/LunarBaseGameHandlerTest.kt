@@ -463,7 +463,6 @@ class LunarBaseGameHandlerTest {
 
         assertEquals(1, firstFlip.readPublicState().actionState.interaction?.remaining)
         assertEquals("Flip 2 stations (1 left)", firstFlip.readPublicState().actionState.interaction?.text)
-        assertEquals("Flip 2 stations (1 left)", firstFlip.readPublicState().actionState.statusText)
     }
 
     @Test
@@ -532,7 +531,6 @@ class LunarBaseGameHandlerTest {
 
         assertEquals(1, firstDraw.readPublicState().actionState.interaction?.remaining)
         assertEquals("Draw 2 cards (1 left)", firstDraw.readPublicState().actionState.interaction?.text)
-        assertEquals("Draw 2 cards (1 left)", firstDraw.readPublicState().actionState.statusText)
     }
 
     @Test
@@ -570,7 +568,6 @@ class LunarBaseGameHandlerTest {
 
         assertEquals(1, firstDraft.readPublicState().actionState.interaction?.remaining)
         assertEquals("Draft 2 cards (1 left)", firstDraft.readPublicState().actionState.interaction?.text)
-        assertEquals("Draft 2 cards (1 left)", firstDraft.readPublicState().actionState.statusText)
         assertEquals(4, firstDraft.readClientPublicState().players[0].handCount)
         assertEquals(1, secondDraft.readPublicState().currentPlayerIndex)
         assertEquals(null, secondDraft.readPublicState().actionState.interaction)
@@ -597,10 +594,43 @@ class LunarBaseGameHandlerTest {
 
         assertEquals(1, firstDiscard.readPublicState().actionState.interaction?.remaining)
         assertEquals("Discard 2 cards (1 left)", firstDiscard.readPublicState().actionState.interaction?.text)
-        assertEquals("Discard 2 cards (1 left)", firstDiscard.readPublicState().actionState.statusText)
         assertEquals(4, firstDiscard.readClientPublicState().players[0].handCount)
         assertEquals(1, secondDiscard.readPublicState().currentPlayerIndex)
         assertEquals(listOf("discard-2", "discard-1"), secondDiscard.readPrivateState().discard.take(2).map { it.id })
+    }
+
+    @Test
+    fun discardActionKeepsRequestedAmountUntilHandIsEmpty() {
+        var game = handler.createGame("LUNAR01", createRequest(), "creator")
+        game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")
+        game = replaceCurrentPlayerHand(game, listOf(LunarBaseCard(id = "only-discard", type = "agent", name = "Guest Scientist")))
+        val action = LunarBaseActionNode(kind = "discard", amount = 3, amountKind = "literal")
+        val publicState = game.readPublicState().copy(
+            actionState = LunarBaseActionState(
+                phase = resolvingActionPhase,
+                mainActionChosen = true,
+                stack = listOf(LunarBaseActionFrame(0, action))
+            )
+        )
+
+        val (discardingPublicState, discardingPrivateState) = LunarBaseActionEngine("LUNAR01", publicState.version)
+            .resolve(LunarBaseMutableGame(publicState, game.readPrivateState()))
+        val discarding = game.copy(
+            publicState = objectMapper.valueToTree(discardingPublicState),
+            privateState = objectMapper.valueToTree(discardingPrivateState)
+        )
+        val discarded = handler.applyCommand(
+            discarding,
+            command("discardHandCard", discardingPublicState.version).put("cardId", "only-discard"),
+            "user-1"
+        )
+
+        assertEquals("discard", discardingPublicState.actionState.interaction?.kind)
+        assertEquals(3, discardingPublicState.actionState.interaction?.remaining)
+        assertEquals("Discard 3 cards (3 left)", discardingPublicState.actionState.interaction?.text)
+        assertEquals(1, discarded.readPublicState().currentPlayerIndex)
+        assertEquals(null, discarded.readPublicState().actionState.interaction)
+        assertEquals("only-discard", discarded.readPrivateState().discard.first().id)
     }
 
     @Test
@@ -665,7 +695,29 @@ class LunarBaseGameHandlerTest {
 
         assertEquals(1, played.readPublicState().actionState.interaction?.remaining)
         assertEquals("Build 2 modules (1 left)", played.readPublicState().actionState.interaction?.text)
-        assertEquals("Build 2 modules (1 left)", played.readPublicState().actionState.statusText)
+    }
+
+    @Test
+    fun buildingModuleRepeatsEvenWhenNoModulesRemainInHand() {
+        var game = handler.createGame("LUNAR01", createRequest(), "creator")
+        game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")
+        game = replaceCurrentPlayerHand(game, listOf(matchingModule("only-module")))
+        game = actionGame(game, "build", remaining = 2, mainActionChosen = true)
+
+        val played = handler.applyCommand(
+            game,
+            command("buildModule", game.readPublicState().version)
+                .put("cardId", "only-module")
+                .put("x", 1)
+                .put("y", 0)
+                .put("rotation", 0),
+            "user-1"
+        )
+
+        assertEquals("build", played.readPublicState().actionState.interaction?.kind)
+        assertEquals(1, played.readPublicState().actionState.interaction?.remaining)
+        assertEquals(listOf(LunarBaseActionButton("Skip Build", "skip")), played.readPublicState().actionState.interaction?.buttons)
+        assertEquals(false, played.readPrivateState().hands[0].any { it.type == "module" })
     }
 
     @Test
@@ -1203,7 +1255,6 @@ class LunarBaseGameHandlerTest {
         assertEquals(4, firstResell.readPublicState().players[0].credits)
         assertEquals(1, firstResell.readPublicState().actionState.interaction?.remaining)
         assertEquals("Resell 2 cards (1 left)", firstResell.readPublicState().actionState.interaction?.text)
-        assertEquals("Resell 2 cards (1 left)", firstResell.readPublicState().actionState.statusText)
         assertEquals(4, invalidResell.readPublicState().players[0].credits)
         assertEquals(1, invalidResell.readPublicState().actionState.interaction?.remaining)
         assertEquals(5, secondResell.readPublicState().players[0].credits)
@@ -1254,6 +1305,90 @@ class LunarBaseGameHandlerTest {
     }
 
     @Test
+    fun stealingModuleMovesNamedOpponentModuleToCurrentPlayerBoard() {
+        val stolenModule = matchingModule("stolen-module")
+        val game = seatedGameWithPlayers { index, player ->
+            if (index == 1) {
+                player.copy(board = player.board + LunarBaseBoardCard(stolenModule, 2, 0, 0))
+            } else {
+                player
+            }
+        }
+        val action = LunarBaseActionNode(kind = "stealModule", moduleName = stolenModule.name)
+
+        val stolen = handler.applyCommand(
+            actionGame(game, "stealModule", mainActionChosen = true, action = action),
+            command("stealModule", game.readPublicState().version)
+                .put("cardId", stolenModule.id)
+                .put("x", 1)
+                .put("y", 0)
+                .put("rotation", 0),
+            "user-1"
+        )
+
+        assertEquals(stolenModule.id, stolen.readPublicState().players[0].board.last().card.id)
+        assertEquals(false, stolen.readPublicState().players[1].board.any { it.card.id == stolenModule.id })
+        assertEquals(1, stolen.readPublicState().currentPlayerIndex)
+    }
+
+    @Test
+    fun stealModuleActionWithNoLegalTargetWaitsForSkip() {
+        val blockedModule = LunarBaseCard(id = "blocked-module", type = "module", name = "Blocked Module")
+        val game = seatedGameWithPlayers { index, player ->
+            if (index == 1) {
+                player.copy(board = player.board + LunarBaseBoardCard(blockedModule, 2, 0, 0))
+            } else {
+                player
+            }
+        }
+        val action = LunarBaseActionNode(kind = "stealModule", moduleName = blockedModule.name)
+        val publicState = game.readPublicState().copy(
+            actionState = LunarBaseActionState(
+                phase = resolvingActionPhase,
+                mainActionChosen = true,
+                stack = listOf(LunarBaseActionFrame(0, action))
+            )
+        )
+
+        val (nextPublicState, _) = LunarBaseActionEngine("LUNAR01", publicState.version)
+            .resolve(LunarBaseMutableGame(publicState, game.readPrivateState()))
+
+        assertEquals(0, nextPublicState.currentPlayerIndex)
+        assertEquals("stealModule", nextPublicState.actionState.interaction?.kind)
+        assertEquals("No module to steal", nextPublicState.actionState.interaction?.text)
+        assertEquals(listOf(LunarBaseActionButton("Skip steal", "skip")), nextPublicState.actionState.interaction?.buttons)
+        assertEquals(false, objectMapper.valueToTree<JsonNode>(nextPublicState.actionState).has("statusText"))
+    }
+
+    @Test
+    fun actionStateIgnoresLegacySerializedStatusText() {
+        val actionState = objectMapper.readValue(
+            """
+            {
+              "phase": "$resolvingActionPhase",
+              "mainActionChosen": false,
+              "interaction": {
+                "kind": "stealModule",
+                "actorIndex": 0,
+                "text": "No module to steal",
+                "buttons": [{"label": "Skip steal", "value": "skip"}],
+                "remaining": 0,
+                "action": {"kind": "stealModule", "moduleName": "Asteroid Grinder"}
+              },
+              "activeActions": [{"kind": "stealModule", "moduleName": "Asteroid Grinder"}],
+              "statusText": "No module to steal",
+              "sourceCardName": "Solicitor"
+            }
+            """.trimIndent(),
+            LunarBaseActionState::class.java
+        )
+
+        assertEquals("No module to steal", actionState.interaction?.text)
+        assertEquals("Asteroid Grinder", actionState.activeActions.single().moduleName)
+        assertEquals(false, objectMapper.valueToTree<JsonNode>(actionState).has("statusText"))
+    }
+
+    @Test
     fun finishingBuildInteractionSkipsRemainingBuildsAndAdvancesTurn() {
         var game = handler.createGame("LUNAR01", createRequest(), "creator")
         game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")
@@ -1294,6 +1429,29 @@ class LunarBaseGameHandlerTest {
         assertEquals(0, nextPublicState.currentPlayerIndex)
         assertEquals("build", nextPublicState.actionState.interaction?.kind)
         assertEquals(1, nextPublicState.actionState.interaction?.remaining)
+        assertEquals(listOf(LunarBaseActionButton("Skip Build", "skip")), nextPublicState.actionState.interaction?.buttons)
+    }
+
+    @Test
+    fun buildActionWithNoModulesInHandWaitsForSkip() {
+        var game = handler.createGame("LUNAR01", createRequest(), "creator")
+        game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")
+        game = replaceCurrentPlayerHand(game, emptyList())
+        val action = LunarBaseActionNode(kind = "build", amount = 2, amountKind = "literal")
+        val publicState = game.readPublicState().copy(
+            actionState = LunarBaseActionState(
+                phase = resolvingActionPhase,
+                mainActionChosen = true,
+                stack = listOf(LunarBaseActionFrame(0, action))
+            )
+        )
+
+        val (nextPublicState, _) = LunarBaseActionEngine("LUNAR01", publicState.version)
+            .resolve(LunarBaseMutableGame(publicState, game.readPrivateState()))
+
+        assertEquals(0, nextPublicState.currentPlayerIndex)
+        assertEquals("build", nextPublicState.actionState.interaction?.kind)
+        assertEquals(2, nextPublicState.actionState.interaction?.remaining)
         assertEquals(listOf(LunarBaseActionButton("Skip Build", "skip")), nextPublicState.actionState.interaction?.buttons)
     }
 
@@ -1339,6 +1497,27 @@ class LunarBaseGameHandlerTest {
 
         assertEquals(1, done.readPublicState().currentPlayerIndex)
         assertEquals(false, done.readPublicState().players[0].board[0].card.flipped)
+    }
+
+    @Test
+    fun flipStationToAlreadyFlippedSideWaitsForConfirmation() {
+        val action = LunarBaseActionNode(kind = "flipStationTo", side = "TERRAN_OUTPOST")
+        val game = seatedGameWithPlayers { _, player -> player }
+        val publicState = game.readPublicState().copy(
+            actionState = LunarBaseActionState(
+                phase = resolvingActionPhase,
+                mainActionChosen = true,
+                stack = listOf(LunarBaseActionFrame(0, action))
+            )
+        )
+
+        val (nextPublicState, _) = LunarBaseActionEngine("LUNAR01", publicState.version)
+            .resolve(LunarBaseMutableGame(publicState, game.readPrivateState()))
+
+        assertEquals(0, nextPublicState.currentPlayerIndex)
+        assertEquals("flipStationTo", nextPublicState.actionState.interaction?.kind)
+        assertEquals(listOf(LunarBaseActionButton("Station is already flipped", "done")), nextPublicState.actionState.interaction?.buttons)
+        assertEquals(false, nextPublicState.players[0].board[0].card.flipped)
     }
 
     @Test
@@ -1481,7 +1660,7 @@ class LunarBaseGameHandlerTest {
                         phase = resolvingActionPhase,
                         mainActionChosen = mainActionChosen,
                         interaction = interaction,
-                        statusText = interaction.text
+                        activeActions = listOf(action)
                     )
                 )
             )
@@ -1516,6 +1695,25 @@ class LunarBaseGameHandlerTest {
                 }
             },
             stockCount = nextPrivate.stock.size
+        )
+        return game.copy(
+            publicState = objectMapper.valueToTree(nextPublic),
+            privateState = objectMapper.valueToTree(nextPrivate)
+        )
+    }
+
+    private fun replaceCurrentPlayerHand(game: GameRecord, hand: List<LunarBaseCard>): GameRecord {
+        val privateState = game.readPrivateState()
+        val nextPrivate = privateState.copy(hands = privateState.hands.replaceAt(0, hand))
+        val publicState = game.readPublicState()
+        val nextPublic = publicState.copy(
+            players = publicState.players.replaceAt(
+                0,
+                publicState.players[0].copy(
+                    handCount = hand.size,
+                    influenceHandCount = hand.count { it.type == "influence" }
+                )
+            )
         )
         return game.copy(
             publicState = objectMapper.valueToTree(nextPublic),

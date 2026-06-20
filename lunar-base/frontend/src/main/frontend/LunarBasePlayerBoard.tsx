@@ -1,4 +1,4 @@
-import { forwardRef, type CSSProperties, type DragEvent, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { forwardRef, type CSSProperties, type DragEvent, type MouseEvent, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { CardView } from "./LunarBaseCard";
 import { boardBounds, boardCardCenter, normalizeRotation, rotationToOrientation, snapDraggedCardFromCenter, snapSelectedCardFromPointer } from "./lunar-base-board-rules";
 import { cardWidth, gridSquare } from "./lunar-base-constants";
@@ -88,7 +88,8 @@ export interface PlayerBoardHandle {
 
 export const PlayerBoard = forwardRef<PlayerBoardHandle, {
     board: LunarBaseBoardCard[];
-    selected: { card: LunarBaseCard; rotation: CardRotation } | null;
+    selected: { card: LunarBaseCard; rotation: CardRotation; visualRotation?: number } | null;
+    sourceSelection: { cardId: string; rotation: CardRotation; visualRotation: number; instantRotation: boolean } | null;
     zoom: number;
     canAcceptDrag: boolean;
     canShowStationControls: boolean;
@@ -101,7 +102,12 @@ export const PlayerBoard = forwardRef<PlayerBoardHandle, {
     onRevealStation: (cardId: string) => void;
     onFlipStation: (cardId: string) => void;
     canChooseMainAction: (card: LunarBaseCard) => boolean;
+    canStealCard: (boardCard: LunarBaseBoardCard) => boolean;
+    draggingSourceKey: string | null;
     onChooseMainAction: (cardId: string) => void;
+    onStealCardClick: (boardCard: LunarBaseBoardCard, event: MouseEvent<HTMLElement>) => void;
+    onStealCardDragStart: (boardCard: LunarBaseBoardCard, event: DragEvent<HTMLElement>) => void;
+    onStealCardDragEnd: (event: DragEvent<HTMLElement>) => void;
     onPlaySelected: (x: number, y: number, destination: { x: number; y: number } | null) => void;
     onClearSelected: () => void;
     onDropCard: (event: DragEvent<HTMLElement>, x: number, y: number, rotation: CardRotation, destination: { x: number; y: number } | null) => void;
@@ -109,6 +115,7 @@ export const PlayerBoard = forwardRef<PlayerBoardHandle, {
 }>(function PlayerBoard({
     board,
     selected,
+    sourceSelection,
     zoom,
     canAcceptDrag,
     canShowStationControls,
@@ -121,7 +128,12 @@ export const PlayerBoard = forwardRef<PlayerBoardHandle, {
     onRevealStation,
     onFlipStation,
     canChooseMainAction,
+    canStealCard,
+    draggingSourceKey,
     onChooseMainAction,
+    onStealCardClick,
+    onStealCardDragStart,
+    onStealCardDragEnd,
     onPlaySelected,
     onClearSelected,
     onDropCard,
@@ -207,6 +219,12 @@ export const PlayerBoard = forwardRef<PlayerBoardHandle, {
                 const displayedCard = isRevealedStation ? stationOppositeSideCard(played.card) : played.card;
                 const stationControls = (canShowStationControls || canFlipStation) && isStation;
                 const mainActionable = canChooseMainAction(displayedCard);
+                const stealable = canStealCard(played);
+                const selectedBoardCard = selected?.card.id === played.card.id
+                    ? selected
+                    : sourceSelection?.cardId === played.card.id
+                        ? { card: played.card, rotation: sourceSelection.rotation, visualRotation: sourceSelection.visualRotation }
+                        : null;
                 return (
                     <div
                         key={played.card.id}
@@ -217,20 +235,41 @@ export const PlayerBoard = forwardRef<PlayerBoardHandle, {
                             rotationToOrientation(played.rotation),
                             stationControls ? "has-station-controls" : "",
                             mainActionable ? "is-main-actionable" : "",
+                            stealable ? "is-stealable" : "",
+                            selectedBoardCard ? "is-selected" : "",
+                            draggingSourceKey === `board-${played.card.id}` ? "is-dragging-source" : "",
                             isRevealedStation ? "is-station-revealed" : "",
                             hiddenAnimationDestinations.has(`board-${played.card.id}`) ? "is-animation-destination-hidden" : ""
                         ].filter(Boolean).join(" ")}
+                        role={stealable ? "button" : undefined}
+                        tabIndex={stealable ? -1 : undefined}
+                        aria-disabled={stealable ? false : undefined}
+                        draggable={stealable}
                         style={{
                             left: (played.x - bounds.minX) * gridSquare,
                             top: (played.y - bounds.minY) * gridSquare
                         } as CSSProperties}
+                        onClick={(event) => {
+                            if (!stealable) return;
+                            if (!(event.target instanceof Element) || !event.target.closest(".lunar-card")) return;
+                            event.stopPropagation();
+                            onStealCardClick(played, event);
+                        }}
+                        onDragStart={(event) => {
+                            if (!stealable) return;
+                            onStealCardDragStart(played, event);
+                        }}
+                        onDragEnd={stealable ? onStealCardDragEnd : undefined}
                     >
                         {stationFlipAnimation ? (
                             <StationFlipCardView animation={stationFlipAnimation} rotation={played.rotation} />
                         ) : (
                             <CardView
                                 card={displayedCard}
-                                rotation={played.rotation}
+                                rotation={selectedBoardCard?.rotation ?? played.rotation}
+                                selected={Boolean(selectedBoardCard)}
+                                visualRotation={selectedBoardCard?.visualRotation}
+                                instantRotation={Boolean(sourceSelection?.cardId === played.card.id && sourceSelection.instantRotation)}
                                 actionBadgeTargetable={mainActionable}
                                 onActionBadgeClick={mainActionable ? () => onChooseMainAction(played.card.id) : undefined}
                             />

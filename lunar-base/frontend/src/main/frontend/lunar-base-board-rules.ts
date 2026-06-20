@@ -10,6 +10,15 @@ export const normalizeRotation = (rotation: number): CardRotation =>
 export const nextRotation = (rotation: CardRotation): CardRotation =>
     (rotation === 0 ? 90 : rotation === 90 ? 180 : rotation === 180 ? 270 : 0);
 
+const positiveModulo = (value: number, divisor: number): number =>
+    ((value % divisor) + divisor) % divisor;
+
+export const normalizedVisualRotation = (rotation: number, originRotation: CardRotation = 0): number =>
+    positiveModulo(rotation + 90 - originRotation, 360) - 90 + originRotation;
+
+export const shouldUnwindVisualRotation = (rotation: CardRotation, originRotation: CardRotation = 0): boolean =>
+    positiveModulo(rotation + 90 - originRotation, 360) === 0;
+
 export const boardCardRectAtPoint = (point: { x: number; y: number }, rotation: CardRotation | undefined, zoom: number): DOMRect => {
     const isHorizontal = rotation === 90 || rotation === 270;
     const width = (isHorizontal ? cardWidth * 2 : cardWidth) * zoom;

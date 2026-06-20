@@ -88,6 +88,7 @@ class LunarBaseGameHandler(
             "discardHandCard" -> discardHandCard(publicState, privateState, command, actingUserId)
             "playAgent" -> playAgent(publicState, privateState, command, actingUserId)
             "buildModule" -> buildModule(publicState, privateState, command, actingUserId)
+            "stealModule" -> stealModule(publicState, privateState, command, actingUserId)
             "flipStation" -> flipStationForAction(publicState, privateState, command, actingUserId)
             "finishInteraction" -> finishInteraction(publicState, privateState, actingUserId)
             else -> throw InvalidCommandException("Unsupported Lunar Base command: $type.")
@@ -328,6 +329,23 @@ class LunarBaseGameHandler(
         publicState.requireActor(actingUserId)
         return LunarBaseActionEngine(publicState.id, publicState.version)
             .buildModule(
+                LunarBaseMutableGame(publicState, privateState),
+                command.requiredText("cardId"),
+                command.requiredInt("x"),
+                command.requiredInt("y"),
+                command.requiredInt("rotation")
+            )
+    }
+
+    private fun stealModule(
+        publicState: LunarBasePublicState,
+        privateState: LunarBasePrivateState,
+        command: JsonNode,
+        actingUserId: String?
+    ): Pair<LunarBasePublicState, LunarBasePrivateState> {
+        publicState.requireActor(actingUserId)
+        return LunarBaseActionEngine(publicState.id, publicState.version)
+            .stealModule(
                 LunarBaseMutableGame(publicState, privateState),
                 command.requiredText("cardId"),
                 command.requiredInt("x"),

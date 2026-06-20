@@ -3,6 +3,7 @@ import type { CardMovementAnimation, CardRotation, LunarBaseCard, LunarBaseGame 
 export type LunarCardInteractionGesture = "click" | "drop" | "modal";
 
 export type LunarCardInteractionSource =
+    | { type: "board"; playerIndex: number; card: LunarBaseCard }
     | { type: "stock" }
     | { type: "supply"; slotIndex: number; card: LunarBaseCard }
     | { type: "hand"; viewerSeat: number; card: LunarBaseCard };
@@ -25,6 +26,7 @@ export type LunarCardInteractionContext = {
 };
 
 const handSourceKey = (viewerSeat: number, cardId: string) => `hand-${viewerSeat}-${cardId}`;
+const boardSourceKey = (cardId: string) => `board-${cardId}`;
 const supplySourceKey = (cardId: string) => `supply-${cardId}`;
 
 const stockAnnotation = (gesture: LunarCardInteractionGesture) =>
@@ -84,6 +86,22 @@ export const resolveLunarCardInteraction = (
 
     if (target.type === "board") {
         if (source.card.type !== "module") return null;
+        if (source.type === "board") {
+            if (interactionKind !== "stealModule") return null;
+            return {
+                command: { type: "stealModule", cardId: source.card.id, x: target.x, y: target.y, rotation: target.rotation },
+                animation: {
+                    annotation: gesture === "drop" ? "drop stolen module to board" : "click selected stolen module to board",
+                    card: source.card,
+                    sourceKey: boardSourceKey(source.card.id),
+                    rotation: target.rotation,
+                    destination: { type: "boardCard", cardId: source.card.id },
+                    toX: target.to?.x,
+                    toY: target.to?.y
+                },
+                clearsSelection: true
+            };
+        }
         if (interactionKind !== "build") return null;
         return {
             command: { type: "buildModule", cardId: source.card.id, x: target.x, y: target.y, rotation: target.rotation },
@@ -101,6 +119,7 @@ export const resolveLunarCardInteraction = (
     }
 
     if (target.type !== "discard") return null;
+    if (source.type !== "hand") return null;
     if (interactionKind === "discard") {
         return {
             command: { type: "discardHandCard", cardId: source.card.id },

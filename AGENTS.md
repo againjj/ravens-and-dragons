@@ -60,6 +60,7 @@ This file contains repository-wide instructions for AI-assisted work in this pro
 - `app/` owns the runnable Spring Boot application, deployed jar assembly, and explicit registration of included game modules.
 - `ravens-and-dragons/` owns Ravens and Dragons game rules, game APIs, game-specific persistence payloads, frontend UI, assets, bots, machine training, and tests.
 - Do not persist data that can be derived from other persisted state unless the user explicitly asks for that data to be persisted.
+- Do not persist any data derived from action or rule state. Store the canonical rule/action state instead, and derive presentation text, labels, status strings, prompts, summaries, availability flags, counts, and other secondary data at the read/API/view layer or in the client.
 - Any sub-project named `X` that contains both backend and frontend code must contain two sub-projects named `backend` and `frontend`; `X:testBackend` must run the backend tests, `X:testFrontend` must run the frontend tests, and `X:test` must depend on both `X:testBackend` and `X:testFrontend`.
 - Each game should live in its own sub-project; do not merge separate games into a single game module.
 - New game frontends should use Redux for game UI state, async game loading/submission status, and client-only interaction state that crosses component boundaries.

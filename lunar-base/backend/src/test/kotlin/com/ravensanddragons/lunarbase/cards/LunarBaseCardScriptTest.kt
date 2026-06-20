@@ -318,6 +318,42 @@ class LunarBaseCardScriptTest {
         assertEquals("Do all requires at least two actions.", exception.message)
     }
 
+    @Test
+    fun chosenPlayerScopeRequiresEarlierChooseOpponent() {
+        val exception = assertFailsWith<IllegalArgumentException> {
+            deck {
+                stationFront {
+                    name = "Front"
+                    connectors { top = gray }
+                    mainAction {
+                        chosenPlayer {
+                            draw { 1 }
+                        }
+                    }
+                }
+            }
+        }
+
+        assertEquals("chosenPlayer actions require an earlier chooseOpponent action.", exception.message)
+    }
+
+    @Test
+    fun viewHandChosenPlayerRequiresEarlierChooseOpponent() {
+        val exception = assertFailsWith<IllegalArgumentException> {
+            deck {
+                stationFront {
+                    name = "Front"
+                    connectors { top = gray }
+                    mainAction {
+                        viewHand { chosenPlayer }
+                    }
+                }
+            }
+        }
+
+        assertEquals("viewHand chosenPlayer requires an earlier chooseOpponent action.", exception.message)
+    }
+
     private fun loadStandardDeckScript(): LunarBaseDeckDefinition {
         return LunarBaseStandardDeck.definition
     }

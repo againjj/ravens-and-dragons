@@ -62,19 +62,29 @@ export interface LunarBaseActionInteraction {
     text: string;
     buttons: LunarBaseActionButton[];
     remaining?: number;
-    action?: {
-        flipAmountKind?: string | null;
-        scope?: string | null;
-    } | null;
+    action?: LunarBaseActionNode | null;
     targetPlayerIndex?: number | null;
     flippedStationIds?: string[];
+}
+
+export interface LunarBaseActionNode {
+    kind: string;
+    amount?: number | null;
+    amountKind?: string | null;
+    flipAmount?: number | null;
+    flipAmountKind?: string | null;
+    side?: string | null;
+    moduleName?: string | null;
+    playerRef?: string | null;
+    scope?: string | null;
+    actions?: LunarBaseActionNode[];
 }
 
 export interface LunarBaseActionState {
     phase: "choosingMainAction" | "resolvingAction";
     mainActionChosen: boolean;
     interaction: LunarBaseActionInteraction | null;
-    statusText?: string | null;
+    activeActions?: LunarBaseActionNode[];
     sourceCardName?: string | null;
 }
 
@@ -129,7 +139,7 @@ export interface FlyingCard {
     toY: number;
 }
 
-export type DragSource = "hand" | "stock" | "supply";
+export type DragSource = "board" | "hand" | "stock" | "supply";
 export type AnimationDestination =
     | { type: "viewerHandEnd" }
     | { type: "handCard"; cardId: string }
@@ -152,8 +162,11 @@ export interface CardMovementAnimation {
 
 export interface SelectedCard {
     cardId: string;
+    source?: "board" | "hand";
+    sourcePlayerIndex?: number;
     rotation: CardRotation;
     visualRotation: number;
+    originRotation: CardRotation;
 }
 
 export interface StationFlipAnimation {

@@ -47,6 +47,7 @@ data class LunarBaseAgentCardDefinition(
         requirePositiveCount(count, "Agent")
         requireNonBlankName(name, "Agent")
         require(onPlaying.isNotEmpty()) { "Agent onPlaying is required." }
+        validateChosenPlayerReferences(onPlaying)
     }
 }
 
@@ -59,6 +60,7 @@ data class LunarBaseInfluenceCardDefinition(
     init {
         requirePositiveCount(count, "Influence")
         requireNonBlankName(name, "Influence")
+        validateEffectChosenPlayerReferences(effect)
     }
 }
 
@@ -87,6 +89,9 @@ data class LunarBaseModuleCardDefinition(
         require(effect == null || (onPlaying.isEmpty() && mainAction.isEmpty())) {
             "Module cannot define effect with onPlaying or mainAction."
         }
+        validateEffectChosenPlayerReferences(effect)
+        validateChosenPlayerReferences(onPlaying)
+        validateChosenPlayerReferences(mainAction)
     }
 }
 
@@ -103,6 +108,7 @@ data class LunarBaseStationCardDefinition(
         requirePositiveCount(count, "Station")
         requireNonBlankName(name, "Station")
         require(mainAction.isNotEmpty()) { "Station mainAction is required." }
+        validateChosenPlayerReferences(mainAction)
     }
 }
 
@@ -121,6 +127,7 @@ data class LunarBaseStationFrontCardDefinition(
         requireNonBlankName(name, "Station front")
         require(connectors.hasAnySpecified()) { "Station front connectors must specify at least one position." }
         require(mainAction.isNotEmpty()) { "Station front mainAction is required." }
+        validateChosenPlayerReferences(mainAction)
     }
 }
 
@@ -130,6 +137,51 @@ private fun requirePositiveCount(count: Int, cardLabel: String) {
 
 private fun requireNonBlankName(name: String, cardLabel: String) {
     require(name.isNotBlank()) { "$cardLabel name must be non-empty." }
+}
+
+private fun validateEffectChosenPlayerReferences(effect: LunarBaseCardEffect?) {
+    if (effect is LunarBaseTriggeredCardEffect) {
+        validateChosenPlayerReferences(effect.actions)
+    }
+}
+
+private fun validateChosenPlayerReferences(actions: List<LunarBaseCardAction>) {
+    validateChosenPlayerReferences(actions, hasChosenPlayer = false)
+}
+
+private fun validateChosenPlayerReferences(
+    actions: List<LunarBaseCardAction>,
+    hasChosenPlayer: Boolean
+): Boolean {
+    var chosenPlayerIsAvailable = hasChosenPlayer
+    actions.forEach { action ->
+        chosenPlayerIsAvailable = when (action) {
+            LunarBaseChooseOpponentAction -> true
+            is LunarBaseChooseOneAction -> {
+                action.actions.forEach { validateChosenPlayerReferences(listOf(it), chosenPlayerIsAvailable) }
+                chosenPlayerIsAvailable
+            }
+            is LunarBaseDoAllAction -> validateChosenPlayerReferences(action.actions, chosenPlayerIsAvailable)
+            is LunarBaseScopedAction -> {
+                if (action.scope == LunarBaseActionScope.CHOSEN_PLAYER) {
+                    require(chosenPlayerIsAvailable) {
+                        "chosenPlayer actions require an earlier chooseOpponent action."
+                    }
+                }
+                validateChosenPlayerReferences(action.actions, chosenPlayerIsAvailable)
+            }
+            is LunarBaseViewHandAction -> {
+                if (action.player == LunarBasePlayerReference.CHOSEN_PLAYER) {
+                    require(chosenPlayerIsAvailable) {
+                        "viewHand chosenPlayer requires an earlier chooseOpponent action."
+                    }
+                }
+                chosenPlayerIsAvailable
+            }
+            else -> chosenPlayerIsAvailable
+        }
+    }
+    return chosenPlayerIsAvailable
 }
 
 /** A resource/card color named by the Lunar Base card DSL. */

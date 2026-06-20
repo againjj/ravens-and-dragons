@@ -120,7 +120,7 @@ internal class LunarBaseActionEngine(
                 sourceCardName = frame.sourceCardName
             )
             actionState = executeFrame(game, actionState, frame)
-            game.public = game.public.copy(actionState = actionState.withStatusText())
+            game.public = game.public.copy(actionState = actionState)
             if (finishIfWon(game)) {
                 return game.public to game.private
             }
@@ -134,7 +134,7 @@ internal class LunarBaseActionEngine(
                 game.public = game.public.copy(actionState = LunarBaseActionState())
             }
         } else {
-            game.public = game.public.copy(actionState = actionState.withStatusText())
+            game.public = game.public.copy(actionState = actionState)
         }
         game.public = game.public.withPrivateCounts(game.private).withBoardSummaries()
         finishIfWon(game)
@@ -227,7 +227,7 @@ internal class LunarBaseActionEngine(
         if (finishIfWon(game)) return game.public to game.private
         val interrupt = (catalogDefinition(card) as? LunarBaseModuleCardDefinition)?.onPlaying.orEmpty().toActionNodes()
         val remaining = interaction.remaining - 1
-        val repeatFrame = if (remaining > 0 && game.private.hands[actor].any { it.type == moduleType }) {
+        val repeatFrame = if (remaining > 0) {
             listOf(interaction.copy(remaining = remaining).toFrame(remaining, game.public.actionState.sourceCardName))
         } else {
             emptyList()
@@ -236,6 +236,37 @@ internal class LunarBaseActionEngine(
             repeatFrame +
             interrupt.asReversed().map { LunarBaseActionFrame(actor, it, sourceCardName = card.name) }
         return resolve(game, game.public.actionState.copy(interaction = null, stack = stack))
+    }
+
+    fun stealModule(
+        game: LunarBaseMutableGame,
+        cardId: String,
+        x: Int,
+        y: Int,
+        rotation: Int
+    ): Pair<LunarBasePublicState, LunarBasePrivateState> {
+        val interaction = game.public.actionState.interaction ?: return game.public to game.private
+        if (interaction.kind != "stealModule") return game.public to game.private
+        val actor = interaction.actorIndex
+        val moduleName = interaction.action?.moduleName ?: return game.public to game.private
+        val opponentIndex = game.public.players.indices.firstOrNull { playerIndex ->
+            playerIndex != actor && game.public.players[playerIndex].board.any { it.card.id == cardId && it.card.type == moduleType && it.card.name == moduleName }
+        } ?: return game.public to game.private
+        val stolen = game.public.players[opponentIndex].board.first { it.card.id == cardId }
+        val candidate = LunarBaseBoardCard(stolen.card, x, y, rotation)
+        validateModulePlacementOrThrow(game.public.players[actor].board, candidate)
+        game.public = game.public.copy(
+            players = game.public.players.mapIndexed { playerIndex, player ->
+                when (playerIndex) {
+                    actor -> player.copy(board = player.board + candidate)
+                    opponentIndex -> player.copy(board = player.board.filterNot { it.card.id == cardId })
+                    else -> player
+                }
+            },
+            message = "Stole a module."
+        )
+        if (finishIfWon(game)) return game.public to game.private
+        return resolve(game, game.public.actionState.copy(interaction = null))
     }
 
     fun draftSupply(game: LunarBaseMutableGame, slotIndex: Int): Pair<LunarBasePublicState, LunarBasePrivateState> {
@@ -296,7 +327,7 @@ internal class LunarBaseActionEngine(
         val desiredSide = interaction.action?.side?.let { LunarBaseStationSide.valueOf(it) }
         val nextFlipped = desiredSide?.let { it == LunarBaseStationSide.AGENDA_SIDE } ?: !station.card.flipped
         if (station.card.flipped == nextFlipped && interaction.kind == "flipStationTo") {
-            return resolve(game, game.public.actionState.copy(interaction = null))
+            return game.public.withPrivateCounts(game.private).withBoardSummaries() to game.private
         }
         game.public = game.public.copy(
             players = game.public.players.replaceAt(
@@ -320,14 +351,14 @@ internal class LunarBaseActionEngine(
         if (nextInteraction.remaining <= 0 || allStationIds(game).all { it in nextInteraction.flippedStationIds }) {
             return resolve(game, game.public.actionState.copy(interaction = null))
         }
-        game.public = game.public.copy(actionState = game.public.actionState.copy(interaction = nextInteraction).withStatusText())
+        game.public = game.public.copy(actionState = game.public.actionState.copy(interaction = nextInteraction))
         return game.public.withPrivateCounts(game.private).withBoardSummaries() to game.private
     }
 
     fun finishInteraction(game: LunarBaseMutableGame): Pair<LunarBasePublicState, LunarBasePrivateState> {
         val interaction = game.public.actionState.interaction ?: return game.public to game.private
         return when (interaction.kind) {
-            "build", "flipStation", "flipStationTo", "viewHand" -> resolve(game, game.public.actionState.copy(interaction = null))
+            "build", "flipStation", "flipStationTo", "stealModule", "viewHand" -> resolve(game, game.public.actionState.copy(interaction = null))
             else -> game.public to game.private
         }
     }
@@ -373,7 +404,7 @@ internal class LunarBaseActionEngine(
                 }
             }
             "build" -> {
-                val amount = minOf(frame.remaining ?: resolveAmount(game, actor, action), game.private.hands[actor].count { it.type == moduleType })
+                val amount = frame.remaining ?: resolveAmount(game, actor, action)
                 if (amount <= 0) actionState else actionState.copy(
                     interaction = actionInteraction(game.public, actor, action, "build", remaining = amount)
                 )
@@ -391,8 +422,8 @@ internal class LunarBaseActionEngine(
                 )
             }
             "discard" -> {
-                val amount = minOf(frame.remaining ?: resolveAmount(game, actor, action), game.private.hands[actor].size)
-                if (amount <= 0) actionState else actionState.copy(
+                val amount = frame.remaining ?: resolveAmount(game, actor, action)
+                if (amount <= 0 || game.private.hands[actor].isEmpty()) actionState else actionState.copy(
                     interaction = actionInteraction(game.public, actor, action, "discard", remaining = amount)
                 )
             }
@@ -404,10 +435,20 @@ internal class LunarBaseActionEngine(
                     interaction = actionInteraction(game.public, actor, action, "stealCredits", remaining = amount)
                 )
             }
-            "stealModule" -> actionState
+            "stealModule" -> startStealModule(game, actionState, actor, action)
             "viewHand" -> startViewHand(actionState, actor, action)
             else -> actionState
         }
+    }
+
+    private fun startStealModule(
+        game: LunarBaseMutableGame,
+        state: LunarBaseActionState,
+        actor: Int,
+        action: LunarBaseActionNode
+    ): LunarBaseActionState {
+        val kind = if (stealableModules(game.public, actor, action.moduleName).isEmpty()) "stealModuleEmpty" else "stealModule"
+        return state.copy(interaction = actionInteraction(game.public, actor, action, kind))
     }
 
     private fun startScoped(
@@ -417,7 +458,9 @@ internal class LunarBaseActionEngine(
         action: LunarBaseActionNode
     ): LunarBaseActionState {
         val players = when (action.scope) {
-            LunarBaseActionScope.CHOSEN_PLAYER.name -> state.chosenPlayerIndex?.let { listOf(it) }.orEmpty()
+            LunarBaseActionScope.CHOSEN_PLAYER.name -> listOf(
+                checkNotNull(state.chosenPlayerIndex) { "chosenPlayer scope requires a chosen player." }
+            )
             LunarBaseActionScope.EACH_OPPONENT.name -> turnOrder(public, nextPlayerIndex(actor, public.config.playerCount)).filterNot { it == actor }
             LunarBaseActionScope.EACH_PLAYER.name -> turnOrder(public, actor)
             LunarBaseActionScope.NEIGHBORS_OF_TARGET.name,
@@ -445,7 +488,7 @@ internal class LunarBaseActionEngine(
         val target = when (action.playerRef) {
             LunarBasePlayerReference.CHOSEN_PLAYER.name -> state.chosenPlayerIndex
             else -> null
-        } ?: return state
+        } ?: error("viewHand requires a target player.")
         return state.copy(interaction = LunarBaseActionInteraction(
             kind = "viewHand",
             actorIndex = actor,
@@ -506,7 +549,7 @@ internal class LunarBaseActionEngine(
                         remaining = remaining,
                         text = interaction.textForRemaining(remaining)
                     )
-                ).withStatusText()
+                )
             )
             return game.public.withPrivateCounts(game.private).withBoardSummaries() to game.private
         }
@@ -540,12 +583,17 @@ internal class LunarBaseActionEngine(
                 emptyList()
             }
             "flipStationToAlready" -> listOf(LunarBaseActionButton("Station is already flipped", "done"))
+            "stealModuleEmpty" -> listOf(LunarBaseActionButton("Skip steal", "skip"))
             else -> emptyList()
         }
         return LunarBaseActionInteraction(
-            kind = if (kind == "flipStationToAlready") "flipStationTo" else kind,
+            kind = when (kind) {
+                "flipStationToAlready" -> "flipStationTo"
+                "stealModuleEmpty" -> "stealModule"
+                else -> kind
+            },
             actorIndex = actor,
-            text = text,
+            text = if (kind == "stealModuleEmpty") "No module to steal" else text,
             buttons = buttons,
             remaining = remaining,
             action = action
@@ -587,13 +635,7 @@ internal class LunarBaseActionEngine(
     private fun playModuleFromHand(game: LunarBaseMutableGame, actor: Int, card: LunarBaseCard, x: Int, y: Int, rotation: Int) {
         val player = game.public.players[actor]
         val candidate = LunarBaseBoardCard(card, x, y, rotation)
-        when (validateModulePlacement(player.board, candidate)) {
-            PlacementValidationResult.VALID -> Unit
-            PlacementValidationResult.INVALID_ROTATION -> throw InvalidCommandException("Module rotation must be 0, 90, 180, or 270.")
-            PlacementValidationResult.OVERLAPS_CARD -> throw InvalidCommandException("That board position overlaps another card.")
-            PlacementValidationResult.DOES_NOT_TOUCH_BOARD -> throw InvalidCommandException("A played card must touch another card.")
-            PlacementValidationResult.CONNECTORS_DO_NOT_MATCH -> throw InvalidCommandException("A played card's connectors must match adjacent cards.")
-        }
+        validateModulePlacementOrThrow(player.board, candidate)
         val cost = card.creditCost(player.orbs)
         if (cost > player.credits) {
             throw InvalidCommandException("You do not have enough credits to play that card.")
@@ -617,6 +659,44 @@ internal class LunarBaseActionEngine(
             },
             message = "Stole credits."
         )
+    }
+
+    private fun validateModulePlacementOrThrow(board: List<LunarBaseBoardCard>, candidate: LunarBaseBoardCard) {
+        when (validateModulePlacement(board, candidate)) {
+            PlacementValidationResult.VALID -> Unit
+            PlacementValidationResult.INVALID_ROTATION -> throw InvalidCommandException("Module rotation must be 0, 90, 180, or 270.")
+            PlacementValidationResult.OVERLAPS_CARD -> throw InvalidCommandException("That board position overlaps another card.")
+            PlacementValidationResult.DOES_NOT_TOUCH_BOARD -> throw InvalidCommandException("A played card must touch another card.")
+            PlacementValidationResult.CONNECTORS_DO_NOT_MATCH -> throw InvalidCommandException("A played card's connectors must match adjacent cards.")
+        }
+    }
+
+    private fun stealableModules(public: LunarBasePublicState, actor: Int, moduleName: String?): List<LunarBaseBoardCard> =
+        public.players.flatMapIndexed { playerIndex, player ->
+            if (playerIndex == actor) {
+                emptyList()
+            } else {
+                player.board.filter { boardCard ->
+                    boardCard.card.type == moduleType &&
+                        boardCard.card.name == moduleName &&
+                        hasLegalPlacement(public.players[actor].board, boardCard.card)
+                }
+            }
+        }
+
+    private fun hasLegalPlacement(board: List<LunarBaseBoardCard>, card: LunarBaseCard): Boolean {
+        val cells = board.flatMap { it.coveredCells() }
+        val minX = (cells.minOfOrNull { it.first } ?: 0) - 1
+        val maxX = (cells.maxOfOrNull { it.first } ?: 1) + 1
+        val minY = (cells.minOfOrNull { it.second } ?: 0) - 1
+        val maxY = (cells.maxOfOrNull { it.second } ?: 1) + 1
+        return listOf(0, 90, 180, 270).any { rotation ->
+            (minX..maxX).any { x ->
+                (minY..maxY).any { y ->
+                    validateModulePlacement(board, LunarBaseBoardCard(card, x, y, rotation)) == PlacementValidationResult.VALID
+                }
+            }
+        }
     }
 
     private fun advanceTurn(public: LunarBasePublicState): LunarBasePublicState =
@@ -692,9 +772,6 @@ internal class LunarBaseActionEngine(
         }
 
 }
-
-internal fun LunarBaseActionState.withStatusText(): LunarBaseActionState =
-    copy(statusText = interaction?.text ?: activeActions.takeIf { it.isNotEmpty() }?.joinToString("\n") { it.toFullActionText() })
 
 internal fun LunarBaseActionNode.toActionText(): String =
     when (kind) {

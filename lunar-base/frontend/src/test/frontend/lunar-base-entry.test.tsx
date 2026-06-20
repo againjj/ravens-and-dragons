@@ -201,6 +201,10 @@ describe("lunarBaseGameEntry", () => {
             command: { type: "buildModule", cardId: "module-1", x: -1, y: 0, rotation: 90 },
             animation: { annotation: "drop hand module to board", sourceKey: "hand-0-module-1", rotation: 90, destination: { type: "boardCard", cardId: "module-1" }, toX: 84, toY: 42 }
         });
+        expect(resolveLunarCardInteraction({ type: "board", playerIndex: 1, card: moduleCard }, { type: "board", x: 1, y: 0, rotation: 180, to: { x: 168, y: 84 } }, "drop", context("stealModule"))).toMatchObject({
+            command: { type: "stealModule", cardId: "module-1", x: 1, y: 0, rotation: 180 },
+            animation: { annotation: "drop stolen module to board", sourceKey: "board-module-1", rotation: 180, destination: { type: "boardCard", cardId: "module-1" }, toX: 168, toY: 84 }
+        });
         expect(resolveLunarCardInteraction({ type: "hand", viewerSeat: 0, card: moduleCard }, { type: "discard" }, "click", context("discard"))).toMatchObject({
             command: { type: "discardHandCard", cardId: "module-1" },
             animation: { annotation: "click hand module to discard", sourceKey: "hand-0-module-1", destination: { type: "discard" } }
@@ -1820,6 +1824,206 @@ describe("lunarBaseGameEntry", () => {
         });
     });
 
+    it("renders played modules with their board rotation", async () => {
+        servedGame = lunarBaseGame({ hand: [] });
+        const player = (servedGame.players as Array<Record<string, unknown>>)[0];
+        const board = player.board as Array<Record<string, unknown>>;
+        board.push({
+            card: {
+                id: "module-rotated",
+                type: "module",
+                name: "Inflatable Habitat",
+                color: "blue",
+                connectors: { top: "gray", topRight: "blue", bottomRight: "blue" }
+            },
+            x: 1,
+            y: -2,
+            rotation: 180
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+
+        const card = await screen.findByText("Inflatable Habitat");
+        expect(card.closest(".lunar-card")).toHaveStyle({ "--lunar-card-rotation": "180deg" });
+    });
+
+    it("raises a selected stealable board module above adjacent modules", async () => {
+        servedGame = lunarBaseGame({
+            hand: [],
+            actionState: {
+                phase: "resolvingAction",
+                mainActionChosen: true,
+                interaction: {
+                    kind: "stealModule",
+                    actorIndex: 0,
+                    text: "Steal a Solar Lab",
+                    buttons: [],
+                    remaining: 1,
+                    action: { kind: "stealModule", moduleName: "Solar Lab" },
+                    flippedStationIds: []
+                }
+            }
+        });
+        const opponent = (servedGame.players as Array<Record<string, unknown>>)[1];
+        const board = opponent.board as Array<Record<string, unknown>>;
+        board.push({
+            card: {
+                id: "stealable-module",
+                type: "module",
+                name: "Solar Lab",
+                color: "blue",
+                connectors: { topRight: "gray", bottomRight: "gray" }
+            },
+            x: 1,
+            y: 0,
+            rotation: 0
+        });
+        board.push({
+            card: {
+                id: "adjacent-module",
+                type: "module",
+                name: "Workshop",
+                color: "blue",
+                connectors: { topRight: "gray", bottomRight: "gray" }
+            },
+            x: 2,
+            y: 0,
+            rotation: 0
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        const card = await screen.findByText("Solar Lab");
+        const boardCard = card.closest(".lunar-board-card");
+
+        expect(boardCard).not.toBeNull();
+        fireEvent.click(card);
+        expect(boardCard).toHaveClass("is-selected");
+    });
+
+    it("uses the board module rotation and hides the source when dragging a module to steal", async () => {
+        servedGame = lunarBaseGame({
+            hand: [],
+            actionState: {
+                phase: "resolvingAction",
+                mainActionChosen: true,
+                interaction: {
+                    kind: "stealModule",
+                    actorIndex: 0,
+                    text: "Steal a Solar Lab",
+                    buttons: [],
+                    remaining: 1,
+                    action: { kind: "stealModule", moduleName: "Solar Lab" },
+                    flippedStationIds: []
+                }
+            }
+        });
+        const opponent = (servedGame.players as Array<Record<string, unknown>>)[1];
+        const board = opponent.board as Array<Record<string, unknown>>;
+        board.push({
+            card: {
+                id: "rotated-stealable-module",
+                type: "module",
+                name: "Solar Lab",
+                color: "blue",
+                connectors: { topRight: "gray", bottomRight: "gray" }
+            },
+            x: 1,
+            y: 0,
+            rotation: 180
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+        const dataTransfer = dragDataTransfer();
+
+        render(<PlayScreen />);
+        const card = await screen.findByText("Solar Lab");
+        const boardCard = card.closest<HTMLElement>(".lunar-board-card");
+        const cardElement = card.closest<HTMLElement>(".lunar-card");
+        expect(boardCard).not.toBeNull();
+        expect(cardElement).not.toBeNull();
+        boardCard!.getBoundingClientRect = () => new DOMRect(200, 120, 84, 168);
+        cardElement!.getBoundingClientRect = () => new DOMRect(200, 120, 84, 168);
+
+        fireDragStart(boardCard!, { clientX: 220, clientY: 150, dataTransfer });
+
+        await waitFor(() => expect(boardCard).toHaveClass("is-dragging-source"));
+        expect(dataTransfer.setData).toHaveBeenCalledWith("rotation", "180");
+        expect(dataTransfer.setDragImage).toHaveBeenCalled();
+        expect(dataTransfer.setDragImage.mock.calls[0][0].querySelector(".lunar-card")).toHaveStyle({
+            "--lunar-card-rotation": "180deg"
+        });
+    });
+
+    it("clears the board snap rectangle after dropping a stolen module on the viewer board", async () => {
+        servedGame = lunarBaseGame({
+            hand: [],
+            actionState: {
+                phase: "resolvingAction",
+                mainActionChosen: true,
+                interaction: {
+                    kind: "stealModule",
+                    actorIndex: 0,
+                    text: "Steal a Solar Lab",
+                    buttons: [],
+                    remaining: 1,
+                    action: { kind: "stealModule", moduleName: "Solar Lab" },
+                    flippedStationIds: []
+                }
+            }
+        });
+        const viewer = (servedGame.players as Array<Record<string, unknown>>)[0];
+        const viewerStation = (viewer.board as Array<Record<string, unknown>>)[0].card as Record<string, unknown>;
+        viewerStation.connectors = { top: "gray", bottom: "gray" };
+        const opponent = (servedGame.players as Array<Record<string, unknown>>)[1];
+        const opponentBoard = opponent.board as Array<Record<string, unknown>>;
+        opponentBoard.push({
+            card: {
+                id: "stolen-snap-module",
+                type: "module",
+                name: "Solar Lab",
+                color: "blue",
+                connectors: { topRight: "gray", bottomRight: "gray" }
+            },
+            x: 1,
+            y: 0,
+            rotation: 270
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+        const dataTransfer = dragDataTransfer();
+
+        render(<PlayScreen />);
+        const sourceText = await screen.findByText("Solar Lab");
+        const sourceBoardCard = sourceText.closest<HTMLElement>(".lunar-board-card");
+        const sourceCardElement = sourceText.closest<HTMLElement>(".lunar-card");
+        const viewerBoard = document.querySelector<HTMLElement>(".lunar-board");
+        expect(sourceBoardCard).not.toBeNull();
+        expect(sourceCardElement).not.toBeNull();
+        expect(viewerBoard).not.toBeNull();
+        sourceCardElement!.getBoundingClientRect = () => new DOMRect(300, 120, 168, 84);
+        viewerBoard!.getBoundingClientRect = () => new DOMRect(0, 0, 336, 336);
+
+        fireDragStart(sourceBoardCard!, { clientX: 340, clientY: 150, dataTransfer });
+        fireDragOver(viewerBoard!, { clientX: 66, clientY: 240, dataTransfer });
+        expect(document.querySelector(".lunar-board-hover")).toBeInTheDocument();
+
+        fireDrop(viewerBoard!, { clientX: 66, clientY: 240, dataTransfer });
+
+        expect(document.querySelector(".lunar-board-hover")).toBeNull();
+        expect(document.querySelector(".lunar-drag-preview")).toBeNull();
+        expect(document.querySelector(".lunar-drop-snap")).toBeNull();
+        await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+            "/api/games/lunar-1/commands",
+            expect.objectContaining({
+                body: JSON.stringify({ type: "stealModule", cardId: "stolen-snap-module", x: -1, y: 2, rotation: 270, expectedVersion: 1 })
+            })
+        ));
+        expect(await screen.findByLabelText("drop stolen module to board")).toBeInTheDocument();
+        expect(document.querySelector(".lunar-board-hover")).toBeNull();
+        expect(document.querySelector(".lunar-drag-preview")).toBeNull();
+        expect(document.querySelector(".lunar-drop-snap")).toBeNull();
+    });
+
     it("animates a newly played module with the shifted board", async () => {
         const animate = vi.fn();
         HTMLElement.prototype.animate = animate;
@@ -2068,6 +2272,78 @@ describe("lunarBaseGameEntry", () => {
         expect(cardElement).toHaveStyle({ "--lunar-card-rotation": "-90deg" });
     });
 
+    it("normalizes stolen module rotation relative to its board rotation", async () => {
+        const animationFrames: FrameRequestCallback[] = [];
+        vi.stubGlobal("requestAnimationFrame", vi.fn((callback: FrameRequestCallback) => {
+            animationFrames.push(callback);
+            return animationFrames.length;
+        }));
+        servedGame = lunarBaseGame({
+            hand: [],
+            actionState: {
+                phase: "resolvingAction",
+                mainActionChosen: true,
+                interaction: {
+                    kind: "stealModule",
+                    actorIndex: 0,
+                    text: "Steal a Solar Lab",
+                    buttons: [],
+                    remaining: 1,
+                    action: { kind: "stealModule", moduleName: "Solar Lab" },
+                    flippedStationIds: []
+                }
+            }
+        });
+        const opponent = (servedGame.players as Array<Record<string, unknown>>)[1];
+        const board = opponent.board as Array<Record<string, unknown>>;
+        board.push({
+            card: {
+                id: "origin-rotated-stealable-module",
+                type: "module",
+                name: "Solar Lab",
+                color: "blue",
+                connectors: { topRight: "gray", bottomRight: "gray" }
+            },
+            x: 1,
+            y: 0,
+            rotation: 180
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        const card = await screen.findByText("Solar Lab");
+        vi.useFakeTimers();
+
+        fireEvent.click(card);
+        fireEvent.click(card);
+
+        const cardElement = card.closest(".lunar-card");
+        expect(cardElement).toHaveStyle({ "--lunar-card-rotation": "270deg" });
+
+        act(() => {
+            vi.advanceTimersByTime(500);
+        });
+
+        expect(cardElement).toHaveStyle({ "--lunar-card-rotation": "270deg" });
+
+        fireEvent.click(card);
+        fireEvent.click(card);
+        expect(cardElement).toHaveStyle({ "--lunar-card-rotation": "450deg" });
+
+        act(() => {
+            vi.advanceTimersByTime(500);
+        });
+
+        expect(cardElement).toHaveStyle({ "--lunar-card-rotation": "90deg" });
+        expect(cardElement).toHaveClass("is-rotation-instant");
+
+        act(() => {
+            while (animationFrames.length > 0) {
+                animationFrames.shift()?.(0);
+            }
+        });
+    });
+
     it("keeps rapid rotations smooth and snaps back instantly on deselect", async () => {
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
         const animationFrames: FrameRequestCallback[] = [];
@@ -2304,8 +2580,7 @@ describe("lunarBaseGameEntry", () => {
         servedGame = lunarBaseGame({
             actionState: {
                 ...lunarActionState("draw"),
-                sourceCardName: "Space Unicorn",
-                statusText: "Draw 1 card"
+                sourceCardName: "Space Unicorn"
             }
         });
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
@@ -2314,7 +2589,7 @@ describe("lunarBaseGameEntry", () => {
 
         const source = await screen.findByText("Space Unicorn");
         const actionPanel = screen.getByLabelText("Action panel");
-        const actionText = screen.getByText("Draw 1 card");
+        const actionText = screen.getByText("Draw 1 card (1 left)");
         expect(source.tagName).toBe("STRONG");
         expect(source).toHaveClass("lunar-action-source-card");
         expect(actionPanel).toContainElement(source);
@@ -2332,10 +2607,9 @@ describe("lunarBaseGameEntry", () => {
                 text: `${scope} action`,
                 buttons: [{ label: "Ben", value: "1" }],
                 remaining: 0,
-                action: { scope },
+                action: { kind: "scoped", scope, actions: [{ kind: "draw", amount: 1, amountKind: "literal" }] },
                 flippedStationIds: []
-            },
-            statusText: `${scope} action`
+            }
         });
         render(<PlayScreen />);
 
@@ -2345,9 +2619,12 @@ describe("lunarBaseGameEntry", () => {
         });
 
         let actionButtons = document.querySelector(".lunar-action-buttons");
+        let actionStatus = document.querySelector(".lunar-action-status");
         expect(actionButtons).toHaveTextContent("Choose a target");
         expect(actionButtons?.firstElementChild).toHaveTextContent("Choose a target");
-        expect(screen.getByLabelText("Action panel")).toHaveTextContent("NEIGHBORS_OF_TARGET action");
+        expect(actionStatus).toHaveTextContent("Neighbors of target: Draw 1 card");
+        expect(actionStatus).not.toHaveTextContent("Choose a target");
+        expect(screen.getByLabelText("Action panel")).toHaveTextContent("Neighbors of target: Draw 1 card");
 
         servedGame = lunarBaseGame({ actionState: scopedActionState("OPPONENT") });
         await act(async () => {
@@ -2355,8 +2632,11 @@ describe("lunarBaseGameEntry", () => {
         });
 
         actionButtons = document.querySelector(".lunar-action-buttons");
+        actionStatus = document.querySelector(".lunar-action-status");
         expect(actionButtons).toHaveTextContent("Choose an opponent");
         expect(actionButtons?.firstElementChild).toHaveTextContent("Choose an opponent");
+        expect(actionStatus).toHaveTextContent("Opponent: Draw 1 card");
+        expect(actionStatus).not.toHaveTextContent("Choose an opponent");
 
         servedGame = lunarBaseGame({ actionState: scopedActionState("TARGET") });
         await act(async () => {
@@ -2364,8 +2644,11 @@ describe("lunarBaseGameEntry", () => {
         });
 
         actionButtons = document.querySelector(".lunar-action-buttons");
+        actionStatus = document.querySelector(".lunar-action-status");
         expect(actionButtons).toHaveTextContent("Choose a target");
         expect(actionButtons?.firstElementChild).toHaveTextContent("Choose a target");
+        expect(actionStatus).toHaveTextContent("Target: Draw 1 card");
+        expect(actionStatus).not.toHaveTextContent("Choose a target");
     });
 
     it("does not show scope interaction text for non-scope buttons", async () => {
@@ -2389,10 +2672,9 @@ describe("lunarBaseGameEntry", () => {
                     text: "Steal 1 credit",
                     buttons: [{ label: "Ben", value: "1" }],
                     remaining: 1,
-                    action: null,
+                    action: { kind: "stealCredits", amount: 1, amountKind: "literal" },
                     flippedStationIds: []
-                },
-                statusText: "Steal 1 credit"
+                }
             }
         });
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
@@ -2400,9 +2682,41 @@ describe("lunarBaseGameEntry", () => {
         render(<PlayScreen />);
 
         expect(await screen.findByRole("button", { name: "Ben" })).toBeInTheDocument();
+        const actionStatus = document.querySelector(".lunar-action-status");
         const actionButtons = document.querySelector(".lunar-action-buttons");
+        expect(actionStatus).toHaveTextContent("Steal 1 credit");
+        expect(actionStatus).not.toHaveTextContent("Choose opponent");
         expect(actionButtons).toHaveTextContent("Choose opponent");
         expect(actionButtons?.firstElementChild).toHaveTextContent("Choose opponent");
+    });
+
+    it("shows no-module-to-steal text with the skip steal button instead of replacing the action text", async () => {
+        servedGame = lunarBaseGame({
+            actionState: {
+                phase: "resolvingAction",
+                mainActionChosen: true,
+                interaction: {
+                    kind: "stealModule",
+                    actorIndex: 0,
+                    text: "No module to steal",
+                    buttons: [{ label: "Skip steal", value: "skip" }],
+                    remaining: 1,
+                    action: { kind: "stealModule", moduleName: "Asteroid Grinder" },
+                    flippedStationIds: []
+                }
+            }
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+
+        expect(await screen.findByRole("button", { name: "Skip steal" })).toBeInTheDocument();
+        const actionStatus = document.querySelector(".lunar-action-status");
+        const actionButtons = document.querySelector(".lunar-action-buttons");
+        expect(actionStatus).toHaveTextContent("Steal a Asteroid Grinder");
+        expect(actionStatus).not.toHaveTextContent("No module to steal");
+        expect(actionButtons).toHaveTextContent("No module to steal");
+        expect(actionButtons?.firstElementChild).toHaveTextContent("No module to steal");
     });
 
     it("shows regular victory game over text", async () => {
@@ -2555,17 +2869,17 @@ const lunarActionState = (kind = "build", actorIndex = 0, flipAmountKind = "lite
         text: kind === "build" ? "Build 1 module (1 left)" : `${kind} action`,
         buttons: kind === "build" ? [{ label: "Skip Build", value: "skip" }] : [],
         remaining: 1,
-        action: kind === "flipStation" ? { flipAmountKind } : null,
+        action: kind === "flipStation"
+            ? { kind, flipAmount: 1, flipAmountKind }
+            : { kind, amount: 1, amountKind: "literal" },
         flippedStationIds: []
-    },
-    statusText: kind === "build" ? "Build 1 module (1 left)" : `${kind} action`
+    }
 });
 
 const lunarChoosingActionState = (): LunarBaseActionState => ({
     phase: "choosingMainAction",
     mainActionChosen: false,
-    interaction: null,
-    statusText: null
+    interaction: null
 });
 
 const defaultLunarActionState = (

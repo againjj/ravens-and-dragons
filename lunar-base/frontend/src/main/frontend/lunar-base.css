@@ -838,6 +838,14 @@
     z-index: 35;
 }
 
+.lunar-board-card.is-stealable {
+    cursor: pointer;
+}
+
+.lunar-board-card.is-selected {
+    z-index: 36;
+}
+
 .lunar-board-card.is-station-revealed {
     pointer-events: auto;
 }
