@@ -335,6 +335,13 @@ const actionPanelStatus = (game: LunarBaseGame, viewerSeat: number | null): stri
     const interaction = game.actionState?.interaction ?? null;
     if (interaction) {
         const actionText = actionStateActionText(game.actionState) ?? "Action in progress";
+        if (interaction.kind === "influenceDefense") {
+            const sourceActorIndex = interaction.defendedAction?.sourceActorIndex ?? interaction.defendedAction?.actorIndex ?? game.currentPlayerIndex;
+            const sourceName = game.seats[sourceActorIndex]?.displayName ?? `Player ${sourceActorIndex + 1}`;
+            if (interaction.actorIndex === viewerSeat) return `${sourceName} wants to:\n${actionText}`;
+            const actorName = game.seats[interaction.actorIndex]?.displayName ?? `Player ${interaction.actorIndex + 1}`;
+            return `Waiting for ${actorName} to respond to:\n${actionText}`;
+        }
         if (interaction.actorIndex === viewerSeat) return actionText;
         const actorName = game.seats[interaction.actorIndex]?.displayName ?? `Player ${interaction.actorIndex + 1}`;
         return `Waiting for ${actorName}:\n${actionText}`;
@@ -380,6 +387,8 @@ const actionNodeShortText = (action: LunarBaseActionNode): string => {
             return scopeActionText(action.scope, action.actions ?? []);
         case "chooseOpponent":
             return "Choose an opponent";
+        case "discardInfluence":
+            return "Discard an influence";
         case "discard":
             return amountText("Discard", "card", action.amount);
         case "draft":
@@ -597,6 +606,38 @@ const LunarBasePlayScreen = () => {
         }
     };
 
+    const clearSelectedCard = useCallback((onCleared?: () => void) => {
+        const selected = selectedCardRef.current;
+        if (!selected) {
+            onCleared?.();
+            return;
+        }
+        const normalized: SelectedCard = { ...selected, visualRotation: normalizedVisualRotation(selected.visualRotation, selected.originRotation) };
+        flushSync(() => {
+            setInstantRotationCardIds((current) => new Set(current).add(selected.cardId));
+            setResettingRotationCardIds((current) => new Set(current).add(selected.cardId));
+            selectedCardRef.current = normalized;
+            setSelectedCard(normalized);
+        });
+        requestAnimationFrame(() => {
+            selectedCardRef.current = null;
+            setSelectedCard(null);
+            setInstantRotationCardIds((current) => {
+                const next = new Set(current);
+                next.delete(selected.cardId);
+                return next;
+            });
+            onCleared?.();
+            window.setTimeout(() => {
+                setResettingRotationCardIds((current) => {
+                    const next = new Set(current);
+                    next.delete(selected.cardId);
+                    return next;
+                });
+            }, cardAnimationDurationMs);
+        });
+    }, []);
+
     const loadGame = useCallback(() => {
         if (!gameId) {
             setMessage("Game ID is missing.");
@@ -642,6 +683,17 @@ const LunarBasePlayScreen = () => {
     useEffect(() => {
         selectedCardRef.current = selectedCard;
     }, [selectedCard]);
+
+    useEffect(() => {
+        const interaction = game?.actionState?.interaction ?? null;
+        const defendedStealCardId = interaction?.kind === "influenceDefense" && interaction.action?.kind === "stealModule"
+            ? interaction.defendedAction?.targetCardId ?? null
+            : null;
+        if (!defendedStealCardId) return;
+        const selected = selectedCardRef.current;
+        if (selected?.source !== "board" || selected.cardId !== defendedStealCardId) return;
+        clearSelectedCard();
+    }, [clearSelectedCard, game?.actionState?.interaction]);
 
     useEffect(() => {
         if (!selectedCard || !shouldUnwindVisualRotation(selectedCard.rotation, selectedCard.originRotation)) {
@@ -962,6 +1014,8 @@ const LunarBasePlayScreen = () => {
     const canDraftSupply = isActionActor && interactionKind === "draft";
     const canResellSupply = isActionActor && interactionKind === "resell";
     const canDiscardForAction = isActionActor && interactionKind === "discard";
+    const canDiscardInfluenceForAction = isActionActor && interactionKind === "discardInfluence";
+    const canDiscardHandCard = (card: LunarBaseCard) => canDiscardForAction || (canDiscardInfluenceForAction && card.type === "influence");
     const canFlipForAction = isActionActor && (interactionKind === "flipStation" || (interactionKind === "flipStationTo" && !(interaction?.buttons?.length)));
     const canFlipStationForPlayer = (playerIndex: number) => {
         if (!canFlipForAction) return false;
@@ -1050,38 +1104,6 @@ const LunarBasePlayScreen = () => {
         }
         dragAutoScrollState.current = null;
         lastDragPoint.current = null;
-    };
-
-    const clearSelectedCard = (onCleared?: () => void) => {
-        const selected = selectedCardRef.current;
-        if (!selected) {
-            onCleared?.();
-            return;
-        }
-        const normalized: SelectedCard = { ...selected, visualRotation: normalizedVisualRotation(selected.visualRotation, selected.originRotation) };
-        flushSync(() => {
-            setInstantRotationCardIds((current) => new Set(current).add(selected.cardId));
-            setResettingRotationCardIds((current) => new Set(current).add(selected.cardId));
-            selectedCardRef.current = normalized;
-            setSelectedCard(normalized);
-        });
-        requestAnimationFrame(() => {
-            selectedCardRef.current = null;
-            setSelectedCard(null);
-            setInstantRotationCardIds((current) => {
-                const next = new Set(current);
-                next.delete(selected.cardId);
-                return next;
-            });
-            onCleared?.();
-            window.setTimeout(() => {
-                setResettingRotationCardIds((current) => {
-                    const next = new Set(current);
-                    next.delete(selected.cardId);
-                    return next;
-                });
-            }, cardAnimationDurationMs);
-        });
     };
 
     const clearTableSelection = () => {
@@ -1598,7 +1620,7 @@ const LunarBasePlayScreen = () => {
         if (!viewerPlayer) return;
         const canClickCard = (card.type === "agent" && canPlayAgents && canPlayHandCard(card, viewerPlayer)) ||
             (card.type === "module" && canBuildForAction && canPlayHandCard(card, viewerPlayer)) ||
-            canDiscardForAction;
+            canDiscardHandCard(card);
         if (!canClickCard) return;
         const from = rectCenter(event.currentTarget.getBoundingClientRect());
         if (selectedCard && selectedCard.cardId !== card.id) {
@@ -1610,7 +1632,7 @@ const LunarBasePlayScreen = () => {
 
     const performHandCardClickAction = (card: LunarBaseCard, from: { x: number; y: number }) => {
         if (viewerSeat === null) return;
-        if (canDiscardForAction || card.type !== "module") {
+        if (canDiscardHandCard(card) || card.type !== "module") {
             runResolvedInteraction({ type: "hand", viewerSeat, card }, { type: "discard" }, "click", from);
             return;
         }
@@ -1793,6 +1815,10 @@ const LunarBasePlayScreen = () => {
         if (!interaction) return;
         if (interaction.kind === "chooseOne") {
             runCommand({ type: "chooseActionOption", optionIndex: Number(value) });
+            return;
+        }
+        if (value === "discardInfluence") {
+            runCommand({ type: "startInfluenceNegation" });
             return;
         }
         if (value === "skip" || value === "done") {
@@ -2099,7 +2125,7 @@ const LunarBasePlayScreen = () => {
                                                     const playableHandCard = Boolean(isViewer && viewerPlayer && (
                                                         (card.type === "agent" && canPlayAgents && canPlayHandCard(card, viewerPlayer)) ||
                                                         (card.type === "module" && canBuildForAction && canPlayHandCard(card, viewerPlayer)) ||
-                                                        canDiscardForAction
+                                                        canDiscardHandCard(card)
                                                     ));
                                                     const rotationResettingHandCard = resettingRotationCardIds.has(card.id);
                                                     const selectedHandCard = selectedCard?.cardId === card.id ? selectedCard : null;

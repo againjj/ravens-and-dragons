@@ -120,7 +120,7 @@ export const resolveLunarCardInteraction = (
 
     if (target.type !== "discard") return null;
     if (source.type !== "hand") return null;
-    if (interactionKind === "discard") {
+    if (interactionKind === "discard" || (interactionKind === "discardInfluence" && source.card.type === "influence")) {
         return {
             command: { type: "discardHandCard", cardId: source.card.id },
             animation: {

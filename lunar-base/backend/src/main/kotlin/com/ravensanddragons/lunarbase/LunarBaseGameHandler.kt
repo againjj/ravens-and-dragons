@@ -86,6 +86,7 @@ class LunarBaseGameHandler(
             "draftSupply" -> draftSupply(publicState, privateState, command, actingUserId)
             "resellSupply" -> resellSupply(publicState, privateState, command, actingUserId)
             "discardHandCard" -> discardHandCard(publicState, privateState, command, actingUserId)
+            "startInfluenceNegation" -> startInfluenceNegation(publicState, privateState, actingUserId)
             "playAgent" -> playAgent(publicState, privateState, command, actingUserId)
             "buildModule" -> buildModule(publicState, privateState, command, actingUserId)
             "stealModule" -> stealModule(publicState, privateState, command, actingUserId)
@@ -286,6 +287,16 @@ class LunarBaseGameHandler(
             .discardHandCard(LunarBaseMutableGame(publicState, privateState), command.requiredText("cardId"))
     }
 
+    private fun startInfluenceNegation(
+        publicState: LunarBasePublicState,
+        privateState: LunarBasePrivateState,
+        actingUserId: String?
+    ): Pair<LunarBasePublicState, LunarBasePrivateState> {
+        publicState.requireActor(actingUserId)
+        return LunarBaseActionEngine(publicState.id, publicState.version)
+            .startInfluenceNegation(LunarBaseMutableGame(publicState, privateState))
+    }
+
     private fun playAgent(
         publicState: LunarBasePublicState,
         privateState: LunarBasePrivateState,
@@ -317,7 +328,7 @@ class LunarBaseGameHandler(
         )
         val nextPublic = publicState.copy(players = nextPlayers, message = "Played an agent.").withPrivateCounts(nextPrivate)
         return LunarBaseActionEngine(publicState.id, publicState.version)
-            .startActions(nextPublic, nextPrivate, seat, card.onPlayingActions(), mainActionChosen = false, sourceCardName = card.name)
+            .startActions(nextPublic, nextPrivate, seat, card.onPlayingActions(), mainActionChosen = false, sourceCardName = card.name, allowInfluenceNegation = true)
     }
 
     private fun buildModule(

@@ -46,6 +46,8 @@ internal data class LunarBaseMutableGame(
 internal fun List<LunarBaseCardAction>.toActionNodes(): List<LunarBaseActionNode> =
     map { it.toActionNode() }
 
+private const val discardInfluenceButtonValue = "discardInfluence"
+
 private fun LunarBaseCardAction.toActionNode(): LunarBaseActionNode =
     when (this) {
         is LunarBaseChooseOneAction -> LunarBaseActionNode("chooseOne", actions = actions.toActionNodes())
@@ -96,10 +98,19 @@ internal class LunarBaseActionEngine(
         actorIndex: Int,
         actions: List<LunarBaseCardAction>,
         mainActionChosen: Boolean,
-        sourceCardName: String
+        sourceCardName: String,
+        allowInfluenceNegation: Boolean = false
     ): Pair<LunarBasePublicState, LunarBasePrivateState> {
         val game = LunarBaseMutableGame(publicState, privateState)
-        val stack = actions.toActionNodes().asReversed().map { LunarBaseActionFrame(actorIndex, it, sourceCardName = sourceCardName) }
+        val stack = actions.toActionNodes().asReversed().map {
+            LunarBaseActionFrame(
+                actorIndex,
+                it,
+                sourceCardName = sourceCardName,
+                sourceActorIndex = actorIndex,
+                influenceNegation = allowInfluenceNegation
+            )
+        }
         game.public = game.public.copy(
             actionState = LunarBaseActionState(
                 phase = resolvingActionPhase,
@@ -156,7 +167,9 @@ internal class LunarBaseActionEngine(
                 stack = game.public.actionState.stack + LunarBaseActionFrame(
                     interaction.actorIndex,
                     chosen,
-                    sourceCardName = game.public.actionState.sourceCardName
+                    sourceCardName = game.public.actionState.sourceCardName,
+                    sourceActorIndex = interaction.defendedAction?.sourceActorIndex,
+                    influenceNegation = interaction.defendedAction?.influenceNegation ?: false
                 ),
                 activeActions = listOf(chosen)
             )
@@ -171,6 +184,24 @@ internal class LunarBaseActionEngine(
             return game.public to game.private
         }
         if (interaction.kind == "stealCredits") {
+            val sourceActor = interaction.defendedAction?.sourceActorIndex
+            val influenceNegation = interaction.defendedAction?.influenceNegation ?: false
+            if (influenceNegation && sourceActor == interaction.actorIndex && playerIndex != interaction.actorIndex && canDiscardInfluence(game, playerIndex)) {
+                val defended = LunarBaseActionFrame(
+                    interaction.actorIndex,
+                    interaction.action ?: LunarBaseActionNode("stealCredits"),
+                    remaining = interaction.remaining,
+                    sourceCardName = game.public.actionState.sourceCardName,
+                    sourceActorIndex = sourceActor,
+                    influenceNegation = false
+                )
+                return game.public.copy(
+                    actionState = game.public.actionState.copy(
+                        interaction = influenceDefenseInteraction(defended, playerIndex),
+                        chosenPlayerIndex = playerIndex
+                    )
+                ).withPrivateCounts(game.private).withBoardSummaries() to game.private
+            }
             stealCredits(game, interaction.actorIndex, playerIndex, interaction.remaining)
             if (finishIfWon(game)) return game.public to game.private
             return resolve(game, game.public.actionState.copy(interaction = null))
@@ -192,7 +223,9 @@ internal class LunarBaseActionEngine(
                     stack = game.public.actionState.stack + scopedFrames(
                         scopedPlayers,
                         interaction.action?.actions.orEmpty(),
-                        game.public.actionState.sourceCardName
+                        game.public.actionState.sourceCardName,
+                        interaction.defendedAction?.sourceActorIndex,
+                        interaction.defendedAction?.influenceNegation ?: false
                     )
                 )
             }
@@ -237,7 +270,7 @@ internal class LunarBaseActionEngine(
         }
         val remaining = interaction.remaining - 1
         val repeatFrame = if (remaining > 0) {
-            listOf(interaction.copy(remaining = remaining).toFrame(remaining, game.public.actionState.sourceCardName))
+            listOf(interaction.copy(remaining = remaining).toFrame(remaining, game.public.actionState.sourceCardName).copy(influenceNegation = false))
         } else {
             emptyList()
         }
@@ -265,6 +298,18 @@ internal class LunarBaseActionEngine(
         val stolen = game.public.players[opponentIndex].board.first { it.card.id == cardId }
         val candidate = LunarBaseBoardCard(stolen.card, x, y, rotation)
         validateModulePlacementOrThrow(game.public.players[actor].board, candidate)
+        val defended = (interaction.defendedAction ?: interaction.toFrame(interaction.remaining.takeIf { it > 0 }, game.public.actionState.sourceCardName)).copy(
+            targetPlayerIndex = opponentIndex,
+            targetCardId = cardId,
+            targetX = x,
+            targetY = y,
+            targetRotation = rotation
+        )
+        if (canNegateWithInfluence(game, opponentIndex, defended)) {
+            return game.public.copy(
+                actionState = game.public.actionState.copy(interaction = influenceDefenseInteraction(defended, opponentIndex))
+            ).withPrivateCounts(game.private).withBoardSummaries() to game.private
+        }
         game.public = game.public.copy(
             players = game.public.players.mapIndexed { playerIndex, player ->
                 when (playerIndex) {
@@ -302,6 +347,7 @@ internal class LunarBaseActionEngine(
         if (interaction.kind != "resell") return game.public to game.private
         val actor = interaction.actorIndex
         val card = game.public.supply.getOrNull(slotIndex) ?: return game.public to game.private
+        if (card.type == influenceType) return game.public to game.private
         val supply = game.public.supply.toMutableList()
         supply[slotIndex] = null
         game.public = game.public.copy(
@@ -315,15 +361,25 @@ internal class LunarBaseActionEngine(
 
     fun discardHandCard(game: LunarBaseMutableGame, cardId: String): Pair<LunarBasePublicState, LunarBasePrivateState> {
         val interaction = game.public.actionState.interaction ?: return game.public to game.private
-        if (interaction.kind != "discard") return game.public to game.private
+        if (interaction.kind !in setOf("discard", "discardInfluence")) return game.public to game.private
         val actor = interaction.actorIndex
         val hand = game.private.hands[actor]
         val card = hand.firstOrNull { it.id == cardId } ?: return game.public to game.private
+        if (interaction.kind == "discardInfluence" && card.type != influenceType) return game.public to game.private
         game.private = game.private.copy(
             hands = game.private.hands.replaceAt(actor, hand.filterNot { it.id == cardId }),
             discard = listOf(card) + game.private.discard
         )
         game.public = game.public.copy(message = "Discarded a card.")
+        if (interaction.kind == "discardInfluence") {
+            return resolve(
+                game,
+                game.public.actionState.copy(
+                    interaction = null,
+                    stack = game.public.actionState.stack + triggeredDiscardEffects(card, actor)
+                )
+            )
+        }
         return repeatOrContinue(game, interaction, triggeredDiscardEffects(card, actor)) { game.private.hands[actor].isNotEmpty() }
     }
 
@@ -344,6 +400,15 @@ internal class LunarBaseActionEngine(
         val nextFlipped = desiredSide?.let { it == LunarBaseStationSide.AGENDA_SIDE } ?: !station.card.flipped
         if (station.card.flipped == nextFlipped && interaction.kind == "flipStationTo") {
             return game.public.withPrivateCounts(game.private).withBoardSummaries() to game.private
+        }
+        val defended = (interaction.defendedAction ?: interaction.toFrame(interaction.remaining.takeIf { it > 0 }, game.public.actionState.sourceCardName)).copy(
+            targetPlayerIndex = target,
+            targetCardId = station.card.id
+        )
+        if (canNegateWithInfluence(game, target, defended)) {
+            return game.public.copy(
+                actionState = game.public.actionState.copy(interaction = influenceDefenseInteraction(defended, target))
+            ).withPrivateCounts(game.private).withBoardSummaries() to game.private
         }
         game.public = game.public.copy(
             players = game.public.players.replaceAt(
@@ -373,9 +438,91 @@ internal class LunarBaseActionEngine(
     fun finishInteraction(game: LunarBaseMutableGame): Pair<LunarBasePublicState, LunarBasePrivateState> {
         val interaction = game.public.actionState.interaction ?: return game.public to game.private
         return when (interaction.kind) {
+            "influenceDefense" -> {
+                val defended = interaction.defendedAction ?: return resolve(game, game.public.actionState.copy(interaction = null))
+                when (defended.action.kind) {
+                    "stealCredits" -> {
+                        val chosenPlayerIndex = game.public.actionState.chosenPlayerIndex
+                        if (chosenPlayerIndex != null) {
+                            stealCredits(game, defended.actorIndex, chosenPlayerIndex, defended.remaining ?: 0)
+                            if (finishIfWon(game)) return game.public to game.private
+                            return resolve(game, game.public.actionState.copy(interaction = null))
+                        }
+                    }
+                    "flipStation" -> return allowDefendedFlipStation(game, defended)
+                    "stealModule" -> return allowDefendedStealModule(game, defended)
+                }
+                resolve(
+                    game,
+                    game.public.actionState.copy(
+                        interaction = null,
+                        stack = game.public.actionState.stack + defended.copy(influenceNegation = false)
+                    )
+                )
+            }
             "build", "flipStation", "flipStationTo", "stealCredits", "stealModule", "viewHand" -> resolve(game, game.public.actionState.copy(interaction = null))
             else -> game.public to game.private
         }
+    }
+
+    fun startInfluenceNegation(game: LunarBaseMutableGame): Pair<LunarBasePublicState, LunarBasePrivateState> {
+        val interaction = game.public.actionState.interaction ?: return game.public to game.private
+        val defended = when (interaction.kind) {
+            "influenceDefense" -> interaction.defendedAction
+            else -> interaction.toFrame(interaction.remaining.takeIf { it > 0 }, game.public.actionState.sourceCardName)
+        } ?: return game.public to game.private
+        if (!canDiscardInfluence(game, interaction.actorIndex)) return game.public to game.private
+        val discardAction = LunarBaseActionNode(kind = "discardInfluence", amount = 1, amountKind = "literal")
+        game.public = game.public.copy(
+            actionState = game.public.actionState.copy(
+                interaction = LunarBaseActionInteraction(
+                    kind = "discardInfluence",
+                    actorIndex = interaction.actorIndex,
+                    remaining = 1,
+                    action = discardAction,
+                    defendedAction = defended
+                ),
+                activeActions = listOf(discardAction)
+            )
+        )
+        return game.public.withPrivateCounts(game.private).withBoardSummaries() to game.private
+    }
+
+    private fun allowDefendedFlipStation(
+        game: LunarBaseMutableGame,
+        defended: LunarBaseActionFrame
+    ): Pair<LunarBasePublicState, LunarBasePrivateState> {
+        val target = defended.targetPlayerIndex ?: defended.actorIndex
+        val allowedInteraction = actionInteraction(
+            game.public,
+            defended.actorIndex,
+            defended.action,
+            "flipStation",
+            remaining = defended.remaining ?: 1
+        ).copy(
+            defendedAction = defended.copy(influenceNegation = false),
+            flippedStationIds = game.public.actionState.interaction?.flippedStationIds.orEmpty()
+        )
+        game.public = game.public.copy(actionState = game.public.actionState.copy(interaction = allowedInteraction))
+        return flipStation(game, target, defended.targetCardId)
+    }
+
+    private fun allowDefendedStealModule(
+        game: LunarBaseMutableGame,
+        defended: LunarBaseActionFrame
+    ): Pair<LunarBasePublicState, LunarBasePrivateState> {
+        val cardId = defended.targetCardId ?: return resolve(game, game.public.actionState.copy(interaction = null))
+        val x = defended.targetX ?: return resolve(game, game.public.actionState.copy(interaction = null))
+        val y = defended.targetY ?: return resolve(game, game.public.actionState.copy(interaction = null))
+        val rotation = defended.targetRotation ?: return resolve(game, game.public.actionState.copy(interaction = null))
+        val allowedInteraction = actionInteraction(
+            game.public,
+            defended.actorIndex,
+            defended.action,
+            "stealModule"
+        ).copy(defendedAction = defended.copy(influenceNegation = false))
+        game.public = game.public.copy(actionState = game.public.actionState.copy(interaction = allowedInteraction))
+        return stealModule(game, cardId, x, y, rotation)
     }
 
     private fun executeFrame(
@@ -385,23 +532,32 @@ internal class LunarBaseActionEngine(
     ): LunarBaseActionState {
         val action = frame.action
         val actor = frame.actorIndex
+        if (shouldOfferInfluenceNegationChoice(game, frame)) {
+            return actionState.copy(interaction = influenceDefenseInteraction(frame))
+        }
         return when (action.kind) {
             "doAll" -> actionState.copy(
                 stack = actionState.stack + action.actions.asReversed().map {
-                    LunarBaseActionFrame(actor, it, sourceCardName = frame.sourceCardName)
+                    LunarBaseActionFrame(
+                        actor,
+                        it,
+                        sourceCardName = frame.sourceCardName,
+                        sourceActorIndex = frame.sourceActorIndex,
+                        influenceNegation = frame.influenceNegation
+                    )
                 }
             )
             "chooseOne" -> if (action.actions.isEmpty()) {
                 actionState
             } else {
-                actionState.copy(interaction = actionInteraction(game.public, actor, action, "chooseOne"))
+                actionState.copy(interaction = actionInteraction(game.public, actor, action, "chooseOne").copy(defendedAction = frame))
             }
-            "scoped" -> startScoped(game.public, actionState, actor, action)
-            "chooseOpponent" -> actionState.copy(interaction = actionInteraction(game.public, actor, action, "chooseOpponent"))
+            "scoped" -> startScoped(game.public, actionState, frame, action)
+            "chooseOpponent" -> actionState.copy(interaction = actionInteraction(game.public, actor, action, "chooseOpponent").copy(defendedAction = frame))
             "draw" -> {
                 val amount = resolveAmount(game, actor, action)
                 if (amount <= 0 || !canDraw(game)) actionState else actionState.copy(
-                    interaction = actionInteraction(game.public, actor, action, "draw", remaining = amount)
+                    interaction = actionInteraction(game.public, actor, action, "draw", remaining = amount).withInfluenceNegationButton(game, frame.copy(remaining = amount))
                 )
             }
             "gainCredits" -> {
@@ -421,29 +577,29 @@ internal class LunarBaseActionEngine(
             "build" -> {
                 val amount = frame.remaining ?: resolveAmount(game, actor, action)
                 if (amount <= 0) actionState else actionState.copy(
-                    interaction = actionInteraction(game.public, actor, action, "build", remaining = amount)
+                    interaction = actionInteraction(game.public, actor, action, "build", remaining = amount).withInfluenceNegationButton(game, frame.copy(remaining = amount))
                 )
             }
             "draft" -> {
                 val amount = minOf(frame.remaining ?: resolveAmount(game, actor, action), game.public.supply.count { it != null })
                 if (amount <= 0) actionState else actionState.copy(
-                    interaction = actionInteraction(game.public, actor, action, "draft", remaining = amount)
+                    interaction = actionInteraction(game.public, actor, action, "draft", remaining = amount).withInfluenceNegationButton(game, frame.copy(remaining = amount))
                 )
             }
             "resell" -> {
-                val amount = minOf(frame.remaining ?: resolveAmount(game, actor, action), game.public.supply.count { it != null })
+                val amount = minOf(frame.remaining ?: resolveAmount(game, actor, action), game.public.supply.count { it != null && it.type != influenceType })
                 if (amount <= 0) actionState else actionState.copy(
-                    interaction = actionInteraction(game.public, actor, action, "resell", remaining = amount)
+                    interaction = actionInteraction(game.public, actor, action, "resell", remaining = amount).withInfluenceNegationButton(game, frame.copy(remaining = amount))
                 )
             }
             "discard" -> {
                 val amount = frame.remaining ?: resolveAmount(game, actor, action)
                 if (amount <= 0 || game.private.hands[actor].isEmpty()) actionState else actionState.copy(
-                    interaction = actionInteraction(game.public, actor, action, "discard", remaining = amount)
+                    interaction = actionInteraction(game.public, actor, action, "discard", remaining = amount).withInfluenceNegationButton(game, frame.copy(remaining = amount))
                 )
             }
-            "flipStation" -> startFlipStation(game, actionState, actor, action)
-            "flipStationTo" -> startFlipStationTo(game, actionState, actor, action)
+            "flipStation" -> startFlipStation(game, actionState, frame, action)
+            "flipStationTo" -> startFlipStationTo(game, actionState, frame, action)
             "stealCredits" -> {
                 val amount = resolveAmount(game, actor, action)
                 if (amount <= 0) actionState else actionState.copy(
@@ -453,11 +609,11 @@ internal class LunarBaseActionEngine(
                         action,
                         if (hasStaticEffect(game.public, LunarBaseStaticEffect.FORBID_STEALING_CREDITS)) "stealCreditsForbidden" else "stealCredits",
                         remaining = amount
-                    )
+                    ).copy(defendedAction = frame.copy(remaining = amount))
                 )
             }
-            "stealModule" -> startStealModule(game, actionState, actor, action)
-            "viewHand" -> startViewHand(actionState, actor, action)
+            "stealModule" -> startStealModule(game, actionState, frame, action)
+            "viewHand" -> startViewHand(game, actionState, frame, action)
             else -> actionState
         }
     }
@@ -465,19 +621,21 @@ internal class LunarBaseActionEngine(
     private fun startStealModule(
         game: LunarBaseMutableGame,
         state: LunarBaseActionState,
-        actor: Int,
+        frame: LunarBaseActionFrame,
         action: LunarBaseActionNode
     ): LunarBaseActionState {
+        val actor = frame.actorIndex
         val kind = if (stealableModules(game.public, actor, action.moduleName).isEmpty()) "stealModuleEmpty" else "stealModule"
-        return state.copy(interaction = actionInteraction(game.public, actor, action, kind))
+        return state.copy(interaction = actionInteraction(game.public, actor, action, kind).copy(defendedAction = frame))
     }
 
     private fun startScoped(
         public: LunarBasePublicState,
         state: LunarBaseActionState,
-        actor: Int,
+        frame: LunarBaseActionFrame,
         action: LunarBaseActionNode
     ): LunarBaseActionState {
+        val actor = frame.actorIndex
         val players = when (action.scope) {
             LunarBaseActionScope.CHOSEN_PLAYER.name -> listOf(
                 checkNotNull(state.chosenPlayerIndex) { "chosenPlayer scope requires a chosen player." }
@@ -486,49 +644,60 @@ internal class LunarBaseActionEngine(
             LunarBaseActionScope.EACH_PLAYER.name -> turnOrder(public, actor)
             LunarBaseActionScope.NEIGHBORS_OF_TARGET.name,
             LunarBaseActionScope.OPPONENT.name,
-            LunarBaseActionScope.TARGET.name -> return state.copy(interaction = actionInteraction(public, actor, action, "chooseScopeTarget"))
+            LunarBaseActionScope.TARGET.name -> return state.copy(interaction = actionInteraction(public, actor, action, "chooseScopeTarget").copy(defendedAction = frame))
             else -> emptyList()
         }
-        return state.copy(stack = state.stack + scopedFrames(players, action.actions, state.sourceCardName))
+        return state.copy(stack = state.stack + scopedFrames(players, action.actions, state.sourceCardName, frame.sourceActorIndex, frame.influenceNegation))
     }
 
     private fun scopedFrames(
         players: List<Int>,
         actions: List<LunarBaseActionNode>,
-        sourceCardName: String?
+        sourceCardName: String?,
+        sourceActorIndex: Int? = null,
+        influenceNegation: Boolean = false
     ): List<LunarBaseActionFrame> =
         players.asReversed().flatMap { player ->
-            actions.asReversed().map { LunarBaseActionFrame(player, it, sourceCardName = sourceCardName) }
+            actions.asReversed().map {
+                LunarBaseActionFrame(player, it, sourceCardName = sourceCardName, sourceActorIndex = sourceActorIndex, influenceNegation = influenceNegation)
+            }
         }
 
     private fun startViewHand(
+        game: LunarBaseMutableGame,
         state: LunarBaseActionState,
-        actor: Int,
+        frame: LunarBaseActionFrame,
         action: LunarBaseActionNode
     ): LunarBaseActionState {
+        val actor = frame.actorIndex
         val target = when (action.playerRef) {
             LunarBasePlayerReference.CHOSEN_PLAYER.name -> state.chosenPlayerIndex
             else -> null
         } ?: error("viewHand requires a target player.")
+        if (canNegateWithInfluence(game, target, frame)) {
+            return state.copy(interaction = influenceDefenseInteraction(frame.copy(targetPlayerIndex = target), target))
+        }
         return state.copy(interaction = LunarBaseActionInteraction(
             kind = "viewHand",
             actorIndex = actor,
             buttons = listOf(LunarBaseActionButton("Done viewing", "done")),
             action = action,
-            targetPlayerIndex = target
+            targetPlayerIndex = target,
+            defendedAction = frame
         ))
     }
 
     private fun startFlipStation(
         game: LunarBaseMutableGame,
         state: LunarBaseActionState,
-        actor: Int,
+        frame: LunarBaseActionFrame,
         action: LunarBaseActionNode
     ): LunarBaseActionState {
+        val actor = frame.actorIndex
         val amountKind = action.flipAmountKind
         if (amountKind == "self") {
             return if (game.public.players[actor].board.any { it.card.type == stationType }) {
-                state.copy(interaction = actionInteraction(game.public, actor, action, "flipStation", remaining = 1))
+                state.copy(interaction = actionInteraction(game.public, actor, action, "flipStation", remaining = 1).copy(defendedAction = frame.copy(remaining = 1)))
             } else {
                 state
             }
@@ -536,22 +705,23 @@ internal class LunarBaseActionEngine(
         val max = allStationIds(game).size
         val amount = if (amountKind == "anyNumber") max else minOf(action.flipAmount ?: 0, max)
         if (amount <= 0) return state
-        return state.copy(interaction = actionInteraction(game.public, actor, action, "flipStation", remaining = amount))
+        return state.copy(interaction = actionInteraction(game.public, actor, action, "flipStation", remaining = amount).copy(defendedAction = frame.copy(remaining = amount)))
     }
 
     private fun startFlipStationTo(
         game: LunarBaseMutableGame,
         state: LunarBaseActionState,
-        actor: Int,
+        frame: LunarBaseActionFrame,
         action: LunarBaseActionNode
     ): LunarBaseActionState {
+        val actor = frame.actorIndex
         val station = game.public.players[actor].board.firstOrNull { it.card.type == stationType } ?: return state
         val target = action.side?.let { LunarBaseStationSide.valueOf(it) } ?: return state
         val desiredFlipped = target == LunarBaseStationSide.AGENDA_SIDE
         return if (station.card.flipped == desiredFlipped) {
-            state.copy(interaction = actionInteraction(game.public, actor, action, "flipStationToAlready"))
+            state.copy(interaction = actionInteraction(game.public, actor, action, "flipStationToAlready").copy(defendedAction = frame))
         } else {
-            state.copy(interaction = actionInteraction(game.public, actor, action, "flipStationTo"))
+            state.copy(interaction = actionInteraction(game.public, actor, action, "flipStationTo").copy(defendedAction = frame))
         }
     }
 
@@ -564,7 +734,7 @@ internal class LunarBaseActionEngine(
         val remaining = interaction.remaining - 1
         if (finishIfWon(game)) return game.public to game.private
         val repeatFrames = if (remaining > 0 && canContinue()) {
-            listOf(interaction.copy(remaining = remaining).toFrame(remaining, game.public.actionState.sourceCardName))
+            listOf(interaction.copy(remaining = remaining).toFrame(remaining, game.public.actionState.sourceCardName).copy(influenceNegation = false))
         } else {
             emptyList()
         }
@@ -580,7 +750,11 @@ internal class LunarBaseActionEngine(
         if (repeatFrames.isNotEmpty()) {
             game.public = game.public.copy(
                 actionState = game.public.actionState.copy(
-                    interaction = interaction.copy(remaining = remaining)
+                    interaction = interaction.copy(
+                        remaining = remaining,
+                        buttons = interaction.buttons.filterNot { it.value == discardInfluenceButtonValue },
+                        defendedAction = null
+                    )
                 )
             )
             return game.public.withPrivateCounts(game.private).withBoardSummaries() to game.private
@@ -645,6 +819,47 @@ internal class LunarBaseActionEngine(
         )
     }
 
+    private fun LunarBaseActionInteraction.withInfluenceNegationButton(
+        game: LunarBaseMutableGame,
+        defended: LunarBaseActionFrame
+    ): LunarBaseActionInteraction {
+        if (!canNegateWithInfluence(game, defended.actorIndex, defended)) {
+            return copy(defendedAction = defended)
+        }
+        return copy(
+            buttons = buttons + LunarBaseActionButton("Discard influence", discardInfluenceButtonValue),
+            defendedAction = defended
+        )
+    }
+
+    private fun shouldOfferInfluenceNegationChoice(game: LunarBaseMutableGame, frame: LunarBaseActionFrame): Boolean =
+        frame.action.kind in setOf("gainCredits", "loseCredits", "viewHand") &&
+            canNegateWithInfluence(game, frame.actorIndex, frame)
+
+    private fun influenceDefenseInteraction(
+        defended: LunarBaseActionFrame,
+        defenderIndex: Int = defended.actorIndex
+    ): LunarBaseActionInteraction =
+        LunarBaseActionInteraction(
+            kind = "influenceDefense",
+            actorIndex = defenderIndex,
+            buttons = listOf(
+                LunarBaseActionButton("Allow action", "done"),
+                LunarBaseActionButton("Discard influence", discardInfluenceButtonValue)
+            ),
+            action = defended.action,
+            defendedAction = defended
+        )
+
+    private fun canNegateWithInfluence(game: LunarBaseMutableGame, defenderIndex: Int, frame: LunarBaseActionFrame): Boolean =
+        frame.influenceNegation &&
+            frame.sourceActorIndex != null &&
+            frame.sourceActorIndex != defenderIndex &&
+            canDiscardInfluence(game, defenderIndex)
+
+    private fun canDiscardInfluence(game: LunarBaseMutableGame, actor: Int): Boolean =
+        game.private.hands.getOrElse(actor) { emptyList() }.any { it.type == influenceType }
+
     private fun gainCredits(game: LunarBaseMutableGame, actor: Int, amount: Int) {
         val player = game.public.players[actor]
         game.public = game.public.copy(
@@ -672,7 +887,7 @@ internal class LunarBaseActionEngine(
         game.public.supply.any { it != null }
 
     private fun canResell(game: LunarBaseMutableGame): Boolean =
-        game.public.supply.any { it != null }
+        game.public.supply.any { it != null && it.type != influenceType }
 
     private fun canDraw(game: LunarBaseMutableGame): Boolean =
         game.private.stock.isNotEmpty() || game.private.discard.isNotEmpty()
@@ -850,9 +1065,9 @@ internal class LunarBaseActionEngine(
         remainingOverride: Int? = null,
         sourceCardName: String? = null
     ): LunarBaseActionFrame =
-        LunarBaseActionFrame(
-            actorIndex,
-            action ?: LunarBaseActionNode(kind),
+        (defendedAction ?: LunarBaseActionFrame(actorIndex, action ?: LunarBaseActionNode(kind))).copy(
+            actorIndex = actorIndex,
+            action = action ?: defendedAction?.action ?: LunarBaseActionNode(kind),
             remaining = remainingOverride,
             sourceCardName = sourceCardName
         )
@@ -886,6 +1101,7 @@ internal fun LunarBaseActionNode.toActionText(): String =
         "doAll" -> actions.joinToString("; ") { it.toActionText() }
         "scoped" -> scope.toScopeActionText(actions)
         "chooseOpponent" -> "Choose an opponent"
+        "discardInfluence" -> "Discard an influence"
         "discard" -> amountText("Discard", "card")
         "draft" -> amountText("Draft", "card")
         "draw" -> amountText("Draw", "card")

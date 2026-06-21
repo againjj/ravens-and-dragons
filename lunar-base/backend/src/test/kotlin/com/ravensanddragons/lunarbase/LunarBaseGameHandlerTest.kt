@@ -1022,6 +1022,56 @@ class LunarBaseGameHandlerTest {
     }
 
     @Test
+    fun opponentAgentViewHandPromptsViewedPlayerToNegateAfterOpponentIsChosen() {
+        var game = seatedGameWithPlayers { _, player -> player }
+        game = putCardInCurrentPlayersHand(
+            game,
+            LunarBaseCard(id = "spybot-test", type = "agent", name = "Spybot.py")
+        )
+        game = replacePlayerHand(
+            game,
+            1,
+            listOf(
+                LunarBaseCard(id = "lunar-alliance", type = "influence", name = "Lunar Alliance"),
+                LunarBaseCard(id = "target-module", type = "module", name = "Rover")
+            )
+        )
+        game = handler.applyCommand(
+            game,
+            command("playAgent", game.readPublicState().version).put("cardId", "spybot-test"),
+            "user-1"
+        )
+
+        val prompted = handler.applyCommand(
+            game,
+            command("choosePlayer", game.readPublicState().version).put("playerIndex", 1),
+            "user-1"
+        )
+        val prompt = prompted.readPublicState().actionState.interaction
+
+        assertEquals("influenceDefense", prompt?.kind)
+        assertEquals(1, prompt?.actorIndex)
+        assertEquals(listOf("Allow action", "Discard influence"), prompt?.buttons?.map { it.label })
+        assertEquals(false, handler.gameView(prompted, "user-1").get("viewer").has("revealedHands"))
+
+        val choosingInfluence = handler.applyCommand(
+            prompted,
+            command("startInfluenceNegation", prompted.readPublicState().version),
+            "user-2"
+        )
+        val negated = handler.applyCommand(
+            choosingInfluence,
+            command("discardHandCard", choosingInfluence.readPublicState().version).put("cardId", "lunar-alliance"),
+            "user-2"
+        )
+
+        assertEquals("chooseOne", negated.readPublicState().actionState.interaction?.kind)
+        assertEquals(0, negated.readPublicState().actionState.interaction?.actorIndex)
+        assertEquals(false, handler.gameView(negated, "user-1").get("viewer").has("revealedHands"))
+        assertEquals("lunar-alliance", negated.readPrivateState().discard.first().id)
+    }
+
+    @Test
     fun chosenPlayerScopeUsesTheOpponentChosenEarlier() {
         var game = seatedGameWithPlayers { _, player -> player }
         game = putCardInCurrentPlayersHand(
@@ -1452,6 +1502,196 @@ class LunarBaseGameHandlerTest {
     }
 
     @Test
+    fun resellingSupplyCannotResellInfluences() {
+        val game = handler.createGame("LUNAR01", createRequest(playerCount = 2, useInfluences = true), "creator")
+        val publicState = game.readPublicState()
+        val readyGame = game.copy(
+            publicState = objectMapper.valueToTree(
+                publicState.copy(
+                    seats = seatedSeats(),
+                    supply = listOf(
+                        LunarBaseCard(id = "lunar-alliance", type = "influence", name = "Lunar Alliance"),
+                        LunarBaseCard(id = "resell-module", type = "module", name = "Rover")
+                    )
+                )
+            )
+        )
+
+        val unchanged = handler.applyCommand(
+            actionGame(readyGame, "resell", remaining = 2, mainActionChosen = true),
+            command("resellSupply", publicState.version).put("slotIndex", 0),
+            "user-1"
+        )
+        val resoldModule = handler.applyCommand(
+            unchanged,
+            command("resellSupply", unchanged.readPublicState().version).put("slotIndex", 1),
+            "user-1"
+        )
+
+        assertEquals(3, unchanged.readPublicState().players[0].credits)
+        assertEquals("lunar-alliance", unchanged.readPublicState().supply[0]?.id)
+        assertEquals(0, unchanged.readClientPublicState().discardCount)
+        assertEquals(4, resoldModule.readPublicState().players[0].credits)
+        assertEquals("lunar-alliance", resoldModule.readPublicState().supply[0]?.id)
+        assertEquals("resell-module", resoldModule.readPrivateState().discard.first().id)
+    }
+
+    @Test
+    fun opponentAgentDiscardCanBeNegatedByDiscardingInfluence() {
+        var game = seatedGameWithPlayers { index, player ->
+            if (index == 0) player.copy(credits = 5) else player
+        }
+        game = putCardInCurrentPlayersHand(game, LunarBaseCard(id = "saboteur-test", type = "agent", name = "Saboteur"))
+        game = replacePlayerHand(
+            game,
+            1,
+            listOf(
+                LunarBaseCard(id = "entropic-cascade", type = "influence", name = "Entropic Cascade"),
+                LunarBaseCard(id = "target-module", type = "module", name = "Rover")
+            )
+        )
+
+        val prompted = handler.applyCommand(
+            game,
+            command("playAgent", game.readPublicState().version).put("cardId", "saboteur-test"),
+            "user-1"
+        )
+        val prompt = prompted.readPublicState().actionState.interaction
+
+        assertEquals("discard", prompt?.kind)
+        assertEquals(1, prompt?.actorIndex)
+        assertEquals(listOf("Discard influence"), prompt?.buttons?.map { it.label })
+
+        val choosingInfluence = handler.applyCommand(
+            prompted,
+            command("startInfluenceNegation", prompted.readPublicState().version),
+            "user-2"
+        )
+        val negated = handler.applyCommand(
+            choosingInfluence,
+            command("discardHandCard", choosingInfluence.readPublicState().version).put("cardId", "entropic-cascade"),
+            "user-2"
+        )
+
+        assertEquals("target-module", negated.readPrivateState().hands[1].single().id)
+        assertEquals("entropic-cascade", negated.readPrivateState().discard.first().id)
+        assertEquals("draw", negated.readPublicState().actionState.interaction?.kind)
+        assertEquals(1, negated.readPublicState().actionState.interaction?.actorIndex)
+        assertEquals("Entropic Cascade", negated.readPublicState().actionState.sourceCardName)
+    }
+
+    @Test
+    fun opponentAgentStealCreditsCanBeAllowedOrNegatedByDiscardingInfluence() {
+        var game = seatedGameWithPlayers { index, player ->
+            when (index) {
+                0 -> player.copy(credits = 2)
+                1 -> player.copy(credits = 5)
+                else -> player
+            }
+        }
+        game = replacePlayerHand(game, 1, listOf(LunarBaseCard(id = "lunar-alliance", type = "influence", name = "Lunar Alliance")))
+        val action = LunarBaseActionNode(kind = "stealCredits", amount = 3, amountKind = "literal")
+        val publicState = game.readPublicState().copy(
+            actionState = LunarBaseActionState(
+                phase = resolvingActionPhase,
+                stack = listOf(
+                    LunarBaseActionFrame(
+                        0,
+                        action,
+                        sourceCardName = "Market Manipulator",
+                        sourceActorIndex = 0,
+                        influenceNegation = true
+                    )
+                ),
+                sourceCardName = "Market Manipulator"
+            )
+        )
+        val (stealingPublic, stealingPrivate) = LunarBaseActionEngine("LUNAR01", publicState.version)
+            .resolve(LunarBaseMutableGame(publicState, game.readPrivateState()))
+        game = game.copy(
+            publicState = objectMapper.valueToTree(stealingPublic),
+            privateState = objectMapper.valueToTree(stealingPrivate)
+        )
+
+        val prompted = handler.applyCommand(
+            game,
+            command("choosePlayer", publicState.version).put("playerIndex", 1),
+            "user-1"
+        )
+        val prompt = prompted.readPublicState().actionState.interaction
+
+        assertEquals("influenceDefense", prompt?.kind)
+        assertEquals(1, prompt?.actorIndex)
+        assertEquals(listOf("Allow action", "Discard influence"), prompt?.buttons?.map { it.label })
+
+        val choosingInfluence = handler.applyCommand(
+            prompted,
+            command("startInfluenceNegation", prompted.readPublicState().version),
+            "user-2"
+        )
+        val negated = handler.applyCommand(
+            choosingInfluence,
+            command("discardHandCard", choosingInfluence.readPublicState().version).put("cardId", "lunar-alliance"),
+            "user-2"
+        )
+
+        assertEquals(2, negated.readPublicState().players[0].credits)
+        assertEquals(5, negated.readPublicState().players[1].credits)
+        assertEquals("lunar-alliance", negated.readPrivateState().discard.first().id)
+        assertEquals(choosingMainActionPhase, negated.readPublicState().actionState.phase)
+    }
+
+    @Test
+    fun opponentAgentFlipStationPromptsTargetPlayerToNegateAfterTargetIsChosen() {
+        var game = seatedGameWithPlayers { _, player -> player }
+        val publicState = game.readPublicState()
+        game = game.copy(
+            publicState = objectMapper.valueToTree(
+                publicState.copy(supply = listOf(LunarBaseCard(id = "resell-module", type = "module", name = "Rover")))
+            )
+        )
+        game = putCardInCurrentPlayersHand(game, LunarBaseCard(id = "investor-test", type = "agent", name = "Investor"))
+        game = replacePlayerHand(game, 1, listOf(LunarBaseCard(id = "lunar-alliance", type = "influence", name = "Lunar Alliance")))
+
+        val reselling = handler.applyCommand(
+            game,
+            command("playAgent", game.readPublicState().version).put("cardId", "investor-test"),
+            "user-1"
+        )
+        val flipping = handler.applyCommand(
+            reselling,
+            command("resellSupply", reselling.readPublicState().version).put("slotIndex", 0),
+            "user-1"
+        )
+        val prompted = handler.applyCommand(
+            flipping,
+            command("flipStation", flipping.readPublicState().version).put("playerIndex", 1),
+            "user-1"
+        )
+        val prompt = prompted.readPublicState().actionState.interaction
+
+        assertEquals("influenceDefense", prompt?.kind)
+        assertEquals(1, prompt?.actorIndex)
+        assertEquals(listOf("Allow action", "Discard influence"), prompt?.buttons?.map { it.label })
+        assertEquals(false, prompted.readPublicState().players[1].board[0].card.flipped)
+
+        val choosingInfluence = handler.applyCommand(
+            prompted,
+            command("startInfluenceNegation", prompted.readPublicState().version),
+            "user-2"
+        )
+        val negated = handler.applyCommand(
+            choosingInfluence,
+            command("discardHandCard", choosingInfluence.readPublicState().version).put("cardId", "lunar-alliance"),
+            "user-2"
+        )
+
+        assertEquals(false, negated.readPublicState().players[1].board[0].card.flipped)
+        assertEquals("lunar-alliance", negated.readPrivateState().discard.first().id)
+        assertEquals(choosingMainActionPhase, negated.readPublicState().actionState.phase)
+    }
+
+    @Test
     fun choosingPlayerStealsCreditsAndCapsAtOpponentCredits() {
         val game = seatedGameWithPlayers { index, player ->
             when (index) {
@@ -1546,6 +1786,72 @@ class LunarBaseGameHandlerTest {
         assertEquals(stolenModule.id, stolen.readPublicState().players[0].board.last().card.id)
         assertEquals(false, stolen.readPublicState().players[1].board.any { it.card.id == stolenModule.id })
         assertEquals(1, stolen.readPublicState().currentPlayerIndex)
+    }
+
+    @Test
+    fun opponentAgentStealModulePromptsTargetPlayerToNegateAfterModuleIsChosen() {
+        val stolenModule = matchingModule("negated-stolen-module")
+        var game = seatedGameWithPlayers { index, player ->
+            if (index == 1) {
+                player.copy(board = player.board + LunarBaseBoardCard(stolenModule, 2, 0, 0))
+            } else {
+                player
+            }
+        }
+        game = replacePlayerHand(game, 1, listOf(LunarBaseCard(id = "lunar-alliance", type = "influence", name = "Lunar Alliance")))
+        val action = LunarBaseActionNode(kind = "stealModule", moduleName = stolenModule.name)
+        val interaction = LunarBaseActionInteraction(
+            kind = "stealModule",
+            actorIndex = 0,
+            action = action,
+            defendedAction = LunarBaseActionFrame(
+                0,
+                action,
+                sourceCardName = "Hacker Pirate",
+                sourceActorIndex = 0,
+                influenceNegation = true
+            )
+        )
+        val publicState = game.readPublicState().copy(
+            actionState = LunarBaseActionState(
+                phase = resolvingActionPhase,
+                interaction = interaction,
+                activeActions = listOf(action),
+                sourceCardName = "Hacker Pirate"
+            )
+        )
+        game = game.copy(publicState = objectMapper.valueToTree(publicState))
+
+        val prompted = handler.applyCommand(
+            game,
+            command("stealModule", publicState.version)
+                .put("cardId", stolenModule.id)
+                .put("x", 1)
+                .put("y", 0)
+                .put("rotation", 0),
+            "user-1"
+        )
+        val prompt = prompted.readPublicState().actionState.interaction
+
+        assertEquals("influenceDefense", prompt?.kind)
+        assertEquals(1, prompt?.actorIndex)
+        assertEquals(listOf("Allow action", "Discard influence"), prompt?.buttons?.map { it.label })
+        assertEquals(true, prompted.readPublicState().players[1].board.any { it.card.id == stolenModule.id })
+
+        val choosingInfluence = handler.applyCommand(
+            prompted,
+            command("startInfluenceNegation", prompted.readPublicState().version),
+            "user-2"
+        )
+        val negated = handler.applyCommand(
+            choosingInfluence,
+            command("discardHandCard", choosingInfluence.readPublicState().version).put("cardId", "lunar-alliance"),
+            "user-2"
+        )
+
+        assertEquals(true, negated.readPublicState().players[1].board.any { it.card.id == stolenModule.id })
+        assertEquals(false, negated.readPublicState().players[0].board.any { it.card.id == stolenModule.id })
+        assertEquals("lunar-alliance", negated.readPrivateState().discard.first().id)
     }
 
     @Test
@@ -1937,13 +2243,17 @@ class LunarBaseGameHandlerTest {
     }
 
     private fun replaceCurrentPlayerHand(game: GameRecord, hand: List<LunarBaseCard>): GameRecord {
+        return replacePlayerHand(game, 0, hand)
+    }
+
+    private fun replacePlayerHand(game: GameRecord, playerIndex: Int, hand: List<LunarBaseCard>): GameRecord {
         val privateState = game.readPrivateState()
-        val nextPrivate = privateState.copy(hands = privateState.hands.replaceAt(0, hand))
+        val nextPrivate = privateState.copy(hands = privateState.hands.replaceAt(playerIndex, hand))
         val publicState = game.readPublicState()
         val nextPublic = publicState.copy(
             players = publicState.players.replaceAt(
-                0,
-                publicState.players[0].copy(
+                playerIndex,
+                publicState.players[playerIndex].copy(
                     handCount = hand.size,
                     influenceHandCount = hand.count { it.type == "influence" }
                 )

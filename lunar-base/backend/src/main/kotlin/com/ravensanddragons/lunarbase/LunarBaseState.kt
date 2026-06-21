@@ -94,7 +94,8 @@ data class LunarBaseActionInteraction(
     val remaining: Int = 0,
     val action: LunarBaseActionNode? = null,
     val targetPlayerIndex: Int? = null,
-    val flippedStationIds: List<String> = emptyList()
+    val flippedStationIds: List<String> = emptyList(),
+    val defendedAction: LunarBaseActionFrame? = null
 )
 
 data class LunarBaseActionNode(
@@ -114,7 +115,14 @@ data class LunarBaseActionFrame(
     val actorIndex: Int,
     val action: LunarBaseActionNode,
     val remaining: Int? = null,
-    val sourceCardName: String? = null
+    val sourceCardName: String? = null,
+    val sourceActorIndex: Int? = null,
+    val influenceNegation: Boolean = false,
+    val targetPlayerIndex: Int? = null,
+    val targetCardId: String? = null,
+    val targetX: Int? = null,
+    val targetY: Int? = null,
+    val targetRotation: Int? = null
 )
 
 data class LunarBaseActionState(

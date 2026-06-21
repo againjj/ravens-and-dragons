@@ -69,6 +69,7 @@ export interface LunarBaseActionInteraction {
     action?: LunarBaseActionNode | null;
     targetPlayerIndex?: number | null;
     flippedStationIds?: string[];
+    defendedAction?: LunarBaseActionFrame | null;
 }
 
 export interface LunarBaseActionNode {
@@ -82,6 +83,20 @@ export interface LunarBaseActionNode {
     playerRef?: string | null;
     scope?: string | null;
     actions?: LunarBaseActionNode[];
+}
+
+export interface LunarBaseActionFrame {
+    actorIndex: number;
+    action: LunarBaseActionNode;
+    remaining?: number | null;
+    sourceCardName?: string | null;
+    sourceActorIndex?: number | null;
+    influenceNegation?: boolean;
+    targetPlayerIndex?: number | null;
+    targetCardId?: string | null;
+    targetX?: number | null;
+    targetY?: number | null;
+    targetRotation?: number | null;
 }
 
 export interface LunarBaseActionState {

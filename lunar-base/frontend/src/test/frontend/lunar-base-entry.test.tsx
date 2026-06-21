@@ -179,6 +179,7 @@ describe("lunarBaseGameEntry", () => {
         const supplyCard = { id: "supply-1", type: "module" as const, name: "Supply Rover" };
         const agentCard = { id: "agent-1", type: "agent" as const, name: "Field Medic" };
         const moduleCard = { id: "module-1", type: "module" as const, name: "Solar Lab" };
+        const influenceCard = { id: "influence-1", type: "influence" as const, name: "Lunar Alliance" };
         const context = (kind: string, canPlayAgents = false) => ({
             game: lunarBaseGame({ actionState: lunarActionState(kind) }) as unknown as LunarBaseGame,
             viewerSeat: 0,
@@ -213,8 +214,13 @@ describe("lunarBaseGameEntry", () => {
             command: { type: "discardHandCard", cardId: "agent-1" },
             animation: { annotation: "click hand agent to discard", sourceKey: "hand-0-agent-1", destination: { type: "discard" } }
         });
+        expect(resolveLunarCardInteraction({ type: "hand", viewerSeat: 0, card: influenceCard }, { type: "discard" }, "click", context("discardInfluence"))).toMatchObject({
+            command: { type: "discardHandCard", cardId: "influence-1" },
+            animation: { annotation: "click hand influence to discard", sourceKey: "hand-0-influence-1", destination: { type: "discard" } }
+        });
         expect(resolveLunarCardInteraction({ type: "stock" }, { type: "discard" }, "drop", context("draw"))).toBeNull();
         expect(resolveLunarCardInteraction({ type: "hand", viewerSeat: 0, card: moduleCard }, { type: "discard" }, "drop", context("build"))).toBeNull();
+        expect(resolveLunarCardInteraction({ type: "hand", viewerSeat: 0, card: moduleCard }, { type: "discard" }, "drop", context("discardInfluence"))).toBeNull();
     });
 
     it("maps a revealed station preview to the opposite side's main action", () => {
@@ -1953,6 +1959,89 @@ describe("lunarBaseGameEntry", () => {
         });
     });
 
+    it("clears selected stolen module rotation while waiting for influence defense", async () => {
+        servedGame = lunarBaseGame({
+            hand: [],
+            actionState: {
+                phase: "resolvingAction",
+                mainActionChosen: true,
+                interaction: {
+                    kind: "stealModule",
+                    actorIndex: 0,
+                    buttons: [],
+                    remaining: 1,
+                    action: { kind: "stealModule", moduleName: "Solar Lab" },
+                    flippedStationIds: []
+                }
+            }
+        });
+        const opponent = (servedGame.players as Array<Record<string, unknown>>)[1];
+        const board = opponent.board as Array<Record<string, unknown>>;
+        board.push({
+            card: {
+                id: "defended-stolen-module",
+                type: "module",
+                name: "Solar Lab",
+                color: "blue",
+                connectors: { topRight: "gray", bottomRight: "gray" }
+            },
+            x: 1,
+            y: 0,
+            rotation: 180
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        const card = await screen.findByText("Solar Lab");
+        const boardCard = card.closest<HTMLElement>(".lunar-board-card");
+        const cardElement = card.closest<HTMLElement>(".lunar-card");
+        expect(boardCard).not.toBeNull();
+        expect(cardElement).not.toBeNull();
+
+        fireEvent.click(card);
+        fireEvent.click(card);
+
+        expect(boardCard).toHaveClass("is-selected");
+        expect(cardElement).toHaveStyle({ "--lunar-card-rotation": "270deg" });
+
+        servedGame = {
+            ...servedGame,
+            version: 2,
+            actionState: {
+                phase: "resolvingAction",
+                mainActionChosen: false,
+                interaction: {
+                    kind: "influenceDefense",
+                    actorIndex: 1,
+                    buttons: [
+                        { label: "Allow action", value: "done" },
+                        { label: "Discard influence", value: "discardInfluence" }
+                    ],
+                    remaining: 0,
+                    action: { kind: "stealModule", moduleName: "Solar Lab" },
+                    defendedAction: {
+                        actorIndex: 0,
+                        action: { kind: "stealModule", moduleName: "Solar Lab" },
+                        sourceActorIndex: 0,
+                        influenceNegation: true,
+                        targetCardId: "defended-stolen-module",
+                        targetPlayerIndex: 1,
+                        targetX: -1,
+                        targetY: 0,
+                        targetRotation: 270
+                    },
+                    flippedStationIds: []
+                }
+            }
+        };
+        await act(async () => {
+            eventSourceListeners.get("game")?.();
+        });
+
+        await waitFor(() => expect(boardCard).not.toHaveClass("is-selected"));
+        expect(cardElement).toHaveStyle({ "--lunar-card-rotation": "180deg" });
+    });
+
     it("clears the board snap rectangle after dropping a stolen module on the viewer board", async () => {
         servedGame = lunarBaseGame({
             hand: [],
@@ -2659,6 +2748,106 @@ describe("lunarBaseGameEntry", () => {
 
         expect(await screen.findByRole("button", { name: "Skip Build" })).toBeInTheDocument();
         expect(document.querySelector(".lunar-action-button-prompt")).not.toBeInTheDocument();
+    });
+
+    it("starts influence negation from the action panel button", async () => {
+        servedGame = lunarBaseGame({
+            actionState: {
+                phase: "resolvingAction",
+                mainActionChosen: false,
+                interaction: {
+                    kind: "discard",
+                    actorIndex: 0,
+                    buttons: [{ label: "Discard influence", value: "discardInfluence" }],
+                    remaining: 2,
+                    action: { kind: "discard", amount: 2, amountKind: "literal" },
+                    flippedStationIds: []
+                }
+            }
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        await userEvent.click(await screen.findByRole("button", { name: "Discard influence" }));
+
+        await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+            "/api/games/lunar-1/commands",
+            expect.objectContaining({
+                body: JSON.stringify({ type: "startInfluenceNegation", expectedVersion: 1 })
+            })
+        ));
+    });
+
+    it("describes influence defense from the waiting and responding player perspectives", async () => {
+        const influenceDefenseState: LunarBaseActionState = {
+            phase: "resolvingAction",
+            mainActionChosen: false,
+            interaction: {
+                kind: "influenceDefense",
+                actorIndex: 1,
+                buttons: [
+                    { label: "Allow action", value: "done" },
+                    { label: "Discard influence", value: "discardInfluence" }
+                ],
+                remaining: 0,
+                action: { kind: "stealCredits", amount: 3, amountKind: "literal" },
+                defendedAction: {
+                    actorIndex: 0,
+                    action: { kind: "stealCredits", amount: 3, amountKind: "literal" },
+                    sourceActorIndex: 0,
+                    influenceNegation: true
+                },
+                flippedStationIds: []
+            }
+        };
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+        servedGame = lunarBaseGame({ viewerSeat: 0, actionState: influenceDefenseState });
+
+        const { unmount } = render(<PlayScreen />);
+
+        expect(await screen.findByLabelText("Action panel")).toHaveTextContent("Waiting for Ben to respond to:Steal 3 credits");
+        unmount();
+
+        servedGame = lunarBaseGame({
+            viewerSeat: 1,
+            hand: [{ id: "influence-1", type: "influence", name: "Lunar Alliance" }],
+            actionState: influenceDefenseState
+        });
+        render(<PlayScreen />);
+
+        expect(await screen.findByLabelText("Action panel")).toHaveTextContent("Ada wants to:Steal 3 credits");
+        expect(screen.getByRole("button", { name: "Discard influence" })).toBeInTheDocument();
+    });
+
+    it("lets the actor click an influence during discard influence mode", async () => {
+        servedGame = lunarBaseGame({
+            viewerSeat: 1,
+            hand: [{ id: "influence-1", type: "influence", name: "Lunar Alliance" }],
+            actionState: {
+                phase: "resolvingAction",
+                mainActionChosen: false,
+                interaction: {
+                    kind: "discardInfluence",
+                    actorIndex: 1,
+                    buttons: [],
+                    remaining: 1,
+                    action: { kind: "discardInfluence", amount: 1, amountKind: "literal" },
+                    flippedStationIds: []
+                }
+            }
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        expect(await screen.findByLabelText("Action panel")).toHaveTextContent("Discard an influence");
+        await userEvent.click(screen.getByText("Lunar Alliance"));
+
+        await waitFor(() => expect(vi.mocked(fetch)).toHaveBeenCalledWith(
+            "/api/games/lunar-1/commands",
+            expect.objectContaining({
+                body: JSON.stringify({ type: "discardHandCard", cardId: "influence-1", expectedVersion: 1 })
+            })
+        ));
     });
 
     it("shows steal credits interaction text to the left of opponent buttons", async () => {
