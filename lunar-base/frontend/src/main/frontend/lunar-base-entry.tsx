@@ -23,6 +23,9 @@ import { createDragAutoScrollState, displayPlayerOrder, dragAutoScrollDelta, sta
 import { clipZoomPercent, nextZoomStep, sanitizeZoomText, useLunarBaseZoom, zoomPercentToZoom, zoomTextToPercent, zoomToPercent } from "./useLunarBaseZoom";
 import { lunarBaseColors, type CardMovementAnimation, type CardRotation, type CardType, type DragSource, type FlyingCard, type LunarBaseActionInteraction, type LunarBaseActionNode, type LunarBaseBoardCard, type LunarBaseCard, type LunarBaseColorName, type LunarBaseGame, type SelectedCard, type StationFlipAnimation, type StationRevealState } from "./lunar-base-types";
 import "./lunar-base.css";
+
+const lunarBaseRulebookPdfUrl = "https://shop.plepic.com/wp-content/uploads/2020/09/Lunar-Base-Rulebook-v1.0.pdf";
+
 const handEndCardKey = (game: LunarBaseGame, playerIndex: number): string | null => {
     if (game.viewer?.seatIndex === playerIndex) {
         const hand = game.viewer.hand;
@@ -1950,32 +1953,33 @@ const LunarBasePlayScreen = () => {
                         }}
                         onDragLeave={handleTableDragLeave}
                     >
-                        <div className="lunar-drag-overlay" style={dragOverlayStyle(dragOverlaySize)}>
-                            {dropSnapRect ? (
-                                <div className="lunar-drop-snap" aria-hidden="true" style={rectStyle(scrollLocalRect(tableScrollRef.current, dropSnapRect))} />
-                            ) : null}
-                            {dragPreview && dragPreviewPoint ? (
-                                <div className="lunar-drag-preview" aria-hidden="true" style={dragPreviewStyle(dragPreviewPoint, zoom)}>
-                                    <CardView card={dragPreview.card} faceDown={dragPreview.faceDown} rotation={dragPreview.rotation} />
-                                </div>
-                            ) : null}
-                            {flyingCards.map((flyingCard) => (
+                        <div className="lunar-play-area">
+                            <div className="lunar-drag-overlay" style={dragOverlayStyle(dragOverlaySize)}>
+                                {dropSnapRect ? (
+                                    <div className="lunar-drop-snap" aria-hidden="true" style={rectStyle(scrollLocalRect(tableScrollRef.current, dropSnapRect))} />
+                                ) : null}
+                                {dragPreview && dragPreviewPoint ? (
+                                    <div className="lunar-drag-preview" aria-hidden="true" style={dragPreviewStyle(dragPreviewPoint, zoom)}>
+                                        <CardView card={dragPreview.card} faceDown={dragPreview.faceDown} rotation={dragPreview.rotation} />
+                                    </div>
+                                ) : null}
+                                {flyingCards.map((flyingCard) => (
+                                    <div
+                                        key={flyingCard.key}
+                                        className="lunar-flying-card"
+                                        data-movement={flyingCard.annotation}
+                                        aria-label={flyingCard.annotation}
+                                        style={flyCardStyle(flyingCard, zoom)}
+                                    >
+                                        <CardView card={flyingCard.card} faceDown={flyingCard.faceDown} rotation={flyingCard.rotation} />
+                                    </div>
+                                ))}
+                            </div>
+                            <div className="lunar-table-content">
                                 <div
-                                    key={flyingCard.key}
-                                    className="lunar-flying-card"
-                                    data-movement={flyingCard.annotation}
-                                    aria-label={flyingCard.annotation}
-                                    style={flyCardStyle(flyingCard, zoom)}
+                                    className="lunar-table-surface"
+                                    style={{ "--lunar-zoom": zoom } as CSSProperties}
                                 >
-                                    <CardView card={flyingCard.card} faceDown={flyingCard.faceDown} rotation={flyingCard.rotation} />
-                                </div>
-                            ))}
-                        </div>
-                        <div className="lunar-table-content">
-                            <div
-                                className="lunar-table-surface"
-                                style={{ "--lunar-zoom": zoom } as CSSProperties}
-                            >
                             <section className="lunar-supply" aria-label="Supply">
                                 {supplyRows.map((row, rowIndex) => (
                                     <div key={rowIndex} className="lunar-supply-row">
@@ -2293,6 +2297,12 @@ const LunarBasePlayScreen = () => {
                             </section>
                             </div>
                         </div>
+                        </div>
+                        <iframe
+                            className="lunar-rulebook-viewer"
+                            title="Lunar Base rulebook"
+                            src={lunarBaseRulebookPdfUrl}
+                        />
                     </div>
                 </section>
                 <aside className="lunar-player-port" aria-label="Players">

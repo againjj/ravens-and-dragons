@@ -189,12 +189,22 @@
 }
 
 .lunar-table-scroll {
+    --lunar-table-scroll-padding-x: 28px;
+    --lunar-table-scroll-padding-y: 28px;
+    --lunar-table-scroll-padding-bottom: var(--lunar-table-scroll-padding-y);
     position: relative;
     min-height: 0;
     min-width: 0;
     overflow: auto;
     overflow-anchor: none;
-    padding: 28px;
+    padding: 0;
+}
+
+.lunar-play-area {
+    position: relative;
+    display: inline-block;
+    min-width: 0;
+    padding: var(--lunar-table-scroll-padding-y) var(--lunar-table-scroll-padding-x) var(--lunar-table-scroll-padding-bottom);
 }
 
 .lunar-table-content {
@@ -244,6 +254,18 @@
     gap: 18px;
     align-content: start;
     padding: 0;
+}
+
+.lunar-rulebook-viewer {
+    position: sticky;
+    left: 0;
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    height: auto;
+    aspect-ratio: 5 / 3;
+    border: 0;
+    background: #f8fafc;
 }
 
 .panel.lunar-player-panel {
@@ -1055,8 +1077,11 @@
     }
 
     .lunar-table-scroll {
+        --lunar-table-scroll-padding-x: 12px;
+        --lunar-table-scroll-padding-y: 12px;
+        --lunar-table-scroll-padding-bottom: 18px;
         overflow: auto;
-        padding: 12px 12px 18px;
+        padding: 0;
     }
 
     .lunar-zoom-control {

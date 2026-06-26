@@ -109,6 +109,22 @@ describe("lunarBaseGameEntry", () => {
         expect(zoom).toHaveValue("1000%");
     });
 
+    it("renders the rulebook viewer at the bottom of the table scroll area", async () => {
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        await screen.findByText("Solar Lab");
+
+        const viewer = screen.getByTitle("Lunar Base rulebook");
+        const scroll = viewer.parentElement;
+        const playArea = viewer.previousElementSibling;
+        expect(viewer).toHaveAttribute("src", "https://shop.plepic.com/wp-content/uploads/2020/09/Lunar-Base-Rulebook-v1.0.pdf");
+        expect(viewer).toHaveClass("lunar-rulebook-viewer");
+        expect(scroll).toHaveClass("lunar-table-scroll");
+        expect(playArea).toHaveClass("lunar-play-area");
+        expect(playArea?.querySelector(".lunar-table-content")).toBeInTheDocument();
+    });
+
     it("does not run layout animations when only the zoom changes", async () => {
         const animate = vi.fn();
         HTMLElement.prototype.animate = animate;
@@ -749,12 +765,14 @@ describe("lunarBaseGameEntry", () => {
         const hand = document.querySelector<HTMLElement>(".lunar-hand");
         const surface = document.querySelector<HTMLElement>(".lunar-table-surface");
         const scroll = document.querySelector<HTMLElement>(".lunar-table-scroll");
+        const playArea = document.querySelector<HTMLElement>(".lunar-play-area");
         const overlay = document.querySelector<HTMLElement>(".lunar-drag-overlay");
         const supplyCard = supplyButton?.querySelector<HTMLElement>(".lunar-card");
         expect(supplyButton).not.toBeNull();
         expect(hand).not.toBeNull();
         expect(surface).not.toBeNull();
         expect(scroll).not.toBeNull();
+        expect(playArea).not.toBeNull();
         expect(overlay).not.toBeNull();
         expect(supplyCard).not.toBeNull();
         hand!.getBoundingClientRect = () => new DOMRect(280, 360, 192, 178);
@@ -769,7 +787,8 @@ describe("lunarBaseGameEntry", () => {
         expect(snap).not.toBeNull();
         expect(overlay).toContainElement(preview);
         expect(overlay).toContainElement(snap);
-        expect(overlay!.parentElement).toBe(scroll);
+        expect(overlay!.parentElement).toBe(playArea);
+        expect(playArea!.parentElement).toBe(scroll);
         expect(surface).not.toContainElement(preview);
         expect(surface).not.toContainElement(snap);
         expect(overlay).toHaveClass("lunar-drag-overlay");
