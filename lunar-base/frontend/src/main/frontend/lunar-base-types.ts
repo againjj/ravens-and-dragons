@@ -67,6 +67,7 @@ export interface LunarBaseActionInteraction {
     buttons: LunarBaseActionButton[];
     remaining?: number;
     action?: LunarBaseActionNode | null;
+    actionText?: string | null;
     targetPlayerIndex?: number | null;
     flippedStationIds?: string[];
     defendedAction?: LunarBaseActionFrame | null;
@@ -133,7 +134,6 @@ export interface LunarBaseGame {
     discardCount: number;
     actionState: LunarBaseActionState;
     endGameResult?: LunarBaseEndGameResult | null;
-    message: string | null;
     viewer?: {
         userId: string | null;
         seatIndex: number | null;
@@ -144,6 +144,11 @@ export interface LunarBaseGame {
 
 export interface CreateGameResponse {
     game: LunarBaseGame;
+}
+
+export interface LunarBaseCommandResponse {
+    game: LunarBaseGame;
+    message: string | null;
 }
 
 export interface FlyingCard {

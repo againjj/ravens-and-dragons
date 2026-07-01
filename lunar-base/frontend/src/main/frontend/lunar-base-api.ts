@@ -1,6 +1,6 @@
 import { createResponseError } from "@ravensanddragons/platform-frontend/api-client";
 import type { GameStartOptions } from "@ravensanddragons/platform-frontend/game-entry";
-import type { CreateGameResponse, LunarBaseGame } from "./lunar-base-types";
+import type { CreateGameResponse, LunarBaseCommandResponse, LunarBaseGame } from "./lunar-base-types";
 
 export const fetchLunarBaseGame = async (gameId: string): Promise<LunarBaseGame> => {
     const response = await fetch(`/api/games/${encodeURIComponent(gameId)}/view`);
@@ -31,7 +31,7 @@ export const createLunarBaseGame = async (options: GameStartOptions = {}): Promi
     return payload.game;
 };
 
-export const sendCommand = async (game: LunarBaseGame, command: Record<string, unknown>): Promise<LunarBaseGame> => {
+export const sendCommand = async (game: LunarBaseGame, command: Record<string, unknown>): Promise<LunarBaseCommandResponse> => {
     const response = await fetch(`/api/games/${encodeURIComponent(game.id)}/commands`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -40,5 +40,5 @@ export const sendCommand = async (game: LunarBaseGame, command: Record<string, u
     if (!response.ok) {
         throw await createResponseError(response, "Unable to update Lunar Base right now.");
     }
-    return response.json() as Promise<LunarBaseGame>;
+    return response.json() as Promise<LunarBaseCommandResponse>;
 };

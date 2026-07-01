@@ -6,6 +6,30 @@ import com.ravensanddragons.lunarbase.cards.LunarBaseCardDefinition
 import com.ravensanddragons.lunarbase.cards.LunarBaseConnectors
 import com.ravensanddragons.lunarbase.cards.LunarBaseStandardDeck
 
+interface LunarBaseRuntimeCardCatalog {
+    fun card(id: String, name: String, flipped: Boolean): LunarBaseCard?
+}
+
+object LunarBaseStandardRuntimeCardCatalog : LunarBaseRuntimeCardCatalog {
+    override fun card(id: String, name: String, flipped: Boolean): LunarBaseCard? {
+        val type = catalogCardType(name) ?: return null
+        return LunarBaseCard(
+            id = id,
+            type = type,
+            name = name,
+            flipped = flipped,
+            stationBackName = name.takeIf { type == stationType }
+        )
+    }
+}
+
+class LunarBaseCompositeRuntimeCardCatalog(
+    private vararg val catalogs: LunarBaseRuntimeCardCatalog
+) : LunarBaseRuntimeCardCatalog {
+    override fun card(id: String, name: String, flipped: Boolean): LunarBaseCard? =
+        catalogs.firstNotNullOfOrNull { it.card(id, name, flipped) }
+}
+
 internal fun LunarBasePublicState.normalizeCatalogCards(): LunarBasePublicState =
     copy(
         players = players.map { player ->
@@ -84,6 +108,17 @@ internal fun catalogDefinition(card: LunarBaseCard): LunarBaseCardDefinition? {
         moduleType -> deck.modules.singleOrNull { it.name == card.name }
         agentType -> deck.agents.singleOrNull { it.name == card.name }
         influenceType -> deck.influences.singleOrNull { it.name == card.name }
+        else -> null
+    }
+}
+
+internal fun catalogCardType(name: String): String? {
+    val deck = LunarBaseStandardDeck.definition
+    return when {
+        deck.stations.any { it.name == name } || deck.stationFront.name == name -> stationType
+        deck.modules.any { it.name == name } -> moduleType
+        deck.agents.any { it.name == name } -> agentType
+        deck.influences.any { it.name == name } -> influenceType
         else -> null
     }
 }

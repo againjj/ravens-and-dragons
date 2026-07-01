@@ -1,5 +1,6 @@
 package com.ravensanddragons.lunarbase
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonInclude
 import java.time.Instant
 
@@ -86,6 +87,7 @@ data class LunarBaseInteractionPrompt(
     val text: String
 )
 
+@JsonInclude(JsonInclude.Include.NON_NULL)
 data class LunarBaseActionInteraction(
     val kind: String,
     val actorIndex: Int,
@@ -93,6 +95,7 @@ data class LunarBaseActionInteraction(
     val buttons: List<LunarBaseActionButton> = emptyList(),
     val remaining: Int = 0,
     val action: LunarBaseActionNode? = null,
+    val actionText: String? = null,
     val targetPlayerIndex: Int? = null,
     val flippedStationIds: List<String> = emptyList(),
     val defendedAction: LunarBaseActionFrame? = null
@@ -164,8 +167,7 @@ data class LunarBasePublicState(
     val discardCount: Int = 0,
     val actionState: LunarBaseActionState = LunarBaseActionState(),
     val endGameResult: LunarBaseEndGameResult? = null,
-    val createdByUserId: String? = null,
-    val message: String? = null
+    val createdByUserId: String? = null
 )
 
 data class LunarBasePrivateState(
@@ -173,6 +175,130 @@ data class LunarBasePrivateState(
     val stock: List<LunarBaseCard>,
     val discard: List<LunarBaseCard>,
     val unseenStations: List<LunarBaseCard> = emptyList()
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_DEFAULT)
+data class LunarBasePersistedCard(
+    val id: String,
+    val name: String,
+    val flipped: Boolean = false
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+@JsonInclude(JsonInclude.Include.NON_DEFAULT)
+data class LunarBaseStoredCard(
+    val id: String,
+    val name: String,
+    val flipped: Boolean = false,
+    val type: String? = null,
+    val stationBackName: String? = null,
+    val color: String? = null,
+    val cardCost: List<String> = emptyList(),
+    val orbs: List<String> = emptyList(),
+    val connectors: LunarBaseCardConnectors? = null,
+    val colonists: Int = 0,
+    val achievements: List<Int> = emptyList()
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class LunarBasePersistedBoardCard(
+    val card: LunarBasePersistedCard,
+    val x: Int,
+    val y: Int,
+    val rotation: Int
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class LunarBaseStoredBoardCard(
+    val card: LunarBaseStoredCard,
+    val x: Int,
+    val y: Int,
+    val rotation: Int
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class LunarBasePersistedPlayerPublic(
+    val credits: Int = 3,
+    val board: List<LunarBasePersistedBoardCard> = emptyList()
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class LunarBaseStoredPlayerPublic(
+    val credits: Int = 3,
+    val board: List<LunarBaseStoredBoardCard> = emptyList()
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class LunarBasePersistedActionInteraction(
+    val kind: String,
+    val actorIndex: Int,
+    val remaining: Int = 0,
+    val action: LunarBaseActionNode? = null,
+    val targetPlayerIndex: Int? = null,
+    val flippedStationIds: List<String> = emptyList(),
+    val defendedAction: LunarBaseActionFrame? = null
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class LunarBasePersistedActionState(
+    val phase: String = choosingMainActionPhase,
+    val mainActionChosen: Boolean = false,
+    val stack: List<LunarBaseActionFrame> = emptyList(),
+    val interaction: LunarBasePersistedActionInteraction? = null,
+    val chosenPlayerIndex: Int? = null,
+    val activeActions: List<LunarBaseActionNode> = emptyList(),
+    val sourceCardName: String? = null
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class LunarBasePersistedPublicState(
+    val id: String,
+    val gameSlug: String,
+    val version: Long,
+    val createdAt: Instant,
+    val updatedAt: Instant,
+    val lifecycle: String,
+    val config: LunarBaseConfig,
+    val seats: List<LunarBaseSeat>,
+    val currentPlayerIndex: Int,
+    val players: List<LunarBasePersistedPlayerPublic>,
+    val supply: List<LunarBasePersistedCard?>,
+    val actionState: LunarBasePersistedActionState = LunarBasePersistedActionState(),
+    val createdByUserId: String? = null
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class LunarBaseStoredPublicState(
+    val id: String,
+    val gameSlug: String,
+    val version: Long,
+    val createdAt: Instant,
+    val updatedAt: Instant,
+    val lifecycle: String,
+    val config: LunarBaseConfig,
+    val seats: List<LunarBaseSeat>,
+    val currentPlayerIndex: Int,
+    val players: List<LunarBaseStoredPlayerPublic>,
+    val supply: List<LunarBaseStoredCard?>,
+    val actionState: LunarBasePersistedActionState = LunarBasePersistedActionState(),
+    val createdByUserId: String? = null
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class LunarBasePersistedPrivateState(
+    val hands: List<List<LunarBasePersistedCard>>,
+    val stock: List<LunarBasePersistedCard>,
+    val discard: List<LunarBasePersistedCard>,
+    val unseenStations: List<LunarBasePersistedCard> = emptyList()
+)
+
+@JsonIgnoreProperties(ignoreUnknown = true)
+data class LunarBaseStoredPrivateState(
+    val hands: List<List<LunarBaseStoredCard>>,
+    val stock: List<LunarBaseStoredCard>,
+    val discard: List<LunarBaseStoredCard>,
+    val unseenStations: List<LunarBaseStoredCard> = emptyList()
 )
 
 internal fun <T> List<T>.replaceAt(index: Int, value: T): List<T> =
@@ -191,31 +317,125 @@ internal fun LunarBasePublicState.withPrivateCounts(privateState: LunarBasePriva
         discardCount = privateState.discard.size
     )
 
-internal fun LunarBasePublicState.toPersistedState(): LunarBasePublicState =
-    copy(
+internal fun LunarBasePublicState.toPersistedState(): LunarBasePersistedPublicState =
+    LunarBasePersistedPublicState(
+        id = id,
+        gameSlug = gameSlug,
+        version = version,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        lifecycle = lifecycle,
+        config = config,
+        seats = seats,
+        currentPlayerIndex = currentPlayerIndex,
         players = players.map { player ->
-            player.copy(
-                orbs = LunarBaseResources(),
-                colonists = 0,
-                achievements = 0,
-                handCount = 0,
-                influenceHandCount = 0,
-                board = player.board.map { boardCard -> boardCard.copy(card = boardCard.card.toPersistedCard()) }
+            LunarBasePersistedPlayerPublic(
+                credits = player.credits,
+                board = player.board.map { boardCard ->
+                    LunarBasePersistedBoardCard(
+                        card = boardCard.card.toPersistedCard(),
+                        x = boardCard.x,
+                        y = boardCard.y,
+                        rotation = boardCard.rotation
+                    )
+                }
             )
         },
         supply = supply.map { it?.toPersistedCard() },
-        stockCount = 0,
-        discardTop = null,
-        discardCount = 0,
-        endGameResult = null
+        actionState = actionState.toPersistedState(),
+        createdByUserId = createdByUserId
     )
 
-internal fun LunarBasePrivateState.toPersistedState(): LunarBasePrivateState =
-    copy(
+internal fun LunarBaseStoredPublicState.toRuntimeState(
+    catalog: LunarBaseRuntimeCardCatalog = LunarBaseStandardRuntimeCardCatalog
+): LunarBasePublicState =
+    LunarBasePublicState(
+        id = id,
+        gameSlug = gameSlug,
+        version = version,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+        lifecycle = lifecycle,
+        config = config,
+        seats = seats,
+        currentPlayerIndex = currentPlayerIndex,
+        players = players.map { player ->
+            LunarBasePlayerPublic(
+                credits = player.credits,
+                board = player.board.map { boardCard ->
+                    LunarBaseBoardCard(
+                        card = boardCard.card.toRuntimeCard(catalog),
+                        x = boardCard.x,
+                        y = boardCard.y,
+                        rotation = boardCard.rotation
+                    )
+                }
+            )
+        },
+        supply = supply.map { it?.toRuntimeCard(catalog) },
+        stockCount = 0,
+        actionState = actionState.toRuntimeState(),
+        createdByUserId = createdByUserId
+    )
+
+private fun LunarBaseActionState.toPersistedState(): LunarBasePersistedActionState =
+    LunarBasePersistedActionState(
+        phase = phase,
+        mainActionChosen = mainActionChosen,
+        stack = stack,
+        interaction = interaction?.let {
+            LunarBasePersistedActionInteraction(
+                kind = it.kind,
+                actorIndex = it.actorIndex,
+                remaining = it.remaining,
+                action = it.action,
+                targetPlayerIndex = it.targetPlayerIndex,
+                flippedStationIds = it.flippedStationIds,
+                defendedAction = it.defendedAction
+            )
+        },
+        chosenPlayerIndex = chosenPlayerIndex,
+        activeActions = activeActions,
+        sourceCardName = sourceCardName
+    )
+
+private fun LunarBasePersistedActionState.toRuntimeState(): LunarBaseActionState =
+    LunarBaseActionState(
+        phase = phase,
+        mainActionChosen = mainActionChosen,
+        stack = stack,
+        interaction = interaction?.let {
+            LunarBaseActionInteraction(
+                kind = it.kind,
+                actorIndex = it.actorIndex,
+                remaining = it.remaining,
+                action = it.action,
+                targetPlayerIndex = it.targetPlayerIndex,
+                flippedStationIds = it.flippedStationIds,
+                defendedAction = it.defendedAction
+            )
+        },
+        chosenPlayerIndex = chosenPlayerIndex,
+        activeActions = activeActions,
+        sourceCardName = sourceCardName
+    )
+
+internal fun LunarBasePrivateState.toPersistedState(): LunarBasePersistedPrivateState =
+    LunarBasePersistedPrivateState(
         hands = hands.map { hand -> hand.map { it.toPersistedCard() } },
         stock = stock.map { it.toPersistedCard() },
         discard = discard.map { it.toPersistedCard() },
         unseenStations = unseenStations.map { it.toPersistedCard() }
+    )
+
+internal fun LunarBaseStoredPrivateState.toRuntimeState(
+    catalog: LunarBaseRuntimeCardCatalog = LunarBaseStandardRuntimeCardCatalog
+): LunarBasePrivateState =
+    LunarBasePrivateState(
+        hands = hands.map { hand -> hand.map { it.toRuntimeCard(catalog) } },
+        stock = stock.map { it.toRuntimeCard(catalog) },
+        discard = discard.map { it.toRuntimeCard(catalog) },
+        unseenStations = unseenStations.map { it.toRuntimeCard(catalog) }
     )
 
 internal fun LunarBaseCard.creditCost(orbs: LunarBaseResources): Int {
@@ -228,13 +448,33 @@ internal fun LunarBaseCard.creditCost(orbs: LunarBaseResources): Int {
     return maxOf(0, coloredRemainder - orbs.gray)
 }
 
-private fun LunarBaseCard.toPersistedCard(): LunarBaseCard =
-    LunarBaseCard(
+private fun LunarBaseCard.toPersistedCard(): LunarBasePersistedCard =
+    LunarBasePersistedCard(
         id = id,
-        type = type,
         name = persistedCatalogName(),
         flipped = flipped
     )
+
+private fun LunarBaseStoredCard.toRuntimeCard(catalog: LunarBaseRuntimeCardCatalog): LunarBaseCard {
+    val catalogName = stationBackName ?: name
+    return if (type != null) {
+        LunarBaseCard(
+            id = id,
+            type = type,
+            name = catalogName,
+            color = color,
+            cardCost = cardCost,
+            orbs = orbs,
+            connectors = connectors,
+            colonists = colonists,
+            achievements = achievements,
+            flipped = flipped
+        )
+    } else {
+        catalog.card(id, catalogName, flipped)
+            ?: error("Unknown Lunar Base catalog card: $catalogName")
+    }
+}
 
 private fun LunarBaseCard.persistedCatalogName(): String =
     if (type == stationType) {

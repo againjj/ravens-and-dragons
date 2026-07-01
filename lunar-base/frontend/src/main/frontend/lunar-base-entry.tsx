@@ -21,7 +21,7 @@ import { resolveLunarCardInteraction, type LunarCardInteractionDecision, type Lu
 import { cardAnimationDurationMs, cardGap, cardWidth, emptyLifecycle, layoutAnimationSelector, maxZoom, minZoom, playRoutePattern, portalRoot, rectCenter } from "./lunar-base-constants";
 import { createDragAutoScrollState, displayPlayerOrder, dragAutoScrollDelta, stationOppositeSideCard, type DragAutoScrollState } from "./lunar-base-game-logic";
 import { clipZoomPercent, nextZoomStep, sanitizeZoomText, useLunarBaseZoom, zoomPercentToZoom, zoomTextToPercent, zoomToPercent } from "./useLunarBaseZoom";
-import { lunarBaseColors, type CardMovementAnimation, type CardRotation, type CardType, type DragSource, type FlyingCard, type LunarBaseActionInteraction, type LunarBaseActionNode, type LunarBaseBoardCard, type LunarBaseCard, type LunarBaseColorName, type LunarBaseGame, type SelectedCard, type StationFlipAnimation, type StationRevealState } from "./lunar-base-types";
+import { lunarBaseColors, type CardMovementAnimation, type CardRotation, type CardType, type DragSource, type FlyingCard, type LunarBaseActionInteraction, type LunarBaseBoardCard, type LunarBaseCard, type LunarBaseColorName, type LunarBaseGame, type SelectedCard, type StationFlipAnimation, type StationRevealState } from "./lunar-base-types";
 import "./lunar-base.css";
 
 const lunarBaseRulebookPdfUrl = "https://shop.plepic.com/wp-content/uploads/2020/09/Lunar-Base-Rulebook-v1.0.pdf";
@@ -337,7 +337,7 @@ const actionPanelStatus = (game: LunarBaseGame, viewerSeat: number | null): stri
     if (game.lifecycle === "finished") return lunarEndGameTitle(game);
     const interaction = game.actionState?.interaction ?? null;
     if (interaction) {
-        const actionText = actionStateActionText(game.actionState) ?? "Action in progress";
+        const actionText = interaction.actionText ?? "Action in progress";
         if (interaction.kind === "influenceDefense") {
             const sourceActorIndex = interaction.defendedAction?.sourceActorIndex ?? interaction.defendedAction?.actorIndex ?? game.currentPlayerIndex;
             const sourceName = game.seats[sourceActorIndex]?.displayName ?? `Player ${sourceActorIndex + 1}`;
@@ -352,118 +352,6 @@ const actionPanelStatus = (game: LunarBaseGame, viewerSeat: number | null): stri
     if (viewerSeat === game.currentPlayerIndex) return "Play an agent or choose a main action";
     const currentName = game.seats[game.currentPlayerIndex]?.displayName ?? `Player ${game.currentPlayerIndex + 1}`;
     return `Waiting for ${currentName}:\nPlay an agent or choose a main action`;
-};
-
-const actionStateActionText = (actionState: LunarBaseGame["actionState"]): string | null => {
-    const interactionAction = actionState.interaction?.action ?? null;
-    if (interactionAction) {
-        return actionNodeFullText(interactionAction, isRepeatingAction(interactionAction) ? actionState.interaction?.remaining ?? null : null);
-    }
-    const activeActions = actionState.activeActions ?? [];
-    return activeActions.length > 0 ? activeActions.map((action) => actionNodeFullText(action)).join("\n") : null;
-};
-
-const actionNodeFullText = (action: LunarBaseActionNode, remaining: number | null = null): string =>
-    withRemainingText(actionNodeBaseText(action), remaining);
-
-const actionNodeBaseText = (action: LunarBaseActionNode): string => {
-    const actions = action.actions ?? [];
-    switch (action.kind) {
-        case "chooseOne":
-            return actions.length === 0 ? "Choose one" : `Choose one:\n${actions.map(actionNodeShortText).join("\n")}`;
-        case "doAll":
-            return actions.map(actionNodeShortText).join("\n");
-        case "scoped":
-            return scopeActionText(action.scope, actions);
-        default:
-            return actionNodeShortText(action);
-    }
-};
-
-const actionNodeShortText = (action: LunarBaseActionNode): string => {
-    switch (action.kind) {
-        case "chooseOne":
-            return "Choose one";
-        case "doAll":
-            return (action.actions ?? []).map(actionNodeShortText).join("; ");
-        case "scoped":
-            return scopeActionText(action.scope, action.actions ?? []);
-        case "chooseOpponent":
-            return "Choose an opponent";
-        case "discardInfluence":
-            return "Discard an influence";
-        case "discard":
-            return amountText("Discard", "card", action.amount);
-        case "draft":
-            return amountText("Draft", "card", action.amount);
-        case "draw":
-            return amountText("Draw", "card", action.amount);
-        case "build":
-            return amountText("Build", "module", action.amount);
-        case "flipStation":
-            if (action.flipAmountKind === "self") return "Flip your station";
-            if (action.flipAmountKind === "anyNumber") return "Flip any number of stations";
-            return `Flip ${action.flipAmount ?? 0} ${action.flipAmount === 1 ? "station" : "stations"}`;
-        case "flipStationTo":
-            return `Flip your station to ${action.side === "AGENDA_SIDE" ? "Agenda Side" : "Terran Outpost"}`;
-        case "gainCredits":
-            return amountText("Gain", "credit", action.amount);
-        case "loseCredits":
-            return amountText("Lose", "credit", action.amount);
-        case "resell":
-            return amountText("Resell", "card", action.amount);
-        case "stealCredits":
-            return amountText("Steal", "credit", action.amount);
-        case "stealModule":
-            return `Steal a ${action.moduleName ?? ""}`;
-        case "viewHand":
-            return "View chosen player's hand";
-        default:
-            return action.kind;
-    }
-};
-
-const amountText = (verb: string, noun: string, amount: number | null | undefined): string => {
-    const value = amount ?? 0;
-    return `${verb} ${value} ${value === 1 ? noun : `${noun}s`}`;
-};
-
-const scopeActionText = (scope: string | null | undefined, actions: LunarBaseActionNode[]): string => {
-    const text = actions.map(actionNodeShortText).join("; ");
-    switch (scope) {
-        case "OPPONENT":
-            return `Opponent: ${text}`;
-        case "TARGET":
-            return `Target: ${text}`;
-        case "NEIGHBORS_OF_TARGET":
-            return `Neighbors of target: ${text}`;
-        case "CHOSEN_PLAYER":
-            return `Chosen player: ${text}`;
-        case "EACH_OPPONENT":
-            return `Each opponent: ${text}`;
-        case "EACH_PLAYER":
-            return `Each player: ${text}`;
-        default:
-            return `${scope ?? ""}: ${text}`;
-    }
-};
-
-const withRemainingText = (text: string, remaining: number | null): string =>
-    remaining === null ? text : `${text} (${remaining} left)`;
-
-const isRepeatingAction = (action: LunarBaseActionNode): boolean => {
-    switch (action.kind) {
-        case "build":
-        case "draw":
-        case "draft":
-        case "resell":
-        case "discard":
-            return true;
-        case "flipStation":
-            return action.flipAmountKind !== "self";
-        default:
-            return false;
-    }
 };
 
 const interactionPromptText = (interaction: LunarBaseActionInteraction | null): string | null => {
@@ -915,7 +803,7 @@ const LunarBasePlayScreen = () => {
             flushSync(() => hideAnimationDestination(sourceKey));
         }
         void sendCommand(game, command)
-            .then((updated) => {
+            .then(({ game: updated, message: commandMessage }) => {
                 if (animation && animationDestination) {
                     animateCard(animation, animationDestination.x, animationDestination.y, null, () => {
                         captureLayoutSnapshot();
@@ -927,7 +815,7 @@ const LunarBasePlayScreen = () => {
                         }
                         locallySubmittedVersion.current = updated.version;
                         setGame(updated);
-                        setMessage(updated.message);
+                        setMessage(commandMessage);
                         if (sourceKey?.startsWith("board-")) {
                             showAnimationDestination(sourceKey);
                         }
@@ -940,7 +828,7 @@ const LunarBasePlayScreen = () => {
                 captureLayoutSnapshot();
                 locallySubmittedVersion.current = updated.version;
                 setGame(updated);
-                setMessage(updated.message);
+                setMessage(commandMessage);
                 setIsSubmitting(false);
             })
             .catch((error: unknown) => {

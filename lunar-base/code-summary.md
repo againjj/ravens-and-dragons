@@ -24,19 +24,20 @@ The parent project has two child projects:
 - `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseEndGameRules.kt`
   - Derives Lunar Base win results without persisting them. A game ends after any completed action when a player has 20 credits, 10 housed colonists, 5 scientific achievements, or 4 influences in hand; multiple qualifying players draw, and one player with multiple conditions earns an epic victory.
 - `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseState.kt`
-  - Owns Lunar Base runtime/public/private state DTOs, hand/discard count synchronization helpers, persisted-card trimming, legacy derived-action-state payload tolerance, list replacement helpers, and credit-cost calculation.
+  - Owns Lunar Base runtime/public/private state DTOs, explicit canonical persisted-state DTOs, hand/discard count synchronization helpers, persisted-card trimming, tolerant reads of older rich card payloads, list replacement helpers, and credit-cost calculation.
 - `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseConstants.kt`
   - Owns game lifecycle, card type, player-count, hand-size, randomization, supply-size, and turn-advance constants/helpers.
 - `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseDeckFactory.kt`
   - Expands the standard card script into counted physical station/module/agent/influence cards whose persisted card identity is the unique catalog name plus instance state.
 - `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseCatalogCards.kt`
-  - Enriches client-facing card views by catalog name with costs/colors/connectors/whole orbs/station front/back metadata/flipped display/colonists/achievement ordinals/action and effect text.
+  - Enriches client-facing card views by catalog name with costs/colors/connectors/whole orbs/station front/back metadata/flipped display/colonists/achievement ordinals/action and effect text, and provides the runtime card catalog used to rehydrate canonical persisted card identities.
 - `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseBoardRules.kt`
   - Owns board geometry, module placement validation, connector matching, completed-orb counting, housed-colonist summaries, and unique scientific-achievement summaries.
 - `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseActionText.kt`
   - Builds readable main action, on-playing, and effect text from the card catalog action/effect model for public card views.
 - `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseActionEngine.kt`
   - Owns resumable Lunar Base action execution, including choose-one/do-all sequencing, scoped actor changes, choosing opponents/targets, actor-only view-hand pauses, source-card labels for active actions, actor-specific interactions, repeated build/draw/draft/resell/discard/flip actions, opponent-agent influence negation, on-playing interrupts from built modules, active influence/board-module static effects, triggered effect action sequences, stealing legally placeable opponent modules, automatic gain/loss of credits, defensive skipping of impossible actions, and automatic turn advancement after a main action finishes.
+  - Derives live action interaction text for client reads so card tooltips and in-progress action copy share the backend action formatter without persisting the derived text.
   - Applies static effects that forbid drafting other influences, replace steal-credit opponent choice with a skip interaction, suppress shuttle-arrival credits, or add red-orb shuttle credits. Triggered effects run from build-Dome/Laika-Memorial, discard-this-influence, and draft-any-influence events using the same action stack as on-playing interrupts.
   - Keeps requested build/discard counts in action state rather than clipping them to the current hand, while still resolving discard repeats when the actor's hand becomes empty and preserving build skip interactions when no module is available.
 - `src/main/kotlin/com/ravensanddragons/lunarbase/cards/`
@@ -57,7 +58,7 @@ The parent project has two child projects:
   - Typechecks and tests the Lunar Base frontend package with Gradle-managed Node/npm.
 - `src/main/frontend/lunar-base-entry.tsx`
   - Exports `lunarBaseGameEntry` through the package entrypoint for the app-owned frontend shell.
-  - Owns the Lunar Base create/play screen shell, action panel with derived action text, source-card labels, and scoped interaction prompts, player panels, command wiring, shared platform player-picker wiring for open seats, SSE loading, viewer-relative player ordering, action-state-driven hand/supply/stock/board targeting, supply/stock-to-hand dragging, supply-to-discard dragging, shared hand/supply/board movement animation setup, end-game popup/revealed-hand display, bottom-of-play-area rulebook PDF viewer, drag auto-scroll, and client-only card movement animation orchestration for hand, pile, supply, board movement, remote live-update movement mirroring, and station side flips.
+  - Owns the Lunar Base create/play screen shell, action panel rendering of backend-formatted action text with viewer-relative waiting/source labels and scoped interaction prompts, player panels, command wiring, shared platform player-picker wiring for open seats, SSE loading, viewer-relative player ordering, action-state-driven hand/supply/stock/board targeting, supply/stock-to-hand dragging, supply-to-discard dragging, shared hand/supply/board movement animation setup, end-game popup/revealed-hand display, bottom-of-play-area rulebook PDF viewer, drag auto-scroll, and client-only card movement animation orchestration for hand, pile, supply, board movement, remote live-update movement mirroring, and station side flips.
   - Keeps animated command source cards hidden as soon as a pending command starts, so module cards played from hand stay hidden through the server-response gap and fly animation.
   - Shares card drag setup, source hiding, invalid-drop return animation, card-center coordinate tracking, destination snap rectangles, and scroll-port clipping across hand, supply, and stock drags; module board snapping also accepts drag events from the surrounding player area when the dragged card center is near the board.
   - Preserves table scroll while starting and dropping partially visible card drags, keeps snap/preview/flying drag visuals in a full-scrollable-area non-sizing overlay above the stable table content, reserves a stable next-card hand slot for incoming hand drops, animates cancelled hand drags back to the actual hand-card rectangle, and keeps flying cards below the shared app header layer.
@@ -67,7 +68,7 @@ The parent project has two child projects:
   - Owns Lunar Base frontend wire/state types and the shared Lunar Base palette reference.
 - `src/main/frontend/lunar-base-api.ts`
   - Owns Lunar Base create, load, and command API calls with shared platform response-error handling.
-  - Uses the direct command response body as the updated game state, preserving viewer-aware data returned after seat claims and other player actions.
+  - Uses the direct command response envelope's game state and separate feedback message, preserving viewer-aware data without placing command feedback on game state.
 - `src/main/frontend/lunar-base-game-logic.ts`
   - Owns client-side card playability, credit-cost, station-side, discard/play-agent, and viewer-relative ordering helpers.
 - `src/main/frontend/lunar-base-board-rules.ts`

@@ -103,11 +103,11 @@ class GameSessionService(
     fun applyCommand(gameId: String, command: JsonNode, actingUserId: String?): JsonNode = withGameLock(gameId) {
         val current = getStoredGame(gameId)
         val handler = requireHandler(current.gameSlug)
-        val commandResult = handler.applyCommand(current, command, actingUserId)
-        val persistableState = handler.persistedStateAfterCommand(commandResult)
+        val commandResult = handler.applyCommandResult(current, command, actingUserId)
+        val persistableState = handler.persistedStateAfterCommand(commandResult.state)
         playerAccountValidator.requirePlayerAccountsExist(newPlayerUserIds(handler, current, persistableState))
-        val commandPublicState = handler.commandPublicState(commandResult, persistableState)
-        val commandResponseState = handler.commandResponseState(commandResult, persistableState, actingUserId)
+        val commandPublicState = handler.commandPublicState(commandResult.state, persistableState)
+        val commandResponseState = handler.commandResponse(commandResult, persistableState, actingUserId)
         val persisted = persistAndBroadcast(gameId, persistableState, commandPublicState)
         afterCommit {
             broadcastPlayerGamesFor(current, persisted)

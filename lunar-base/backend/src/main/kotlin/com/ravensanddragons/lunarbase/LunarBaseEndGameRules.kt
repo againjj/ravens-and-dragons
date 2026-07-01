@@ -4,8 +4,7 @@ internal fun LunarBasePublicState.withEndGameResultIfWon(): LunarBasePublicState
     val result = lunarBaseEndGameResult(this) ?: return this
     return copy(
         lifecycle = finishedLifecycle,
-        endGameResult = result,
-        message = result.label
+        endGameResult = result
     )
 }
 

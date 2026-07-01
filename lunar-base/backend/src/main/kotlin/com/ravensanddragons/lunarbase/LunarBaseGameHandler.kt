@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.ravensanddragons.platform.game.runtime.GameHandler
+import com.ravensanddragons.platform.game.runtime.GameCommandResult
 import com.ravensanddragons.platform.game.runtime.GameRecord
 import com.ravensanddragons.platform.game.runtime.InvalidCommandException
 import com.ravensanddragons.platform.game.runtime.PlayerGameDetails
@@ -16,7 +17,8 @@ import java.time.Instant
 @Component
 class LunarBaseGameHandler(
     private val objectMapper: ObjectMapper,
-    private val clock: Clock
+    private val clock: Clock,
+    private val cardCatalog: LunarBaseRuntimeCardCatalog = LunarBaseStandardRuntimeCardCatalog
 ) : GameHandler {
     override val gameSlug: String = LunarBaseGameModuleDefinition.identity.slug
 
@@ -103,6 +105,13 @@ class LunarBaseGameHandler(
         )
     }
 
+    override fun applyCommandResult(current: GameRecord, command: JsonNode, actingUserId: String?): GameCommandResult {
+        val before = current.toPublicState(current.toPrivateState())
+        val updated = applyCommand(current, command, actingUserId)
+        val after = updated.toPublicState(updated.toPrivateState())
+        return GameCommandResult(updated, commandFeedback(command, before, after))
+    }
+
     override fun gameView(current: GameRecord, currentUserId: String?): JsonNode {
         val privateState = current.toPrivateState()
         val publicState = current.toPublicState(privateState)
@@ -132,8 +141,11 @@ class LunarBaseGameHandler(
         return (objectMapper.valueToTree<ObjectNode>(publicState)).set<JsonNode>("viewer", viewerNode)
     }
 
-    override fun commandResponseState(commandResult: GameRecord, persisted: GameRecord, actingUserId: String?): JsonNode =
-        gameView(persisted, actingUserId)
+    override fun commandResponse(commandResult: GameCommandResult, persisted: GameRecord, actingUserId: String?): JsonNode =
+        objectMapper.createObjectNode().also { response ->
+            response.set<JsonNode>("game", gameView(persisted, actingUserId))
+            response.put("message", commandResult.message)
+        }
 
     override fun publicState(current: GameRecord): JsonNode =
         objectMapper.valueToTree(current.toPublicState(current.toPrivateState()))
@@ -169,8 +181,7 @@ class LunarBaseGameHandler(
             version = state.version + 1,
             updatedAt = Instant.now(clock),
             seats = state.seats.map { seat -> if (seat.userId == userId) LunarBaseSeat() else seat },
-            createdByUserId = state.createdByUserId.takeUnless { it == userId },
-            message = "A seated player left. Claim open seats to continue."
+            createdByUserId = state.createdByUserId.takeUnless { it == userId }
         )
         return toRecord(updated, current.toPrivateState(), current.lastAccessedAt, current.publiclyListed)
     }
@@ -198,7 +209,7 @@ class LunarBaseGameHandler(
         val displayName = command.textValue("displayName", "Player")
         val nextSeats = publicState.seats.toMutableList()
         nextSeats[seatIndex] = LunarBaseSeat(userId = playerUserId, displayName = displayName)
-        return publicState.copy(seats = nextSeats, message = "$displayName joined.") to privateState
+        return publicState.copy(seats = nextSeats) to privateState
     }
 
     private fun chooseMainAction(
@@ -326,7 +337,7 @@ class LunarBaseGameHandler(
             hands = privateState.hands.replaceAt(seat, hand.filterNot { it.id == cardId }),
             discard = listOf(card) + privateState.discard
         )
-        val nextPublic = publicState.copy(players = nextPlayers, message = "Played an agent.").withPrivateCounts(nextPrivate)
+        val nextPublic = publicState.copy(players = nextPlayers).withPrivateCounts(nextPrivate)
         return LunarBaseActionEngine(publicState.id, publicState.version)
             .startActions(nextPublic, nextPrivate, seat, card.onPlayingActions(), mainActionChosen = false, sourceCardName = card.name, allowInfluenceNegation = true)
     }
@@ -448,15 +459,19 @@ class LunarBaseGameHandler(
         privateState: LunarBasePrivateState,
         includeEndGameResult: Boolean = true
     ): LunarBasePublicState {
-        val state = objectMapper.treeToValue(publicState, LunarBasePublicState::class.java)
+        val state = objectMapper.treeToValue(publicState, LunarBaseStoredPublicState::class.java)
+            .toRuntimeState(cardCatalog)
             .normalizeCatalogCards()
             .withPrivateCounts(privateState)
             .withBoardSummaries()
+            .let { LunarBaseActionEngine(it.id, it.version).withActionPresentation(it) }
         return if (includeEndGameResult) state.withEndGameResultIfWon() else state
     }
 
     private fun GameRecord.toPrivateState(): LunarBasePrivateState =
-        objectMapper.treeToValue(privateState, LunarBasePrivateState::class.java).normalizeCatalogCards()
+        objectMapper.treeToValue(privateState, LunarBaseStoredPrivateState::class.java)
+            .toRuntimeState(cardCatalog)
+            .normalizeCatalogCards()
 
     private fun toRecord(
         publicState: LunarBasePublicState,
@@ -477,5 +492,33 @@ class LunarBaseGameHandler(
             lastAccessedAt = lastAccessedAt,
             publiclyListed = publiclyListed
         )
+
+    private fun commandFeedback(
+        command: JsonNode,
+        before: LunarBasePublicState,
+        after: LunarBasePublicState
+    ): String? {
+        after.endGameResult?.let { return it.label }
+        if (after.currentPlayerIndex != before.currentPlayerIndex) return "Turn complete."
+        val directFeedback = when (command.get("type")?.asText()) {
+            "claimSeat" -> "${command.textValue("displayName", "Player")} joined."
+            "drawStock" -> "Drew a card."
+            "draftSupply" -> "Drafted a card."
+            "resellSupply" -> "Resold a card."
+            "discardHandCard" -> "Discarded a card."
+            "playAgent" -> "Played an agent."
+            "buildModule" -> "Played a module."
+            "stealModule" -> "Stole a module."
+            "flipStation" -> "Flipped station."
+            else -> null
+        }
+        if (directFeedback != null) return directFeedback
+
+        val creditChanges = after.players.indices.map { index -> after.players[index].credits - before.players[index].credits }
+        if (creditChanges.any { it > 0 } && creditChanges.any { it < 0 }) return "Stole credits."
+        if (creditChanges.any { it > 0 }) return "Gained credits."
+        if (creditChanges.any { it < 0 }) return "Lost credits."
+        return null
+    }
 
 }

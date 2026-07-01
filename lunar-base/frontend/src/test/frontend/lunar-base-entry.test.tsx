@@ -33,7 +33,7 @@ describe("lunarBaseGameEntry", () => {
             const url = String(input);
             if (url.includes("/commands")) {
                 servedGame = lunarBaseGameWithPlayedModule();
-                return jsonResponse(servedGame);
+                return jsonResponse({ game: servedGame, message: null });
             }
             if (url.includes("/view")) {
                 return jsonResponse(servedGame);
@@ -600,7 +600,7 @@ describe("lunarBaseGameEntry", () => {
         const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
             const url = String(input);
             if (url.includes("/commands")) {
-                return jsonResponse(commandGame);
+                return jsonResponse({ game: commandGame, message: "Ben joined." });
             }
             if (url.includes("/view")) {
                 throw new Error("Expected sendCommand to use the command response.");
@@ -616,7 +616,9 @@ describe("lunarBaseGameEntry", () => {
             displayName: "Ben"
         });
 
-        expect(result.viewer?.seatIndex).toBe(1);
+        expect(result.game.viewer?.seatIndex).toBe(1);
+        expect(result.message).toBe("Ben joined.");
+        expect(result.game).not.toHaveProperty("message");
         expect(fetchMock).toHaveBeenCalledTimes(1);
         expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/games/lunar-1/commands");
     });
@@ -1885,6 +1887,7 @@ describe("lunarBaseGameEntry", () => {
                     buttons: [],
                     remaining: 1,
                     action: { kind: "stealModule", moduleName: "Solar Lab" },
+                    actionText: "Steal a Solar Lab",
                     flippedStationIds: []
                 }
             }
@@ -1938,6 +1941,7 @@ describe("lunarBaseGameEntry", () => {
                     buttons: [],
                     remaining: 1,
                     action: { kind: "stealModule", moduleName: "Solar Lab" },
+                    actionText: "Steal a Solar Lab",
                     flippedStationIds: []
                 }
             }
@@ -1990,6 +1994,7 @@ describe("lunarBaseGameEntry", () => {
                     buttons: [],
                     remaining: 1,
                     action: { kind: "stealModule", moduleName: "Solar Lab" },
+                    actionText: "Steal a Solar Lab",
                     flippedStationIds: []
                 }
             }
@@ -2038,6 +2043,7 @@ describe("lunarBaseGameEntry", () => {
                     ],
                     remaining: 0,
                     action: { kind: "stealModule", moduleName: "Solar Lab" },
+                    actionText: "Steal a Solar Lab",
                     defendedAction: {
                         actorIndex: 0,
                         action: { kind: "stealModule", moduleName: "Solar Lab" },
@@ -2073,6 +2079,7 @@ describe("lunarBaseGameEntry", () => {
                     buttons: [],
                     remaining: 1,
                     action: { kind: "stealModule", moduleName: "Solar Lab" },
+                    actionText: "Steal a Solar Lab",
                     flippedStationIds: []
                 }
             }
@@ -2271,7 +2278,7 @@ describe("lunarBaseGameEntry", () => {
 
         await act(async () => {
             servedGame = lunarBaseGameWithPlayedModule();
-            resolveCommand(jsonResponse(servedGame));
+            resolveCommand(jsonResponse({ game: servedGame, message: "Played a module." }));
         });
     });
 
@@ -2394,6 +2401,7 @@ describe("lunarBaseGameEntry", () => {
                     buttons: [],
                     remaining: 1,
                     action: { kind: "stealModule", moduleName: "Solar Lab" },
+                    actionText: "Steal a Solar Lab",
                     flippedStationIds: []
                 }
             }
@@ -2705,6 +2713,50 @@ describe("lunarBaseGameEntry", () => {
         expect(source.compareDocumentPosition(actionText) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     });
 
+    it("describes non-literal action amounts in the action panel", async () => {
+        servedGame = lunarBaseGame({
+            actionState: {
+                phase: "resolvingAction",
+                mainActionChosen: true,
+                interaction: {
+                    kind: "discard",
+                    actorIndex: 0,
+                    buttons: [],
+                    remaining: 2,
+                    action: { kind: "discard", amount: null, amountKind: "handSize" },
+                    actionText: "Discard cards equal to your hand size (2 left)",
+                    flippedStationIds: []
+                }
+            }
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+
+        expect(await screen.findByLabelText("Action panel")).toHaveTextContent("Discard cards equal to your hand size (2 left)");
+
+        servedGame = lunarBaseGame({
+            actionState: {
+                phase: "resolvingAction",
+                mainActionChosen: true,
+                interaction: {
+                    kind: "resell",
+                    actorIndex: 0,
+                    buttons: [],
+                    remaining: 3,
+                    action: { kind: "resell", amount: null, amountKind: "influenceCount" },
+                    actionText: "Resell cards equal to the number of influences in the supply (3 left)",
+                    flippedStationIds: []
+                }
+            }
+        });
+        await act(async () => {
+            eventSourceListeners.get("game")?.();
+        });
+
+        expect(screen.getByLabelText("Action panel")).toHaveTextContent("Resell cards equal to the number of influences in the supply (3 left)");
+    });
+
     it("shows scope interaction text to the left of scope choice buttons", async () => {
         const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
         const scopedActionState = (scope: string): LunarBaseActionState => ({
@@ -2716,6 +2768,7 @@ describe("lunarBaseGameEntry", () => {
                 buttons: [{ label: "Ben", value: "1" }],
                 remaining: 0,
                 action: { kind: "scoped", scope, actions: [{ kind: "draw", amount: 1, amountKind: "literal" }] },
+                actionText: `${scope === "NEIGHBORS_OF_TARGET" ? "Neighbors of target" : scope === "OPPONENT" ? "Opponent" : "Target"}: Draw 1 card`,
                 flippedStationIds: []
             }
         });
@@ -2780,6 +2833,7 @@ describe("lunarBaseGameEntry", () => {
                     buttons: [{ label: "Discard influence", value: "discardInfluence" }],
                     remaining: 2,
                     action: { kind: "discard", amount: 2, amountKind: "literal" },
+                    actionText: "Discard 2 cards (2 left)",
                     flippedStationIds: []
                 }
             }
@@ -2810,6 +2864,7 @@ describe("lunarBaseGameEntry", () => {
                 ],
                 remaining: 0,
                 action: { kind: "stealCredits", amount: 3, amountKind: "literal" },
+                actionText: "Steal 3 credits",
                 defendedAction: {
                     actorIndex: 0,
                     action: { kind: "stealCredits", amount: 3, amountKind: "literal" },
@@ -2851,6 +2906,7 @@ describe("lunarBaseGameEntry", () => {
                     buttons: [],
                     remaining: 1,
                     action: { kind: "discardInfluence", amount: 1, amountKind: "literal" },
+                    actionText: "Discard an influence",
                     flippedStationIds: []
                 }
             }
@@ -2880,6 +2936,7 @@ describe("lunarBaseGameEntry", () => {
                     buttons: [{ label: "Ben", value: "1" }],
                     remaining: 1,
                     action: { kind: "stealCredits", amount: 1, amountKind: "literal" },
+                    actionText: "Steal 1 credit",
                     flippedStationIds: []
                 }
             }
@@ -2909,6 +2966,7 @@ describe("lunarBaseGameEntry", () => {
                     buttons: [{ label: "Skip stealing credits", value: "skip" }],
                     remaining: 2,
                     action: { kind: "stealCredits", amount: 2, amountKind: "literal" },
+                    actionText: "Steal 2 credits",
                     flippedStationIds: []
                 }
             }
@@ -2938,6 +2996,7 @@ describe("lunarBaseGameEntry", () => {
                     buttons: [{ label: "Skip steal", value: "skip" }],
                     remaining: 1,
                     action: { kind: "stealModule", moduleName: "Asteroid Grinder" },
+                    actionText: "Steal a Asteroid Grinder",
                     flippedStationIds: []
                 }
             }
@@ -3107,6 +3166,9 @@ const lunarActionState = (kind = "build", actorIndex = 0, flipAmountKind = "lite
         action: kind === "flipStation"
             ? { kind, flipAmount: 1, flipAmountKind }
             : { kind, amount: 1, amountKind: "literal" },
+        actionText: kind === "flipStation"
+            ? flipAmountKind === "self" ? "Flip your station" : "Flip 1 station (1 left)"
+            : `${kind[0].toUpperCase()}${kind.slice(1)} 1 ${kind === "build" ? "module" : "card"} (1 left)`,
         flippedStationIds: []
     }
 });
@@ -3211,7 +3273,6 @@ const lunarBaseGame = ({
     discardTop,
     discardCount,
     endGameResult,
-    message: null,
     viewer: {
         userId: viewerUserId ?? (viewerSeat === null ? null : `player-${viewerSeat + 1}`),
         seatIndex: viewerSeat,
