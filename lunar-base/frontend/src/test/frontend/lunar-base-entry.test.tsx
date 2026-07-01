@@ -210,6 +210,17 @@ describe("lunarBaseGameEntry", () => {
             command: { type: "resellSupply", slotIndex: 2 },
             animation: { annotation: "click supply card to discard", sourceKey: "supply-supply-1", destination: { type: "discard" }, hiddenDestinationKey: "discard" }
         });
+        expect(resolveLunarCardInteraction({ type: "supply", slotIndex: 3, card: influenceCard }, { type: "discard" }, "click", context("resell"))).toBeNull();
+        const quarantinedDraft = context("draft");
+        quarantinedDraft.game.supply = [
+            { id: "quarantine", type: "influence", name: "Quarantine" },
+            influenceCard
+        ];
+        quarantinedDraft.game.actionState.interaction!.targetCardIds = ["quarantine"];
+        expect(resolveLunarCardInteraction({ type: "supply", slotIndex: 1, card: influenceCard }, { type: "hand" }, "click", quarantinedDraft)).toBeNull();
+        expect(resolveLunarCardInteraction({ type: "supply", slotIndex: 0, card: quarantinedDraft.game.supply[0]! }, { type: "hand" }, "click", quarantinedDraft)).toMatchObject({
+            command: { type: "draftSupply", slotIndex: 0 }
+        });
         expect(resolveLunarCardInteraction({ type: "hand", viewerSeat: 0, card: agentCard }, { type: "discard" }, "drop", context("build", true))).toMatchObject({
             command: { type: "playAgent", cardId: "agent-1" },
             animation: { annotation: "drop hand agent to play", sourceKey: "hand-0-agent-1", destination: { type: "discard" } }
@@ -1304,6 +1315,26 @@ describe("lunarBaseGameEntry", () => {
         ));
     });
 
+    it("does not make a supply influence actionable during a resell action", async () => {
+        servedGame = lunarBaseGame({
+            supply: [{ id: "influence-1", type: "influence", name: "Lunar Alliance" }],
+            actionState: lunarActionState("resell")
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        const influence = await screen.findByText("Lunar Alliance");
+        const supplySlot = influence.closest(".lunar-supply-slot");
+        expect(supplySlot).not.toHaveAttribute("role", "button");
+        expect(supplySlot).toHaveAttribute("aria-disabled", "true");
+
+        await userEvent.click(influence);
+        expect(vi.mocked(fetch)).not.toHaveBeenCalledWith(
+            "/api/games/lunar-1/commands",
+            expect.anything()
+        );
+    });
+
     it("takes a clicked supply card to hand during a draft action", async () => {
         servedGame = lunarBaseGame({
             supply: [{ id: "supply-1", type: "module", name: "Supply Rover", color: "yellow", connectors: { topRight: "gray", bottomRight: "gray" } }]
@@ -1345,6 +1376,31 @@ describe("lunarBaseGameEntry", () => {
                 body: JSON.stringify({ type: "draftSupply", slotIndex: 0, expectedVersion: 1 })
             })
         ));
+    });
+
+    it("only makes Quarantine actionable among supply influences during a draft action", async () => {
+        servedGame = lunarBaseGame({
+            supply: [
+                { id: "quarantine", type: "influence", name: "Quarantine" },
+                { id: "alliance", type: "influence", name: "Lunar Alliance" },
+                { id: "module", type: "module", name: "Supply Rover" }
+            ],
+            actionState: {
+                ...lunarActionState("draft"),
+                interaction: { ...lunarActionState("draft").interaction!, targetCardIds: ["quarantine", "module"] }
+            }
+        });
+        const PlayScreen = lunarBaseGameEntry.components.PlayScreen;
+
+        render(<PlayScreen />);
+        const quarantineSlot = (await screen.findByText("Quarantine")).closest(".lunar-supply-slot");
+        const allianceSlot = (await screen.findByText("Lunar Alliance")).closest(".lunar-supply-slot");
+        const moduleSlot = (await screen.findByText("Supply Rover")).closest(".lunar-supply-slot");
+
+        expect(quarantineSlot).toHaveAttribute("role", "button");
+        expect(allianceSlot).not.toHaveAttribute("role", "button");
+        expect(allianceSlot).toHaveAttribute("aria-disabled", "true");
+        expect(moduleSlot).toHaveAttribute("role", "button");
     });
 
     it("discards a supply card when it is dragged to the discard pile", async () => {

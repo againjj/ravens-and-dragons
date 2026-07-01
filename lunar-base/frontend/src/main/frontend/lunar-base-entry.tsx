@@ -17,7 +17,7 @@ import { CardView } from "./LunarBaseCard";
 import { PlayerBoard, setScaledDragImage, type DragImageMetrics, type PlayerBoardHandle } from "./LunarBasePlayerBoard";
 import { createLunarBaseGame, fetchLunarBaseGame, sendCommand } from "./lunar-base-api";
 import { boardCardRectAtPoint, canPlayHandCard, hasLegalPlacement, nextRotation, normalizeRotation, normalizedVisualRotation, shouldUnwindVisualRotation } from "./lunar-base-board-rules";
-import { resolveLunarCardInteraction, type LunarCardInteractionDecision, type LunarCardInteractionGesture, type LunarCardInteractionSource, type LunarCardInteractionTarget } from "./lunar-base-card-interactions";
+import { canDraftSupplyCard, resolveLunarCardInteraction, type LunarCardInteractionDecision, type LunarCardInteractionGesture, type LunarCardInteractionSource, type LunarCardInteractionTarget } from "./lunar-base-card-interactions";
 import { cardAnimationDurationMs, cardGap, cardWidth, emptyLifecycle, layoutAnimationSelector, maxZoom, minZoom, playRoutePattern, portalRoot, rectCenter } from "./lunar-base-constants";
 import { createDragAutoScrollState, displayPlayerOrder, dragAutoScrollDelta, stationOppositeSideCard, type DragAutoScrollState } from "./lunar-base-game-logic";
 import { clipZoomPercent, nextZoomStep, sanitizeZoomText, useLunarBaseZoom, zoomPercentToZoom, zoomTextToPercent, zoomToPercent } from "./useLunarBaseZoom";
@@ -1873,12 +1873,16 @@ const LunarBasePlayScreen = () => {
                                     <div key={rowIndex} className="lunar-supply-row">
                                         {row.map((card, columnIndex) => {
                                             const slotIndex = rowIndex === 0 ? columnIndex : supplyTopRowCount + columnIndex;
+                                            const canInteractWithSupplyCard = Boolean(card) && (
+                                                (canDraftSupply && card ? canDraftSupplyCard(game, card) : false) ||
+                                                (canResellSupply && card?.type !== "influence")
+                                            );
                                             return (
                                                 <div
                                                     key={`${card?.id ?? "empty"}-${slotIndex}`}
-                                                    role={card && (canDraftSupply || canResellSupply) ? "button" : undefined}
-                                                    tabIndex={card && (canDraftSupply || canResellSupply) ? -1 : undefined}
-                                                    aria-disabled={!(canDraftSupply || canResellSupply) || !card}
+                                                    role={canInteractWithSupplyCard ? "button" : undefined}
+                                                    tabIndex={canInteractWithSupplyCard ? -1 : undefined}
+                                                    aria-disabled={!canInteractWithSupplyCard}
                                                     data-lunar-animate={card ? `supply-${card.id}` : undefined}
                                                     data-movement={card ? "supply card layout" : undefined}
                                                     className={[
@@ -1886,9 +1890,9 @@ const LunarBasePlayScreen = () => {
                                                         card ? animationHiddenClass(`supply-${card.id}`) : "",
                                                         card ? draggingSourceClass(`supply-${card.id}`) : ""
                                                     ].filter(Boolean).join(" ")}
-                                                    draggable={(canDraftSupply || canResellSupply) && Boolean(card)}
+                                                    draggable={canInteractWithSupplyCard}
                                                     onClick={(event) => {
-                                                        if (!(canDraftSupply || canResellSupply) || !card) return;
+                                                        if (!canInteractWithSupplyCard || !card) return;
                                                         if (selectedCard) {
                                                             clearSelectedCard();
                                                             return;
@@ -1897,7 +1901,7 @@ const LunarBasePlayScreen = () => {
                                                         moveSupplyCard(slotIndex, card, from, canResellSupply ? "discard" : "hand", canResellSupply ? "click supply card to discard" : "click supply card to hand");
                                                     }}
                                                     onDragStart={(event) => {
-                                                        if (!card) return;
+                                                        if (!canInteractWithSupplyCard || !card) return;
                                                         beginCardDrag(event, {
                                                             source: "supply",
                                                             sourceKey: `supply-${card.id}`,
@@ -1910,7 +1914,7 @@ const LunarBasePlayScreen = () => {
                                                     {card ? (
                                                         <CardView
                                                             card={card}
-                                                            actionBadgeTargetable={canDraftSupply || canResellSupply}
+                                                            actionBadgeTargetable={canInteractWithSupplyCard}
                                                         />
                                                     ) : null}
                                                 </div>

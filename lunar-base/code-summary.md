@@ -24,7 +24,7 @@ The parent project has two child projects:
 - `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseEndGameRules.kt`
   - Derives Lunar Base win results without persisting them. A game ends after any completed action when a player has 20 credits, 10 housed colonists, 5 scientific achievements, or 4 influences in hand; multiple qualifying players draw, and one player with multiple conditions earns an epic victory.
 - `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseState.kt`
-  - Owns Lunar Base runtime/public/private state DTOs, explicit canonical persisted-state DTOs, hand/discard count synchronization helpers, persisted-card trimming, tolerant reads of older rich card payloads, list replacement helpers, and credit-cost calculation.
+  - Owns Lunar Base runtime/public/private state DTOs, the canonical catalog-identity persisted-state DTOs, hand/discard count synchronization helpers, persisted-card trimming, list replacement helpers, and credit-cost calculation.
 - `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseConstants.kt`
   - Owns game lifecycle, card type, player-count, hand-size, randomization, supply-size, and turn-advance constants/helpers.
 - `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseDeckFactory.kt`
@@ -38,6 +38,7 @@ The parent project has two child projects:
 - `src/main/kotlin/com/ravensanddragons/lunarbase/LunarBaseActionEngine.kt`
   - Owns resumable Lunar Base action execution, including choose-one/do-all sequencing, scoped actor changes, choosing opponents/targets, actor-only view-hand pauses, source-card labels for active actions, actor-specific interactions, repeated build/draw/draft/resell/discard/flip actions, opponent-agent influence negation, on-playing interrupts from built modules, active influence/board-module static effects, triggered effect action sequences, stealing legally placeable opponent modules, automatic gain/loss of credits, defensive skipping of impossible actions, and automatic turn advancement after a main action finishes.
   - Derives live action interaction text for client reads so card tooltips and in-progress action copy share the backend action formatter without persisting the derived text.
+  - Derives legal draft target card ids for client reads so frontend supply affordances respect static influence restrictions without persisting availability flags.
   - Applies static effects that forbid drafting other influences, replace steal-credit opponent choice with a skip interaction, suppress shuttle-arrival credits, or add red-orb shuttle credits. Triggered effects run from build-Dome/Laika-Memorial, discard-this-influence, and draft-any-influence events using the same action stack as on-playing interrupts.
   - Keeps requested build/discard counts in action state rather than clipping them to the current hand, while still resolving discard repeats when the actor's hand becomes empty and preserving build skip interactions when no module is available.
 - `src/main/kotlin/com/ravensanddragons/lunarbase/cards/`

@@ -44,6 +44,12 @@ const handDiscardAnnotation = (gesture: LunarCardInteractionGesture, card: Lunar
     return `${gesture === "drop" ? "drop" : "click"} hand ${description}`;
 };
 
+export const canDraftSupplyCard = (game: LunarBaseGame, card: LunarBaseCard): boolean => {
+    const interaction = game.actionState.interaction;
+    if (interaction?.kind !== "draft") return false;
+    return interaction.targetCardIds?.includes(card.id) ?? true;
+};
+
 export const resolveLunarCardInteraction = (
     source: LunarCardInteractionSource,
     target: LunarCardInteractionTarget,
@@ -68,8 +74,9 @@ export const resolveLunarCardInteraction = (
 
     if (source.type === "supply") {
         if (target.type !== "hand" && target.type !== "discard") return null;
-        if (target.type === "hand" && interactionKind !== "draft") return null;
+        if (target.type === "hand" && !canDraftSupplyCard(context.game, source.card)) return null;
         if (target.type === "discard" && interactionKind !== "resell") return null;
+        if (target.type === "discard" && source.card.type === "influence") return null;
         const toDiscard = target.type === "discard";
         return {
             command: { type: toDiscard ? "resellSupply" : "draftSupply", slotIndex: source.slotIndex },

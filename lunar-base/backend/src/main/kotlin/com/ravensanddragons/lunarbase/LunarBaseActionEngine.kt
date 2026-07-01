@@ -1126,9 +1126,15 @@ internal class LunarBaseActionEngine(
         return copy(
             interactionPrompt = presentation.interactionPrompt,
             buttons = buttons,
-            actionText = presentation.actionText
+            actionText = presentation.actionText,
+            targetCardIds = if (kind == "draft") legalDraftCardIds(public) else null
         )
     }
+
+    private fun legalDraftCardIds(public: LunarBasePublicState): List<String> =
+        public.supply.filterNotNull()
+            .filterNot { card -> card.type == influenceType && forbidsDraftingInfluence(public, card.id) }
+            .map { it.id }
 
     private fun LunarBaseActionInteraction.presentationKind(public: LunarBasePublicState, currentAction: LunarBaseActionNode): String =
         when {

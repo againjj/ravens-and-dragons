@@ -68,6 +68,7 @@ export interface LunarBaseActionInteraction {
     remaining?: number;
     action?: LunarBaseActionNode | null;
     actionText?: string | null;
+    targetCardIds?: string[] | null;
     targetPlayerIndex?: number | null;
     flippedStationIds?: string[];
     defendedAction?: LunarBaseActionFrame | null;

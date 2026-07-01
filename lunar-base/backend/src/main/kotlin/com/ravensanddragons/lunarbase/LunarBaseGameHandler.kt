@@ -459,7 +459,7 @@ class LunarBaseGameHandler(
         privateState: LunarBasePrivateState,
         includeEndGameResult: Boolean = true
     ): LunarBasePublicState {
-        val state = objectMapper.treeToValue(publicState, LunarBaseStoredPublicState::class.java)
+        val state = objectMapper.treeToValue(publicState, LunarBasePersistedPublicState::class.java)
             .toRuntimeState(cardCatalog)
             .normalizeCatalogCards()
             .withPrivateCounts(privateState)
@@ -469,7 +469,7 @@ class LunarBaseGameHandler(
     }
 
     private fun GameRecord.toPrivateState(): LunarBasePrivateState =
-        objectMapper.treeToValue(privateState, LunarBaseStoredPrivateState::class.java)
+        objectMapper.treeToValue(privateState, LunarBasePersistedPrivateState::class.java)
             .toRuntimeState(cardCatalog)
             .normalizeCatalogCards()
 

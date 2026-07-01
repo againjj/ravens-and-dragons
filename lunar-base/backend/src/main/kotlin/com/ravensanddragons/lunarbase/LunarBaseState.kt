@@ -1,6 +1,5 @@
 package com.ravensanddragons.lunarbase
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import com.fasterxml.jackson.annotation.JsonInclude
 import java.time.Instant
 
@@ -96,6 +95,7 @@ data class LunarBaseActionInteraction(
     val remaining: Int = 0,
     val action: LunarBaseActionNode? = null,
     val actionText: String? = null,
+    val targetCardIds: List<String>? = null,
     val targetPlayerIndex: Int? = null,
     val flippedStationIds: List<String> = emptyList(),
     val defendedAction: LunarBaseActionFrame? = null
@@ -177,7 +177,6 @@ data class LunarBasePrivateState(
     val unseenStations: List<LunarBaseCard> = emptyList()
 )
 
-@JsonIgnoreProperties(ignoreUnknown = true)
 @JsonInclude(JsonInclude.Include.NON_DEFAULT)
 data class LunarBasePersistedCard(
     val id: String,
@@ -185,23 +184,6 @@ data class LunarBasePersistedCard(
     val flipped: Boolean = false
 )
 
-@JsonIgnoreProperties(ignoreUnknown = true)
-@JsonInclude(JsonInclude.Include.NON_DEFAULT)
-data class LunarBaseStoredCard(
-    val id: String,
-    val name: String,
-    val flipped: Boolean = false,
-    val type: String? = null,
-    val stationBackName: String? = null,
-    val color: String? = null,
-    val cardCost: List<String> = emptyList(),
-    val orbs: List<String> = emptyList(),
-    val connectors: LunarBaseCardConnectors? = null,
-    val colonists: Int = 0,
-    val achievements: List<Int> = emptyList()
-)
-
-@JsonIgnoreProperties(ignoreUnknown = true)
 data class LunarBasePersistedBoardCard(
     val card: LunarBasePersistedCard,
     val x: Int,
@@ -209,27 +191,11 @@ data class LunarBasePersistedBoardCard(
     val rotation: Int
 )
 
-@JsonIgnoreProperties(ignoreUnknown = true)
-data class LunarBaseStoredBoardCard(
-    val card: LunarBaseStoredCard,
-    val x: Int,
-    val y: Int,
-    val rotation: Int
-)
-
-@JsonIgnoreProperties(ignoreUnknown = true)
 data class LunarBasePersistedPlayerPublic(
     val credits: Int = 3,
     val board: List<LunarBasePersistedBoardCard> = emptyList()
 )
 
-@JsonIgnoreProperties(ignoreUnknown = true)
-data class LunarBaseStoredPlayerPublic(
-    val credits: Int = 3,
-    val board: List<LunarBaseStoredBoardCard> = emptyList()
-)
-
-@JsonIgnoreProperties(ignoreUnknown = true)
 data class LunarBasePersistedActionInteraction(
     val kind: String,
     val actorIndex: Int,
@@ -240,7 +206,6 @@ data class LunarBasePersistedActionInteraction(
     val defendedAction: LunarBaseActionFrame? = null
 )
 
-@JsonIgnoreProperties(ignoreUnknown = true)
 data class LunarBasePersistedActionState(
     val phase: String = choosingMainActionPhase,
     val mainActionChosen: Boolean = false,
@@ -251,7 +216,6 @@ data class LunarBasePersistedActionState(
     val sourceCardName: String? = null
 )
 
-@JsonIgnoreProperties(ignoreUnknown = true)
 data class LunarBasePersistedPublicState(
     val id: String,
     val gameSlug: String,
@@ -268,37 +232,11 @@ data class LunarBasePersistedPublicState(
     val createdByUserId: String? = null
 )
 
-@JsonIgnoreProperties(ignoreUnknown = true)
-data class LunarBaseStoredPublicState(
-    val id: String,
-    val gameSlug: String,
-    val version: Long,
-    val createdAt: Instant,
-    val updatedAt: Instant,
-    val lifecycle: String,
-    val config: LunarBaseConfig,
-    val seats: List<LunarBaseSeat>,
-    val currentPlayerIndex: Int,
-    val players: List<LunarBaseStoredPlayerPublic>,
-    val supply: List<LunarBaseStoredCard?>,
-    val actionState: LunarBasePersistedActionState = LunarBasePersistedActionState(),
-    val createdByUserId: String? = null
-)
-
-@JsonIgnoreProperties(ignoreUnknown = true)
 data class LunarBasePersistedPrivateState(
     val hands: List<List<LunarBasePersistedCard>>,
     val stock: List<LunarBasePersistedCard>,
     val discard: List<LunarBasePersistedCard>,
     val unseenStations: List<LunarBasePersistedCard> = emptyList()
-)
-
-@JsonIgnoreProperties(ignoreUnknown = true)
-data class LunarBaseStoredPrivateState(
-    val hands: List<List<LunarBaseStoredCard>>,
-    val stock: List<LunarBaseStoredCard>,
-    val discard: List<LunarBaseStoredCard>,
-    val unseenStations: List<LunarBaseStoredCard> = emptyList()
 )
 
 internal fun <T> List<T>.replaceAt(index: Int, value: T): List<T> =
@@ -346,7 +284,7 @@ internal fun LunarBasePublicState.toPersistedState(): LunarBasePersistedPublicSt
         createdByUserId = createdByUserId
     )
 
-internal fun LunarBaseStoredPublicState.toRuntimeState(
+internal fun LunarBasePersistedPublicState.toRuntimeState(
     catalog: LunarBaseRuntimeCardCatalog = LunarBaseStandardRuntimeCardCatalog
 ): LunarBasePublicState =
     LunarBasePublicState(
@@ -428,7 +366,7 @@ internal fun LunarBasePrivateState.toPersistedState(): LunarBasePersistedPrivate
         unseenStations = unseenStations.map { it.toPersistedCard() }
     )
 
-internal fun LunarBaseStoredPrivateState.toRuntimeState(
+internal fun LunarBasePersistedPrivateState.toRuntimeState(
     catalog: LunarBaseRuntimeCardCatalog = LunarBaseStandardRuntimeCardCatalog
 ): LunarBasePrivateState =
     LunarBasePrivateState(
@@ -455,26 +393,9 @@ private fun LunarBaseCard.toPersistedCard(): LunarBasePersistedCard =
         flipped = flipped
     )
 
-private fun LunarBaseStoredCard.toRuntimeCard(catalog: LunarBaseRuntimeCardCatalog): LunarBaseCard {
-    val catalogName = stationBackName ?: name
-    return if (type != null) {
-        LunarBaseCard(
-            id = id,
-            type = type,
-            name = catalogName,
-            color = color,
-            cardCost = cardCost,
-            orbs = orbs,
-            connectors = connectors,
-            colonists = colonists,
-            achievements = achievements,
-            flipped = flipped
-        )
-    } else {
-        catalog.card(id, catalogName, flipped)
-            ?: error("Unknown Lunar Base catalog card: $catalogName")
-    }
-}
+private fun LunarBasePersistedCard.toRuntimeCard(catalog: LunarBaseRuntimeCardCatalog): LunarBaseCard =
+    catalog.card(id, name, flipped)
+        ?: error("Unknown Lunar Base catalog card: $name")
 
 private fun LunarBaseCard.persistedCatalogName(): String =
     if (type == stationType) {

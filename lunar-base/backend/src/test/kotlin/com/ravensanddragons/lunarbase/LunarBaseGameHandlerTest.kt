@@ -1,7 +1,7 @@
 package com.ravensanddragons.lunarbase
 
 import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.node.ObjectNode
+import com.fasterxml.jackson.databind.exc.UnrecognizedPropertyException
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.ravensanddragons.platform.game.runtime.GameRecord
 import com.ravensanddragons.platform.game.runtime.InvalidCommandException
@@ -63,6 +63,18 @@ class LunarBaseGameHandlerTest {
         assertEquals(3, privateState.hands[0].size)
         assertEquals("Asteroid Grinder", (publicState.supply.filterNotNull() + privateState.stock + privateState.hands.flatten()).first { it.name == "Asteroid Grinder" }.name)
         assertEquals(listOf("blue", "red"), (publicState.players.map { it.board.single().card } + privateState.unseenStations).first { it.stationBackName == "The Oasis" }.stationBackOrbs)
+    }
+
+    @Test
+    fun rejectsNonCanonicalPersistedCardFields() {
+        val game = handler.createGame("LUNAR01", createRequest(), "creator")
+        val nonCanonicalPublicState = game.publicState.deepCopy<JsonNode>()
+        (nonCanonicalPublicState.at("/players/0/board/0/card") as com.fasterxml.jackson.databind.node.ObjectNode)
+            .put("type", "station")
+
+        assertThrows<UnrecognizedPropertyException> {
+            handler.publicState(game.copy(publicState = nonCanonicalPublicState))
+        }
     }
 
     @Test
@@ -140,8 +152,8 @@ class LunarBaseGameHandlerTest {
         val privateState = game.readPrivateState().copy(hands = game.readPrivateState().hands.replaceAt(0, listOf(artificialIntellect)))
         val publicState = game.readPublicState().copy(players = game.readPublicState().players.replaceAt(0, game.readPublicState().players[0].copy(handCount = 1)))
         game = game.copy(
-            publicState = objectMapper.valueToTree(publicState),
-            privateState = objectMapper.valueToTree(privateState)
+            publicState = persistedPublicState(publicState),
+            privateState = persistedPrivateState(privateState)
         )
 
         val handCard = handler.gameView(game, "user-1").get("viewer").get("hand").single()
@@ -162,8 +174,8 @@ class LunarBaseGameHandlerTest {
         val privateState = game.readPrivateState().copy(hands = game.readPrivateState().hands.replaceAt(0, listOf(baconPrinter)))
         val publicState = game.readPublicState().copy(players = game.readPublicState().players.replaceAt(0, game.readPublicState().players[0].copy(handCount = 1)))
         game = game.copy(
-            publicState = objectMapper.valueToTree(publicState),
-            privateState = objectMapper.valueToTree(privateState)
+            publicState = persistedPublicState(publicState),
+            privateState = persistedPrivateState(privateState)
         )
 
         val handCard = handler.gameView(game, "user-1").get("viewer").get("hand").single()
@@ -191,8 +203,8 @@ class LunarBaseGameHandlerTest {
         val privateState = game.readPrivateState().copy(hands = game.readPrivateState().hands.replaceAt(0, actionCards))
         val publicState = game.readPublicState().copy(players = game.readPublicState().players.replaceAt(0, game.readPublicState().players[0].copy(handCount = actionCards.size)))
         game = game.copy(
-            publicState = objectMapper.valueToTree(publicState),
-            privateState = objectMapper.valueToTree(privateState)
+            publicState = persistedPublicState(publicState),
+            privateState = persistedPrivateState(privateState)
         )
 
         val cardsByName = handler.gameView(game, "user-1")
@@ -297,13 +309,13 @@ class LunarBaseGameHandlerTest {
     fun choosingMainActionUsesTheRevealedStationSide() {
         var game = handler.createGame("LUNAR01", createRequest(), "creator")
         game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")
-        val publicState = game.readStoredPublicState()
+        val publicState = game.readPersistedPublicState()
         val station = publicState.players[0].board[0].card.copy(
             name = "The Oasis",
             flipped = true
         )
         game = game.copy(
-            publicState = objectMapper.valueToTree(
+            publicState = persistedPublicState(
                 publicState.copy(
                     players = publicState.players.replaceAt(
                         0,
@@ -365,7 +377,7 @@ class LunarBaseGameHandlerTest {
     @Test
     fun takingLastSupplyCardDoesNotRefillSupplyUntilTurnEnds() {
         val game = handler.createGame("LUNAR01", createRequest(playerCount = 2), "creator")
-        val publicState = game.readStoredPublicState()
+        val publicState = game.readPersistedPublicState()
         val privateState = game.readPrivateState()
         val stock = listOf(
             LunarBaseCard(id = "stock-1", type = "module", name = "Struve Dome"),
@@ -373,7 +385,7 @@ class LunarBaseGameHandlerTest {
         )
         val supplyCard = LunarBaseCard(id = "supply-last", type = "module", name = "Asteroid Grinder")
         var oneSupplyGame = game.copy(
-            publicState = objectMapper.valueToTree(
+            publicState = persistedPublicState(
                 publicState.copy(
                     seats = listOf(
                         LunarBaseSeat(userId = "user-1", displayName = "Ada"),
@@ -383,7 +395,7 @@ class LunarBaseGameHandlerTest {
                     stockCount = stock.size
                 )
             ),
-            privateState = objectMapper.valueToTree(privateState.copy(stock = stock))
+            privateState = persistedPrivateState(privateState.copy(stock = stock))
         )
 
         oneSupplyGame = actionGame(oneSupplyGame, "draft", mainActionChosen = true)
@@ -553,7 +565,7 @@ class LunarBaseGameHandlerTest {
         val publicState = game.readPublicState()
         val privateState = game.readPrivateState()
         val readyGame = game.copy(
-            publicState = objectMapper.valueToTree(
+            publicState = persistedPublicState(
                 publicState.copy(
                     seats = listOf(
                         LunarBaseSeat(userId = "user-1", displayName = "Ada"),
@@ -566,7 +578,7 @@ class LunarBaseGameHandlerTest {
                     stockCount = 0
                 )
             ),
-            privateState = objectMapper.valueToTree(privateState.copy(stock = emptyList()))
+            privateState = persistedPrivateState(privateState.copy(stock = emptyList()))
         )
 
         val firstDraft = handler.applyCommand(
@@ -593,7 +605,7 @@ class LunarBaseGameHandlerTest {
         val game = handler.createGame("LUNAR01", createRequest(playerCount = 2, useInfluences = true), "creator")
         val publicState = game.readPublicState()
         val readyGame = game.copy(
-            publicState = objectMapper.valueToTree(
+            publicState = persistedPublicState(
                 publicState.copy(
                     seats = seatedSeats(),
                     supply = listOf(LunarBaseCard(id = "space-cowboy", type = "influence", name = "Space Cowboy Capitalism"))
@@ -679,8 +691,8 @@ class LunarBaseGameHandlerTest {
         val (discardingPublicState, discardingPrivateState) = LunarBaseActionEngine("LUNAR01", publicState.version)
             .resolve(LunarBaseMutableGame(publicState, game.readPrivateState()))
         val discarding = game.copy(
-            publicState = objectMapper.valueToTree(discardingPublicState),
-            privateState = objectMapper.valueToTree(discardingPrivateState)
+            publicState = persistedPublicState(discardingPublicState),
+            privateState = persistedPrivateState(discardingPrivateState)
         )
         val discarded = handler.applyCommand(
             discarding,
@@ -743,7 +755,7 @@ class LunarBaseGameHandlerTest {
         var game = handler.createGame("LUNAR01", createRequest(playerCount = 2, useInfluences = true), "creator")
         val publicState = game.readPublicState()
         game = game.copy(
-            publicState = objectMapper.valueToTree(
+            publicState = persistedPublicState(
                 publicState.copy(
                     seats = seatedSeats(),
                     players = publicState.players.replaceAt(0, publicState.players[0].copy(credits = 10)),
@@ -1204,7 +1216,7 @@ class LunarBaseGameHandlerTest {
                 )
             )
         )
-        val staleCountGame = game.copy(publicState = objectMapper.valueToTree(nextPublicState))
+        val staleCountGame = game.copy(publicState = persistedPublicState(nextPublicState))
 
         val player = staleCountGame.readClientPublicState().players[0]
         assertEquals(LunarBaseResources(red = 1, blue = 1, yellow = 1, gray = 1), player.orbs)
@@ -1282,7 +1294,7 @@ class LunarBaseGameHandlerTest {
             "Lunar Capital"
         ).mapIndexed { index, name -> LunarBaseCard(id = "module-refill-${index + 1}", type = "module", name = name) }
         val refillReadyGame = game.copy(
-            publicState = objectMapper.valueToTree(
+            publicState = persistedPublicState(
                 publicState.copy(
                     seats = listOf(
                         LunarBaseSeat(userId = "user-1", displayName = "Ada"),
@@ -1299,7 +1311,7 @@ class LunarBaseGameHandlerTest {
                     stockCount = stock.size
                 )
             ),
-            privateState = objectMapper.valueToTree(privateState.copy(stock = stock))
+            privateState = persistedPrivateState(privateState.copy(stock = stock))
         )
 
         val passed = handler.applyCommand(
@@ -1324,7 +1336,7 @@ class LunarBaseGameHandlerTest {
         val privateState = game.readPrivateState()
         val stock = List(5) { index -> LunarBaseCard(id = "embargo-stock-${index + 1}", type = "module", name = "Rover") }
         val refillReadyGame = game.copy(
-            publicState = objectMapper.valueToTree(
+            publicState = persistedPublicState(
                 publicState.copy(
                     seats = seatedSeats(),
                     players = publicState.players.replaceAt(
@@ -1338,7 +1350,7 @@ class LunarBaseGameHandlerTest {
                     stockCount = stock.size
                 )
             ),
-            privateState = objectMapper.valueToTree(privateState.copy(stock = stock))
+            privateState = persistedPrivateState(privateState.copy(stock = stock))
         )
 
         val passed = handler.applyCommand(
@@ -1358,7 +1370,7 @@ class LunarBaseGameHandlerTest {
         val artificialIntellect = LunarBaseCard(id = "artificial-intellect", type = "module", name = "Artificial Intellect", orbs = listOf("red"))
         val stock = List(5) { index -> LunarBaseCard(id = "red-stock-${index + 1}", type = "module", name = "Rover") }
         val refillReadyGame = game.copy(
-            publicState = objectMapper.valueToTree(
+            publicState = persistedPublicState(
                 publicState.copy(
                     seats = seatedSeats(),
                     players = publicState.players.replaceAt(
@@ -1372,7 +1384,7 @@ class LunarBaseGameHandlerTest {
                     stockCount = stock.size
                 )
             ),
-            privateState = objectMapper.valueToTree(privateState.copy(stock = stock))
+            privateState = persistedPrivateState(privateState.copy(stock = stock))
         )
 
         val passed = handler.applyCommand(
@@ -1390,7 +1402,7 @@ class LunarBaseGameHandlerTest {
         val game = handler.createGame("LUNAR01", createRequest(playerCount = 2, useInfluences = true), "creator")
         val publicState = game.readPublicState()
         val readyGame = game.copy(
-            publicState = objectMapper.valueToTree(
+            publicState = persistedPublicState(
                 publicState.copy(
                     seats = seatedSeats(),
                     supply = listOf(
@@ -1402,8 +1414,11 @@ class LunarBaseGameHandlerTest {
             )
         )
 
+        val drafting = actionGame(readyGame, "draft", remaining = 2, mainActionChosen = true)
+        assertEquals(listOf("quarantine", "rover"), drafting.readClientPublicState().actionState.interaction?.targetCardIds)
+
         val blocked = handler.applyCommand(
-            actionGame(readyGame, "draft", remaining = 2, mainActionChosen = true),
+            drafting,
             command("draftSupply", publicState.version).put("slotIndex", 1),
             "user-1"
         )
@@ -1431,7 +1446,7 @@ class LunarBaseGameHandlerTest {
         val privateState = game.readPrivateState()
         val supplyCard = LunarBaseCard(id = "supply-discard", type = "module", name = "Asteroid Grinder")
         val discardReadyGame = game.copy(
-            publicState = objectMapper.valueToTree(
+            publicState = persistedPublicState(
                 publicState.copy(
                     seats = listOf(
                         LunarBaseSeat(userId = "user-1", displayName = "Ada"),
@@ -1441,7 +1456,7 @@ class LunarBaseGameHandlerTest {
                     supply = listOf(supplyCard)
                 )
             ),
-            privateState = objectMapper.valueToTree(privateState)
+            privateState = persistedPrivateState(privateState)
         )
 
         val discarded = handler.applyCommand(
@@ -1471,7 +1486,7 @@ class LunarBaseGameHandlerTest {
             "Laika Memorial"
         ).mapIndexed { index, name -> LunarBaseCard(id = "resell-stock-${index + 1}", type = "module", name = name) }
         val readyGame = game.copy(
-            publicState = objectMapper.valueToTree(
+            publicState = persistedPublicState(
                 publicState.copy(
                     seats = listOf(
                         LunarBaseSeat(userId = "user-1", displayName = "Ada"),
@@ -1484,7 +1499,7 @@ class LunarBaseGameHandlerTest {
                     stockCount = stock.size
                 )
             ),
-            privateState = objectMapper.valueToTree(privateState.copy(stock = stock))
+            privateState = persistedPrivateState(privateState.copy(stock = stock))
         )
 
         val firstResell = handler.applyCommand(
@@ -1518,7 +1533,7 @@ class LunarBaseGameHandlerTest {
         val game = handler.createGame("LUNAR01", createRequest(playerCount = 2, useInfluences = true), "creator")
         val publicState = game.readPublicState()
         val readyGame = game.copy(
-            publicState = objectMapper.valueToTree(
+            publicState = persistedPublicState(
                 publicState.copy(
                     seats = seatedSeats(),
                     supply = listOf(
@@ -1621,8 +1636,8 @@ class LunarBaseGameHandlerTest {
         val (stealingPublic, stealingPrivate) = LunarBaseActionEngine("LUNAR01", publicState.version)
             .resolve(LunarBaseMutableGame(publicState, game.readPrivateState()))
         game = game.copy(
-            publicState = objectMapper.valueToTree(stealingPublic),
-            privateState = objectMapper.valueToTree(stealingPrivate)
+            publicState = persistedPublicState(stealingPublic),
+            privateState = persistedPrivateState(stealingPrivate)
         )
 
         val prompted = handler.applyCommand(
@@ -1658,7 +1673,7 @@ class LunarBaseGameHandlerTest {
         var game = seatedGameWithPlayers { _, player -> player }
         val publicState = game.readPublicState()
         game = game.copy(
-            publicState = objectMapper.valueToTree(
+            publicState = persistedPublicState(
                 publicState.copy(supply = listOf(LunarBaseCard(id = "resell-module", type = "module", name = "Rover")))
             )
         )
@@ -1832,7 +1847,7 @@ class LunarBaseGameHandlerTest {
                 sourceCardName = "Hacker Pirate"
             )
         )
-        game = game.copy(publicState = objectMapper.valueToTree(publicState))
+        game = game.copy(publicState = persistedPublicState(publicState))
 
         val prompted = handler.applyCommand(
             game,
@@ -1923,20 +1938,20 @@ class LunarBaseGameHandlerTest {
     }
 
     @Test
-    fun publicStateDerivesMissingActionTextFromPersistedActionState() {
+    fun publicStateDerivesActionTextFromCanonicalPersistedActionState() {
         var game = handler.createGame("LUNAR01", createRequest(), "creator")
         game = handler.applyCommand(game, command("claimSeat", 1).put("seatIndex", 0).put("playerUserId", "user-1").put("displayName", "Ada"), "user-1")
         game = handler.applyCommand(game, command("claimSeat", 2).put("seatIndex", 1).put("playerUserId", "user-2").put("displayName", "Ben"), "user-1")
-        val legacyGame = actionGame(
+        val persistedGame = actionGame(
             game,
             "discard",
             remaining = 2,
             mainActionChosen = true,
             action = LunarBaseActionNode(kind = "discard", amountKind = "handSize")
-        ).withoutInteractionActionText()
+        )
 
-        assertEquals(true, legacyGame.publicState.at("/actionState/interaction/actionText").isMissingNode)
-        assertEquals("Discard cards equal to your hand size (2 left)", legacyGame.readClientPublicState().actionState.interaction?.actionText)
+        assertEquals(true, persistedGame.publicState.at("/actionState/interaction/actionText").isMissingNode)
+        assertEquals("Discard cards equal to your hand size (2 left)", persistedGame.readClientPublicState().actionState.interaction?.actionText)
     }
 
     @Test
@@ -2138,7 +2153,7 @@ class LunarBaseGameHandlerTest {
             LunarBaseCard(id = "influence-${index + 1}", type = "influence", name = "Lunar Alliance")
         }
         val readyGame = game.copy(
-            publicState = objectMapper.valueToTree(
+            publicState = persistedPublicState(
                 publicState.copy(
                     seats = listOf(
                         LunarBaseSeat(userId = "user-1", displayName = "Ada"),
@@ -2147,7 +2162,7 @@ class LunarBaseGameHandlerTest {
                     players = publicState.players.replaceAt(0, publicState.players[0].copy(influenceHandCount = 3))
                 )
             ),
-            privateState = objectMapper.valueToTree(
+            privateState = persistedPrivateState(
                 privateState.copy(hands = privateState.hands.replaceAt(0, influences))
             )
         )
@@ -2201,7 +2216,7 @@ class LunarBaseGameHandlerTest {
         action: LunarBaseActionNode = actionNode(kind, remaining),
         buttons: List<LunarBaseActionButton> = actionButtons(kind)
     ): GameRecord {
-        val publicState = game.readStoredPublicState()
+        val publicState = game.readPersistedPublicState()
         val interaction = LunarBaseActionInteraction(
             kind = kind,
             actorIndex = actorIndex,
@@ -2220,7 +2235,7 @@ class LunarBaseGameHandlerTest {
         )
         fakeCatalog.register(nextPublic)
         return game.copy(
-            publicState = objectMapper.valueToTree(
+            publicState = persistedPublicState(
                 nextPublic.toPersistedState()
             )
         )
@@ -2269,8 +2284,8 @@ class LunarBaseGameHandlerTest {
             stockCount = nextPrivate.stock.size
         )
         return game.copy(
-            publicState = objectMapper.valueToTree(nextPublic.toPersistedState()),
-            privateState = objectMapper.valueToTree(nextPrivate)
+            publicState = persistedPublicState(nextPublic),
+            privateState = persistedPrivateState(nextPrivate)
         )
     }
 
@@ -2293,15 +2308,15 @@ class LunarBaseGameHandlerTest {
             )
         )
         return game.copy(
-            publicState = objectMapper.valueToTree(nextPublic.toPersistedState()),
-            privateState = objectMapper.valueToTree(nextPrivate)
+            publicState = persistedPublicState(nextPublic),
+            privateState = persistedPrivateState(nextPrivate)
         )
     }
 
     private fun replaceCurrentPlayer(game: GameRecord, transform: (LunarBasePlayerPublic) -> LunarBasePlayerPublic): GameRecord {
         val publicState = game.readPublicState()
         val nextPublic = publicState.copy(players = publicState.players.replaceAt(0, transform(publicState.players[0])))
-        return game.copy(publicState = objectMapper.valueToTree(nextPublic))
+        return game.copy(publicState = persistedPublicState(nextPublic))
     }
 
     private fun seatedGameWithPlayers(
@@ -2311,7 +2326,7 @@ class LunarBaseGameHandlerTest {
         val game = handler.createGame("LUNAR01", createRequest(playerCount = playerCount, useInfluences = true), "creator")
         val publicState = game.readPublicState()
         return game.copy(
-            publicState = objectMapper.valueToTree(
+            publicState = persistedPublicState(
                 publicState.copy(
                     seats = List(playerCount) { index ->
                         LunarBaseSeat(userId = "user-${index + 1}", displayName = listOf("Ada", "Ben", "Cy", "Dee", "Eli", "Fay")[index])
@@ -2412,16 +2427,32 @@ class LunarBaseGameHandlerTest {
             stockCount = nextPrivate.stock.size
         )
         return game.copy(
-            publicState = objectMapper.valueToTree(nextPublic),
-            privateState = objectMapper.valueToTree(nextPrivate)
+            publicState = persistedPublicState(nextPublic),
+            privateState = persistedPrivateState(nextPrivate)
         )
     }
 
     private fun GameRecord.readPublicState(): LunarBasePublicState =
         readClientPublicState()
 
-    private fun GameRecord.readStoredPublicState(): LunarBasePublicState =
-        objectMapper.treeToValue(publicState, LunarBaseStoredPublicState::class.java)
+    private fun persistedPublicState(state: LunarBasePublicState): JsonNode {
+        fakeCatalog.register(state)
+        return objectMapper.valueToTree(state.toPersistedState())
+    }
+
+    private fun persistedPublicState(state: LunarBasePersistedPublicState): JsonNode =
+        objectMapper.valueToTree(state)
+
+    private fun persistedPrivateState(state: LunarBasePrivateState): JsonNode {
+        fakeCatalog.register(state.hands.flatten() + state.stock + state.discard + state.unseenStations)
+        return objectMapper.valueToTree(state.toPersistedState())
+    }
+
+    private fun persistedPrivateState(state: LunarBasePersistedPrivateState): JsonNode =
+        objectMapper.valueToTree(state)
+
+    private fun GameRecord.readPersistedPublicState(): LunarBasePublicState =
+        objectMapper.treeToValue(publicState, LunarBasePersistedPublicState::class.java)
             .toRuntimeState(LunarBaseCompositeRuntimeCardCatalog(fakeCatalog, LunarBaseStandardRuntimeCardCatalog))
             .normalizeCatalogCards()
             .withPrivateCounts(readPrivateState())
@@ -2431,15 +2462,9 @@ class LunarBaseGameHandlerTest {
         objectMapper.treeToValue(handler.publicState(this), LunarBasePublicState::class.java)
 
     private fun GameRecord.readPrivateState(): LunarBasePrivateState =
-        objectMapper.treeToValue(privateState, LunarBaseStoredPrivateState::class.java)
+        objectMapper.treeToValue(privateState, LunarBasePersistedPrivateState::class.java)
             .toRuntimeState(LunarBaseCompositeRuntimeCardCatalog(fakeCatalog, LunarBaseStandardRuntimeCardCatalog))
             .normalizeCatalogCards()
-
-    private fun GameRecord.withoutInteractionActionText(): GameRecord {
-        val nextPublicState = publicState.deepCopy<ObjectNode>()
-        (nextPublicState.at("/actionState/interaction") as ObjectNode).remove("actionText")
-        return copy(publicState = nextPublicState)
-    }
 
     private fun <T> List<T>.replaceAt(index: Int, value: T): List<T> =
         mapIndexed { currentIndex, current -> if (currentIndex == index) value else current }
